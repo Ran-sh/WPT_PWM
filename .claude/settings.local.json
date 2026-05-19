@@ -64,7 +64,10 @@
       "Skill(superpowers:brainstorming)",
       "Skill(superpowers:verification-before-completion)",
       "Bash(grep -v \"//\")",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(git push *)"
     ]
   }
 }

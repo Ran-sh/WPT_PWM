@@ -71,14 +71,14 @@ All `static uint32_t last` variables in task functions are per-function private 
 | Module | File | Role |
 |:---|:---|:---|
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
-| ESP8266 | `Hardware/ESP8266.c` | Async USART2 receiver, AT command state machine, TCP transparent mode; PB1 CH_PD/EN pin control with 100ms reset + 2s boot sequence |
+| ESP8266 | `Hardware/ESP8266.c` | Async USART2 receiver, AT command state machine, TCP transparent mode; PB1 CH_PD/EN pin with 500ms deep reset + USART_DeInit on retry; `ESP8266_SetWaitCallback` hook for AT-progress dot animation |
 | PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time (DEADTIME_NS macro), 50% locked duty, 95-150kHz PFM; non-blocking soft-start state machine (150k→100kHz, 200Hz/10ms step, ~2.5s); atomic `Inverter_SetState()` with irq guards; `Inverter_SoftStart_Trigger/Task/Stop/GetState/GetCurrentFreq` |
-| ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); 16-sample moving average filter on both channels |
+| ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response vs old 3.2s); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
-| OLED | `Hardware/OLED.c` | SSD1306 over bit-banged I2C (PA11-SCL, PA12-SDA), 128x64; `OLED_Clear()` before every page switch |
+| OLED | `Hardware/OLED.c` | SSD1306 over bit-banged I2C (PA11-SCL, PA12-SDA), 128x64, 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers WiFi connect then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle task) + PB5/PE5 dual-color external LED (active-low); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | KEY-triggered WiFi connect init (blocking, returns 0=success/1-6=error, failure shows 3s then allows retry); `s_NetReady` guard prevents TXE hang before USART2 init; JSON telemetry (1s); ON→Trigger (SS_IDLE guarded), OFF→Stop; `strncpy` local buffer pattern for command parsing |
+| App_Net | `User/App_Net.c` | KEY-triggered WiFi connect init (blocking, returns 0=success/1-6=error, failure shows 3s then allows retry); `s_NetReady` guard; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); `AT_DotAnim` callback for live dot animation; `strncpy` local buffer + `snprintf` |
 
 ## Startup Flow (V3.1)
 
@@ -118,7 +118,7 @@ All `static uint32_t last` variables in task functions are per-function private 
 | PC13 | GPIO (PP) | HardLED (active-low) |
 | PE5 | GPIO (PP) | LED_DS1 (active-low) |
 
-**Critical hardware note**: ESP8266 requires independent 3.3V LDO (≥500mA, e.g., AMS1117-3.3) with 100μF+0.1μF decoupling. STM32 dev board's onboard 3.3V regulator cannot supply ESP8266 WiFi bursts (~300mA). ESP8266 RST pin: connect to 3.3V via 10kΩ pull-up (CH_PD/EN on PB1 handles software reset).
+**Critical hardware note**: ESP8266 requires independent 3.3V LDO (≥500mA, e.g., AMS1117-3.3) with 100μF+0.1μF decoupling. STM32 dev board's onboard 3.3V regulator cannot supply ESP8266 WiFi bursts (~300mA). ESP8266 RST pin: connect to 3.3V via 10kΩ pull-up (CH_PD/EN on PB1 handles software reset, 500ms deep-discharge).
 
 ## USART2 / ESP8266 ISR Rules
 
@@ -150,6 +150,12 @@ The frame delimiter in `ESP8266_RxChar` must match **both** `\r` (0x0D) and `\n`
 `g_ESP8266_RxFrameFlag` is no longer `extern` in the header — all external access goes through `ESP8266_GetRxFlag()`.
 
 **`App_Net_Task` TXE hang prevention**: `s_NetReady` flag guards all USART2 access in `App_Net_Task`. The flag is set only after `App_Net_Init` succeeds. Before networking, `App_Net_Task` returns immediately — no `ESP8266_SendString` calls on uninitialized USART2.
+
+**Remote command protocol**: PC must send `CMD:ON` / `CMD:OFF` (not bare `ON`/`OFF`). This prevents false triggers from "JSON", "CONNECT" etc. When ESP8266 sends "CLOSED" (physical disconnect), `App_Net_Task` immediately calls `Inverter_SoftStart_Stop()` then resets `wifi_connected` — entirely non-blocking, no `SysTimer_DelayMs`.
+
+**AT progress dot animation**: `ESP8266_SetWaitCallback(AT_DotAnim)` registers a callback called every ~10ms from `ESP8266_WaitResponse`'s polling loop. The callback updates OLED line 3 with cycling dots (200ms throttle). Cleared after the AT sequence completes.
+
+**ADC calibration timing**: After `ADC_Cmd(ENABLE)`, a short stabilization delay (~2μs) is required before `ADC_ResetCalibration` per STM32 reference manual (t_STAB ≥ 2 ADC cycles). Without it, calibration includes power-up noise causing reference drift.
 
 ## PWM Safety Rules
 

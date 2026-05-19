@@ -340,6 +340,37 @@ float Get_Real_Voltage(void) {
 - 观察 JSON 数据上报 → 下发 ON/OFF 验证闭环
 - 常见故障速查表
 
+### 2.10 ADC 独立滤波任务 (V3.1)
+
+`ADC_Filter_Task` 以 2ms 周期独立运行, 与 UI/App_Net 调用频率完全解耦:
+
+```c
+void ADC_Filter_Task(void) {
+    static uint32_t last = 0;
+    if (SysTimer_GetTick() - last < 2) return;  // 2ms 节拍
+    last = SysTimer_GetTick();
+    // 推入样本 → 更新滑动平均 → 存入 s_voltage / s_current
+}
+float Get_Real_Voltage(void) { return s_voltage; }  // O(1) 直接返回
+```
+
+响应延迟 32ms (16×2ms) vs 旧方案 3.2s (16×200ms)。
+
+**ADC 校准时序**: `ADC_Cmd(ENABLE)` 后须等待 t_STAB ≥ 2 ADC 周期才能校准, 否则基准漂移。
+
+### 2.11 远程指令协议 (V3.1)
+
+- **CMD:ON / CMD:OFF** 严格格式, 防 "JSON"/"CONNECT" 子串误触发
+- **CLOSED 处理**: 检测到断线立即 `Inverter_SoftStart_Stop()` → `UI_SetWiFiConnected(0)` → `s_NetReady=0`, 全程非阻塞
+- **AT 进度点动画**: `ESP8266_SetWaitCallback(AT_DotAnim)` 注册回调, WaitResponse 轮询时每 10ms 触发, 回调内 200ms 节流更新 OLED 点动画
+
+### 2.12 OLED 性能优化 (V3.1)
+
+软件 I2C 全屏清屏 `OLED_Clear` 耗时 ~100ms (1024 bytes), 会阻塞所有保护任务。优化策略:
+- 状态迁移/切页: 仍用 `OLED_Clear` (罕见, 可接受)
+- 日常 200ms 刷新: 16 字符全宽行覆盖, 不调用清屏
+- 扫频频率行: `snprintf` 合并为单次 `OLED_ShowString`, 替代 6 次独立写入
+
 ## 5. 默认输出三段式
 
 1. **第一部分 — 底层核心代码**: 所有变动 `.c`/`.h` 文件, 独立 Markdown 代码块, 详尽中文注释
