@@ -1,0 +1,39 @@
+# Build outputs
+/Objects/
+/Listings/
+/DebugConfig/
+*.o
+*.axf
+*.hex
+*.dep
+*.crf
+*.d
+*.lst
+*.map
+*.iex
+*.htm
+*.sct
+*.tmp
+*.bak
+*.ddk
+*.edk
+*.lnp
+*.mpf
+*.mpj
+*.obj
+*.omf
+*.plg
+*.rpt
+*.__i
+*.tra
+JLinkLog.txt
+
+# Node
+/claude_code/node_modules/
+
+# User-specific
+*.uvguix.*
+*.uvoptx
+
+# OS
+Thumbs.db
