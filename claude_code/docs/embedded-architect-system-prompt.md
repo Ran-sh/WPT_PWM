@@ -119,7 +119,7 @@ uint8_t cmd_off = (strstr(localBuf, "OFF") != NULL);
 - `extern g_ESP8266_RxFrameFlag` 不得出现在 `.h` 中——外部通过 `ESP8266_GetRxFlag()` 访问
 - `ESP8266_ClearRxBuffer` 和 `ESP8266_ClearRxFlag` 均完整清空 buffer (`s_RxBuf[0]='\0'`)、重置游标 (`s_RxIndex=0`) 并清除两个帧标志, 全部在临界区内执行。杜绝 `ClearRxFlag` 只清标志不清 buffer 的幽灵指令残留
 
-### 2.5 main.c 极简原则 (V3.1: KEY 触发联网)
+### 2.5 main.c 极简原则 (V3.3: KEY 触发联网 + 静默看门狗)
 
 ```c
 int main(void) {
@@ -131,14 +131,14 @@ int main(void) {
     while (1) {
         KEY_Task();
         UI_Task();                  // KEY0→联网, KEY0→Trigger, KEY1→Stop
-        App_Net_Task();             // s_NetReady 门禁防 TXE 死锁
+        App_Net_Task();             // s_WiFiConnected 门禁防 TXE 死锁
         Inverter_SoftStart_Task();  // 非阻塞扫频步进
         HardLED_Task();
     }
 }
 ```
 
-**联网流程**: 上电不自动联网。KEY0 单击触发 `App_Net_Init()` (阻塞 20~30s, 返回 uint8_t: 0=成功, 1~6=错误码)。成功→IDLE 待机; 失败→OLED 显示错误码 3 秒→自动回待联网界面→KEY0 可重试, 无需复位 MCU。联网成功后再次 KEY0 单击触发软启动扫频。App_Net_Task 内部 `s_NetReady` 标志门禁。
+**联网流程**: 上电不自动联网。KEY0 单击触发 `App_Net_Init()` (阻塞 20~30s, 返回 uint8_t: 0=成功, 1~6=错误码)。成功→IDLE 待机; 失败→OLED 显示错误码 3 秒→自动回待联网界面→KEY0 可重试, 无需复位 MCU。联网成功后再次 KEY0 单击触发软启动扫频。App_Net_Task 内部 `s_WiFiConnected` 标志门禁, 同时包含 15s 静默看门狗检测 ESP8266 离线。
 
 **按键映射 (V3.1)**:
 - KEY0 单击: 未联网→联网 / SS_IDLE→Trigger 扫频 / SS_DONE→Stop 关断
@@ -158,10 +158,11 @@ uint32_t PWM_SetFrequency(uint32_t freq_Hz);  // 95k~150k 硬限幅, 50% 锁定
 uint32_t PWM_GetFrequency(void);
 
 // 非阻塞软启动扫频 (150kHz → 100kHz, 200Hz/步, 10ms/步, ~2.5s)
-typedef enum { SS_IDLE=0, SS_SWEEP=1, SS_DONE=2 } SoftStart_State_t;
+typedef enum { SS_IDLE=0, SS_SWEEP=1, SS_DONE=2, SS_FAULT=3 } SoftStart_State_t;
 void               Inverter_SoftStart_Trigger(void);
 void               Inverter_SoftStart_Task(void);
 void               Inverter_SoftStart_Stop(void);
+void               Inverter_SoftStart_Fault(void);    /* 紧急过流关断, SS_FAULT 锁存, 仅 KEY0/KEY1 复位 */
 SoftStart_State_t  Inverter_SoftStart_GetState(void);
 uint32_t           Inverter_SoftStart_GetCurrentFreq(void);
 ```
@@ -361,7 +362,8 @@ float Get_Real_Voltage(void) { return s_voltage; }  // O(1) 直接返回
 ### 2.11 远程指令协议 (V3.1)
 
 - **CMD:ON / CMD:OFF** 严格格式, 防 "JSON"/"CONNECT" 子串误触发
-- **CLOSED 处理**: 检测到断线立即 `Inverter_SoftStart_Stop()` → `UI_SetWiFiConnected(0)` → `s_NetReady=0`, 全程非阻塞
+- **CLOSED 处理 (V3.2)**: 检测到断线立即 `Inverter_SoftStart_Stop()` → `s_WiFiConnected=0`, 全程非阻塞
+- **静默看门狗 (V3.3)**: `ESP8266_RxChar` 每字节记录 `s_LastRxTick`, `App_Net_Task` 检测 15s 无数据 (`ESP8266_SILENT_TIMEOUT`) → `Inverter_SoftStart_Stop()` + `s_WiFiConnected=0`, 覆盖 ESP8266 掉电/卡死不发 CLOSED 的场景。Cortex-M3 上 uint32_t 对齐读写原子, 无需临界区
 - **AT 进度点动画**: `ESP8266_SetWaitCallback(AT_DotAnim)` 注册回调, WaitResponse 轮询时每 10ms 触发, 回调内 200ms 节流更新 OLED 点动画
 
 ### 2.12 OLED 性能优化 (V3.1)
@@ -492,7 +494,7 @@ Step 8: 重新生成双份文件
 - 读取 ISR 共享缓冲区 (`s_RxBuf`) 时不关 `USART_IT_RXNE` 中断 (首选 strncpy 到局部缓冲区)
 - 引用 `System/Delay.h`——该模块直接重编程 SysTick，与 SysTimer 冲突
 - `ESP8266_ClearRxFlag` 只清标志不清 buffer——必须同时清空 `s_RxBuf`、重置 `s_RxIndex`、清除双标志, 且全在临界区内
-- USART2 未初始化时调用 `ESP8266_SendString`——必须用 `s_NetReady` 门禁保护
+- USART2 未初始化时调用 `ESP8266_SendString`——必须用 `s_WiFiConnected` 门禁保护
 - `DEADTIME_REG_VAL` 超过 127 不报错——必须编译期断言 `<= 127`
 - 运行时直接写 `s_ss_state`——必须通过 `Inverter_SetState()` 原子接口
 - AI 生成的文件散落在项目根目录——必须统一放在 `claude_code/` 下

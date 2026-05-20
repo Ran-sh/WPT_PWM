@@ -71,16 +71,16 @@ All `static uint32_t last` variables in task functions are per-function private 
 | Module | File | Role |
 |:---|:---|:---|
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
-| ESP8266 | `Hardware/ESP8266.c` | Async USART2 receiver, AT command state machine, TCP transparent mode; PB1 CH_PD/EN pin with 500ms deep reset + USART_DeInit on retry; `ESP8266_SetWaitCallback` hook for AT-progress dot animation |
+| ESP8266 | `Hardware/ESP8266.c` | Async USART2 receiver, AT command state machine, TCP transparent mode; PB1 CH_PD/EN pin with 1000ms deep reset + AT+RST software reset; `ESP8266_SetWaitCallback` hook for AT-progress dot animation; `ESP8266_GetLastRxTime()` for silent watchdog; 15s `ESP8266_SILENT_TIMEOUT` for offline detection |
 | PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time (DEADTIME_NS macro), 50% locked duty, 95-150kHz PFM; non-blocking soft-start state machine (150k→100kHz, 200Hz/10ms step, ~2.5s); atomic `Inverter_SetState()` with irq guards; `Inverter_SoftStart_Trigger/Task/Stop/GetState/GetCurrentFreq` |
 | ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response vs old 3.2s); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
-| OLED | `Hardware/OLED.c` | SSD1306 over bit-banged I2C (PA11-SCL, PA12-SDA), 128x64, 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking |
+| OLED | `Hardware/OLED.c` | OLED1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers WiFi connect then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle task) + PB5/PE5 dual-color external LED (active-low); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | KEY-triggered WiFi connect init (blocking, returns 0=success/1-6=error, failure shows 3s then allows retry); `s_NetReady` guard; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); `AT_DotAnim` callback for live dot animation; `strncpy` local buffer + `snprintf` |
+| App_Net | `User/App_Net.c` | V3.2 async 9-state AT FSM (NET_IDLE→NET_STEP_AT→...→NET_SUCCESS/FAIL), KEY1 cancelable, 3-retry auto-fallback; `s_WiFiConnected` single authority source + USART2 ready gate; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); **V3.3 silent watchdog**: 15s no RX data → `Inverter_SoftStart_Stop` + `s_WiFiConnected=0`; `snprintf` for JSON buffer safety |
 
-## Startup Flow (V3.1)
+## Startup Flow (V3.3)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → HardLED → ADC_DMA → KEY
@@ -152,7 +152,7 @@ The frame delimiter in `ESP8266_RxChar` must match **both** `\r` (0x0D) and `\n`
 
 `g_ESP8266_RxFrameFlag` is no longer `extern` in the header — all external access goes through `ESP8266_GetRxFlag()`.
 
-**`App_Net_Task` TXE hang prevention**: `s_NetReady` flag guards all USART2 access in `App_Net_Task`. The flag is set only after `App_Net_Init` succeeds. Before networking, `App_Net_Task` returns immediately — no `ESP8266_SendString` calls on uninitialized USART2.
+**`App_Net_Task` TXE hang prevention**: `s_WiFiConnected` flag guards all USART2 access in `App_Net_Task`. The flag is set only after async networking succeeds (`NET_SUCCESS`). Before networking, `App_Net_Task` returns immediately — no `ESP8266_SendString` calls on uninitialized USART2.
 
 **Remote command protocol**: PC must send `CMD:ON` / `CMD:OFF` (not bare `ON`/`OFF`). This prevents false triggers from "JSON", "CONNECT" etc. When ESP8266 sends "CLOSED" (physical disconnect), `App_Net_Task` immediately calls `Inverter_SoftStart_Stop()` then resets `wifi_connected` — entirely non-blocking, no `SysTimer_DelayMs`.
 
@@ -174,11 +174,12 @@ The frame delimiter in `ESP8266_RxChar` must match **both** `\r` (0x0D) and `\n`
 ### Soft-Start State Machine (Non-Blocking)
 
 ```c
-typedef enum { SS_IDLE=0, SS_SWEEP=1, SS_DONE=2 } SoftStart_State_t;
+typedef enum { SS_IDLE=0, SS_SWEEP=1, SS_DONE=2, SS_FAULT=3 } SoftStart_State_t;
 
 void Inverter_SoftStart_Trigger(void);   // SS_IDLE → SS_SWEEP, 开 MOE
-void Inverter_SoftStart_Task(void);      // 主循环调用, 2ms 时间戳步进
+void Inverter_SoftStart_Task(void);      // 主循环调用, 10ms 时间戳步进
 void Inverter_SoftStart_Stop(void);      // 关 MOE → SS_IDLE
+void Inverter_SoftStart_Fault(void);     // 紧急关断 → SS_FAULT (仅 KEY0/KEY1 可复位)
 ```
 
 ### Atomic State Transition
@@ -204,6 +205,31 @@ TIM_OC2PreloadConfig(TIM1, TIM_OCPreload_Enable);
 Without preload, runtime ARR/CCR changes can cause cycle distortion and shoot-through.
 
 `PWM_SetFrequency` uses `TIM_CR1_UDIS`→write ARR+CCR1+CCR2→`TIM_EGR_UG`→clear UDIS to atomically load all shadow registers. This prevents Update Event between writes causing new-period-with-old-duty-cycle magnetic saturation.
+
+### ESP8266 Silent Watchdog (V3.3)
+
+**Problem**: When ESP8266 module loses power independently (MCU still running), USART2 goes silent — no `CLOSED` frame is sent. PWM continues outputting with no remote shutdown capability.
+
+**Solution**: `ESP8266_RxChar()` records `s_LastRxTick = SysTimer_GetTick()` on every received byte. `App_Net_Task` checks each iteration:
+
+```c
+if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
+    Inverter_SoftStart_Stop();  // immediate PWM shutdown
+    s_WiFiConnected = 0;        // UI returns to "Press KEY0 WiFi"
+}
+```
+
+`ESP8266_SILENT_TIMEOUT = 15000` (15 seconds). On Cortex-M3, aligned 32-bit `s_LastRxTick` read/write is atomic — no critical section needed. `ESP8266_Init()` seeds the timestamp so the first 15s window starts with a fresh value.
+
+**Coverage matrix**:
+
+| Scenario | Trigger | Action |
+|:---|:---|:---|
+| TCP正常断开 | `CLOSED` frame | Immediate PWM off (existing) |
+| ESP8266掉电 | 15s RX silence | PWM off + wifi reset |
+| ESP8266卡死 | 15s RX silence | PWM off + wifi reset |
+| STM32掉电后上电 | `PWM_Init(MOE=OFF)` | Safe at boot |
+| PC长期不发指令 | TCP ACK刷新时间戳 | No false trigger |
 
 ### ADC Filtering (Bug #5 Fix)
 

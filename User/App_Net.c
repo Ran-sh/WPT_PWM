@@ -175,6 +175,13 @@ void App_Net_Task(void)
 {
     if (!s_WiFiConnected) return;   /* USART2 未初始化, 禁止发送/接收 */
 
+    /* ── ESP8266 静默看门狗: 15s 无数据 → 判定离线 → 关 PWM ── */
+    if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
+        Inverter_SoftStart_Stop();
+        s_WiFiConnected = 0;
+        return;
+    }
+
     /* ── 子功能 1: 定时遥测上报 (时间戳差值法, 每 1000ms) ── */
     {
         static uint32_t last_telemetry = 0;
