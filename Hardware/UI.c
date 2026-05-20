@@ -218,12 +218,14 @@ void UI_Task(void)
     static uint8_t  last_ss_state = 0xFF;
     uint8_t         need_refresh  = 0;
 
+    SoftStart_State_t ss = Inverter_SoftStart_GetState();
+
+    /* SWEEP/DONE 需实时更新, IDLE/FAULT 仅在状态变化时重绘 */
     if (SysTimer_GetTick() - last_oled >= 200) {
         last_oled = SysTimer_GetTick();
-        need_refresh = 1;
+        if (ss == SS_SWEEP || ss == SS_DONE)
+            need_refresh = 1;
     }
-
-    SoftStart_State_t ss = Inverter_SoftStart_GetState();
     uint8_t key0 = KEY_Get_Event(0);
     uint8_t key1 = KEY_Get_Event(1);
 
