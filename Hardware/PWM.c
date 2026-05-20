@@ -205,10 +205,18 @@ uint32_t PWM_SetFrequency(uint32_t freq_Hz)
     arr = (uint16_t)(ticks - 1);
     ccr = (uint16_t)(ticks / 2);      /* 50% 绝对居中 */
 
-    /* ── 同步刷新寄存器 (先 ARR 后 CCR, 预装载自动同步) ── */
+    /*
+     * 原子更新: 暂停影子寄存器传输, 写入 ARR+CCR1+CCR2,
+     * 软件触发 UE 事件一次性加载, 再恢复硬件更新。
+     * 防止 Update Event 在 ARR 和 CCR 写入之间触发,
+     * 导致新周期配旧占空比 → 偏磁 → 炸机。
+     */
+    TIM1->CR1 |= TIM_CR1_UDIS;           /* 暂停影子寄存器加载 */
     TIM_SetAutoreload(TIM1, arr);
     TIM_SetCompare1(TIM1, ccr);
     TIM_SetCompare2(TIM1, ccr);
+    TIM1->EGR |= TIM_EGR_UG;            /* 软件触发更新, 原子加载全部影子寄存器 */
+    TIM1->CR1 &= (uint16_t)(~TIM_CR1_UDIS); /* 恢复硬件更新 */
 
     return TIM1_CLK_HZ / ticks;
 }
