@@ -67,33 +67,44 @@ void ESP8266_Init(void)
 
     /*
      * ═══════════════════════════════════════════════════════════════
-     *  ESP8266 硬件深度复位 (解决多次联网必须重上电 VCC 的问题)
+     *  ESP8266 硬件深度复位 — 解决 "必须重上电 VCC" 的根因
      * ═══════════════════════════════════════════════════════════════
      *
-     *  根因: 透传模式下 ESP8266 固件状态机卡死, 短脉冲 CH_PD 无法
-     *        彻底清除内部状态。仅靠 CH_PD 硬件复位不够, 必须加软件
-     *        AT+RST 双重复位。
+     *  根因: ESP8266 通过 RXD/TXD 引脚反向漏电 (IO 钳位二极管),
+     *        CH_PD 拉低后模块并未真正掉电, 透传模式状态残存。
      *
-     *  步骤:
-     *    1. CH_PD 拉低 1000ms — 确保内部电容完全放电
-     *    2. CH_PD 拉高, 等待 2000ms — 固件冷启动 + RF 校准
-     *    3. 发送 AT+RST — 软件复位固件状态机 (清除透传/残留连接)
-     *    4. 等待 "ready" 响应 — 确认 ESP8266 完全就绪
+     *  修复: CH_PD 拉低前先将 PA2/PA3 设为 GPIO 输出低电平,
+     *        切断反向供电通路, 确保模块完全掉电。
      *
-     *  此序列确保每次联网都是完全干净的起点, 绝不依赖上一次的残留状态。
+     *  完整序列:
+     *    1. PA2/PA3 → GPIO 输出低 (切断漏电路径)
+     *    2. CH_PD 拉低 1000ms (真正掉电)
+     *    3. CH_PD 拉高 2000ms (冷启动)
+     *    4. PA2/PA3 → 恢复 USART2 功能
+     *    5. +++ 退出透传 (兜底, 1s 静默前后)
+     *    6. AT+RST 固件软复位, 等 "ready"
+     *
+     *  此序列彻底切断 ESP8266 电源, 等同于物理拔插 VCC。
      */
-    GPIO_ResetBits(GPIOB, GPIO_Pin_1);   /* CH_PD = 0 → 模块完全断电 */
-    SysTimer_DelayMs(1000);              /* 1000ms 深度放电 */
-    GPIO_SetBits(GPIOB, GPIO_Pin_1);     /* CH_PD = 1 → 模块冷启动 */
-    SysTimer_DelayMs(2000);              /* 等待固件启动 + RF 校准 */
+    /* ── 1. 关 PA2/PA3, 切断反向漏电 ── */
+    GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_2 | GPIO_Pin_3;
+    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_Out_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+    GPIO_ResetBits(GPIOA, GPIO_Pin_2 | GPIO_Pin_3);  /* 输出低电平 */
 
-    /* ── 2. 配置 TX 引脚: PA2 (复用推挽输出) ── */
+    /* ── 2. CH_PD 深度放电 ── */
+    GPIO_ResetBits(GPIOB, GPIO_Pin_1);   /* CH_PD = 0 */
+    SysTimer_DelayMs(1000);
+    GPIO_SetBits(GPIOB, GPIO_Pin_1);     /* CH_PD = 1, 冷启动 */
+    SysTimer_DelayMs(2000);
+
+    /* ── 3. 恢复 PA2/PA3 为 USART2 ── */
     GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_2;
     GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF_PP;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-    /* ── 3. 配置 RX 引脚: PA3 (浮空输入) ── */
     GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_3;
     GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_IN_FLOATING;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
