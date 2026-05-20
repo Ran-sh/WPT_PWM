@@ -110,7 +110,7 @@ static void UI_DrawPage0(SoftStart_State_t ss)
             OLED_ShowString(1, 1, "[Control Mode] ");
             OLED_ShowString(2, 1, "State: IDLE   ");
             OLED_ShowString(3, 1, "Press KEY0 start");
-            OLED_ShowString(4, 1, "F:  --.- kHz    ");
+            OLED_ShowString(4, 1, "F:  --.- kHz     ");
             break;
 
         case SS_SWEEP:
@@ -277,7 +277,7 @@ void UI_Task(void)
                     OLED_ShowString(1, 1, "[Control Mode] ");
                     OLED_ShowString(2, 1, "WiFi: DISCONN  ");
                     OLED_ShowString(3, 1, "Press KEY0 WiFi");
-                    OLED_ShowString(4, 1, "F:  --.- kHz    ");
+                    OLED_ShowString(4, 1, "F:  --.- kHz     ");
                 }
             }
         } else {
