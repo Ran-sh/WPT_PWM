@@ -213,7 +213,7 @@ void UI_Task(void)
                 if (need_refresh) {
                     OLED_ShowString(1, 1, "[Control Mode] ");
                     OLED_ShowString(2, 1, "WiFi Connecting ");
-                    OLED_ShowString(3, 1, "KEY1: Cancel    ");
+                    OLED_ShowString(4, 1, "KEY1: Cancel    ");
                 }
             } else if (ns == NET_FAIL) {
                 /* NET_FAIL: 错误码已由 App_Net_Connect_Task 显示, 等 3s 自动恢复 */

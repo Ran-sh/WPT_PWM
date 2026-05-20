@@ -81,11 +81,14 @@ static void AT_DotAnim(void)
     if (SysTimer_GetTick() - last < 200) return;   /* 200ms 换一次 */
     last = SysTimer_GetTick();
 
-    dot = (dot + 1) % 3;
+    /* 点循环: 1→2→3→4→5→1→2→... 连续跳动直到联网结束 */
+    dot = (dot + 1) % 5;
     switch (dot) {
-        case 0: OLED_ShowString(3, 1, "AT Init.        "); break;
-        case 1: OLED_ShowString(3, 1, "AT Init..       "); break;
-        case 2: OLED_ShowString(3, 1, "AT Init...      "); break;
+        case 0: OLED_ShowString(3, 1, "Connecting.    "); break;
+        case 1: OLED_ShowString(3, 1, "Connecting..   "); break;
+        case 2: OLED_ShowString(3, 1, "Connecting...  "); break;
+        case 3: OLED_ShowString(3, 1, "Connecting.... "); break;
+        case 4: OLED_ShowString(3, 1, "Connecting..... "); break;
     }
 }
 
