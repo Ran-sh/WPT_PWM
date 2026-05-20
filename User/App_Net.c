@@ -255,9 +255,10 @@ void App_Net_Connect_Trigger(void)
 {
     if (s_net_state != NET_IDLE) return;
 
-    Inverter_SoftStart_Stop();
-    ESP8266_Init();
-
+    /*
+     * ESP8266_Init 已在 main.c 启动阶段预初始化,
+     * 此处仅重置状态机和缓冲区, 直接进入 AT 序列
+     */
     s_net_state   = NET_STEP_AT;
     s_net_retry   = 0;
     s_net_cancel  = 0;
@@ -265,7 +266,7 @@ void App_Net_Connect_Trigger(void)
     s_net_sending = 1;
     s_net_tstart  = SysTimer_GetTick();
 
-    ESP8266_SetWaitCallback(AT_DotAnim);
+    ESP8266_ClearRxBuffer();
 }
 
 void App_Net_Connect_Cancel(void)
