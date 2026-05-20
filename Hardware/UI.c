@@ -63,7 +63,7 @@ static uint8_t UI_TryConnectWiFi(void)
     LED_Update_WiFi(LED_FAST);
     OLED_Clear();
     OLED_ShowString(1, 1, "[Control Mode] ");
-    OLED_ShowString(2, 1, "Init ESP8266... ");
+    OLED_ShowString(2, 1, "WiFi Connecting ");
     App_Net_Connect_Trigger();
     return 1;
 }
@@ -258,7 +258,7 @@ void UI_Task(void)
                 if (key1 == 1) App_Net_Connect_Cancel();
                 if (need_refresh) {
                     OLED_ShowString(1, 1, "[Control Mode] ");
-                    OLED_ShowString(2, 1, "Init ESP8266... ");
+                    OLED_ShowString(2, 1, "WiFi Connecting ");
                     OLED_ShowString(4, 1, "KEY1: Cancel    ");
                 }
             } else if (ns == NET_FAIL) {
