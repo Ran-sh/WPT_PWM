@@ -53,7 +53,7 @@
 |:---|:---|
 | [软件架构与开发者指南](claude_code/docs/软件架构与开发者指南.md) | 完整技术架构 |
 | [PC端联调操作指南](claude_code/docs/PC端联调操作指南.md) | NetAssist 配置 |
-| [LabVIEW上位机构建指南](claude_code/docs/LabVIEW上位机构建指南.md) | LabVIEW 上位机 |
+| [LabVIEW上位机构建指南](claude_code/docs/LabVIEW上位机构建指南.md) | LabVIEW 上位机 (⚠️ 未完成) |
 | [CLAUDE.md](CLAUDE.md) | AI 辅助开发规范 |
 
 ## 许可
