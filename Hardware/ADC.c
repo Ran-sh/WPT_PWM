@@ -109,24 +109,27 @@ void ADC_Filter_Task(void)
     last = SysTimer_GetTick();
 
     /* ── 电压通道 (运行累加器 O(1)) ── */
-    s_vbuf[s_vidx] = ADC_ConvertedValue[1];
-    s_vaccum += s_vbuf[s_vidx];                    /* 加新值 */
-    if (s_vfilled >= ADC_FILTER_WINDOW) {
-        s_vaccum -= s_vbuf[(s_vidx + 1) % ADC_FILTER_WINDOW]; /* 减最旧值 */
+    {
+        uint16_t old_v = s_vbuf[s_vidx];              /* 先保存最旧值 */
+        s_vbuf[s_vidx] = ADC_ConvertedValue[1];       /* 覆盖 */
+        s_vaccum += s_vbuf[s_vidx];                   /* 加新值 */
+        if (s_vfilled >= ADC_FILTER_WINDOW)
+            s_vaccum -= old_v;                        /* 减真正的旧值 */
+        s_vidx = (s_vidx + 1) % ADC_FILTER_WINDOW;
+        if (s_vfilled < ADC_FILTER_WINDOW) s_vfilled++;
     }
-    s_vidx = (s_vidx + 1) % ADC_FILTER_WINDOW;
-    if (s_vfilled < ADC_FILTER_WINDOW) s_vfilled++;
-
     s_voltage = ((float)(s_vaccum / s_vfilled) / 4095.0f) * VREF_MCU * 20.0f;
 
     /* ── 电流通道 (运行累加器 O(1)) ── */
-    s_cbuf[s_cidx] = ADC_ConvertedValue[0];
-    s_caccum += s_cbuf[s_cidx];                    /* 加新值 */
-    if (s_cfilled >= ADC_FILTER_WINDOW) {
-        s_caccum -= s_cbuf[(s_cidx + 1) % ADC_FILTER_WINDOW]; /* 减最旧值 */
+    {
+        uint16_t old_c = s_cbuf[s_cidx];              /* 先保存最旧值 */
+        s_cbuf[s_cidx] = ADC_ConvertedValue[0];       /* 覆盖 */
+        s_caccum += s_cbuf[s_cidx];                   /* 加新值 */
+        if (s_cfilled >= ADC_FILTER_WINDOW)
+            s_caccum -= old_c;                        /* 减真正的旧值 */
+        s_cidx = (s_cidx + 1) % ADC_FILTER_WINDOW;
+        if (s_cfilled < ADC_FILTER_WINDOW) s_cfilled++;
     }
-    s_cidx = (s_cidx + 1) % ADC_FILTER_WINDOW;
-    if (s_cfilled < ADC_FILTER_WINDOW) s_cfilled++;
 
     pin_v     = ((float)(s_caccum / s_cfilled) / 4095.0f) * VREF_MCU;
     s_current = (pin_v - I_OFFSET) / I_SENSITIVITY;

@@ -222,7 +222,14 @@ void UI_Task(void)
                     OLED_ShowString(4, 1, "KEY1: Cancel    ");
                 }
             } else if (ns == NET_FAIL) {
-                /* NET_FAIL: 错误码已由 App_Net_Connect_Task 显示, 等 3s 自动恢复 */
+                /* NET_FAIL: UI 负责显示错误码, 3s 后自动恢复 */
+                if (need_refresh) {
+                    uint8_t err = App_Net_GetErrorCode();
+                    OLED_ShowString(1, 1, "!!! WiFi Error !!!");
+                    OLED_ShowString(2, 1, "Err Code:       ");
+                    OLED_ShowNum(2, 11, err, 1);
+                    OLED_ShowString(3, 1, "Retry in 3s...  ");
+                }
             } else {
                 /* NET_IDLE: 等待触发 */
                 if (key0 == 1) UI_TryConnectWiFi();

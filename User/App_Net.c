@@ -287,11 +287,10 @@ void App_Net_Connect_Task(void)
     char localBuf[64];
     uint8_t has_err, has_ok;
 
-    /* ── NET_FAIL 自动恢复 ── */
+    /* ── NET_FAIL 自动恢复 (UI_Task 处理显示) ── */
     if (s_net_state == NET_FAIL) {
         if (SysTimer_GetTick() - s_net_tstart >= 3000) {
             s_net_state = NET_IDLE;
-            OLED_Clear();
         }
         return;
     }
@@ -370,10 +369,6 @@ on_timeout:
             s_net_state = NET_FAIL;
             s_net_tstart = SysTimer_GetTick();  /* 用于 3s 定时 */
             ESP8266_SetWaitCallback(NULL);
-            OLED_Clear();
-            OLED_ShowString(1, 1, "!!! WiFi Error !!!");
-            OLED_ShowString(2, 1, "Err Code:");
-            OLED_ShowNum(2, 11, s_net_error, 1);
             LED_Update_WiFi(LED_OFF);
             return;
         }
@@ -393,10 +388,6 @@ on_timeout:
             s_net_state = NET_FAIL;
             s_net_tstart = SysTimer_GetTick();
             ESP8266_SetWaitCallback(NULL);
-            OLED_Clear();
-            OLED_ShowString(1, 1, "!!! WiFi Error !!!");
-            OLED_ShowString(2, 1, "Err Code:");
-            OLED_ShowNum(2, 11, s_net_error, 1);
             LED_Update_WiFi(LED_OFF);
             return;
         }
@@ -415,13 +406,6 @@ on_success:
         ESP8266_SetWaitCallback(NULL);
         s_NetReady      = 1;
         s_WiFiConnected = 1;
-        OLED_Clear();
-        OLED_ShowString(1, 1, "WiFi Connected!");
-        OLED_ShowString(2, 1, "TCP: OK");
-        OLED_ShowString(3, 1, "Port:");
-        OLED_ShowNum(3, 6, SERVER_PORT, 5);
-        SysTimer_DelayMs(2000);
-        OLED_Clear();
         LED_Update_WiFi(LED_OFF);
         return;
     }
