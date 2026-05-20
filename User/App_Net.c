@@ -62,6 +62,15 @@ static void Net_Remote_On(void)
 static uint8_t s_NetReady      = 0;   /* 0: USART2 未初始化, 屏蔽 Task 操作 */
 static uint8_t s_WiFiConnected = 0;   /* WiFi 状态唯一权威源, UI 通过 App_Net_IsConnected 查询 */
 
+/* ── V3.2 非阻塞联网状态机 ── */
+static NetState_t s_net_state   = NET_IDLE;
+static uint8_t    s_net_retry   = 0;
+static uint32_t   s_net_tstart  = 0;
+static uint8_t    s_net_error   = 0;
+static uint8_t    s_net_cancel  = 0;
+static uint8_t    s_net_sending  = 0;   /* 1=需发送指令, 0=等响应 */
+static char       s_net_cmdbuf[128];
+
 /* AT 等待期间点动画回调 (由 ESP8266_WaitResponse 轮询时调用, ~10ms/次) */
 static void AT_DotAnim(void)
 {
@@ -232,4 +241,175 @@ void App_Net_Task(void)
 uint8_t App_Net_IsConnected(void)
 {
     return s_WiFiConnected;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *              V3.2 非阻塞联网状态机
+ * ═══════════════════════════════════════════════════════════════ */
+
+void App_Net_Connect_Trigger(void)
+{
+    if (s_net_state != NET_IDLE) return;
+
+    Inverter_SoftStart_Stop();
+    ESP8266_Init();
+
+    s_net_state   = NET_STEP_AT;
+    s_net_retry   = 0;
+    s_net_cancel  = 0;
+    s_net_error   = 0;
+    s_net_sending = 1;
+    s_net_tstart  = SysTimer_GetTick();
+
+    ESP8266_SetWaitCallback(AT_DotAnim);
+}
+
+void App_Net_Connect_Cancel(void)
+{
+    if (s_net_state > NET_IDLE && s_net_state < NET_SUCCESS)
+        s_net_cancel = 1;
+}
+
+NetState_t App_Net_GetConnectState(void) { return s_net_state; }
+uint8_t    App_Net_GetErrorCode(void)    { return s_net_error; }
+
+void App_Net_Connect_Task(void)
+{
+    uint16_t tmo;
+    char localBuf[64];
+    uint8_t has_err, has_ok;
+
+    /* ── NET_FAIL 自动恢复 ── */
+    if (s_net_state == NET_FAIL) {
+        if (SysTimer_GetTick() - s_net_tstart >= 3000) {
+            s_net_state = NET_IDLE;
+            OLED_Clear();
+        }
+        return;
+    }
+
+    if (s_net_state <= NET_IDLE || s_net_state >= NET_SUCCESS)
+        return;
+
+    /* ── KEY1 取消 ── */
+    if (s_net_cancel) {
+        s_net_cancel = 0;
+        s_net_state  = NET_IDLE;
+        ESP8266_SetWaitCallback(NULL);
+        LED_Update_WiFi(LED_OFF);
+        return;
+    }
+
+    /* ═══════ 阶段 A: 发送指令 ═══════ */
+    if (s_net_sending) {
+        s_net_sending = 0;
+        s_net_tstart  = SysTimer_GetTick();
+        ESP8266_ClearRxBuffer();
+
+        switch (s_net_state) {
+            case NET_STEP_AT:
+                ESP8266_SendString("AT\r\n"); break;
+            case NET_STEP_CWMODE:
+                ESP8266_SendString("AT+CWMODE=1\r\n"); break;
+            case NET_STEP_CWJAP:
+                snprintf(s_net_cmdbuf, sizeof(s_net_cmdbuf),
+                    "AT+CWJAP=\"%s\",\"%s\"\r\n", WIFI_SSID, WIFI_PASSWORD);
+                ESP8266_SendString(s_net_cmdbuf); break;
+            case NET_STEP_CIPSTART:
+                snprintf(s_net_cmdbuf, sizeof(s_net_cmdbuf),
+                    "AT+CIPSTART=\"TCP\",\"%s\",%u\r\n", SERVER_IP, SERVER_PORT);
+                ESP8266_SendString(s_net_cmdbuf); break;
+            case NET_STEP_CIPMODE:
+                ESP8266_SendString("AT+CIPMODE=1\r\n"); break;
+            case NET_STEP_CIPSEND:
+                ESP8266_SendString("AT+CIPSEND\r\n"); break;
+            default: break;
+        }
+        return;
+    }
+
+    /* ═══════ 阶段 B: 轮询响应 ═══════ */
+
+    /* CIPSEND: 应答是 ">" 不带 \r\n */
+    if (s_net_state == NET_STEP_CIPSEND) {
+        const char *rx = ESP8266_GetRxBuffer();
+        uint8_t got;
+        USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
+        got = (strstr(rx, ">") != NULL);
+        USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+        if (got) { s_net_state = NET_SUCCESS; goto on_success; }
+        if (SysTimer_GetTick() - s_net_tstart >= ESP8266_CMD_TIMEOUT) goto on_timeout;
+        return;
+    }
+
+    /* 其余步骤: 等帧标志 */
+    if (!ESP8266_GetRxFlag()) {
+        tmo = (s_net_state == NET_STEP_CWJAP)  ? ESP8266_WIFI_TIMEOUT
+            : (s_net_state == NET_STEP_CIPSTART) ? ESP8266_TCP_TIMEOUT
+            :                                      ESP8266_CMD_TIMEOUT;
+        if (SysTimer_GetTick() - s_net_tstart < tmo) return;
+
+on_timeout:
+        s_net_retry++;
+        if (s_net_retry >= 3) {
+            s_net_error = (uint8_t)(s_net_state - NET_STEP_AT + 1);
+            s_net_state = NET_FAIL;
+            s_net_tstart = SysTimer_GetTick();  /* 用于 3s 定时 */
+            ESP8266_SetWaitCallback(NULL);
+            OLED_Clear();
+            OLED_ShowString(1, 1, "!!! WiFi Error !!!");
+            OLED_ShowString(2, 1, "Err Code:");
+            OLED_ShowNum(2, 11, s_net_error, 1);
+            LED_Update_WiFi(LED_OFF);
+            return;
+        }
+        s_net_sending = 1;
+        return;
+    }
+
+    /* OK/ERROR 判断 */
+    ESP8266_CopyRxFrame(localBuf, sizeof(localBuf));
+    has_err = (strstr(localBuf, "ERROR") || strstr(localBuf, "FAIL"));
+    has_ok  = (strstr(localBuf, "OK") != NULL);
+
+    if (has_err) {
+        s_net_retry++;
+        if (s_net_retry >= 3) {
+            s_net_error = (uint8_t)(s_net_state - NET_STEP_AT + 1);
+            s_net_state = NET_FAIL;
+            s_net_tstart = SysTimer_GetTick();
+            ESP8266_SetWaitCallback(NULL);
+            OLED_Clear();
+            OLED_ShowString(1, 1, "!!! WiFi Error !!!");
+            OLED_ShowString(2, 1, "Err Code:");
+            OLED_ShowNum(2, 11, s_net_error, 1);
+            LED_Update_WiFi(LED_OFF);
+            return;
+        }
+        s_net_sending = 1;
+        return;
+    }
+
+    if (!has_ok) return;
+
+    /* OK → 下一步 */
+    s_net_retry = 0;
+    s_net_state = (NetState_t)((uint8_t)s_net_state + 1);
+
+    if (s_net_state == NET_SUCCESS) {
+on_success:
+        ESP8266_SetWaitCallback(NULL);
+        s_NetReady      = 1;
+        s_WiFiConnected = 1;
+        OLED_Clear();
+        OLED_ShowString(1, 1, "WiFi Connected!");
+        OLED_ShowString(2, 1, "TCP: OK");
+        OLED_ShowString(3, 1, "Port:");
+        OLED_ShowNum(3, 6, SERVER_PORT, 5);
+        SysTimer_DelayMs(2000);
+        OLED_Clear();
+        LED_Update_WiFi(LED_OFF);
+        return;
+    }
+    s_net_sending = 1;
 }

@@ -52,6 +52,7 @@ int main(void)
         ADC_Filter_Task();          /* 2ms 周期, 独立更新滑动平均 */
         UI_Task();
         App_Net_Task();
+        App_Net_Connect_Task();      /* 非阻塞联网步进 */
         Inverter_SoftStart_Task();  /* 非阻塞扫频步进 (内部 10ms 节拍) */
         LED_Task();
     }

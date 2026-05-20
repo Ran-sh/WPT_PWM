@@ -50,32 +50,11 @@ static void UI_UpdateLEDs(SoftStart_State_t ss)
 /* ── 联网触发 (返回 1=已触发 0=未触发) ── */
 static uint8_t UI_TryConnectWiFi(void)
 {
-    uint8_t ret;
-
-    OLED_ShowString(1, 1, "[Control Mode] ");
-    OLED_ShowString(2, 1, "WiFi Connecting ");
-    OLED_ShowString(3, 1, "Please wait...  ");
-    OLED_ShowString(4, 1, "                ");
-
-    Inverter_SoftStart_Stop();
-
-    /* 点跳动 + LED 闪 (150ms/帧) */
-    LED_WiFi_ON();  OLED_ShowString(3, 1, "Please wait.    "); SysTimer_DelayMs(150);
-    LED_WiFi_OFF(); OLED_ShowString(3, 1, "Please wait..   "); SysTimer_DelayMs(150);
-    LED_WiFi_ON();  OLED_ShowString(3, 1, "Please wait...  "); SysTimer_DelayMs(150);
-    LED_WiFi_OFF(); OLED_ShowString(3, 1, "Please wait.... "); SysTimer_DelayMs(150);
-    LED_WiFi_ON();  OLED_ShowString(3, 1, "Please wait..... "); SysTimer_DelayMs(150);
-    LED_WiFi_OFF(); OLED_ShowString(3, 1, "Please wait.    "); SysTimer_DelayMs(150);
-    LED_WiFi_ON();  OLED_ShowString(3, 1, "Please wait..   "); SysTimer_DelayMs(150);
+    App_Net_Connect_Trigger();
     LED_Update_WiFi(LED_SOLID);
-
     OLED_Clear();
     OLED_ShowString(1, 1, "[Control Mode] ");
     OLED_ShowString(2, 1, "WiFi Connecting ");
-    ret = App_Net_Init();
-
-    LED_Update_WiFi((ret == 0) ? LED_SOLID : LED_OFF);
-    UI_ClearAllLines();
     return 1;
 }
 
@@ -226,12 +205,27 @@ void UI_Task(void)
     if (UI_Page == 0) {
         /* 控制面板 */
         if (!App_Net_IsConnected()) {
-            if (key0 == 1) { UI_TryConnectWiFi(); need_refresh = 0; }
-            else if (need_refresh) {
-                OLED_ShowString(1, 1, "[Control Mode] ");
-                OLED_ShowString(2, 1, "WiFi: DISCONN  ");
-                OLED_ShowString(3, 1, "Press KEY0 WiFi");
-                OLED_ShowString(4, 1, "F:  --.- kHz    ");
+            NetState_t ns = App_Net_GetConnectState();
+
+            if (ns > NET_IDLE && ns < NET_SUCCESS) {
+                /* ── 联网进行中 ── */
+                if (key1 == 1) App_Net_Connect_Cancel();
+                if (need_refresh) {
+                    OLED_ShowString(1, 1, "[Control Mode] ");
+                    OLED_ShowString(2, 1, "WiFi Connecting ");
+                    OLED_ShowString(3, 1, "KEY1: Cancel    ");
+                }
+            } else if (ns == NET_FAIL) {
+                /* NET_FAIL: 错误码已由 App_Net_Connect_Task 显示, 等 3s 自动恢复 */
+            } else {
+                /* NET_IDLE: 等待触发 */
+                if (key0 == 1) UI_TryConnectWiFi();
+                else if (need_refresh) {
+                    OLED_ShowString(1, 1, "[Control Mode] ");
+                    OLED_ShowString(2, 1, "WiFi: DISCONN  ");
+                    OLED_ShowString(3, 1, "Press KEY0 WiFi");
+                    OLED_ShowString(4, 1, "F:  --.- kHz    ");
+                }
             }
         } else {
             UI_HandleKeys(key0, key1, ss);
