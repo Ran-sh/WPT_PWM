@@ -97,7 +97,7 @@ static void UI_HandleKeys(uint8_t key0, uint8_t key1, SoftStart_State_t ss)
 }
 
 /* ── 页面 0: 控制面板 ── */
-static void UI_DrawPage0(SoftStart_State_t ss)
+static void UI_DrawPage0(SoftStart_State_t ss, uint8_t full)
 {
     uint32_t f;
     uint32_t progress;
@@ -107,6 +107,7 @@ static void UI_DrawPage0(SoftStart_State_t ss)
 
     switch (ss) {
         case SS_IDLE:
+            if (!full) return;  /* 周期刷新跳过, 仅状态迁移/切页时绘制 */
             OLED_ShowString(1, 1, "[Control Mode] ");
             OLED_ShowString(2, 1, "State: IDLE   ");
             OLED_ShowString(3, 1, "Press KEY0 start");
@@ -149,6 +150,7 @@ static void UI_DrawPage0(SoftStart_State_t ss)
             break;
 
         case SS_FAULT:
+            if (!full) return;
             OLED_ShowString(1, 1, "!!! FAULT !!!   ");
             OLED_ShowString(2, 1, "Over Current    ");
             OLED_ShowString(3, 1, "PWM Disabled    ");
@@ -158,12 +160,13 @@ static void UI_DrawPage0(SoftStart_State_t ss)
 }
 
 /* ── 页面 1: 锁屏监控 ── */
-static void UI_DrawPage1(SoftStart_State_t ss)
+static void UI_DrawPage1(SoftStart_State_t ss, uint8_t full)
 {
     uint32_t f;
 
     switch (ss) {
         case SS_IDLE:
+            if (!full) return;
             OLED_ShowString(1, 1, "- Monitor Only -");
             OLED_ShowString(2, 1, "State: IDLE    ");
             OLED_ShowString(3, 1, "Waiting trigger ");
@@ -200,6 +203,7 @@ static void UI_DrawPage1(SoftStart_State_t ss)
             break;
 
         case SS_FAULT:
+            if (!full) return;
             OLED_ShowString(1, 1, "- Monitor Only -");
             OLED_ShowString(2, 1, "!!! FAULT !!!   ");
             OLED_ShowString(3, 1, "Over Current    ");
@@ -217,23 +221,24 @@ void UI_Task(void)
     static uint32_t last_oled     = 0;
     static uint8_t  last_ss_state = 0xFF;
     uint8_t         need_refresh  = 0;
+    uint8_t         full_refresh  = 0;   /* 1=完整绘制, 0=仅更新动态内容 */
 
-    SoftStart_State_t ss = Inverter_SoftStart_GetState();
-
-    /* SWEEP/DONE 需实时更新, IDLE/FAULT 仅在状态变化时重绘 */
     if (SysTimer_GetTick() - last_oled >= 200) {
         last_oled = SysTimer_GetTick();
-        if (ss == SS_SWEEP || ss == SS_DONE)
-            need_refresh = 1;
+        need_refresh = 1;
+        /* full_refresh stays 0 → periodic refresh, skip static lines */
     }
+
+    SoftStart_State_t ss = Inverter_SoftStart_GetState();
     uint8_t key0 = KEY_Get_Event(0);
     uint8_t key1 = KEY_Get_Event(1);
 
-    /* 状态迁移 → 全屏清零 */
+    /* 状态迁移 → 全屏清零 + 完整重绘 */
     if (ss != last_ss_state) {
         last_ss_state = ss;
         OLED_Clear();
         need_refresh = 1;
+        full_refresh = 1;
         last_oled = SysTimer_GetTick();
     }
 
@@ -246,6 +251,7 @@ void UI_Task(void)
         UI_Page = !UI_Page;
         UI_ClearAllLines();
         need_refresh = 1;
+        full_refresh = 1;
         last_oled = SysTimer_GetTick();
     }
 
@@ -284,21 +290,11 @@ void UI_Task(void)
             }
         } else {
             UI_HandleKeys(key0, key1, ss);
-            if (need_refresh) {
-                static SoftStart_State_t last_drawn_ss = (SoftStart_State_t)0xFF;
-                if (ss != SS_IDLE || last_drawn_ss != SS_IDLE)
-                    UI_DrawPage0(ss);
-                last_drawn_ss = ss;
-            }
+            if (need_refresh) UI_DrawPage0(ss, full_refresh);
         }
     } else {
         /* 锁屏监控 */
-        if (need_refresh) {
-            static SoftStart_State_t last_drawn_ss_m = (SoftStart_State_t)0xFF;
-            if (ss != SS_IDLE || last_drawn_ss_m != SS_IDLE)
-                UI_DrawPage1(ss);
-            last_drawn_ss_m = ss;
-        }
+        if (need_refresh) UI_DrawPage1(ss, full_refresh);
     }
 }
 
