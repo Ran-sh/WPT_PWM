@@ -28,8 +28,11 @@ static float    s_current  = 0.0f;
 
 static uint16_t s_vbuf[ADC_FILTER_WINDOW] = {0};
 static uint8_t  s_vidx = 0, s_vfilled = 0;
+static uint32_t s_vaccum = 0;                          /* 电压运行累加器 */
+
 static uint16_t s_cbuf[ADC_FILTER_WINDOW] = {0};
 static uint8_t  s_cidx = 0, s_cfilled = 0;
+static uint32_t s_caccum = 0;                          /* 电流运行累加器 */
 
 void ADC_DMA_Init(void)
 {
@@ -100,30 +103,32 @@ void ADC_DMA_Init(void)
 void ADC_Filter_Task(void)
 {
     static uint32_t last = 0;
-    uint32_t sum;
-    uint8_t  i;
-    float    pin_v;
+    float pin_v;
 
     if (SysTimer_GetTick() - last < 2) return;
     last = SysTimer_GetTick();
 
-    /* ── 电压通道 ── */
+    /* ── 电压通道 (运行累加器 O(1)) ── */
     s_vbuf[s_vidx] = ADC_ConvertedValue[1];
+    s_vaccum += s_vbuf[s_vidx];                    /* 加新值 */
+    if (s_vfilled >= ADC_FILTER_WINDOW) {
+        s_vaccum -= s_vbuf[(s_vidx + 1) % ADC_FILTER_WINDOW]; /* 减最旧值 */
+    }
     s_vidx = (s_vidx + 1) % ADC_FILTER_WINDOW;
     if (s_vfilled < ADC_FILTER_WINDOW) s_vfilled++;
 
-    sum = 0;
-    for (i = 0; i < s_vfilled; i++) sum += s_vbuf[i];
-    s_voltage = ((float)(sum / s_vfilled) / 4095.0f) * VREF_MCU * 20.0f;
+    s_voltage = ((float)(s_vaccum / s_vfilled) / 4095.0f) * VREF_MCU * 20.0f;
 
-    /* ── 电流通道 ── */
+    /* ── 电流通道 (运行累加器 O(1)) ── */
     s_cbuf[s_cidx] = ADC_ConvertedValue[0];
+    s_caccum += s_cbuf[s_cidx];                    /* 加新值 */
+    if (s_cfilled >= ADC_FILTER_WINDOW) {
+        s_caccum -= s_cbuf[(s_cidx + 1) % ADC_FILTER_WINDOW]; /* 减最旧值 */
+    }
     s_cidx = (s_cidx + 1) % ADC_FILTER_WINDOW;
     if (s_cfilled < ADC_FILTER_WINDOW) s_cfilled++;
 
-    sum = 0;
-    for (i = 0; i < s_cfilled; i++) sum += s_cbuf[i];
-    pin_v     = ((float)(sum / s_cfilled) / 4095.0f) * VREF_MCU;
+    pin_v     = ((float)(s_caccum / s_cfilled) / 4095.0f) * VREF_MCU;
     s_current = (pin_v - I_OFFSET) / I_SENSITIVITY;
 }
 

@@ -16,6 +16,7 @@
 #define __APP_NET_H
 
 uint8_t App_Net_Init(void);  /* 返回 0=成功, 1~6=错误码; 失败后可按 KEY0 重试 */
-void App_Net_Task(void);
+void    App_Net_Task(void);
+uint8_t App_Net_IsConnected(void);  /* WiFi 已连接? 1=是 0=否 */
 
 #endif

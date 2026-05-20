@@ -348,3 +348,34 @@ void ESP8266_ClearRxBuffer(void)
     g_ESP8266_RxFrameFlag = 0;
     USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
 }
+
+/**
+ * @brief  原子帧读取: 单一临界区内拷贝缓冲区并清空
+ * @param  dst: 目标数组
+ * @param  max_len: 最大拷贝长度 (含 '\0')
+ * @retval 实际拷贝的字节数 (不含 '\0')
+ * @note   替代 App_Net 中手动 strncpy + ClearRxBuffer 的两步操作,
+ *         杜绝嵌套临界区 (ClearRxBuffer 内部重新开中断导致的保护窗口)
+ */
+uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len)
+{
+    uint16_t len = 0;
+
+    USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
+
+    /* 拷贝 */
+    while (len < max_len - 1 && s_RxBuf[len] != '\0') {
+        dst[len] = s_RxBuf[len];
+        len++;
+    }
+    dst[len] = '\0';
+
+    /* 清空 */
+    s_RxBuf[0]            = '\0';
+    s_RxIndex             = 0;
+    s_FrameReady          = 0;
+    g_ESP8266_RxFrameFlag = 0;
+
+    USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+    return len;
+}

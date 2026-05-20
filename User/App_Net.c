@@ -59,7 +59,8 @@ static void Net_Remote_On(void)
 /**
  * @brief  WiFi 远程关机 (通过 PWM 模块安全关断 + 同步 UI 状态)
  */
-static uint8_t s_NetReady = 0;   /* 0: USART2 未初始化, 屏蔽 Task 操作 */
+static uint8_t s_NetReady      = 0;   /* 0: USART2 未初始化, 屏蔽 Task 操作 */
+static uint8_t s_WiFiConnected = 0;   /* WiFi 状态唯一权威源, UI 通过 App_Net_IsConnected 查询 */
 
 /* AT 等待期间点动画回调 (由 ESP8266_WaitResponse 轮询时调用, ~10ms/次) */
 static void AT_DotAnim(void)
@@ -147,8 +148,9 @@ uint8_t App_Net_Init(void)
     SysTimer_DelayMs(2000);  /* 成功画面停留 2s (含 PB3 LED 常亮指示) */
     OLED_Clear();
 
-    s_NetReady = 1;   /* USART2 + ESP8266 已就绪, App_Net_Task 可以安全发送 */
-    return 0;          /* 联网成功 */
+    s_NetReady      = 1;
+    s_WiFiConnected = 1;   /* WiFi 状态唯一权威源 */
+    return 0;
 }
 
 /**
@@ -191,19 +193,11 @@ void App_Net_Task(void)
     {
         char localBuf[128];
 
-        /*
-         * 临界区: 关中断 → 拷贝 → 清空 buffer → 恢复中断
-         * ClearRxBuffer 必须在开中断前执行, 防止新帧被误清
-         */
-        USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
-        strncpy(localBuf, ESP8266_GetRxBuffer(), sizeof(localBuf) - 1);
-        localBuf[sizeof(localBuf) - 1] = '\0';
-        ESP8266_ClearRxBuffer();   /* ← 必须在开中断前, 防新帧丢失 */
-        USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+        /* 原子读取: 单一临界区内拷贝+清空, 无嵌套开中断风险 */
+        ESP8266_CopyRxFrame(localBuf, sizeof(localBuf));
 
-        /* 严格指令格式: CMD:ON / CMD:OFF, 防 "JSON"/"CONNECT" 误触发 */
-        uint8_t cmd_on   = (strstr(localBuf, "CMD:ON")  != NULL);
-        uint8_t cmd_off  = (strstr(localBuf, "CMD:OFF") != NULL);
+        uint8_t cmd_on    = (strstr(localBuf, "CMD:ON")  != NULL);
+        uint8_t cmd_off   = (strstr(localBuf, "CMD:OFF") != NULL);
         uint8_t cmd_closed = (strstr(localBuf, "CLOSED") != NULL);
 
         if (cmd_on)
@@ -227,10 +221,15 @@ void App_Net_Task(void)
              * 全程非阻塞, 不调用任何 DelayMs
              * UI 下一帧检测到 wifi_connected=0 后自动显示重连界面
              */
-            Inverter_SoftStart_Stop();          /* 先关硬件, 防失控炸机 */
+            Inverter_SoftStart_Stop();
             UI_SetBridgeState(0);
-            UI_SetWiFiConnected(0);
-            s_NetReady = 0;
+            s_NetReady      = 0;
+            s_WiFiConnected = 0;   /* 断线: 权威源清 0 */
         }
     }
+}
+
+uint8_t App_Net_IsConnected(void)
+{
+    return s_WiFiConnected;
 }

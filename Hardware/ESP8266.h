@@ -40,4 +40,7 @@ void     ESP8266_RxChar(uint8_t ch);
 /* WaitResponse 轮询回调 (用于 OLED 点动画等, NULL=不使用) */
 void     ESP8266_SetWaitCallback(void (*cb)(void));
 
+/* 原子读取帧: 临界区内拷贝+清空, 返回拷贝字节数 */
+uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len);
+
 #endif /* __ESP8266_H */
