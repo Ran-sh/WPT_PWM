@@ -187,8 +187,11 @@ void ESP8266_SendString(char *str)
  */
 void ESP8266_RxChar(uint8_t ch)
 {
-    /* ── 缓冲区溢出保护：丢弃前一半旧数据 ── */
-    if (s_RxIndex >= ESP8266_RX_BUF_SIZE - 1)
+    /*
+     * 缓冲区溢出保护: 必须为 '\0' 留一个字节 (s_RxBuf[s_RxIndex+1])
+     * 因此判据为 size-2 (511→510), 否则写入 \0 时越界覆写相邻内存
+     */
+    if (s_RxIndex >= ESP8266_RX_BUF_SIZE - 2)
     {
         memmove(s_RxBuf,
                 s_RxBuf + (ESP8266_RX_BUF_SIZE / 2),

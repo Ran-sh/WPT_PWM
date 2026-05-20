@@ -77,8 +77,13 @@ static void UI_HandleKeys(uint8_t key0, uint8_t key1, SoftStart_State_t ss)
         if (ss == SS_SWEEP)
             Inverter_SoftStart_Stop();
         else if (ss == SS_DONE) {
+            /*
+             * 频率微调: 仅允许 +1kHz, 150k 封顶不绕回。
+             * 绝不允许从 150k 跳回 100k — 没有软启动的保护,
+             * 瞬间砸入谐振点会产生毁灭性浪涌电流炸毁 MOSFET。
+             */
             uint32_t f = PWM_GetFrequency() + 1000;
-            PWM_SetFrequency((f > 150000) ? 100000 : f);
+            if (f <= 150000) PWM_SetFrequency(f);
         }
     }
 }
