@@ -283,7 +283,7 @@ void UI_Task(void)
         } else {
             UI_HandleKeys(key0, key1, ss);
             if (need_refresh) {
-                static SoftStart_State_t last_drawn_ss = 0xFF;
+                static SoftStart_State_t last_drawn_ss = (SoftStart_State_t)0xFF;
                 if (ss != SS_IDLE || last_drawn_ss != SS_IDLE)
                     UI_DrawPage0(ss);
                 last_drawn_ss = ss;
@@ -292,7 +292,7 @@ void UI_Task(void)
     } else {
         /* 锁屏监控 */
         if (need_refresh) {
-            static SoftStart_State_t last_drawn_ss_m = 0xFF;
+            static SoftStart_State_t last_drawn_ss_m = (SoftStart_State_t)0xFF;
             if (ss != SS_IDLE || last_drawn_ss_m != SS_IDLE)
                 UI_DrawPage1(ss);
             last_drawn_ss_m = ss;
