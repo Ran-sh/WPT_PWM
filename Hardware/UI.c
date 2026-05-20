@@ -216,12 +216,16 @@ static void UI_DrawPage1(SoftStart_State_t ss, uint8_t full)
  *  UI_Task — 主调度器
  * ═══════════════════════════════════════════════════════════════ */
 
+static uint8_t ui_force_full = 0;   /* 联网完成后强制完整绘制一次 */
+
 void UI_Task(void)
 {
     static uint32_t last_oled     = 0;
     static uint8_t  last_ss_state = 0xFF;
     uint8_t         need_refresh  = 0;
-    uint8_t         full_refresh  = 0;   /* 1=完整绘制, 0=仅更新动态内容 */
+    uint8_t         full_refresh  = 0;
+
+    if (ui_force_full) { ui_force_full = 0; full_refresh = 1; need_refresh = 1; }
 
     if (SysTimer_GetTick() - last_oled >= 200) {
         last_oled = SysTimer_GetTick();
