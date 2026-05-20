@@ -114,7 +114,7 @@ uint8_t App_Net_Init(void)
     /* ── 1. USART2 硬件初始化 (含 PB1 EN 引脚上电时序, 内部已延时 2s) ── */
     ESP8266_Init();
 
-    OLED_ShowString(2, 1, "WiFi Connecting");
+    OLED_ShowString(2, 1, "WiFi Connecting ");
 
     /* AT Init 点跳动: .→..→...→.→..→... 循环 */
     OLED_ShowString(3, 1, "AT Init.        "); SysTimer_DelayMs(200);
@@ -133,18 +133,18 @@ uint8_t App_Net_Init(void)
     {
         /* 联网失败: 显示错误码 3 秒后返回, 让用户重试 */
         OLED_Clear();
-        OLED_ShowString(1, 1, "!!! WiFi Error !!!");
-        OLED_ShowString(2, 1, "Err Code:");
+        OLED_ShowString(1, 1, "!! WiFi Error !! ");
+        OLED_ShowString(2, 1, "Err Code:       ");
         OLED_ShowNum(2, 11, connRet, 1);
-        OLED_ShowString(3, 1, "Check:");
+        OLED_ShowString(3, 1, "Check:          ");
         switch (connRet)
         {
-            case 1: OLED_ShowString(4, 1, "No AT Response");  break;
-            case 2: OLED_ShowString(4, 1, "CWMODE Fail");     break;
-            case 3: OLED_ShowString(4, 1, "WiFi Connect Fail"); break;
-            case 4: OLED_ShowString(4, 1, "TCP Connect Fail");  break;
-            case 5: OLED_ShowString(4, 1, "CIPMODE Fail");    break;
-            case 6: OLED_ShowString(4, 1, "CIPSEND Fail");    break;
+            case 1: OLED_ShowString(4, 1, "No AT Response  "); break;
+            case 2: OLED_ShowString(4, 1, "CWMODE Fail     "); break;
+            case 3: OLED_ShowString(4, 1, "WiFi Conn Fail  "); break;
+            case 4: OLED_ShowString(4, 1, "TCP Conn Fail   "); break;
+            case 5: OLED_ShowString(4, 1, "CIPMODE Fail    "); break;
+            case 6: OLED_ShowString(4, 1, "CIPSEND Fail    "); break;
             default: break;
         }
         SysTimer_DelayMs(3000);  /* 停留 3 秒看清错误码, 然后返回让用户重试 */
@@ -153,9 +153,9 @@ uint8_t App_Net_Init(void)
 
     /* ── 3. 联网成功提示 ── */
     OLED_Clear();
-    OLED_ShowString(1, 1, "WiFi Connected!");
-    OLED_ShowString(2, 1, "TCP: OK");
-    OLED_ShowString(3, 1, "Port:");
+    OLED_ShowString(1, 1, "WiFi Connected! ");
+    OLED_ShowString(2, 1, "TCP: OK         ");
+    OLED_ShowString(3, 1, "Port:           ");
     OLED_ShowNum(3, 6, SERVER_PORT, 5);
     SysTimer_DelayMs(2000);  /* 成功画面停留 2s (含 PB3 LED 常亮指示) */
     OLED_Clear();
@@ -215,12 +215,12 @@ void App_Net_Task(void)
         if (cmd_on)
         {
             Net_Remote_On();
-            OLED_ShowString(4, 1, "CMD: Remote ON ");
+            OLED_ShowString(4, 1, "CMD: Remote ON  ");
         }
         else if (cmd_off)
         {
             Net_Remote_Off();
-            OLED_ShowString(4, 1, "CMD: Remote OFF");
+            OLED_ShowString(4, 1, "CMD: Remote OFF ");
         }
 
         /*

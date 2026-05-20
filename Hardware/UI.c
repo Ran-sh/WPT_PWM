@@ -117,7 +117,7 @@ static void UI_DrawPage0(SoftStart_State_t ss)
             f = Inverter_SoftStart_GetCurrentFreq();
             progress = (SOFTSTART_START_FREQ_HZ - f) * 10
                      / (SOFTSTART_START_FREQ_HZ - 100000UL);
-            OLED_ShowString(1, 1, "[Sweeping...]  ");
+            OLED_ShowString(1, 1, "[Sweeping...]   ");
             snprintf(fline, sizeof(fline), "Freq:%3lu.%1lukHz ",
                      (unsigned long)(f / 1000),
                      (unsigned long)((f % 1000) / 100));
@@ -133,15 +133,19 @@ static void UI_DrawPage0(SoftStart_State_t ss)
 
         case SS_DONE:
             f = PWM_GetFrequency();
-            OLED_ShowString(1, 1, "[Resonant Mode] ");
-            OLED_ShowString(2, 1, "F:");
-            OLED_ShowNum(2, 3, f / 1000, 3);
-            OLED_ShowString(2, 6, "kHz  ");
-            OLED_ShowString(3, 1, "V:");
-            OLED_ShowFloatNum(3, 3, Get_Real_Voltage(), 2, 1);
-            OLED_ShowString(3, 9, "I:");
-            OLED_ShowFloatNum(3, 11, Get_Real_Current(), 1, 2);
-            OLED_ShowString(4, 1, "K0:Stop K1:+1k ");
+            {
+                char dline[17];
+                OLED_ShowString(1, 1, "[Resonant Mode] ");
+                snprintf(dline, sizeof(dline), "F:%3lukHz         ",
+                         (unsigned long)(f / 1000));
+                dline[16] = '\0';
+                OLED_ShowString(2, 1, dline);
+                snprintf(dline, sizeof(dline), "V:%-4.1fV I:%-4.2fA",
+                         Get_Real_Voltage(), Get_Real_Current());
+                dline[16] = '\0';
+                OLED_ShowString(3, 1, dline);
+                OLED_ShowString(4, 1, "K0:Stop K1:+1k ");
+            }
             break;
 
         case SS_FAULT:
@@ -169,21 +173,30 @@ static void UI_DrawPage1(SoftStart_State_t ss)
             f = Inverter_SoftStart_GetCurrentFreq();
             OLED_ShowString(1, 1, "- Monitor Only -");
             OLED_ShowString(2, 1, "Sweeping...    ");
-            OLED_ShowString(3, 1, "F:");
-            OLED_ShowNum(3, 3, f / 1000, 3);
-            OLED_ShowString(3, 6, "kHz");
+            {
+                char mline[17];
+                snprintf(mline, sizeof(mline), "F:%3lukHz         ",
+                         (unsigned long)(f / 1000));
+                mline[16] = '\0';
+                OLED_ShowString(3, 1, mline);
+            }
             break;
 
         case SS_DONE:
-            f = PWM_GetFrequency();
-            OLED_ShowString(1, 1, "- Monitor Only -");
-            OLED_ShowString(2, 1, "Freq: ");
-            OLED_ShowNum(2, 7, f / 1000, 3);
-            OLED_ShowString(2, 10, "kHz");
-            OLED_ShowString(3, 1, "Volt: ");
-            OLED_ShowFloatNum(3, 7, Get_Real_Voltage(), 2, 2);
-            OLED_ShowString(4, 1, "Curr: ");
-            OLED_ShowFloatNum(4, 7, Get_Real_Current(), 2, 2);
+            {
+                char mline[17];
+                f = PWM_GetFrequency();
+                OLED_ShowString(1, 1, "- Monitor Only -");
+                snprintf(mline, sizeof(mline), "F:%3lukHz         ",
+                         (unsigned long)(f / 1000));
+                mline[16] = '\0';
+                OLED_ShowString(2, 1, mline);
+                snprintf(mline, sizeof(mline), "V:%-4.1fV I:%-4.2fA",
+                         Get_Real_Voltage(), Get_Real_Current());
+                mline[16] = '\0';
+                OLED_ShowString(3, 1, mline);
+                OLED_ShowString(4, 1, "                ");
+            }
             break;
 
         case SS_FAULT:
@@ -252,7 +265,7 @@ void UI_Task(void)
                 /* NET_FAIL: UI 负责显示错误码, 3s 后自动恢复 */
                 if (need_refresh) {
                     uint8_t err = App_Net_GetErrorCode();
-                    OLED_ShowString(1, 1, "!!! WiFi Error !!!");
+                    OLED_ShowString(1, 1, "!! WiFi Error !! ");
                     OLED_ShowString(2, 1, "Err Code:       ");
                     OLED_ShowNum(2, 11, err, 1);
                     OLED_ShowString(3, 1, "Retry in 3s...  ");
