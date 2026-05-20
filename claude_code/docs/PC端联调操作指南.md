@@ -189,13 +189,14 @@ ipconfig
 
 | 发送内容 | 预期单片机响应 |
 |:---|:---|
-| `ON` | OLED 底部显示 `CMD: Remote ON`，PWM 输出开启 (可用示波器观察 PA7/PA8/PA9/PB0 引脚波形) |
-| `OFF` | OLED 底部显示 `CMD: Remote OFF`，PWM 输出关闭，所有引脚高阻态 |
+| `CMD:ON` | OLED 显示 `CMD: Remote ON`，触发软启动扫频 150k→100kHz (~2.5s) |
+| `CMD:OFF` | OLED 显示 `CMD: Remote OFF`，PWM 输出关闭，全桥安全关断 |
 
-> 📌 **指令注意**:
-> - 指令区分大小写，请使用大写 **`ON`** 和 **`OFF`**
-> - 每次发送后应能看到单片机 OLED 反馈
-> - 如果发送后无反应: 检查 NetAssist 客户端列表中是否有已连接的客户端 (应显示 ESP8266 的 IP)
+> 📌 **V3.2 指令注意**:
+> - 必须使用 **`CMD:ON`** / **`CMD:OFF`** (旧版 `ON`/`OFF` 已废弃, 会误匹配 "JSON"/"CONNECT")
+> - 联网成功后需先 `CMD:ON` 触发扫频, 扫频完成后方可遥控
+> - KEY1 可在联网期间取消联网
+> - 如 ESP8266 断线, NetAssist 客户端列表会消失, 单片机自动回待联网界面
 
 ### 5.4 闭环测试检查清单
 
@@ -206,8 +207,8 @@ ipconfig
 | ✅ 3 | NetAssist 启动 | TCP Server 模式, 端口 8080, 已点击开启监听 |
 | ✅ 4 | 单片机联网 | OLED 显示 "WiFi Connected! TCP: OK" |
 | ✅ 5 | 上行数据 | NetAssist 每 1 秒收到一条 JSON |
-| ✅ 6 | 下行 ON 指令 | 发送 `ON`, 单片机 OLED 显示 "Remote ON", PWM 使能 |
-| ✅ 7 | 下行 OFF 指令 | 发送 `OFF`, 单片机 OLED 显示 "Remote OFF", PWM 关闭 |
+| ✅ 6 | 下行 ON 指令 | 发送 `CMD:ON`, 单片机 OLED 显示 "Remote ON", 扫频 150k→100kHz |
+| ✅ 7 | 下行 OFF 指令 | 发送 `CMD:OFF`, 单片机 OLED 显示 "Remote OFF", PWM 关闭 |
 
 ---
 
@@ -257,6 +258,6 @@ graph TD
 
 ---
 
-> 📅 文档版本: v1.1  
-> 📝 最后更新: 2026-05-18  
+> 📅 文档版本: v1.2  
+> 📝 最后更新: 2026-05-20  
 > 🔗 关联文件: `Hardware/ESP8266.c`, `Hardware/ESP8266.h`, `User/App_Net.c`, `Tools/deploy_netassist.ps1`
