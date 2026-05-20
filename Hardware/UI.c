@@ -48,9 +48,12 @@ static void UI_UpdateLEDs(SoftStart_State_t ss)
     else
         LED_Update_PWM(LED_OFF);
 
-    /* PB5 Ready */
-    LED_Update_Ready((UI_Page == 0) && App_Net_IsConnected()
-        && (ss == SS_IDLE || ss == SS_DONE));
+    /* PB5 Ready: SS_FAULT 时灭 */
+    if (ss == SS_FAULT)
+        LED_Update_Ready(0);
+    else
+        LED_Update_Ready((UI_Page == 0) && App_Net_IsConnected()
+            && (ss == SS_IDLE || ss == SS_DONE));
 }
 
 /* ── 联网触发 (返回 1=已触发 0=未触发) ── */
@@ -72,6 +75,8 @@ static void UI_HandleKeys(uint8_t key0, uint8_t key1, SoftStart_State_t ss)
             Inverter_SoftStart_Trigger();
         else if (ss == SS_DONE)
             Inverter_SoftStart_Stop();
+        else if (ss == SS_FAULT)
+            Inverter_SoftStart_Stop();   /* KEY0 亦可复位故障 */
     }
     if (key1 == 1) {
         if (ss == SS_SWEEP)
@@ -85,6 +90,8 @@ static void UI_HandleKeys(uint8_t key0, uint8_t key1, SoftStart_State_t ss)
             uint32_t f = PWM_GetFrequency() + 1000;
             if (f <= 150000) PWM_SetFrequency(f);
         }
+        else if (ss == SS_FAULT)
+            Inverter_SoftStart_Stop();   /* KEY1 复位故障 */
     }
 }
 
@@ -135,6 +142,13 @@ static void UI_DrawPage0(SoftStart_State_t ss)
             OLED_ShowFloatNum(3, 11, Get_Real_Current(), 1, 2);
             OLED_ShowString(4, 1, "K0:Stop K1:+1k ");
             break;
+
+        case SS_FAULT:
+            OLED_ShowString(1, 1, "!!! FAULT !!!   ");
+            OLED_ShowString(2, 1, "Over Current    ");
+            OLED_ShowString(3, 1, "PWM Disabled    ");
+            OLED_ShowString(4, 1, "K0/K1: Reset    ");
+            break;
     }
 }
 
@@ -169,6 +183,13 @@ static void UI_DrawPage1(SoftStart_State_t ss)
             OLED_ShowFloatNum(3, 7, Get_Real_Voltage(), 2, 2);
             OLED_ShowString(4, 1, "Curr: ");
             OLED_ShowFloatNum(4, 7, Get_Real_Current(), 2, 2);
+            break;
+
+        case SS_FAULT:
+            OLED_ShowString(1, 1, "- Monitor Only -");
+            OLED_ShowString(2, 1, "!!! FAULT !!!   ");
+            OLED_ShowString(3, 1, "Over Current    ");
+            OLED_ShowString(4, 1, "Reset: K0/K1    ");
             break;
     }
 }

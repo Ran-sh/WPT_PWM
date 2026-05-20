@@ -29,7 +29,8 @@
 typedef enum {
     SS_IDLE  = 0,   /* 待机: MOE 关, 等待触发 */
     SS_SWEEP = 1,   /* 扫频中: 150kHz → 100kHz */
-    SS_DONE  = 2    /* 完成: 100kHz 谐振稳态运行 */
+    SS_DONE  = 2,   /* 完成: 100kHz 谐振稳态运行 */
+    SS_FAULT = 3    /* 故障: 过流保护触发, KEY1 复位退出 */
 } SoftStart_State_t;
 
 void     PWM_Init(void);
@@ -48,6 +49,7 @@ void     PWM_Disable(void);
 void               Inverter_SoftStart_Trigger(void);
 void               Inverter_SoftStart_Task(void);
 void               Inverter_SoftStart_Stop(void);
+void               Inverter_SoftStart_Fault(void);   /* 过流保护: 紧急关断 + 故障锁存 */
 SoftStart_State_t  Inverter_SoftStart_GetState(void);
 uint32_t           Inverter_SoftStart_GetCurrentFreq(void);
 

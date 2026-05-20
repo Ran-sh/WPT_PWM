@@ -298,6 +298,16 @@ void Inverter_SoftStart_Stop(void)
 }
 
 /**
+ * @brief  触发过流保护: 紧急关断 PWM 并进入故障锁存
+ * @note   仅 KEY0/KEY1 可复位退出, 防止自动重启损坏 MOSFET
+ */
+void Inverter_SoftStart_Fault(void)
+{
+    PWM_Disable();
+    Inverter_SetState(SS_FAULT);
+}
+
+/**
  * @brief  查询当前软启动状态
  */
 SoftStart_State_t Inverter_SoftStart_GetState(void)
