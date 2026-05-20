@@ -118,7 +118,19 @@ All `static uint32_t last` variables in task functions are per-function private 
 | PC13 | GPIO (PP) | HardLED (active-low) |
 | PE5 | GPIO (PP) | LED_DS1 (active-low) |
 
-**Critical hardware note**: ESP8266 requires independent 3.3V LDO (≥500mA, e.g., AMS1117-3.3) with 100μF+0.1μF decoupling. STM32 dev board's onboard 3.3V regulator cannot supply ESP8266 WiFi bursts (~300mA). ESP8266 RST pin: connect to 3.3V via 10kΩ pull-up (CH_PD/EN on PB1 handles software reset, 500ms deep-discharge).
+**Critical hardware note**: ESP8266 requires independent 3.3V LDO (≥500mA, e.g., AMS1117-3.3) with 100μF+0.1μF decoupling. STM32 dev board's onboard 3.3V regulator cannot supply ESP8266 WiFi bursts (~300mA). ESP8266 RST pin: connect to 3.3V via 10kΩ pull-up.
+
+### ⚠️ ESP8266 双重复位机制 (禁止简化)
+
+**每次调用 `ESP8266_Init()` 必须执行以下双重复位, 否则多次联网后 ESP8266 卡死, 必须重上电 VCC 才能恢复:**
+
+```
+1. 硬件复位: CH_PD(PB1) 拉低 1000ms → 拉高, 等待 2000ms 冷启动
+2. 软件复位: 发送 AT+RST, 等待 "ready" 响应 (最多 5s)
+3. 清除缓冲区垃圾数据
+```
+
+**根因**: 透传模式下 ESP8266 固件状态机卡死后, 仅靠 CH_PD 硬件复位无法彻底清除内部状态。必须硬件+软件双重复位才能保证每次联网都是干净起点。**绝不允许为了"加快启动"而缩短 CH_PD 延时或跳过 AT+RST。**
 
 ## USART2 / ESP8266 ISR Rules
 

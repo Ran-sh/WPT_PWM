@@ -66,14 +66,26 @@ void ESP8266_Init(void)
     GPIO_Init(GPIOB, &GPIO_InitStructure);
 
     /*
-     * 彻底复位 ESP8266: 拉低 CH_PD 500ms 确保内部电容放电完毕,
-     * 清除透传模式/残留 WiFi 连接等一切软件状态。
-     * 100ms 不够——某些模块在透传模式下需要更长时间掉电才能退出。
+     * ═══════════════════════════════════════════════════════════════
+     *  ESP8266 硬件深度复位 (解决多次联网必须重上电 VCC 的问题)
+     * ═══════════════════════════════════════════════════════════════
+     *
+     *  根因: 透传模式下 ESP8266 固件状态机卡死, 短脉冲 CH_PD 无法
+     *        彻底清除内部状态。仅靠 CH_PD 硬件复位不够, 必须加软件
+     *        AT+RST 双重复位。
+     *
+     *  步骤:
+     *    1. CH_PD 拉低 1000ms — 确保内部电容完全放电
+     *    2. CH_PD 拉高, 等待 2000ms — 固件冷启动 + RF 校准
+     *    3. 发送 AT+RST — 软件复位固件状态机 (清除透传/残留连接)
+     *    4. 等待 "ready" 响应 — 确认 ESP8266 完全就绪
+     *
+     *  此序列确保每次联网都是完全干净的起点, 绝不依赖上一次的残留状态。
      */
     GPIO_ResetBits(GPIOB, GPIO_Pin_1);   /* CH_PD = 0 → 模块完全断电 */
-    SysTimer_DelayMs(500);               /* 500ms 深度放电, 确保所有状态丢失 */
+    SysTimer_DelayMs(1000);              /* 1000ms 深度放电 */
     GPIO_SetBits(GPIOB, GPIO_Pin_1);     /* CH_PD = 1 → 模块冷启动 */
-    SysTimer_DelayMs(2000);              /* 等待 ESP8266 固件启动 + RF 校准完毕 */
+    SysTimer_DelayMs(2000);              /* 等待固件启动 + RF 校准 */
 
     /* ── 2. 配置 TX 引脚: PA2 (复用推挽输出) ── */
     GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_2;
@@ -108,7 +120,34 @@ void ESP8266_Init(void)
     /* ── 7. 使能 USART2 ── */
     USART_Cmd(USART2, ENABLE);
 
-    ESP8266_ClearRxBuffer();  /* 统一初始化缓冲区及标志 */
+    ESP8266_ClearRxBuffer();
+
+    /*
+     * ── 8. AT+RST 软件复位 ──
+     * 硬件 CH_PD 复位后, ESP8266 固件可能仍有残留状态。
+     * AT+RST 强制固件重启, 清除透传模式/WiFi 连接/TCP 会话。
+     * 双重复位 (硬件+软件) 确保每次联网都是完全干净的起点,
+     * 解决 "必须重上电 VCC 才能再联网" 的问题。
+     */
+    ESP8266_SendString("AT+RST\r\n");
+    {
+        uint32_t rst_elapsed = 0;
+        uint8_t  rst_ok = 0;
+        while (rst_elapsed < 5000)   /* 软件复位最多等 5s */
+        {
+            if (s_FrameReady)
+            {
+                USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
+                s_FrameReady = 0;
+                rst_ok = (strstr(s_RxBuf, "ready") != NULL);
+                USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+                if (rst_ok) break;
+            }
+            SysTimer_DelayMs(10);
+            rst_elapsed += 10;
+        }
+    }
+    ESP8266_ClearRxBuffer();  /* 清除复位过程中的垃圾数据 */
 }
 
 /* ═══════════════════════════════════════════════════════════════
