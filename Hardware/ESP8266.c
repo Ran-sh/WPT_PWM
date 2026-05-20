@@ -123,12 +123,17 @@ void ESP8266_Init(void)
     ESP8266_ClearRxBuffer();
 
     /*
-     * ── 8. AT+RST 软件复位 ──
-     * 硬件 CH_PD 复位后, ESP8266 固件可能仍有残留状态。
-     * AT+RST 强制固件重启, 清除透传模式/WiFi 连接/TCP 会话。
-     * 双重复位 (硬件+软件) 确保每次联网都是完全干净的起点,
-     * 解决 "必须重上电 VCC 才能再联网" 的问题。
+     * ── 8. 透传退出 + AT+RST 双软件复位 ──
+     * CH_PD 硬件复位后, 部分模块仍可能卡在透传模式 (ESP8266
+     * 通过 IO 引脚漏电维持部分电路)。两步软件复位确保干净起点:
+     *   8a. 发送 "+++" 退出透传 (须前后各 1s 静默, 不加 \r\n)
+     *   8b. 发送 AT+RST 软复位固件, 等待 "ready"
      */
+    SysTimer_DelayMs(1000);                  /* +++ 前静默 1s */
+    ESP8266_SendString("+++");              /* 退出透传, 不带 \r\n */
+    SysTimer_DelayMs(1000);                  /* +++ 后静默 1s */
+    ESP8266_ClearRxBuffer();
+
     ESP8266_SendString("AT+RST\r\n");
     {
         uint32_t rst_elapsed = 0;

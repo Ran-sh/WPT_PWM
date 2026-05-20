@@ -59,11 +59,12 @@ static void UI_UpdateLEDs(SoftStart_State_t ss)
 /* ── 联网触发 (返回 1=已触发 0=未触发) ── */
 static uint8_t UI_TryConnectWiFi(void)
 {
-    App_Net_Connect_Trigger();
-    LED_Update_WiFi(LED_FAST);       /* 联网中快闪, 主循环不阻塞可正常驱动 */
+    /* 先刷屏, 再触发联网 (Connect_Trigger 内部阻塞 ~3.5s, 先给用户反馈) */
+    LED_Update_WiFi(LED_FAST);
     OLED_Clear();
     OLED_ShowString(1, 1, "[Control Mode] ");
     OLED_ShowString(2, 1, "WiFi Connecting ");
+    App_Net_Connect_Trigger();
     return 1;
 }
 
