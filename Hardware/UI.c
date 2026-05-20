@@ -97,7 +97,7 @@ static void UI_HandleKeys(uint8_t key0, uint8_t key1, SoftStart_State_t ss)
 }
 
 /* ── 页面 0: 控制面板 ── */
-static void UI_DrawPage0(SoftStart_State_t ss, uint8_t full)
+static void UI_DrawPage0(SoftStart_State_t ss)
 {
     uint32_t f;
     uint32_t progress;
@@ -107,18 +107,17 @@ static void UI_DrawPage0(SoftStart_State_t ss, uint8_t full)
 
     switch (ss) {
         case SS_IDLE:
-            if (!full) return;  /* 周期刷新跳过, 仅状态迁移/切页时绘制 */
             OLED_ShowString(1, 1, "[Control Mode] ");
             OLED_ShowString(2, 1, "State: IDLE   ");
             OLED_ShowString(3, 1, "Press KEY0 start");
-            OLED_ShowString(4, 1, "F:  --.- kHz     ");
+            OLED_ShowString(4, 1, "F:  --.- kHz    ");
             break;
 
         case SS_SWEEP:
             f = Inverter_SoftStart_GetCurrentFreq();
             progress = (SOFTSTART_START_FREQ_HZ - f) * 10
                      / (SOFTSTART_START_FREQ_HZ - 100000UL);
-            OLED_ShowString(1, 1, "[Sweeping...]   ");
+            OLED_ShowString(1, 1, "[Sweeping...]  ");
             snprintf(fline, sizeof(fline), "Freq:%3lu.%1lukHz ",
                      (unsigned long)(f / 1000),
                      (unsigned long)((f % 1000) / 100));
@@ -134,23 +133,18 @@ static void UI_DrawPage0(SoftStart_State_t ss, uint8_t full)
 
         case SS_DONE:
             f = PWM_GetFrequency();
-            {
-                char dline[17];
-                OLED_ShowString(1, 1, "[Resonant Mode] ");
-                snprintf(dline, sizeof(dline), "F:%3lukHz         ",
-                         (unsigned long)(f / 1000));
-                dline[16] = '\0';
-                OLED_ShowString(2, 1, dline);
-                snprintf(dline, sizeof(dline), "V:%-4.1fV I:%-4.2fA",
-                         Get_Real_Voltage(), Get_Real_Current());
-                dline[16] = '\0';
-                OLED_ShowString(3, 1, dline);
-                OLED_ShowString(4, 1, "K0:Stop K1:+1k ");
-            }
+            OLED_ShowString(1, 1, "[Resonant Mode] ");
+            OLED_ShowString(2, 1, "F:");
+            OLED_ShowNum(2, 3, f / 1000, 3);
+            OLED_ShowString(2, 6, "kHz  ");
+            OLED_ShowString(3, 1, "V:");
+            OLED_ShowFloatNum(3, 3, Get_Real_Voltage(), 2, 1);
+            OLED_ShowString(3, 9, "I:");
+            OLED_ShowFloatNum(3, 11, Get_Real_Current(), 1, 2);
+            OLED_ShowString(4, 1, "K0:Stop K1:+1k ");
             break;
 
         case SS_FAULT:
-            if (!full) return;
             OLED_ShowString(1, 1, "!!! FAULT !!!   ");
             OLED_ShowString(2, 1, "Over Current    ");
             OLED_ShowString(3, 1, "PWM Disabled    ");
@@ -160,13 +154,12 @@ static void UI_DrawPage0(SoftStart_State_t ss, uint8_t full)
 }
 
 /* ── 页面 1: 锁屏监控 ── */
-static void UI_DrawPage1(SoftStart_State_t ss, uint8_t full)
+static void UI_DrawPage1(SoftStart_State_t ss)
 {
     uint32_t f;
 
     switch (ss) {
         case SS_IDLE:
-            if (!full) return;
             OLED_ShowString(1, 1, "- Monitor Only -");
             OLED_ShowString(2, 1, "State: IDLE    ");
             OLED_ShowString(3, 1, "Waiting trigger ");
@@ -176,34 +169,24 @@ static void UI_DrawPage1(SoftStart_State_t ss, uint8_t full)
             f = Inverter_SoftStart_GetCurrentFreq();
             OLED_ShowString(1, 1, "- Monitor Only -");
             OLED_ShowString(2, 1, "Sweeping...    ");
-            {
-                char mline[17];
-                snprintf(mline, sizeof(mline), "F:%3lukHz         ",
-                         (unsigned long)(f / 1000));
-                mline[16] = '\0';
-                OLED_ShowString(3, 1, mline);
-            }
+            OLED_ShowString(3, 1, "F:");
+            OLED_ShowNum(3, 3, f / 1000, 3);
+            OLED_ShowString(3, 6, "kHz");
             break;
 
         case SS_DONE:
-            {
-                char mline[17];
-                f = PWM_GetFrequency();
-                OLED_ShowString(1, 1, "- Monitor Only -");
-                snprintf(mline, sizeof(mline), "F:%3lukHz         ",
-                         (unsigned long)(f / 1000));
-                mline[16] = '\0';
-                OLED_ShowString(2, 1, mline);
-                snprintf(mline, sizeof(mline), "V:%-4.1fV I:%-4.2fA",
-                         Get_Real_Voltage(), Get_Real_Current());
-                mline[16] = '\0';
-                OLED_ShowString(3, 1, mline);
-                OLED_ShowString(4, 1, "                ");
-            }
+            f = PWM_GetFrequency();
+            OLED_ShowString(1, 1, "- Monitor Only -");
+            OLED_ShowString(2, 1, "Freq: ");
+            OLED_ShowNum(2, 7, f / 1000, 3);
+            OLED_ShowString(2, 10, "kHz");
+            OLED_ShowString(3, 1, "Volt: ");
+            OLED_ShowFloatNum(3, 7, Get_Real_Voltage(), 2, 2);
+            OLED_ShowString(4, 1, "Curr: ");
+            OLED_ShowFloatNum(4, 7, Get_Real_Current(), 2, 2);
             break;
 
         case SS_FAULT:
-            if (!full) return;
             OLED_ShowString(1, 1, "- Monitor Only -");
             OLED_ShowString(2, 1, "!!! FAULT !!!   ");
             OLED_ShowString(3, 1, "Over Current    ");
@@ -216,33 +199,26 @@ static void UI_DrawPage1(SoftStart_State_t ss, uint8_t full)
  *  UI_Task — 主调度器
  * ═══════════════════════════════════════════════════════════════ */
 
-static uint8_t ui_force_full = 0;   /* 联网完成后强制完整绘制一次 */
-
 void UI_Task(void)
 {
     static uint32_t last_oled     = 0;
     static uint8_t  last_ss_state = 0xFF;
     uint8_t         need_refresh  = 0;
-    uint8_t         full_refresh  = 0;
-
-    if (ui_force_full) { ui_force_full = 0; full_refresh = 1; need_refresh = 1; }
 
     if (SysTimer_GetTick() - last_oled >= 200) {
         last_oled = SysTimer_GetTick();
         need_refresh = 1;
-        /* full_refresh stays 0 → periodic refresh, skip static lines */
     }
 
     SoftStart_State_t ss = Inverter_SoftStart_GetState();
     uint8_t key0 = KEY_Get_Event(0);
     uint8_t key1 = KEY_Get_Event(1);
 
-    /* 状态迁移 → 全屏清零 + 完整重绘 */
+    /* 状态迁移 → 全屏清零 */
     if (ss != last_ss_state) {
         last_ss_state = ss;
         OLED_Clear();
         need_refresh = 1;
-        full_refresh = 1;
         last_oled = SysTimer_GetTick();
     }
 
@@ -255,7 +231,6 @@ void UI_Task(void)
         UI_Page = !UI_Page;
         UI_ClearAllLines();
         need_refresh = 1;
-        full_refresh = 1;
         last_oled = SysTimer_GetTick();
     }
 
@@ -277,7 +252,7 @@ void UI_Task(void)
                 /* NET_FAIL: UI 负责显示错误码, 3s 后自动恢复 */
                 if (need_refresh) {
                     uint8_t err = App_Net_GetErrorCode();
-                    OLED_ShowString(1, 1, "!! WiFi Error !! ");
+                    OLED_ShowString(1, 1, "!!! WiFi Error !!!");
                     OLED_ShowString(2, 1, "Err Code:       ");
                     OLED_ShowNum(2, 11, err, 1);
                     OLED_ShowString(3, 1, "Retry in 3s...  ");
@@ -289,16 +264,16 @@ void UI_Task(void)
                     OLED_ShowString(1, 1, "[Control Mode] ");
                     OLED_ShowString(2, 1, "WiFi: DISCONN  ");
                     OLED_ShowString(3, 1, "Press KEY0 WiFi");
-                    OLED_ShowString(4, 1, "F:  --.- kHz     ");
+                    OLED_ShowString(4, 1, "F:  --.- kHz    ");
                 }
             }
         } else {
             UI_HandleKeys(key0, key1, ss);
-            if (need_refresh) UI_DrawPage0(ss, full_refresh);
+            if (need_refresh) UI_DrawPage0(ss);
         }
     } else {
         /* 锁屏监控 */
-        if (need_refresh) UI_DrawPage1(ss, full_refresh);
+        if (need_refresh) UI_DrawPage1(ss);
     }
 }
 
