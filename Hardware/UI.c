@@ -34,8 +34,15 @@
 #include <stdio.h>
 
 static uint8_t  UI_Page            = 0;  /* 0: 控制面板, 1: 锁屏监控 */
-static uint8_t  is_Bridge_Running  = 0;  /* 供外部同步 */
 static uint8_t  wifi_connected     = 0;  /* 0: 未联网, 1: 已联网 */
+
+static void UI_ClearAllLines(void)
+{
+    OLED_ShowString(1, 1, "                ");
+    OLED_ShowString(2, 1, "                ");
+    OLED_ShowString(3, 1, "                ");
+    OLED_ShowString(4, 1, "                ");
+}
 
 void UI_Task(void)
 {
@@ -95,10 +102,7 @@ void UI_Task(void)
     /* ── KEY0 双击: 全局切页 ── */
     if (key0_event == 2) {
         UI_Page = !UI_Page;
-        OLED_ShowString(1, 1, "                ");
-        OLED_ShowString(2, 1, "                ");
-        OLED_ShowString(3, 1, "                ");
-        OLED_ShowString(4, 1, "                ");
+        UI_ClearAllLines();
         need_refresh = 1;
         last_oled = SysTimer_GetTick();
     }
@@ -140,11 +144,7 @@ void UI_Task(void)
                     } else {
                         LED_Update_WiFi(LED_OFF);        /* 失败立即灭 PB3 */
                     }
-                    /* 行覆盖替代全屏清零, 下一帧立即刷新 */
-                    OLED_ShowString(1, 1, "                ");
-                    OLED_ShowString(2, 1, "                ");
-                    OLED_ShowString(3, 1, "                ");
-                    OLED_ShowString(4, 1, "                ");
+                    UI_ClearAllLines();
                     need_refresh = 0;
                     break;
                 }
@@ -161,16 +161,13 @@ void UI_Task(void)
             if (key0_event == 1) {
                 if (ss == SS_IDLE) {
                     Inverter_SoftStart_Trigger();
-                    is_Bridge_Running = 1;
                 } else if (ss == SS_DONE) {
                     Inverter_SoftStart_Stop();
-                    is_Bridge_Running = 0;
                 }
             }
             if (key1_event == 1) {
                 if (ss == SS_SWEEP) {
                     Inverter_SoftStart_Stop();
-                    is_Bridge_Running = 0;
                 } else if (ss == SS_DONE) {
                     uint32_t new_f = PWM_GetFrequency() + 1000;
                     if (new_f > 150000) new_f = 100000;
@@ -273,12 +270,13 @@ void UI_Task(void)
 
 void UI_SetBridgeState(uint8_t on_off)
 {
-    is_Bridge_Running = on_off;
+    (void)on_off;  /* V3.1: 状态由 Inverter_SoftStart_GetState 推导, 无需手动同步 */
 }
 
 uint8_t UI_GetBridgeState(void)
 {
-    return is_Bridge_Running;
+    SoftStart_State_t s = Inverter_SoftStart_GetState();
+    return (s == SS_SWEEP || s == SS_DONE);
 }
 
 void UI_SetWiFiConnected(uint8_t on_off)

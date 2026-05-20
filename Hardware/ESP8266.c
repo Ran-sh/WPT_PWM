@@ -322,13 +322,7 @@ uint8_t ESP8266_GetRxFlag(void)
  */
 void ESP8266_ClearRxFlag(void)
 {
-    /* 临界区保护: 防止 ISR 在清空期间写入 */
-    USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
-    s_RxBuf[0]            = '\0';   /* 截断字符串, 旧指令立即失效 */
-    s_RxIndex             = 0;      /* 重置写入游标 */
-    s_FrameReady          = 0;
-    g_ESP8266_RxFrameFlag = 0;
-    USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+    ESP8266_ClearRxBuffer();   /* 与 ClearRxBuffer 完全一致, 统一实现 */
 }
 
 /**
