@@ -295,6 +295,12 @@ void App_Net_Connect_Task(void)
     if (s_net_state <= NET_IDLE || s_net_state >= NET_SUCCESS)
         return;
 
+    /*
+     * 点动画: 每 200ms 在 Line 3 跳动, 替代 WaitResponse 回调
+     * 异步版不走 WaitResponse, 必须在此处手动驱动
+     */
+    AT_DotAnim();
+
     /* ── KEY1 取消 ── */
     if (s_net_cancel) {
         s_net_cancel = 0;
