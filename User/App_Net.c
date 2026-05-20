@@ -70,6 +70,7 @@ static uint32_t   s_net_tstart  = 0;
 static uint8_t    s_net_error   = 0;
 static uint8_t    s_net_cancel  = 0;
 static uint8_t    s_net_sending  = 0;   /* 1=需发送指令, 0=等响应 */
+static uint8_t    s_net_need_reinit = 0; /* CLOSED 后需硬件复位 */
 static char       s_net_cmdbuf[128];
 
 /* AT 等待期间点动画回调 (由 ESP8266_WaitResponse 轮询时调用, ~10ms/次) */
@@ -236,8 +237,9 @@ void App_Net_Task(void)
              */
             Inverter_SoftStart_Stop();
             UI_SetBridgeState(0);
-            s_NetReady      = 0;
-            s_WiFiConnected = 0;   /* 断线: 权威源清 0 */
+            s_NetReady         = 0;
+            s_WiFiConnected    = 0;
+            s_net_need_reinit  = 1;    /* 下次触发时硬件复位 */
         }
     }
 }
@@ -256,9 +258,14 @@ void App_Net_Connect_Trigger(void)
     if (s_net_state != NET_IDLE) return;
 
     /*
-     * ESP8266_Init 已在 main.c 启动阶段预初始化,
-     * 此处仅重置状态机和缓冲区, 直接进入 AT 序列
+     * 正常情况: ESP8266 已在 main.c 启动阶段预初始化, 直接进 AT 序列
+     * CLOSED 后: 硬件可能卡死, 需重新 ESP8266_Init 复位 (~3.5s)
      */
+    if (s_net_need_reinit) {
+        s_net_need_reinit = 0;
+        ESP8266_Init();
+    }
+
     s_net_state   = NET_STEP_AT;
     s_net_retry   = 0;
     s_net_cancel  = 0;
