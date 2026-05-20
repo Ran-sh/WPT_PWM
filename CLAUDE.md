@@ -138,16 +138,7 @@ All `static uint32_t last` variables in task functions are per-function private 
 
 All ISR-shared variables (`s_RxIndex`, `s_FrameReady`, `g_ESP8266_RxFrameFlag`) must be `volatile`.
 
-**Critical section pattern** — any function that reads `s_RxBuf` via `strstr` must wrap the access. **Preferred pattern (V3.1)**: copy shared buffer to local stack array inside critical section, then parse the local copy afterward. This eliminates the window where ISR can modify the buffer mid-scan.
-
-```c
-char localBuf[128];
-USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
-strncpy(localBuf, ESP8266_GetRxBuffer(), sizeof(localBuf) - 1);
-localBuf[sizeof(localBuf) - 1] = '\0';
-USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
-// Parse localBuf safely outside critical section
-```
+**Critical section pattern** — any function that reads `s_RxBuf` via `strstr` must wrap the access. **V3.2**: Use `ESP8266_CopyRxFrame()` (atomic copy + clear in single critical section, preserves tail bytes for TCP粘包) or `ESP8266_BufferContains(needle)` (critical section strstr). Never call `USART_ITConfig(USART2, ...)` from outside ESP8266.c — all USART register access is encapsulated.
 
 `ESP8266_SendString` waits for TXE only — the final TC check was removed because USART2 is full-duplex and TXE guarantees the byte is in the shift register.
 
@@ -190,18 +181,19 @@ void Inverter_SoftStart_Task(void);      // 主循环调用, 2ms 时间戳步进
 void Inverter_SoftStart_Stop(void);      // 关 MOE → SS_IDLE
 ```
 
-### Atomic State Transition (Bug #6 Fix)
+### Atomic State Transition
 
 ```c
 static void Inverter_SetState(SoftStart_State_t new_state) {
+    uint32_t primask = __get_PRIMASK();
     __disable_irq();
     s_ss_state = new_state;
-    __enable_irq();
+    __set_PRIMASK(primask);  // restore previous IRQ state, never unconditionally enable
 }
 ```
-All runtime `s_ss_state` writes MUST go through `Inverter_SetState()` — never assign directly.
+All runtime `s_ss_state` writes MUST go through `Inverter_SetState()`. SS_FAULT state added: entered via `Inverter_SoftStart_Fault()`, exited only by KEY0/KEY1.
 
-### Preload Shadow Registers (Bug #1 Fix)
+### Preload + UDIS Atomic ARR/CCR Update
 
 `PWM_Init` MUST call before `TIM_Cmd`:
 ```c
@@ -210,6 +202,8 @@ TIM_OC1PreloadConfig(TIM1, TIM_OCPreload_Enable);
 TIM_OC2PreloadConfig(TIM1, TIM_OCPreload_Enable);
 ```
 Without preload, runtime ARR/CCR changes can cause cycle distortion and shoot-through.
+
+`PWM_SetFrequency` uses `TIM_CR1_UDIS`→write ARR+CCR1+CCR2→`TIM_EGR_UG`→clear UDIS to atomically load all shadow registers. This prevents Update Event between writes causing new-period-with-old-duty-cycle magnetic saturation.
 
 ### ADC Filtering (Bug #5 Fix)
 
