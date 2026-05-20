@@ -160,7 +160,7 @@ void ESP8266_Init(void)
  * @note   逐字节等待 TXE (发送数据寄存器空) 标志置位后写入，
  *         全部字节发送完毕后等待 TC (发送完成) 标志确保数据完全移出。
  */
-void ESP8266_SendString(char *str)
+void ESP8266_SendString(const char *str)
 {
     while (*str)
     {
@@ -332,9 +332,7 @@ uint8_t ESP8266_ConnectToServer(const char *ssid, const char *pwd,
         uint8_t  got_prompt = 0;
         while (elapsed < ESP8266_CMD_TIMEOUT)
         {
-            USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
-            got_prompt = (strstr(s_RxBuf, ">") != NULL);
-            USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+            got_prompt = ESP8266_BufferContains(">");
             if (got_prompt) break;
             SysTimer_DelayMs(10);
             elapsed += 10;
@@ -438,4 +436,18 @@ uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len)
 
     USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
     return len;
+}
+
+/**
+ * @brief  临界区内检查缓冲区是否包含指定字符串
+ * @note   封装 USART 中断管理, 调用方无需直接操作 USART2 寄存器
+ */
+uint8_t ESP8266_BufferContains(const char *needle)
+{
+    const char *rx = ESP8266_GetRxBuffer();
+    uint8_t found;
+    USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
+    found = (strstr(rx, needle) != NULL);
+    USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+    return found;
 }

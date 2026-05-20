@@ -60,8 +60,7 @@ static void Net_Remote_On(void)
 /**
  * @brief  WiFi 远程关机 (通过 PWM 模块安全关断 + 同步 UI 状态)
  */
-static uint8_t s_NetReady      = 0;   /* 0: USART2 未初始化, 屏蔽 Task 操作 */
-static uint8_t s_WiFiConnected = 0;   /* WiFi 状态唯一权威源, UI 通过 App_Net_IsConnected 查询 */
+static uint8_t s_WiFiConnected = 0;  /* 联网状态唯一权威源, 同时用作 USART2 就绪门禁 */
 
 /* ── V3.2 非阻塞联网状态机 ── */
 static NetState_t s_net_state   = NET_IDLE;
@@ -161,7 +160,7 @@ uint8_t App_Net_Init(void)
     SysTimer_DelayMs(2000);  /* 成功画面停留 2s (含 PB3 LED 常亮指示) */
     OLED_Clear();
 
-    s_NetReady      = 1;
+    s_WiFiConnected      = 1;
     s_WiFiConnected = 1;   /* WiFi 状态唯一权威源 */
     return 0;
 }
@@ -174,7 +173,7 @@ uint8_t App_Net_Init(void)
  */
 void App_Net_Task(void)
 {
-    if (!s_NetReady) return;   /* USART2 未初始化, 禁止发送/接收 */
+    if (!s_WiFiConnected) return;   /* USART2 未初始化, 禁止发送/接收 */
 
     /* ── 子功能 1: 定时遥测上报 (时间戳差值法, 每 1000ms) ── */
     {
@@ -236,7 +235,7 @@ void App_Net_Task(void)
              */
             Inverter_SoftStart_Stop();
             UI_SetBridgeState(0);
-            s_NetReady      = 0;
+            s_WiFiConnected      = 0;
             s_WiFiConnected = 0;
         }
     }
@@ -345,12 +344,7 @@ void App_Net_Connect_Task(void)
 
     /* CIPSEND: 应答是 ">" 不带 \r\n */
     if (s_net_state == NET_STEP_CIPSEND) {
-        const char *rx = ESP8266_GetRxBuffer();
-        uint8_t got;
-        USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
-        got = (strstr(rx, ">") != NULL);
-        USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
-        if (got) { s_net_state = NET_SUCCESS; goto on_success; }
+        if (ESP8266_BufferContains(">")) { s_net_state = NET_SUCCESS; goto on_success; }
         if (SysTimer_GetTick() - s_net_tstart >= ESP8266_CMD_TIMEOUT) goto on_timeout;
         return;
     }
@@ -363,25 +357,7 @@ void App_Net_Connect_Task(void)
         if (SysTimer_GetTick() - s_net_tstart < tmo) return;
 
 on_timeout:
-        s_net_retry++;
-        if (s_net_retry >= 3) {
-            s_net_error = (uint8_t)(s_net_state - NET_STEP_AT + 1);
-            s_net_state = NET_FAIL;
-            s_net_tstart = SysTimer_GetTick();  /* 用于 3s 定时 */
-            ESP8266_SetWaitCallback(NULL);
-            LED_Update_WiFi(LED_OFF);
-            return;
-        }
-        s_net_sending = 1;
-        return;
-    }
-
-    /* OK/ERROR 判断 */
-    ESP8266_CopyRxFrame(localBuf, sizeof(localBuf));
-    has_err = (strstr(localBuf, "ERROR") || strstr(localBuf, "FAIL"));
-    has_ok  = (strstr(localBuf, "OK") != NULL);
-
-    if (has_err) {
+on_fail:
         s_net_retry++;
         if (s_net_retry >= 3) {
             s_net_error = (uint8_t)(s_net_state - NET_STEP_AT + 1);
@@ -395,6 +371,13 @@ on_timeout:
         return;
     }
 
+    /* OK/ERROR 判断 */
+    ESP8266_CopyRxFrame(localBuf, sizeof(localBuf));
+    has_err = (strstr(localBuf, "ERROR") || strstr(localBuf, "FAIL"));
+    has_ok  = (strstr(localBuf, "OK") != NULL);
+
+    if (has_err) goto on_fail;
+
     if (!has_ok) return;
 
     /* OK → 下一步 */
@@ -404,7 +387,7 @@ on_timeout:
     if (s_net_state == NET_SUCCESS) {
 on_success:
         ESP8266_SetWaitCallback(NULL);
-        s_NetReady      = 1;
+        s_WiFiConnected      = 1;
         s_WiFiConnected = 1;
         LED_Update_WiFi(LED_OFF);
         return;

@@ -24,7 +24,7 @@
 /* ── 公开接口 ── */
 
 void     ESP8266_Init(void);
-void     ESP8266_SendString(char *str);
+void     ESP8266_SendString(const char *str);
 uint8_t  ESP8266_ConnectToServer(const char *ssid, const char *pwd,
                                   const char *ip, uint16_t port);
 
@@ -42,5 +42,6 @@ void     ESP8266_SetWaitCallback(void (*cb)(void));
 
 /* 原子读取帧: 临界区内拷贝+清空, 返回拷贝字节数 */
 uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len);
+uint8_t  ESP8266_BufferContains(const char *needle);   /* 临界区内 strstr, 供 CIPSEND 等场景 */
 
 #endif /* __ESP8266_H */

@@ -83,9 +83,10 @@ static uint32_t          s_ss_last_step    = 0;
  */
 static void Inverter_SetState(SoftStart_State_t new_state)
 {
+    uint32_t primask = __get_PRIMASK();
     __disable_irq();
     s_ss_state = new_state;
-    __enable_irq();
+    __set_PRIMASK(primask);   /* 恢复先前中断状态, 不无条件开中断 */
 }
 
 
