@@ -31,8 +31,14 @@ static void UI_ClearAllLines(void)
 /* ── LED 状态更新 (每 200ms) ── */
 static void UI_UpdateLEDs(SoftStart_State_t ss)
 {
-    /* PB3 WiFi */
-    LED_Update_WiFi(App_Net_IsConnected() ? LED_OFF : LED_SLOW);
+    /* PB3 WiFi: 联网中保持快闪, 不被 UpdateLEDs 覆盖 */
+    {
+        NetState_t ns = App_Net_GetConnectState();
+        if (ns > NET_IDLE && ns < NET_SUCCESS)
+            LED_Update_WiFi(LED_FAST);       /* 联网进行中: 快闪 */
+        else
+            LED_Update_WiFi(App_Net_IsConnected() ? LED_OFF : LED_SLOW);
+    }
 
     /* PB4 PWM */
     if (ss == SS_SWEEP)
@@ -51,7 +57,7 @@ static void UI_UpdateLEDs(SoftStart_State_t ss)
 static uint8_t UI_TryConnectWiFi(void)
 {
     App_Net_Connect_Trigger();
-    LED_Update_WiFi(LED_SOLID);
+    LED_Update_WiFi(LED_FAST);       /* 联网中快闪, 主循环不阻塞可正常驱动 */
     OLED_Clear();
     OLED_ShowString(1, 1, "[Control Mode] ");
     OLED_ShowString(2, 1, "WiFi Connecting ");
