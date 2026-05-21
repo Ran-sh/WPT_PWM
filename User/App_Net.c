@@ -171,13 +171,8 @@ uint8_t App_Net_Init(void)
     s_WiFiConnected      = 1;
     s_WiFiConnected = 1;   /* WiFi 状态唯一权威源 */
 
-    /* V3.4: 巴法云订阅 — 透传通道就绪后立即发送 cmd=1 订阅主题 */
-    {
-        char subBuf[64];
-        snprintf(subBuf, sizeof(subBuf),
-                 "cmd=1&uid=%s&topic=%s\r\n", BEMFA_UID, BEMFA_TOPIC);
-        ESP8266_SendString(subBuf);
-    }
+    /* V3.4: 透传通道就绪 → 巴法云订阅主题 */
+    Bemfa_Subscribe();
 
     return 0;
 }
