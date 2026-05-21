@@ -109,6 +109,7 @@ static void UI_DrawPage0(SoftStart_State_t ss)
         case SS_IDLE:
             OLED_ShowString(1, 1, "[Control Mode] ");
             OLED_ShowString(2, 1, "State: IDLE   ");
+            OLED_ShowString(2, 15, "  ");  /* 清除残留字符 */
             OLED_ShowString(3, 1, "Press KEY0 start");
             OLED_ShowString(4, 1, "F:  --.- kHz    ");
             break;
@@ -162,6 +163,7 @@ static void UI_DrawPage1(SoftStart_State_t ss)
         case SS_IDLE:
             OLED_ShowString(1, 1, "- Monitor Only -");
             OLED_ShowString(2, 1, "State: IDLE    ");
+            OLED_ShowString(2, 16, " ");   /* 清除残留字符 */
             OLED_ShowString(3, 1, "Waiting trigger ");
             break;
 
