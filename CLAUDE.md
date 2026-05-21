@@ -261,7 +261,7 @@ The NetAssist tool is at `D:\Assistant\netassist5.0.13`. Configure as TCP Server
 | Document | Purpose |
 |:---|:---|
 | `claude_code/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
-| `claude_code/docs/PC端联调操作指南.md` | PC-side joint debugging with NetAssist |
+| `claude_code/docs/NetAssist局域网联调操作指南.md` | PC-side joint debugging with NetAssist |
 | `claude_code/docs/LabVIEW上位机构建指南.md` | LabVIEW host-side application build guide |
 | `claude_code/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 
