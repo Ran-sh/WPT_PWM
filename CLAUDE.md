@@ -177,7 +177,7 @@ The frame delimiter in `ESP8266_RxChar` matches **both** `\r` (0x0D) and `\n` (0
 
 **`App_Net_Task` TXE hang prevention**: `s_WiFiConnected` flag guards all USART2 access in `App_Net_Task`. The flag is set only after async networking succeeds (`NET_SUCCESS`). Before networking, `App_Net_Task` returns immediately — no `ESP8266_SendString` calls on uninitialized USART2.
 
-**Remote command protocol**: PC must send `CMD:ON` / `CMD:OFF` (not bare `ON`/`OFF`). This prevents false triggers from "JSON", "CONNECT" etc. When ESP8266 sends "CLOSED" (physical disconnect), `App_Net_Task` immediately calls `Inverter_SoftStart_Stop()` then resets `wifi_connected` — entirely non-blocking, no `SysTimer_DelayMs`.
+**Remote command protocol**: Bemfa Cloud delivers `CMD:ON` / `CMD:OFF` wrapped in `cmd=2&...&msg=` envelope. The `strstr` parser catches the command substring regardless of envelope — no envelope parsing needed. `CLOSED` frame triggers immediate `Inverter_SoftStart_Stop()` + wifi reset, entirely non-blocking.
 
 **AT progress dot animation**: `ESP8266_SetWaitCallback(AT_DotAnim)` registers a callback called every ~10ms from `ESP8266_WaitResponse`'s polling loop. The callback updates OLED line 3 with cycling dots (200ms throttle). Cleared after the AT sequence completes.
 
@@ -233,7 +233,7 @@ Without preload, runtime ARR/CCR changes can cause cycle distortion and shoot-th
 
 **WAN branch**: Silent watchdog removed. Bemfa Cloud is silent by default (no keepalive, no periodic data). The `CLOSED` frame from ESP8266 on TCP disconnect is the sole offline detection mechanism.
 
-**Master (LAN) branch** still uses a 15s silent watchdog for hardware fault protection.
+**LAN branch** (NetAssist 局域网) still uses a 15s silent watchdog. **Master branch** (V0.0) has no networking.
 
 The `s_LastRxTick` variable, `ESP8266_GetLastRxTime()` function, and `ESP8266_SILENT_TIMEOUT` macro were removed from the WAN branch codebase (commit `3198421`).
 
@@ -284,6 +284,5 @@ WiFi credentials and server IP are defined as macros in `User/App_Net.h` (moved 
 ## Key Build Targets / Variants
 
 - **Target 1**: Main application (flash to STM32 via ST-Link or serial bootloader)
-- `claude_code/tools/deploy_netassist.ps1`: PowerShell script that downloads and launches NetAssist TCP debugger to `D:\NetAssist\`
 - `claude_code/tools/generate_docx.js`: Node.js script to batch-convert `claude_code/docs/*.md` → `claude_code/docs/*.docx` with branded formatting
 - `claude_code/docs/embedded-architect-system-prompt.md`: The project's skill definition (also installed at `~/.claude/skills/embedded-architect/SKILL.md`). Contains coding standards, scheduling doctrine, document version control rules, and the auto-diff document update workflow. When Claude needs a refresher on project conventions, read this file.
