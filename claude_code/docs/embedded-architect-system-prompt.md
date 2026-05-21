@@ -12,6 +12,10 @@ description: >
   架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师, 巴法云, Bemfa.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
   scan all .c/.h, diff vs documented state, auto-increment version, regenerate .md+.docx.
+  CRITICAL composite trigger for "更新全部内容": execute in order —
+  1. /simplify (three-way code review) → 2. /init (regenerate CLAUDE.md) →
+  3. update this skill file + installed copy → 4. update all docs (.md+.docx) →
+  5. beautify GitHub README → 6. git push all branches. Run autonomously, no user prompts.
   SKIP this skill entirely if the user specifically mentions: HAL库, CubeMX,
   Arduino, non-STMicro MCUs, or any MCU without SPL (ESP32/ESP-IDF, nRF, MSP430, PIC).
 ---
