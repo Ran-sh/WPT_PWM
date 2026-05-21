@@ -102,17 +102,17 @@ All `static uint32_t last` variables in task functions are per-function private 
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers WiFi connect then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
-| LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle task) + PB5/PE5 dual-color external LED (active-low); `LED_Init`/`LED_Task` |
+| LED | `Hardware/LED.c` | PC13 heartbeat + PB3 WiFi + PB4 PWM + PB5 Ready; `LED_Init`/`LED_Task`/`LED_Status_Task` |
 | App_Net | `User/App_Net.c` | V3.2 async 9-state AT FSM (NET_IDLE→NET_STEP_AT→...→NET_SUCCESS/FAIL), KEY1 cancelable, 3-retry auto-fallback; `s_WiFiConnected` single authority source + USART2 ready gate; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); **V3.3 silent watchdog**: 15s no RX data → `Inverter_SoftStart_Stop` + `s_WiFiConnected=0`; `snprintf` for JSON buffer safety |
 
 ## Startup Flow (V3.3)
 
 ```
-上电 → PWM_Init(MOE=OFF) → OLED_Init → HardLED → ADC_DMA → KEY
+上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA → KEY
      → SysTimer_Init
      → OLED "Wireless Charge"
      → 主循环 while(1):
-         KEY_Task  |  UI_Task  |  App_Net_Task  |  Inverter_SoftStart_Task  |  HardLED_Task
+         KEY_Task  |  UI_Task  |  App_Net_Task  |  Inverter_SoftStart_Task  |  LED_Task
 
 联网: KEY0 单击 → App_Net_Init(阻塞20~30s, 返回0=成功/1~6=失败) → IDLE 待机
       失败 → OLED 错误码 3 秒 → 自动回 "Press KEY0 WiFi" → 可按 KEY0 重试
@@ -137,11 +137,10 @@ All `static uint32_t last` variables in task functions are per-function private 
 | PA12 | GPIO (OD) | OLED SDA |
 | PB0 | TIM1_CH2N | Half-bridge right low-side |
 | PB1 | GPIO (PP) | ESP8266 CH_PD/EN (100ms low reset → high enable) |
-| PB5 | GPIO (PP) | LED_DS0 (active-low) |
+| PB5 | GPIO (PP) | Ready LED (active-high) |
 | PB12 | GPIO (IPU) | KEY0 (单击: 联网/Trigger, 双击: 切页) |
 | PB13 | GPIO (IPU) | KEY1 (单击: Stop SS_SWEEP时 / +1kHz调频 SS_DONE时) |
-| PC13 | GPIO (PP) | HardLED (active-low) |
-| PE5 | GPIO (PP) | LED_DS1 (active-low) |
+| PC13 | GPIO (PP) | Heartbeat LED (active-low) |
 
 **Critical hardware note**: ESP8266 requires independent 3.3V LDO (≥500mA, e.g., AMS1117-3.3) with 100μF+0.1μF decoupling. STM32 dev board's onboard 3.3V regulator cannot supply ESP8266 WiFi bursts (~300mA). ESP8266 RST pin: connect to 3.3V via 10kΩ pull-up.
 
