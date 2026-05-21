@@ -128,7 +128,7 @@ uint8_t cmd_off = (strstr(localBuf, "OFF") != NULL);
 ```c
 int main(void) {
     // 1. 硬件初始化 (PWM MOE 默认关断)
-    PWM_Init(); OLED_Init(); HardLED_Init(); ADC_DMA_Init(); KEY_Init();
+    PWM_Init(); OLED_Init(); LED_Init(); ADC_DMA_Init(); KEY_Init();
     // 2. 系统时基
     SysTimer_Init();
     // 3. 主循环 — 联网由 KEY0 触发, 不再自动阻塞
@@ -137,7 +137,7 @@ int main(void) {
         UI_Task();                  // KEY0→联网, KEY0→Trigger, KEY1→Stop
         App_Net_Task();             // s_WiFiConnected 门禁防 TXE 死锁
         Inverter_SoftStart_Task();  // 非阻塞扫频步进
-        HardLED_Task();
+        LED_Task();
     }
 }
 ```

@@ -92,7 +92,11 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('ahead_by:', d.get\\('ahead_by'\\)\\); print\\('behind_by:', d.get\\('behind_by'\\)\\); print\\('total_commits:', d.get\\('total_commits'\\)\\); print\\('status:', d.get\\('status'\\)\\)\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://github.com)",
       "Bash(ssh -T -o ConnectTimeout=10 git@github.com)",
-      "Read(//c/Users/48376/.ssh/**)"
+      "Read(//c/Users/48376/.ssh/**)",
+      "Bash(ssh -vT -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 git@github.com)",
+      "Bash(ssh-add -l)",
+      "Bash(ssh-add ~/.ssh/id_ed25519)",
+      "Bash(python3 -c \"import sys,json; [print\\(b['name']\\) for b in json.load\\(sys.stdin\\)]\")"
     ]
   }
 }
