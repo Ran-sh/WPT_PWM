@@ -254,7 +254,7 @@ WiFi credentials and server IP are defined as macros in `User/App_Net.h` (moved 
 | Document | Purpose |
 |:---|:---|
 | `claude_code/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
-| `claude_code/docs/PC端联调操作指南.md` | Bemfa Cloud WAN remote debugging guide |
+| `claude_code/docs/巴法云WAN远程联调操作指南.md` | Bemfa Cloud WAN remote debugging guide |
 | `claude_code/docs/LabVIEW上位机构建指南.md` | LabVIEW host-side application build guide |
 | `claude_code/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 
