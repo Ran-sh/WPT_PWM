@@ -2,17 +2,15 @@
  ******************************************************************************
  * @file    User/App_Net.c
  * @brief   网络应用层 —— 实现
- * @note    存放路径: 项目根目录\User\
+ * @note    V3.4: 巴法云 TCP 创客云接入 — cmd=1 订阅 + cmd=2 遥测信封 + 删静默看门狗
+ *          存放路径: 项目根目录\User\
  *
  *          模块职责:
- *            1. 管理 WiFi / TCP 服务端连接参数 (通过宏配置)
- *            2. App_Net_Init() — 阻塞式联网初始化
- *               先调用 ESP8266_Init() 配置 USART2 硬件,
- *               再调用 ESP8266_ConnectToServer() 执行 AT 联网状态机。
- *               若联网失败则冻结在 OLED 错误码页面。
- *            3. App_Net_Task() — 非阻塞周期任务 (由 main.c 主循环高频调用)
- *               - 每 1000ms: 采集电压/频率 → 封装 JSON → ESP8266_SendString 发送
- *               - 实时轮询: 检查 ESP8266 接收标志 → 解析 ON/OFF 指令 → 执行控制
+ *            1. 管理 WiFi / 巴法云 TCP 连接参数 (宏配置在 App_Net.h)
+ *            2. App_Net_Init() — 阻塞式联网初始化 + 巴法云订阅
+ *            3. App_Net_Task() — 非阻塞周期任务 (V3.4 巴法云协议)
+ *               - 每 2000ms: 采集电压/频率 → cmd=2 信封 → ESP8266_SendString
+ *               - 实时轮询: 解析 CMD:ON/CMD:OFF 指令 (兼容巴法云 cmd=2 下发)
  *
  *          时间调度: 采用 SysTimer 时间戳差值法 (无标志位, 无阻塞)
  *          状态同步: 调用 UI_SetBridgeState() 确保远程/本地状态一致
