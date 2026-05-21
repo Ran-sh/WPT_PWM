@@ -24,11 +24,6 @@ static char     s_RxBuf[ESP8266_RX_BUF_SIZE];  /* 接收环形缓冲区 */
 static volatile uint16_t s_RxIndex = 0;         /* 缓冲区写入游标 (ISR 写入, 主循环读取, 必须 volatile) */
 static volatile uint8_t  s_FrameReady = 0;      /* 内部帧就绪标志 (ISR 置位, 主循环消费, 必须 volatile 防编译器缓存) */
 
-/* ── 接收活动时间戳 (ISR 写入, 主循环读取) ── */
-static volatile uint32_t s_LastRxTick = 0;
-
-uint32_t ESP8266_GetLastRxTime(void) { return s_LastRxTick; }
-
 /* 外部可见标志 —— main.c 通过 ESP8266_GetRxFlag() 轮询 */
 volatile uint8_t g_ESP8266_RxFrameFlag = 0;
 
@@ -158,7 +153,6 @@ void ESP8266_Init(void)
         }
     }
     ESP8266_ClearRxBuffer();  /* 清除复位过程中的垃圾数据 */
-    s_LastRxTick = SysTimer_GetTick();  /* 初始化静默看门狗时间戳 */
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -198,8 +192,6 @@ void ESP8266_SendString(const char *str)
  */
 void ESP8266_RxChar(uint8_t ch)
 {
-    s_LastRxTick = SysTimer_GetTick();   /* 记录最后接收时刻, 供静默看门狗使用 */
-
     /*
      * 缓冲区溢出保护: 必须为 '\0' 留一个字节 (s_RxBuf[s_RxIndex+1])
      * 因此判据为 size-2 (511→510), 否则写入 \0 时越界覆写相邻内存
@@ -216,7 +208,7 @@ void ESP8266_RxChar(uint8_t ch)
     s_RxBuf[s_RxIndex++] = (char)ch;
     s_RxBuf[s_RxIndex]   = '\0';
 
-    /* ── \r 或 \n 视为帧结束符 (兼容 NetAssist 仅发 \r 的场景) ── */
+    /* ── \r 或 \n 视为帧结束符 (防御性双分隔符设计, 兼容 \r / \n / \r\n) ── */
     if (ch == '\n' || ch == '\r')
     {
         s_FrameReady          = 1;
