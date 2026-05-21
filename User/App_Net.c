@@ -191,7 +191,7 @@ void App_Net_Task(void)
     {
         static uint32_t last_telemetry = 0;
 
-        if (SysTimer_GetTick() - last_telemetry >= 1000)
+        if (SysTimer_GetTick() - last_telemetry >= 2000)
         {
             last_telemetry = SysTimer_GetTick();
 
@@ -201,9 +201,10 @@ void App_Net_Task(void)
              */
             if (Inverter_SoftStart_GetState() != SS_SWEEP)
             {
-                char jsonBuf[128];
+                char jsonBuf[160];
                 snprintf(jsonBuf, sizeof(jsonBuf),
-                        "{\"V\":%.2f,\"I\":%.2f,\"F\":%lu}\r\n",
+                        "cmd=2&uid=%s&topic=%s&msg={\"V\":%.2f,\"I\":%.2f,\"F\":%lu}\r\n",
+                        BEMFA_UID, BEMFA_TOPIC,
                         Get_Real_Voltage(),
                         Get_Real_Current(),
                         (unsigned long)PWM_GetFrequency());
