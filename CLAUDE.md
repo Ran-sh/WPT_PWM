@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Branch Identity
+
+| 项目 | 内容 |
+|:---|:---|
+| **仓库** | https://github.com/Ran-sh/WPT_PWM |
+| **分支** | `LAN` |
+| **本地目录** | `D:\Claude Code Project\WPT_PWM_NetAssistant_LAN_V1.0` |
+| **协议** | NetAssist TCP 局域网 |
+| **版本** | V3.3 |
+
+其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云) → `WPT_PWM_Bemfa_WAN_V2.0`
+
 ## Build System
 
 - **IDE**: Keil MDK-ARM V5 (uVision), ARMCC V5.06 update 5 (build 528)
