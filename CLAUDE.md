@@ -14,6 +14,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云) → `WPT_PWM_Bemfa_WAN_V2.0`
 
+### 复合指令触发规则
+
+**当用户说"更新全部内容"时，按顺序自动执行：**
+
+1. `/simplify` — 三路代码审查 (复用/质量/效率)，修复发现的问题
+2. `/init` — 重新生成 CLAUDE.md
+3. 更新 `embedded-architect` skill (`claude_code/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
+4. 更新全部文档 (`.md` + `.docx` 配对生成)
+5. 美化 GitHub README.md
+6. `git push` 推送所有分支
+
+**执行期间**: 全部权限自动通过，不中断等待用户确认。
+
 ## Build System
 
 - **IDE**: Keil MDK-ARM V5 (uVision), ARMCC V5.06 update 5 (build 528)
