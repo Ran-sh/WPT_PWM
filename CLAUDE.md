@@ -256,10 +256,10 @@ WiFi credentials and server IP are defined as macros in `User/App_Net.h` (moved 
 ```c
 #define WIFI_SSID       "Xsyy"
 #define WIFI_PASSWORD   "**********"
-#define SERVER_IP       "114.116.142.124"       // tcp.bemfa.com
+#define SERVER_IP       "tcp.bemfa.com"          // 巴法云 TCP 域名
 #define SERVER_PORT     8344                    // 巴法云 TCP 端口
 #define BEMFA_UID       "382d6976a7f647bb856143e0b32eb9d3"
-#define BEMFA_TOPIC     "WPT001"
+#define BEMFA_TOPIC     "CG42x7TF6006"
 ```
 
 **Master branch** uses LAN config with PC IP:8080. **WAN branch** uses Bemfa Cloud config. Only `App_Net.h` differs between branches.
