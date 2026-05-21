@@ -85,6 +85,19 @@
 | 过流 | Inverter_SoftStart_Fault | < 1ms | 紧急关断 + 锁存 |
 | 频率越界 | PWM_SetFrequency 硬钳位 | 即时 | 拒绝执行 |
 
+## 分支说明
+
+> **仓库**: [github.com/Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM)  
+> **本地根目录**: `D:\Claude Code Project\`
+
+| 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | LED | 看门狗 | 适用场景 |
+|:---|:---|:---:|:---|:---|:---:|:---:|:---|
+| `master` | `WPT_PWM_V0.0` | V1.0 | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
+| **`LAN`** ⬅ | `WPT_PWM_NetAssistant_LAN_V1.0` | **V3.3** | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 15s | 内网调试 |
+| `WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V3.4 | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
+
+**分支间关系**: `master` 是基版 → `LAN` 增加 ESP8266 + 局域网联网 → `WAN` 在 LAN 基础上改为巴法云协议
+
 ## 项目结构
 
 ```
