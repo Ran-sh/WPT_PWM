@@ -7,7 +7,7 @@
  *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx}\n  → OneNET 物模型上报
  *            OneNET → ESP8266 → STM32:  CMD:ON\n 或 CMD:OFF\n
  *
- *          依赖: ESP8266WiFi.h + PubSubClient.h + ArduinoJson.h (v6)
+ *          依赖: ESP8266WiFi.h + PubSubClient.h + ArduinoJson.h (v7)
  *          烧录: Arduino IDE → 选择 "Generic ESP8266 Module" → 115200 上传
  ******************************************************************************
  */
@@ -20,8 +20,8 @@
  *          用户配置宏 (须根据实际环境修改)
  * ═══════════════════════════════════════════════════════════════ */
 
-#define WIFI_SSID       "YourWiFiSSID"
-#define WIFI_PASSWORD   "YourWiFiPassword"
+#define WIFI_SSID       "Rss"
+#define WIFI_PASSWORD   "123456789"
 
 /* OneNET MQTT 服务器 */
 #define MQTT_SERVER     "mqtts.heclouds.com"
@@ -30,7 +30,7 @@
 /* OneNET 设备凭证 */
 #define ONENET_PRODUCT_ID   "1iS397oJFL"
 #define ONENET_DEVICE_NAME  "20260001"
-#define ONENET_TOKEN        ""   /* 用户填入 OneNET 设备鉴权 Token */
+#define ONENET_TOKEN        "version=2018-10-31&res=products%2F1iS397oJFL%2Fdevice%2F20260001&et=2063362960&method=md5&sign=TgRrWLy6I1ASzwwIjP3j%2Fg%3D%3D"
 
 /* OneNET 物模型主题 */
 #define MQTT_TOPIC_PROPERTY_POST  "$sys/1iS397oJFL/20260001/thing/property/post"
@@ -56,8 +56,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
      * 解析 OneNET 属性设置下发 JSON:
      *   {"id":"123","version":"1.0","params":{"Switch":{"value":1}}}
      */
-    StaticJsonDocument<256> doc;
-    DeserializationError err = deserializeJson(doc, payload, length);
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, (const char*)payload, length);
 
     if (err) {
         /* JSON 解析失败, 尝试简单字符串匹配兜底 */
@@ -75,9 +75,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     }
 
     /* 解析 Switch 参数 */
-    JsonObject params = doc["params"].as<JsonObject>();
+    JsonObject params = doc["params"];
     if (params.containsKey("Switch")) {
-        int sw = params["Switch"]["value"].as<int>();
+        int sw = params["Switch"]["value"];
         if (sw == 1) {
             Serial.print("CMD:ON\n");
         } else {
@@ -112,7 +112,7 @@ static void ensureConnected()
     if (WiFi.status() != WL_CONNECTED)
     {
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-        return;   /* WiFi.begin 后需等待 DHCP, 下一轮再连 MQTT */
+        return;
     }
 
     /* MQTT 断开 → 重连 */
@@ -132,20 +132,20 @@ static void processSerialLine(const String& line)
      * 解析 STM32 发来的 JSON:
      *   {"V":12.50,"I":1.23,"F":100000}
      */
-    StaticJsonDocument<128> doc;
+    JsonDocument doc;
     DeserializationError err = deserializeJson(doc, line);
 
     if (err) return;  /* 非 JSON 或格式错误, 静默丢弃 */
 
-    float v = doc["V"].as<float>();
-    float i = doc["I"].as<float>();
-    unsigned long f = doc["F"].as<unsigned long>();
+    float v = doc["V"];
+    float i = doc["I"];
+    unsigned long f = doc["F"];
 
     /*
      * 重新组装为 OneNET 物模型格式:
      *   {"id":"123","version":"1.0","params":{"V":{"value":xx},"I":{"value":xx},"F":{"value":xx}}}
      */
-    StaticJsonDocument<256> txDoc;
+    JsonDocument txDoc;
     txDoc["id"]      = "123";
     txDoc["version"] = "1.0";
     txDoc["params"]["V"]["value"] = v;
