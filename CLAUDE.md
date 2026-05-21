@@ -17,7 +17,7 @@ Compilation is done through the Keil IDE GUI. No CLI build script exists—the `
 ## File Organization
 
 - **Keil 编译源文件**: `Hardware/`, `System/`, `User/`, `Library/`, `Start/` — 路径不可移动
-- **Claude 生成文件**: 全部放在 `claude_code/` 下 (`docs/`, `docx/`, `tools/`, `superpowers/`, `package.json`, `node_modules/`)
+- **Claude 生成文件**: 全部放在 `claude_code/` 下 (`docs/`, `tools/`, `superpowers/`, `package.json`, `node_modules/`)
 - **项目配置**: `CLAUDE.md` + `.claude/` 保留根目录
 
 ## Architecture: Three-Layer Separation
