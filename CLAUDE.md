@@ -71,16 +71,16 @@ All `static uint32_t last` variables in task functions are per-function private 
 | Module | File | Role |
 |:---|:---|:---|
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
-| ESP8266 | `Hardware/ESP8266.c` | Async USART2 receiver, AT command state machine, TCP transparent mode; PB1 CH_PD/EN pin with 1000ms deep reset + AT+RST software reset; `ESP8266_SetWaitCallback` hook for AT-progress dot animation; `ESP8266_GetLastRxTime()` for silent watchdog; 15s `ESP8266_SILENT_TIMEOUT` for offline detection |
+| ESP8266 | `Hardware/ESP8266.c` | Async USART2 receiver, AT command state machine, TCP transparent mode; PB1 CH_PD/EN pin with 1000ms deep reset + AT+RST software reset; `ESP8266_SetWaitCallback` hook for AT-progress dot animation |
 | PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time (DEADTIME_NS macro), 50% locked duty, 95-150kHz PFM; non-blocking soft-start state machine (150k→100kHz, 200Hz/10ms step, ~2.5s); atomic `Inverter_SetState()` with irq guards; `Inverter_SoftStart_Trigger/Task/Stop/GetState/GetCurrentFreq` |
 | ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response vs old 3.2s); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers WiFi connect then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle task) + PB5/PE5 dual-color external LED (active-low); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | V3.2 async 9-state AT FSM (NET_IDLE→NET_STEP_AT→...→NET_SUCCESS/FAIL), KEY1 cancelable, 3-retry auto-fallback; `s_WiFiConnected` single authority source + USART2 ready gate; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); **V3.3 silent watchdog**: 15s no RX data → `Inverter_SoftStart_Stop` + `s_WiFiConnected=0`; `snprintf` for JSON buffer safety |
+| App_Net | `User/App_Net.c` | **V3.4 Bemfa Cloud**: config macros in `App_Net.h` for branch diff; `Bemfa_Subscribe()` injected in both blocking + non-blocking connect paths; **cmd=2 telemetry** envelope at 2000ms (1Hz rate limit); CMD:ON/CMD:OFF protocol; CLOSED→immediate shutdown + wifi reset; **silent watchdog removed** (Bemfa is silent by default, CLOSED frame suffices); `snprintf` for buffer safety |
 
-## Startup Flow (V3.3)
+## Startup Flow (V3.4)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → HardLED → ADC_DMA → KEY
@@ -92,7 +92,7 @@ All `static uint32_t last` variables in task functions are per-function private 
 联网: KEY0 单击 → App_Net_Init(阻塞20~30s, 返回0=成功/1~6=失败) → IDLE 待机
       失败 → OLED 错误码 3 秒 → 自动回 "Press KEY0 WiFi" → 可按 KEY0 重试
 扫频: KEY0 单击 → Trigger(150kHz) → Task 10ms/步 → 100kHz DONE (~2.5s)
-关断: KEY1(SS_SWEEP) / KEY0(SS_DONE) / PC "OFF" → Stop → SS_IDLE
+关断: KEY1(SS_SWEEP) / KEY0(SS_DONE) / 云端 "CMD:OFF" → Stop → SS_IDLE
 调频: KEY1(SS_DONE) → freq +1kHz (循环 100k~150k)
 每次 ON 都是全新扫频 150k→100k
 ```
@@ -144,7 +144,7 @@ All ISR-shared variables (`s_RxIndex`, `s_FrameReady`, `g_ESP8266_RxFrameFlag`) 
 
 `ESP8266` no longer has local delay functions. It includes `SysTimer.h` and uses `SysTimer_DelayMs()` exclusively.
 
-The frame delimiter in `ESP8266_RxChar` must match **both** `\r` (0x0D) and `\n` (0x0A). NetAssist's default "send" may only append `\r`.
+The frame delimiter in `ESP8266_RxChar` matches **both** `\r` (0x0D) and `\n` (0x0A) as a defensive dual-delimiter design — compatible with `\r`/`\n`/`\r\n` from any TCP endpoint.
 
 `ESP8266_GetRxBuffer` returns `const char*` — callers must not write to the buffer.
 
@@ -206,30 +206,21 @@ Without preload, runtime ARR/CCR changes can cause cycle distortion and shoot-th
 
 `PWM_SetFrequency` uses `TIM_CR1_UDIS`→write ARR+CCR1+CCR2→`TIM_EGR_UG`→clear UDIS to atomically load all shadow registers. This prevents Update Event between writes causing new-period-with-old-duty-cycle magnetic saturation.
 
-### ESP8266 Silent Watchdog (V3.3)
+### ESP8266 Connection Loss Detection (V3.4)
 
-**Problem**: When ESP8266 module loses power independently (MCU still running), USART2 goes silent — no `CLOSED` frame is sent. PWM continues outputting with no remote shutdown capability.
+**WAN branch**: Silent watchdog removed. Bemfa Cloud is silent by default (no keepalive, no periodic data). The `CLOSED` frame from ESP8266 on TCP disconnect is the sole offline detection mechanism.
 
-**Solution**: `ESP8266_RxChar()` records `s_LastRxTick = SysTimer_GetTick()` on every received byte. `App_Net_Task` checks each iteration:
+**Master (LAN) branch** still uses a 15s silent watchdog for hardware fault protection.
 
-```c
-if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
-    Inverter_SoftStart_Stop();  // immediate PWM shutdown
-    s_WiFiConnected = 0;        // UI returns to "Press KEY0 WiFi"
-}
-```
+The `s_LastRxTick` variable, `ESP8266_GetLastRxTime()` function, and `ESP8266_SILENT_TIMEOUT` macro were removed from the WAN branch codebase (commit `3198421`).
 
-`ESP8266_SILENT_TIMEOUT = 15000` (15 seconds). On Cortex-M3, aligned 32-bit `s_LastRxTick` read/write is atomic — no critical section needed. `ESP8266_Init()` seeds the timestamp so the first 15s window starts with a fresh value.
-
-**Coverage matrix**:
+**Coverage matrix (WAN)**:
 
 | Scenario | Trigger | Action |
 |:---|:---|:---|
-| TCP正常断开 | `CLOSED` frame | Immediate PWM off (existing) |
-| ESP8266掉电 | 15s RX silence | PWM off + wifi reset |
-| ESP8266卡死 | 15s RX silence | PWM off + wifi reset |
+| TCP正常断开 | `CLOSED` frame | Immediate PWM off |
+| ESP8266掉电 | CLOSED on TCP RST | PWM off + wifi reset |
 | STM32掉电后上电 | `PWM_Init(MOE=OFF)` | Safe at boot |
-| PC长期不发指令 | TCP ACK刷新时间戳 | No false trigger |
 
 ### ADC Filtering (Bug #5 Fix)
 
@@ -237,16 +228,18 @@ if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
 
 ## Active Configuration
 
-WiFi credentials and server IP are defined as macros in `User/App_Net.c`. When the user provides a new `ipconfig` output, update `SERVER_IP` to the active WLAN adapter's IPv4. The current working config (as of 2026-05-16):
+WiFi credentials and server IP are defined as macros in `User/App_Net.h` (moved from `.c` for branch differentiation). The current WAN branch working config (as of 2026-05-21):
 
 ```c
 #define WIFI_SSID       "Xsyy"
 #define WIFI_PASSWORD   "**********"
-#define SERVER_IP       "192.168.31.254"
-#define SERVER_PORT     8080
+#define SERVER_IP       "114.116.142.124"       // tcp.bemfa.com
+#define SERVER_PORT     8344                    // 巴法云 TCP 端口
+#define BEMFA_UID       "382d6976a7f647bb856143e0b32eb9d3"
+#define BEMFA_TOPIC     "WPT001"
 ```
 
-The NetAssist tool is at `D:\Assistant\netassist5.0.13`. Configure as TCP Server with the PC's IPv4 and port 8080.
+**Master branch** uses LAN config with PC IP:8080. **WAN branch** uses Bemfa Cloud config. Only `App_Net.h` differs between branches.
 
 ## Documentation Output
 
@@ -261,7 +254,7 @@ The NetAssist tool is at `D:\Assistant\netassist5.0.13`. Configure as TCP Server
 | Document | Purpose |
 |:---|:---|
 | `claude_code/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
-| `claude_code/docs/PC端联调操作指南.md` | PC-side joint debugging with NetAssist |
+| `claude_code/docs/PC端联调操作指南.md` | Bemfa Cloud WAN remote debugging guide |
 | `claude_code/docs/LabVIEW上位机构建指南.md` | LabVIEW host-side application build guide |
 | `claude_code/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 

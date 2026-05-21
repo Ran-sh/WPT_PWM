@@ -6,10 +6,10 @@ description: >
   modular driver architecture, IoT WiFi (ESP8266 AT commands / transparent mode),
   power electronics (full-bridge PWM, inverter, resonant converter, dead-time, PFM,
   soft-start frequency sweep), non-blocking scheduling (SysTimer timestamp-diff pattern,
-  SysTick refactoring), and PC-side automated deployment (PowerShell, NetAssist TCP testing).
+  SysTick refactoring), and PC-side automated deployment (PowerShell, Bemfa Cloud TCP testing).
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
   AT指令/透传, SysTimer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
-  架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师.
+  架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师, 巴法云, Bemfa.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
   scan all .c/.h, diff vs documented state, auto-increment version, regenerate .md+.docx.
   SKIP this skill entirely if the user specifically mentions: HAL库, CubeMX,
@@ -112,14 +112,14 @@ uint8_t cmd_off = (strstr(localBuf, "OFF") != NULL);
 
 适用位置: `App_Net_Task` 指令解析 (首选模式), `ESP8266_WaitResponse`, `ESP8266_ClearRxBuffer`, CIPSEND `>` 检测 (次选模式)。
 
-**帧分隔符双兼容**: `\r` (0x0D) 和 `\n` (0x0A) 均视为帧结束符——NetAssist 默认仅发 `\r`。
+**帧分隔符双兼容**: `\r` (0x0D) 和 `\n` (0x0A) 均视为帧结束符——防御性双分隔符设计, 兼容任意 TCP 端点的 `\r`/`\n`/`\r\n`。
 
 **封装加固**:
 - `ESP8266_GetRxBuffer()` 返回 `const char*`，禁止调用方写入
 - `extern g_ESP8266_RxFrameFlag` 不得出现在 `.h` 中——外部通过 `ESP8266_GetRxFlag()` 访问
 - `ESP8266_ClearRxBuffer` 和 `ESP8266_ClearRxFlag` 均完整清空 buffer (`s_RxBuf[0]='\0'`)、重置游标 (`s_RxIndex=0`) 并清除两个帧标志, 全部在临界区内执行。杜绝 `ClearRxFlag` 只清标志不清 buffer 的幽灵指令残留
 
-### 2.5 main.c 极简原则 (V3.3: KEY 触发联网 + 静默看门狗)
+### 2.5 main.c 极简原则 (V3.4: 巴法云 WAN 远程控制)
 
 ```c
 int main(void) {
@@ -363,7 +363,7 @@ float Get_Real_Voltage(void) { return s_voltage; }  // O(1) 直接返回
 
 - **CMD:ON / CMD:OFF** 严格格式, 防 "JSON"/"CONNECT" 子串误触发
 - **CLOSED 处理 (V3.2)**: 检测到断线立即 `Inverter_SoftStart_Stop()` → `s_WiFiConnected=0`, 全程非阻塞
-- **静默看门狗 (V3.3)**: `ESP8266_RxChar` 每字节记录 `s_LastRxTick`, `App_Net_Task` 检测 15s 无数据 (`ESP8266_SILENT_TIMEOUT`) → `Inverter_SoftStart_Stop()` + `s_WiFiConnected=0`, 覆盖 ESP8266 掉电/卡死不发 CLOSED 的场景。Cortex-M3 上 uint32_t 对齐读写原子, 无需临界区
+- **巴法云订阅 (V3.4)**: 透传通道就绪后立即发送 `cmd=1&uid=xxx&topic=xxx\r\n` 订阅主题, 双路径注入 (`App_Net_Init` 阻塞 + `App_Net_Connect_Task` 非阻塞)。遥测包 `cmd=2` 信封, 2000ms 间隔 (1Hz 限流)。静默看门狗已移除 (巴法云默认静默, 仅靠 CLOSED 帧检测断线)
 - **AT 进度点动画**: `ESP8266_SetWaitCallback(AT_DotAnim)` 注册回调, WaitResponse 轮询时每 10ms 触发, 回调内 200ms 节流更新 OLED 点动画
 
 ### 2.12 OLED 性能优化 (V3.1)
