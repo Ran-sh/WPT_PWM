@@ -95,12 +95,17 @@
 
 ## 分支说明
 
-| 分支 | 协议 | 连接方式 | 适用场景 |
-|:---|:---|:---|:---|
-| `master` | LAN TCP (NetAssist) | PC 局域网 | 本地调试 / 内网部署 |
-| `WAN` | 巴法云 TCP 创客云 | WAN 广域网 | 远程控制 / 生产部署 |
+> **仓库**: [github.com/Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM)  
+> **本地根目录**: `D:\Claude Code Project\`
 
-两分支仅 `User/App_Net.h` 配置宏不同，其余代码保持一致。
+| 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | LED | 看门狗 | 适用场景 |
+|:---|:---|:---:|:---|:---|:---:|:---:|:---|
+| `master` | `WPT_PWM_V0.0` | V1.0 | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
+| `LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V3.3 | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 15s | 内网调试 |
+| **`WAN`** ⬅ | `WPT_PWM_Bemfa_WAN_V2.0` | **V3.4** | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
+
+**分支间关系**: `master` 是基版 → `LAN` 增加 ESP8266 + 局域网联网 → `WAN` 在 LAN 基础上改为巴法云协议  
+**差异文件**: `WAN` vs `LAN` 仅 `User/App_Net.h` 宏配置不同；`LAN` vs `master` 增加了 `ESP8266`/`App_Net`/`UI` 模块
 
 ## 项目结构
 
