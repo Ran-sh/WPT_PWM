@@ -35,12 +35,8 @@
 #include <stdio.h>
 
 /* ═══════════════════════════════════════════════════════════════
- *              WiFi 和目标服务器配置 (用户须根据实际环境修改)
+ *   WiFi/巴法云配置宏已移至 User/App_Net.h, 方便多分支差异化
  * ═══════════════════════════════════════════════════════════════ */
-#define WIFI_SSID       "Rss"           /* WiFi 热点名称 */
-#define WIFI_PASSWORD   "123456789"        /* WiFi 密码 */
-#define SERVER_IP       "10.219.216.212"    /* PC 端 IPv4 地址 (WLAN, 2026-05-16) */
-#define SERVER_PORT     8080                /* TCP 监听端口 */
 
 /* ═══════════════════════════════════════════════════════════════
  *                    本地辅助函数
@@ -95,6 +91,18 @@ static void Net_Remote_Off(void)
 {
     Inverter_SoftStart_Stop();
     UI_SetBridgeState(0);
+}
+
+/**
+ * @brief  巴法云订阅 — 透传通道就绪后发送 cmd=1 订阅主题
+ * @note   必须在 s_WiFiConnected=1 之后调用 (ESP8266_SendString 依赖已初始化的 USART2)
+ */
+static void Bemfa_Subscribe(void)
+{
+    char subBuf[64];
+    snprintf(subBuf, sizeof(subBuf),
+             "cmd=1&uid=%s&topic=%s\r\n", BEMFA_UID, BEMFA_TOPIC);
+    ESP8266_SendString(subBuf);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -162,6 +170,15 @@ uint8_t App_Net_Init(void)
 
     s_WiFiConnected      = 1;
     s_WiFiConnected = 1;   /* WiFi 状态唯一权威源 */
+
+    /* V3.4: 巴法云订阅 — 透传通道就绪后立即发送 cmd=1 订阅主题 */
+    {
+        char subBuf[64];
+        snprintf(subBuf, sizeof(subBuf),
+                 "cmd=1&uid=%s&topic=%s\r\n", BEMFA_UID, BEMFA_TOPIC);
+        ESP8266_SendString(subBuf);
+    }
+
     return 0;
 }
 
@@ -175,8 +192,8 @@ void App_Net_Task(void)
 {
     if (!s_WiFiConnected) return;   /* USART2 未初始化, 禁止发送/接收 */
 
-    /* ── ESP8266 静默看门狗: 15s 无数据 → 判定离线 → 关 PWM ── */
-    if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
+    /* ── ESP8266 静默看门狗: 120s 无数据 → 判定离线 → 关 PWM (巴法云长静默适配) ── */
+    if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > BEMFA_SILENT_TIMEOUT) {
         Inverter_SoftStart_Stop();
         s_WiFiConnected = 0;
         return;

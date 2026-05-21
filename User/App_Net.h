@@ -18,7 +18,7 @@
 #define WIFI_PASSWORD   "**********"            /* WiFi 密码 */
 #define SERVER_IP       "114.116.142.124"       /* 巴法云 TCP 公网 IP (tcp.bemfa.com) */
 #define SERVER_PORT     8344                    /* 巴法云 TCP 端口 */
-#define BEMFA_UID       "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  /* 巴法云用户私钥 (用户请替换为自己的真实 UID) */
+#define BEMFA_UID       "382d6976a7f647bb856143e0b32eb9d3"  /* 巴法云用户私钥 (用户请替换为自己的真实 UID) */
 #define BEMFA_TOPIC     "WPT001"                /* 巴法云主题订阅/发布名 */
 
 /* ── 联网状态 ── */
