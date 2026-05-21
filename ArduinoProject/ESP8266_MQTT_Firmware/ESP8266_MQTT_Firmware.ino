@@ -111,6 +111,7 @@ static void ensureConnected()
     /* WiFi 断开 → 重连 */
     if (WiFi.status() != WL_CONNECTED)
     {
+        Serial.println("[WiFi] Disconnected or Connecting...");
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
         return;
     }
@@ -118,7 +119,16 @@ static void ensureConnected()
     /* MQTT 断开 → 重连 */
     if (!mqttClient.connected())
     {
-        mqttReconnect();
+        Serial.println("[MQTT] WiFi OK! Now Connecting to OneNET...");
+        if (mqttReconnect())
+        {
+            Serial.println("[MQTT] >>> OneNET Connected successfully! <<<");
+        }
+        else
+        {
+            Serial.print("[MQTT] Connect failed, Error Code (rc) = ");
+            Serial.println(mqttClient.state());
+        }
     }
 }
 
@@ -165,8 +175,11 @@ static void processSerialLine(const String& line)
 void setup()
 {
     Serial.begin(115200);
+    Serial.println("\n[System] ESP8266 Booting...");
 
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.print("[WiFi] Connecting to ");
+    Serial.println(WIFI_SSID);
 
     mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
     mqttClient.setCallback(mqttCallback);
