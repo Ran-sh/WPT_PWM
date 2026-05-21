@@ -7,21 +7,27 @@
  *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx}\n  → OneNET 物模型上报
  *            OneNET → ESP8266 → STM32:  CMD:ON\n 或 CMD:OFF\n
  *
- *          依赖: ESP8266WiFi.h + PubSubClient.h + ArduinoJson.h (v7)
+ *          依赖: ESP8266WiFi.h + PubSubClient.h + ArduinoJson.h (v7) + WiFiManager.h (tzapu)
  *          烧录: Arduino IDE → 选择 "Generic ESP8266 Module" → 115200 上传
+ *
+ *          ⚠️ 请在 Arduino IDE 库管理器中安装:
+ *             - ArduinoJson (by Benoit Blanchon) — v7
+ *             - PubSubClient (by Nick O'Leary)
+ *             - WiFiManager (by tzapu) — Web 网页配网
  ******************************************************************************
  */
 
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <WiFiManager.h>
 
 /* ═══════════════════════════════════════════════════════════════
- *          用户配置宏 (须根据实际环境修改)
+ *          WiFi 配网: 首次上电或找不到已存网络时,
+ *          ESP8266 会开启 "STM32_WPT_Config" 无密码热点,
+ *          手机连接后浏览器自动弹出配网页, 选择路由器并输入密码即可.
+ *          WiFiManager 会将凭据存入闪存, 后续自动连接.
  * ═══════════════════════════════════════════════════════════════ */
-
-#define WIFI_SSID       "Rss"
-#define WIFI_PASSWORD   "123456789"
 
 /* OneNET MQTT 服务器 */
 #define MQTT_SERVER     "mqtts.heclouds.com"
@@ -30,7 +36,7 @@
 /* OneNET 设备凭证 */
 #define ONENET_PRODUCT_ID   "1iS397oJFL"
 #define ONENET_DEVICE_NAME  "20260001"
-#define ONENET_TOKEN        "version=2018-10-31&res=products%2F1iS397oJFL%2Fdevice%2F20260001&et=2063362960&method=md5&sign=TgRrWLy6I1ASzwwIjP3j%2Fg%3D%3D"
+#define ONENET_TOKEN        "version=2018-10-31&res=products%2F1iS397oJFL%2Fdevices%2F20260001&et=2063362960&method=md5&sign=phYCE26jNI80tiXEeMxxRA%3D%3D"
 
 /* OneNET 物模型主题 */
 #define MQTT_TOPIC_PROPERTY_POST  "$sys/1iS397oJFL/20260001/thing/property/post"
@@ -108,11 +114,11 @@ static void ensureConnected()
     if (now - lastReconnectAttempt < 5000) return;
     lastReconnectAttempt = now;
 
-    /* WiFi 断开 → 重连 */
+    /* WiFi 断开 → 重连 (ESP8266 已存 WiFiManager 配网凭据, 无参 begin 即可) */
     if (WiFi.status() != WL_CONNECTED)
     {
         Serial.println("[WiFi] Disconnected or Connecting...");
-        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+        WiFi.begin();
         return;
     }
 
@@ -177,9 +183,18 @@ void setup()
     Serial.begin(115200);
     Serial.println("\n[System] ESP8266 Booting...");
 
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("[WiFi] Connecting to ");
-    Serial.println(WIFI_SSID);
+    /*
+     * WiFiManager 网页配网:
+     *   - 有已存凭据 → 直接连接
+     *   - 无已存凭据或连接失败 → 开启 "STM32_WPT_Config" AP (无密码)
+     *     手机连上此热点, 浏览器会自动弹出配网页
+     */
+    WiFiManager wifiManager;
+    wifiManager.setDebugOutput(false);          /* 关闭 WiFiManager 自身的调试输出 */
+    wifiManager.autoConnect("STM32_WPT_Config");
+
+    Serial.print("[WiFi] Connected! IP: ");
+    Serial.println(WiFi.localIP());
 
     mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
     mqttClient.setCallback(mqttCallback);
