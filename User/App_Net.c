@@ -408,6 +408,7 @@ on_success:
         ESP8266_SetWaitCallback(NULL);
         s_WiFiConnected      = 1;
         s_WiFiConnected = 1;
+        Bemfa_Subscribe();   /* V3.4: 透传通道就绪 → 巴法云订阅主题 */
         LED_Update_WiFi(LED_OFF);
         return;
     }
