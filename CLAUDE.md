@@ -235,7 +235,7 @@ Without preload, runtime ARR/CCR changes can cause cycle distortion and shoot-th
 
 **LAN branch** (NetAssist 局域网) still uses a 15s silent watchdog. **Master branch** (V0.0) has no networking.
 
-The `s_LastRxTick` variable, `ESP8266_GetLastRxTime()` function, and `ESP8266_SILENT_TIMEOUT` macro were removed from the WAN branch codebase (commit `3198421`).
+The `s_LastRxTick` variable, `ESP8266_GetLastRxTime()` function, and `ESP8266_SILENT_TIMEOUT` macro were removed from the WAN branch codebase.
 
 **Coverage matrix (WAN)**:
 
@@ -262,7 +262,7 @@ WiFi credentials and server IP are defined as macros in `User/App_Net.h` (moved 
 #define BEMFA_TOPIC     "CG42x7TF6006"
 ```
 
-**Master branch** uses LAN config with PC IP:8080. **WAN branch** uses Bemfa Cloud config. Only `App_Net.h` differs between branches.
+**LAN branch** uses NetAssist TCP with PC IP:8080. **Master branch** (V0.0) has no networking. Only `App_Net.h` differs between WAN and LAN branches.
 
 ## Documentation Output
 
@@ -285,4 +285,3 @@ WiFi credentials and server IP are defined as macros in `User/App_Net.h` (moved 
 
 - **Target 1**: Main application (flash to STM32 via ST-Link or serial bootloader)
 - `claude_code/tools/generate_docx.js`: Node.js script to batch-convert `claude_code/docs/*.md` → `claude_code/docs/*.docx` with branded formatting
-- `claude_code/docs/embedded-architect-system-prompt.md`: The project's skill definition (also installed at `~/.claude/skills/embedded-architect/SKILL.md`). Contains coding standards, scheduling doctrine, document version control rules, and the auto-diff document update workflow. When Claude needs a refresher on project conventions, read this file.
