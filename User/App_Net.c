@@ -160,7 +160,6 @@ uint8_t App_Net_Init(void)
     SysTimer_DelayMs(2000);  /* 成功画面停留 2s (含 PB3 LED 常亮指示) */
     OLED_Clear();
 
-    s_WiFiConnected      = 1;
     s_WiFiConnected = 1;   /* WiFi 状态唯一权威源 */
     return 0;
 }
@@ -242,7 +241,6 @@ void App_Net_Task(void)
              */
             Inverter_SoftStart_Stop();
             UI_SetBridgeState(0);
-            s_WiFiConnected      = 0;
             s_WiFiConnected = 0;
         }
     }
@@ -394,7 +392,6 @@ on_fail:
     if (s_net_state == NET_SUCCESS) {
 on_success:
         ESP8266_SetWaitCallback(NULL);
-        s_WiFiConnected      = 1;
         s_WiFiConnected = 1;
         LED_Update_WiFi(LED_OFF);
         return;
