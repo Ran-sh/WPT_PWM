@@ -730,16 +730,6 @@
               <FileType>5</FileType>
               <FilePath>.\Hardware\UI.h</FilePath>
             </File>
-            <File>
-              <FileName>ESP8266.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\ESP8266.c</FilePath>
-            </File>
-            <File>
-              <FileName>ESP8266.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\ESP8266.h</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
@@ -764,16 +754,6 @@
               <FileName>stm32f10x_it.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\User\stm32f10x_it.h</FilePath>
-            </File>
-            <File>
-              <FileName>App_Net.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\User\App_Net.c</FilePath>
-            </File>
-            <File>
-              <FileName>App_Net.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\User\App_Net.h</FilePath>
             </File>
           </Files>
         </Group>
