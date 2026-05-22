@@ -17,6 +17,12 @@
  ******************************************************************************
  */
 
+/* #define DEBUG */  /* Uncomment to enable debug serial output */
+
+#define SERIAL_LINE_MAX       128
+#define RECONNECT_INTERVAL_MS 5000
+#define WIFI_AP_NAME          "STM32_WPT_Config"
+
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -49,7 +55,8 @@
 WiFiClient    espClient;
 PubSubClient  mqttClient(espClient);
 
-static String          serialLine = "";           /* 串口行缓冲 */
+static char     serialBuf[128];          /* 串口行缓冲 */
+static uint8_t  serialLen = 0;           /* 缓冲有效字节数 */
 static unsigned long   lastReconnectAttempt = 0;  /* 重连间隔控制 */
 
 /* ═══════════════════════════════════════════════════════════════
@@ -62,7 +69,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
      * 解析 OneNET 属性设置下发 JSON:
      *   {"id":"123","version":"1.0","params":{"Switch":{"value":1}}}
      */
-    JsonDocument doc;
+    StaticJsonDocument<256> doc;
     DeserializationError err = deserializeJson(doc, (const char*)payload, length);
 
     if (err) {
@@ -72,9 +79,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         memcpy(msg, payload, len);
         msg[len] = '\0';
 
-        if (strstr(msg, "ON") || strstr(msg, "on") || strstr(msg, "\"value\":1")) {
+        if (strstr(msg, "CMD:ON") || strstr(msg, "\"value\":1")) {
             Serial.print("CMD:ON\n");
-        } else if (strstr(msg, "OFF") || strstr(msg, "off") || strstr(msg, "\"value\":0")) {
+        } else if (strstr(msg, "CMD:OFF") || strstr(msg, "\"value\":0")) {
             Serial.print("CMD:OFF\n");
         }
         return;
@@ -111,13 +118,15 @@ static void ensureConnected()
     unsigned long now = millis();
 
     /* 每 5 秒尝试一次, 避免频繁重连阻塞 loop */
-    if (now - lastReconnectAttempt < 5000) return;
+    if (now - lastReconnectAttempt < RECONNECT_INTERVAL_MS) return;
     lastReconnectAttempt = now;
 
     /* WiFi 断开 → 重连 (ESP8266 已存 WiFiManager 配网凭据, 无参 begin 即可) */
     if (WiFi.status() != WL_CONNECTED)
     {
+#ifdef DEBUG
         Serial.println("[WiFi] Disconnected or Connecting...");
+#endif
         WiFi.begin();
         return;
     }
@@ -125,15 +134,21 @@ static void ensureConnected()
     /* MQTT 断开 → 重连 */
     if (!mqttClient.connected())
     {
+#ifdef DEBUG
         Serial.println("[MQTT] WiFi OK! Now Connecting to OneNET...");
+#endif
         if (mqttReconnect())
         {
+#ifdef DEBUG
             Serial.println("[MQTT] >>> OneNET Connected successfully! <<<");
+#endif
         }
         else
         {
+#ifdef DEBUG
             Serial.print("[MQTT] Connect failed, Error Code (rc) = ");
             Serial.println(mqttClient.state());
+#endif
         }
     }
 }
@@ -142,13 +157,13 @@ static void ensureConnected()
  *              串口 → MQTT 数据转发
  * ═══════════════════════════════════════════════════════════════ */
 
-static void processSerialLine(const String& line)
+static void processSerialLine(const char* line)
 {
     /*
      * 解析 STM32 发来的 JSON:
      *   {"V":12.50,"I":1.23,"F":100000}
      */
-    JsonDocument doc;
+    StaticJsonDocument<128> doc;
     DeserializationError err = deserializeJson(doc, line);
 
     if (err) return;  /* 非 JSON 或格式错误, 静默丢弃 */
@@ -161,7 +176,7 @@ static void processSerialLine(const String& line)
      * 重新组装为 OneNET 物模型格式:
      *   {"id":"123","version":"1.0","params":{"V":{"value":xx},"I":{"value":xx},"F":{"value":xx}}}
      */
-    JsonDocument txDoc;
+    StaticJsonDocument<256> txDoc;
     txDoc["id"]      = "123";
     txDoc["version"] = "1.0";
     txDoc["params"]["V"]["value"] = v;
@@ -181,7 +196,9 @@ static void processSerialLine(const String& line)
 void setup()
 {
     Serial.begin(115200);
+#ifdef DEBUG
     Serial.println("\n[System] ESP8266 Booting...");
+#endif
 
     /*
      * WiFiManager 网页配网:
@@ -191,10 +208,12 @@ void setup()
      */
     WiFiManager wifiManager;
     wifiManager.setDebugOutput(false);          /* 关闭 WiFiManager 自身的调试输出 */
-    wifiManager.autoConnect("STM32_WPT_Config");
+    wifiManager.autoConnect(WIFI_AP_NAME);
 
+#ifdef DEBUG
     Serial.print("[WiFi] Connected! IP: ");
     Serial.println(WiFi.localIP());
+#endif
 
     mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
     mqttClient.setCallback(mqttCallback);
@@ -214,23 +233,20 @@ void loop()
         char c = (char)Serial.read();
         if (c == '\n')
         {
-            if (serialLine.length() > 0)
+            if (serialLen > 0)
             {
-                processSerialLine(serialLine);
-                serialLine = "";
+                serialBuf[serialLen] = '\0';
+                processSerialLine(serialBuf);
+                serialLen = 0;
             }
         }
         else if (c == '\r')
         {
             /* 忽略 */
         }
-        else
+        else if (serialLen < sizeof(serialBuf) - 1)
         {
-            serialLine += c;
-            if (serialLine.length() >= 128)
-            {
-                serialLine = "";  /* 行过长, 丢弃 */
-            }
+            serialBuf[serialLen++] = c;
         }
     }
 }
