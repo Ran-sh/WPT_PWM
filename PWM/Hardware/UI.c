@@ -254,18 +254,8 @@ void UI_Task(void)
     }
 }
 
-void UI_SetBridgeState(uint8_t on_off)
-{
-    (void)on_off;  /* V3.1: 由 Inverter_SoftStart_GetState 推导 */
-}
-
 uint8_t UI_GetBridgeState(void)
 {
     SoftStart_State_t s = Inverter_SoftStart_GetState();
     return (s == SS_SWEEP || s == SS_DONE);
-}
-
-void UI_SetWiFiConnected(uint8_t on_off)
-{
-    (void)on_off;  /* V3.1: 由 App_Net_IsConnected() 权威持有 */
 }

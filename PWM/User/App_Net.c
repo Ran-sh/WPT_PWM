@@ -94,14 +94,12 @@ void App_Net_Task(void)
         {
             if (Inverter_SoftStart_GetState() == SS_IDLE) {
                 Inverter_SoftStart_Trigger();
-                UI_SetBridgeState(1);
             }
             OLED_ShowString(4, 1, "CMD: Remote ON  ");
         }
         else if (strstr(localBuf, "CMD:OFF"))
         {
             Inverter_SoftStart_Stop();
-            UI_SetBridgeState(0);
             OLED_ShowString(4, 1, "CMD: Remote OFF ");
         }
     }
