@@ -40,7 +40,7 @@ void     PWM_Enable(void);
 void     PWM_Disable(void);
 
 /*
- * 非阻塞软启动扫频 (150kHz → 100kHz, 200Hz/步, 20ms/步, 共 250 步 ≈ 5s)
+ * 非阻塞软启动扫频 (150kHz → 100kHz, 200Hz/步, 10ms/步, 共 250 步 ≈ 2.5s)
  *   Trigger: KEY0 或 PC "ON" 触发, 仅 SS_IDLE 时有效
  *   Task:    主循环每轮调用, 内部 2ms 时间戳节拍
  *   Stop:    KEY1 或 PC "OFF" 关断, 回复 SS_IDLE

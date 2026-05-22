@@ -22,7 +22,7 @@
 
 ### 1.2 确保单片机固件已烧录
 
-单片机 `main.c` 中需要修改三处配置后重新编译烧录：
+单片机 `App_Net.c` 中需要修改三处配置后重新编译烧录：
 
 ```c
 #define WIFI_SSID       "YourWiFiSSID"      // ← 改成你公司的 WiFi 名
@@ -60,7 +60,7 @@ ipconfig
 > 📌 **注意事项**:
 > - PC 和 ESP8266 必须连接**同一个路由器 / 热点**，否则 IP 不在同一网段无法通信。
 > - 如果电脑同时有多个网卡（有线 + 无线 + 虚拟机虚拟网卡），请选择 ESP8266 实际连接的那个网络。
-> - 将该 IP 地址填入 `main.c` 的 `SERVER_IP` 宏定义中并重新编译烧录。
+> - 将该 IP 地址填入 `App_Net.c` 的 `SERVER_IP` 宏定义中并重新编译烧录。
 
 ---
 
@@ -203,7 +203,7 @@ ipconfig
 | 序号 | 检查项 | 合格标准 |
 |:---:|:---|:---|
 | ✅ 1 | PC 端 ipconfig | 获得正确的 IPv4 地址 |
-| ✅ 2 | main.c 配置 | SSID / 密码 / IP / 端口 四项均已修改 |
+| ✅ 2 | App_Net.c 配置 | SSID / 密码 / IP / 端口 四项均已修改 |
 | ✅ 3 | NetAssist 启动 | TCP Server 模式, 端口 8080, 已点击开启监听 |
 | ✅ 4 | 单片机联网 | OLED 显示 "WiFi Connected! TCP: OK" |
 | ✅ 5 | 上行数据 | NetAssist 每 1 秒收到一条 JSON |
@@ -242,7 +242,7 @@ graph TD
 - ESP8266 模块单独断电或卡死时，单片机 15 秒内自动关断 PWM 输出
 - OLED 回到 "WiFi: DISCONN / Press KEY0 WiFi" 界面
 - 重新给 ESP8266 上电后，按 KEY0 重新联网即可恢复
-- 正常工作期间 PC 每 15 秒内发过任意数据（包括 TCP keepalive）就不会误触发
+- 正常工作期间 PC 每 30 秒内发任意**应用层数据** (如 CMD:ON 指令) 就不会误触发。注意 TCP keepalive 由 ESP8266 协议栈内部处理, 不会转发到 STM32, 无法喂狗
 
 ### 6.4 JSON 数据乱码
 
@@ -257,14 +257,14 @@ graph TD
 
 | 扩展方向 | 实现位置 | 说明 |
 |:---|:---|:---|
-| 增加上报字段 (电流/温度) | `main.c` → JSON 构造区 | 在 `sprintf` 中追加字段 |
-| 增加远程指令 (调频/调压) | `main.c` → 指令解析区 | 在 `strstr` 分支中添加新指令 |
+| 增加上报字段 (电流/温度) | `App_Net.c` → JSON 构造区 | 在 `sprintf` 中追加字段 |
+| 增加远程指令 (调频/调压) | `App_Net.c` → 指令解析区 | 在 `strstr` 分支中添加新指令 |
 | 更换为 MQTT 协议 | `ESP8266.c` → 联网状态机 | 替换 TCP 建立为 MQTT AT 指令 |
 | PC 端记录数据到文件 | NetAssist → 保存日志 | NetAssist 自带日志保存功能 |
 | PC 端自动化测试脚本 | `Tools\auto_test.ps1` | 新建 PowerShell 脚本发送标准化指令 |
 
 ---
 
-> 📅 文档版本: v1.2  
-> 📝 最后更新: 2026-05-20  
+> 📅 文档版本: v1.3  
+> 📝 最后更新: 2026-05-22  
 > 🔗 关联文件: `Hardware/ESP8266.c`, `Hardware/ESP8266.h`, `User/App_Net.c`, `Tools/deploy_netassist.ps1`

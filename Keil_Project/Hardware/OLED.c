@@ -243,9 +243,11 @@ uint32_t OLED_Pow(uint32_t X, uint32_t Y)
 void OLED_ShowNum(uint8_t Line, uint8_t Column, uint32_t Number, uint8_t Length)
 {
 	uint8_t i;
-	for (i = 0; i < Length; i++)							
+	uint32_t divisor = OLED_Pow(10, Length - 1);   /* 预计算最高位除数, 循环内递减 O(n) */
+	for (i = 0; i < Length; i++)
 	{
-		OLED_ShowChar(Line, Column + i, Number / OLED_Pow(10, Length - i - 1) % 10 + '0');
+		OLED_ShowChar(Line, Column + i, (Number / divisor) % 10 + '0');
+		divisor /= 10;
 	}
 }
 
@@ -261,6 +263,7 @@ void OLED_ShowSignedNum(uint8_t Line, uint8_t Column, int32_t Number, uint8_t Le
 {
 	uint8_t i;
 	uint32_t Number1;
+	uint32_t divisor;
 	if (Number >= 0)
 	{
 		OLED_ShowChar(Line, Column, '+');
@@ -271,9 +274,11 @@ void OLED_ShowSignedNum(uint8_t Line, uint8_t Column, int32_t Number, uint8_t Le
 		OLED_ShowChar(Line, Column, '-');
 		Number1 = -Number;
 	}
-	for (i = 0; i < Length; i++)							
+	divisor = OLED_Pow(10, Length - 1);
+	for (i = 0; i < Length; i++)
 	{
-		OLED_ShowChar(Line, Column + i + 1, Number1 / OLED_Pow(10, Length - i - 1) % 10 + '0');
+		OLED_ShowChar(Line, Column + i + 1, (Number1 / divisor) % 10 + '0');
+		divisor /= 10;
 	}
 }
 
@@ -287,18 +292,13 @@ void OLED_ShowSignedNum(uint8_t Line, uint8_t Column, int32_t Number, uint8_t Le
   */
 void OLED_ShowHexNum(uint8_t Line, uint8_t Column, uint32_t Number, uint8_t Length)
 {
-	uint8_t i, SingleNumber;
-	for (i = 0; i < Length; i++)							
+	uint8_t i;
+	uint32_t divisor = OLED_Pow(16, Length - 1);
+	for (i = 0; i < Length; i++)
 	{
-		SingleNumber = Number / OLED_Pow(16, Length - i - 1) % 16;
-		if (SingleNumber < 10)
-		{
-			OLED_ShowChar(Line, Column + i, SingleNumber + '0');
-		}
-		else
-		{
-			OLED_ShowChar(Line, Column + i, SingleNumber - 10 + 'A');
-		}
+		uint8_t nibble = (Number / divisor) % 16;
+		OLED_ShowChar(Line, Column + i, nibble < 10 ? nibble + '0' : nibble - 10 + 'A');
+		divisor /= 16;
 	}
 }
 
@@ -313,9 +313,11 @@ void OLED_ShowHexNum(uint8_t Line, uint8_t Column, uint32_t Number, uint8_t Leng
 void OLED_ShowBinNum(uint8_t Line, uint8_t Column, uint32_t Number, uint8_t Length)
 {
 	uint8_t i;
-	for (i = 0; i < Length; i++)							
+	uint32_t divisor = OLED_Pow(2, Length - 1);
+	for (i = 0; i < Length; i++)
 	{
-		OLED_ShowChar(Line, Column + i, Number / OLED_Pow(2, Length - i - 1) % 2 + '0');
+		OLED_ShowChar(Line, Column + i, (Number / divisor) % 2 + '0');
+		divisor /= 2;
 	}
 }
 
@@ -326,9 +328,9 @@ void OLED_ShowBinNum(uint8_t Line, uint8_t Column, uint32_t Number, uint8_t Leng
   */
 void OLED_Init(void)
 {
-	uint32_t i, j;
-	
-	for (i = 0; i < 1000; i++)			//上电延时
+	volatile uint32_t i, j;   /* volatile 防止编译器优化消除延时循环 */
+
+	for (i = 0; i < 1000; i++)
 	{
 		for (j = 0; j < 1000; j++);
 	}
@@ -385,7 +387,7 @@ void OLED_Init(void)
   * @param  FractLength 小数部分的长度，范围：1~9
   * @retval 无
   */
-void OLED_ShowFloatNum(uint8_t Line, uint8_t Column, double Number, uint8_t IntLength, uint8_t FractLength)
+void OLED_ShowFloatNum(uint8_t Line, uint8_t Column, float Number, uint8_t IntLength, uint8_t FractLength)
 {
 	uint32_t IntNum;
 	uint32_t FractNum;

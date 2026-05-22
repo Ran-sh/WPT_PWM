@@ -37,7 +37,7 @@ static void UI_UpdateLEDs(SoftStart_State_t ss)
         if (ns > NET_IDLE && ns < NET_SUCCESS)
             LED_Update_WiFi(LED_FAST);       /* 联网进行中: 快闪 */
         else
-            LED_Update_WiFi(App_Net_IsConnected() ? LED_OFF : LED_SLOW);
+            LED_Update_WiFi(App_Net_IsConnected() ? LED_SOLID : LED_SLOW);
     }
 
     /* PB4 PWM */

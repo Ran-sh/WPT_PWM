@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `LAN` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_NetAssistant_LAN_V1.0` |
 | **协议** | NetAssist TCP 局域网 |
-| **版本** | V3.3 |
+| **版本** | V3.4 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云) → `WPT_PWM_Bemfa_WAN_V2.0`
 
@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. 更新 `embedded-architect` skill (`claude_code/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
 4. 更新全部文档 (`.md` + `.docx` 配对生成)
 5. 美化 GitHub README.md
-6. `git push` 推送所有分支
+6. `git push` 推送当前分支
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
@@ -111,30 +111,34 @@ All `static uint32_t last` variables in task functions are per-function private 
 | Module | File | Role |
 |:---|:---|:---|
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
-| ESP8266 | `Hardware/ESP8266.c` | Async USART2 receiver, AT command state machine, TCP transparent mode; PB1 CH_PD/EN pin with 1000ms deep reset + AT+RST software reset; `ESP8266_SetWaitCallback` hook for AT-progress dot animation; `ESP8266_GetLastRxTime()` for silent watchdog; 15s `ESP8266_SILENT_TIMEOUT` for offline detection |
+| ESP8266 | `Hardware/ESP8266.c` | Async USART2 receiver, AT command state machine, TCP transparent mode; PB1 CH_PD/EN pin with 1000ms deep reset + AT+RST software reset; `ESP8266_SetWaitCallback` hook for AT-progress dot animation; `ESP8266_GetLastRxTime()` for silent watchdog; 30s `ESP8266_SILENT_TIMEOUT` for offline detection |
 | PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time (DEADTIME_NS macro), 50% locked duty, 95-150kHz PFM; non-blocking soft-start state machine (150k→100kHz, 200Hz/10ms step, ~2.5s); atomic `Inverter_SetState()` with irq guards; `Inverter_SoftStart_Trigger/Task/Stop/GetState/GetCurrentFreq` |
 | ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response vs old 3.2s); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers WiFi connect then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
-| LED | `Hardware/LED.c` | PC13 heartbeat + PB3 WiFi + PB4 PWM + PB5 Ready; `LED_Init`/`LED_Task`/`LED_Status_Task` |
-| App_Net | `User/App_Net.c` | V3.2 async 9-state AT FSM (NET_IDLE→NET_STEP_AT→...→NET_SUCCESS/FAIL), KEY1 cancelable, 3-retry auto-fallback; `s_WiFiConnected` single authority source + USART2 ready gate; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); **V3.3 silent watchdog**: 15s no RX data → `Inverter_SoftStart_Stop` + `s_WiFiConnected=0`; `snprintf` for JSON buffer safety |
+| LED | `Hardware/LED.c` | PC13 heartbeat + PB3 WiFi (connected=常亮, connecting=快闪, disconnected=慢闪) + PB4 PWM + PB5 Ready; `LED_Init`/`LED_Task`/`LED_Status_Task` |
+| App_Net | `User/App_Net.c` | V3.2 async 9-state AT FSM (NET_IDLE→NET_STEP_AT→...→NET_SUCCESS/FAIL), KEY1 cancelable, 3-retry auto-fallback; `s_WiFiConnected` single authority source + USART2 ready gate; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); **V3.3 silent watchdog**: 30s no RX data → `Inverter_SoftStart_Stop` + `s_WiFiConnected=0` + `s_net_state=NET_IDLE`; `ESP8266_RefreshLastRxTime` called at WiFi connect success to give fresh 30s window |
 
-## Startup Flow (V3.3)
+## Startup Flow (V3.4)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA → KEY
      → SysTimer_Init
      → OLED "Wireless Charge"
      → 主循环 while(1):
-         KEY_Task  |  UI_Task  |  App_Net_Task  |  Inverter_SoftStart_Task  |  LED_Task
+         KEY_Task  |  UI_Task  |  App_Net_Task  |  App_Net_Connect_Task  |  Inverter_SoftStart_Task  |  LED_Task
 
-联网: KEY0 单击 → App_Net_Init(阻塞20~30s, 返回0=成功/1~6=失败) → IDLE 待机
+联网: KEY0 单击 → App_Net_Connect_Trigger (非阻塞, ESP8266 双重复位 ~3.5s)
+      → App_Net_Connect_Task 异步 9 步 AT FSM, KEY1 可取消, 3 次重试
+      → 成功: s_WiFiConnected=1 + RefreshLastRxTime (全新 30s 看门狗窗口)
       失败 → OLED 错误码 3 秒 → 自动回 "Press KEY0 WiFi" → 可按 KEY0 重试
 扫频: KEY0 单击 → Trigger(150kHz) → Task 10ms/步 → 100kHz DONE (~2.5s)
-关断: KEY1(SS_SWEEP) / KEY0(SS_DONE) / PC "OFF" → Stop → SS_IDLE
+关断: KEY1(SS_SWEEP) / KEY0(SS_DONE) / PC "CMD:OFF" → Stop → SS_IDLE
 调频: KEY1(SS_DONE) → freq +1kHz (循环 100k~150k)
 每次 ON 都是全新扫频 150k→100k
+
+断线保护: CLOSED帧→立即关 + 30s静默看门狗, 断线后 s_net_state 自动回 NET_IDLE
 ```
 
 ## Pin Mapping (STM32F103C8 LQFP-48)
@@ -253,22 +257,23 @@ Without preload, runtime ARR/CCR changes can cause cycle distortion and shoot-th
 
 ```c
 if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
-    Inverter_SoftStart_Stop();  // immediate PWM shutdown
-    s_WiFiConnected = 0;        // UI returns to "Press KEY0 WiFi"
+    Inverter_SoftStart_Stop();
+    s_WiFiConnected = 0;
+    s_net_state    = NET_IDLE;     // 必须复位, 否则 KEY0 重连被拦截(永久死锁)
 }
 ```
 
-`ESP8266_SILENT_TIMEOUT = 15000` (15 seconds). On Cortex-M3, aligned 32-bit `s_LastRxTick` read/write is atomic — no critical section needed. `ESP8266_Init()` seeds the timestamp so the first 15s window starts with a fresh value.
+`ESP8266_SILENT_TIMEOUT = 30000` (30 seconds, V3.4 从 15s 延长以适配人工操作)。 On Cortex-M3, aligned 32-bit `s_LastRxTick` read/write is atomic — no critical section needed. `ESP8266_Init()` seeds the timestamp so the first 15s window starts with a fresh value.
 
 **Coverage matrix**:
 
 | Scenario | Trigger | Action |
 |:---|:---|:---|
 | TCP正常断开 | `CLOSED` frame | Immediate PWM off (existing) |
-| ESP8266掉电 | 15s RX silence | PWM off + wifi reset |
-| ESP8266卡死 | 15s RX silence | PWM off + wifi reset |
+| ESP8266掉电 | 30s RX silence | PWM off + wifi reset |
+| ESP8266卡死 | 30s RX silence | PWM off + wifi reset |
 | STM32掉电后上电 | `PWM_Init(MOE=OFF)` | Safe at boot |
-| PC长期不发指令 | TCP ACK刷新时间戳 | No false trigger |
+| PC长期不发指令 | PC 须发应用数据喂狗 (TCP keepalive 不转发到 STM32) | 30s 超时 |
 
 ### ADC Filtering (Bug #5 Fix)
 
@@ -279,9 +284,9 @@ if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
 WiFi credentials and server IP are defined as macros in `User/App_Net.c`. When the user provides a new `ipconfig` output, update `SERVER_IP` to the active WLAN adapter's IPv4. The current working config (as of 2026-05-16):
 
 ```c
-#define WIFI_SSID       "Xsyy"
-#define WIFI_PASSWORD   "**********"
-#define SERVER_IP       "192.168.31.254"
+#define WIFI_SSID       "Rss"
+#define WIFI_PASSWORD   "123456789"
+#define SERVER_IP       "10.219.216.212"
 #define SERVER_PORT     8080
 ```
 

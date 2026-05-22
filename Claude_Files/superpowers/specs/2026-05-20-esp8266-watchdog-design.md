@@ -1,7 +1,7 @@
 # ESP8266 静默看门狗 — 掉电自动关断 PWM
 
 > **状态:** 已批准  
-> **目标:** ESP8266 模块异常离线时（掉电/卡死/不发 CLOSED），15 秒内自动关断逆变器 PWM 输出
+> **目标:** ESP8266 模块异常离线时（掉电/卡死/不发 CLOSED），30 秒内自动关断逆变器 PWM 输出
 
 ## 问题
 
@@ -14,7 +14,7 @@
 
 ## 设计
 
-ESP8266 每收到 1 字节就记录 SysTick 时间戳。`App_Net_Task` 在联网状态下检查：超过 15 秒没收任何数据 → 判定离线 → 关 PWM + 复位 WiFi 状态。
+ESP8266 每收到 1 字节就记录 SysTick 时间戳。`App_Net_Task` 在联网状态下检查：超过 30 秒没收任何数据 → 判定离线 → 关 PWM + 复位 WiFi 状态。
 
 ### 改动文件
 
@@ -24,27 +24,27 @@ ESP8266 每收到 1 字节就记录 SysTick 时间戳。`App_Net_Task` 在联网
 | `Hardware/ESP8266.c` | `s_LastRxTick` 变量, 在 `RxChar`/`Init` 中更新时间戳, 新增 getter | +8 |
 | `User/App_Net.c` | `App_Net_Task` 中新增静默超时分支 | +5 |
 
-### 超时阈值: 15 秒
+### 超时阈值: 30 秒
 
-- 与现有 `ESP8266_WIFI_TIMEOUT`（15s）一致
-- PC 端 NetAssist 正常使用时会发 TCP ACK/keepalive，不会误触发
-- 15 秒内无人干预的 SS_DONE 状态本就该停
+- 15s → 30s (V3.3 实测: 15s 在人工操作场景下过短, 联网成功后立即触发误断)
+- TCP keepalive 由 ESP8266 协议栈内部处理, 不转发到 STM32 USART, 无法喂狗
+- 联网成功时调用 `ESP8266_RefreshLastRxTime()` 重置时间戳, 给操作者全新 30s 窗口
 
 ### 场景覆盖
 
 | 场景 | USART2 行为 | 触发机制 | PWM 结果 | 已有/新增 |
 |:---|:---|:---|:---|:---|
 | TCP 正常断开 | 收到 `CLOSED` | 立即 `Inverter_SoftStart_Stop()` | 关 | 已有 |
-| ESP8266 掉电 | 静默 | 15s 超时 | 关 | **新增** |
-| ESP8266 卡死 | 静默/乱码 | 15s 超时 | 关 | **新增** |
+| ESP8266 掉电 | 静默 | 30s 超时 | 关 | **新增** |
+| ESP8266 卡死 | 静默/乱码 | 30s 超时 | 关 | **新增** |
 | STM32 掉电后上电 | — | `PWM_Init(MOE=OFF)` | 关 | 已有 |
-| PC 长期不发指令（空闲） | TCP keepalive 字节 | 不超时 | 保持 | 无影响 |
+| PC 长期不发指令（空闲） | PC 须发应用数据喂狗 (TCP keepalive 不转发到 STM32) | 30s 超时 | 保持 | 需注意 |
 
 ### 接口
 
 ```c
 // ESP8266.h
-#define ESP8266_SILENT_TIMEOUT  15000   // ms, 静默判定离线阈值
+#define ESP8266_SILENT_TIMEOUT  30000   // ms, 静默判定离线阈值
 uint32_t ESP8266_GetLastRxTime(void);   // 返回最后收到字节的 SysTick
 
 // App_Net_Task 内新增

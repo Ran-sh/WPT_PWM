@@ -83,7 +83,24 @@
       "Bash(cmdkey /list)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 10 https://github.com)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 10 https://api.github.com)",
-      "Bash(GIT_SSL_NO_VERIFY=true git push)"
+      "Bash(GIT_SSL_NO_VERIFY=true git push)",
+      "WebFetch(domain:www.espressif.com)",
+      "Bash(curl -L -o \"flash_download_tool_3.9.5.zip\" \"https://www.espressif.com/sites/default/files/tools/flash_download_tool_3.9.5.zip\")",
+      "Bash(curl -L -o \"ESP8266_NonOS_AT_Bin_V1.7.4.zip\" \"https://www.espressif.com/sites/default/files/ap/ESP8266_NonOS_AT_Bin_V1.7.4.zip\")",
+      "Bash(curl -L -o \"flash_download_tool_3.9.5.zip\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" \"https://www.espressif.com/sites/default/files/tools/flash_download_tool_3.9.5.zip\")",
+      "Bash(curl -L -o \"ESP8266_NonOS_AT_Bin_V1.7.4.zip\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" \"https://www.espressif.com/sites/default/files/ap/ESP8266_NonOS_AT_Bin_V1.7.4.zip\")",
+      "Bash(unzip -l \"ESP8266_NonOS_AT_Bin_V1.7.4.zip\")",
+      "WebSearch",
+      "Bash(curl -L -o \"sscom5.13.1.zip\" -H \"User-Agent: Mozilla/5.0\" \"https://github.com/daxiazh114/sscom/releases/download/5.13.1/sscom5.13.1.zip\")",
+      "Bash(curl -L -o \"serial_port_utility.zip\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\)\" \"https://raw.githubusercontent.com/nickreynolds/SerialTest/master/SerialTest.exe\")",
+      "Bash(curl -L -o \"CoolTermWin.zip\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\)\" \"https://freeware.the-meiers.org/CoolTerm_Win_2.3.0.zip\")",
+      "Bash(rm \"D:/Claude Code Project/WPT_PWM_NetAssistant_LAN_V1.0/ESP8266固件/tools/CoolTermWin.zip\")",
+      "Bash(curl -L --max-redirs 5 -o \"CoolTermWin.zip\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\)\" -H \"Referer: https://freeware.the-meiers.org/\" \"https://freeware.the-meiers.org/CoolTerm_Win_2.3.0.zip\")",
+      "Bash(curl -L -o \"CoolTermWin.zip\" -H \"User-Agent: Mozilla/5.0\" \"https://sourceforge.net/projects/coolterm/files/latest/download\")",
+      "Bash(curl -L -o \"sscom5.13.1.zip\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" \"https://download.onlinedown.net/download/sscom5.13.1.zip\")",
+      "Bash(curl -L -o \"putty.exe\" -H \"User-Agent: Mozilla/5.0\" \"https://mirrors.tuna.tsinghua.edu.cn/putty/putty-0.81-x86_64.exe\")",
+      "Bash(ls Claude_Files/tools/generate_docx.js)",
+      "Bash(ls Claude_Files/package.json)"
     ]
   }
 }

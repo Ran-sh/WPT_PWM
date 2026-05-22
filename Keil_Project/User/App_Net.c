@@ -161,6 +161,7 @@ uint8_t App_Net_Init(void)
     OLED_Clear();
 
     s_WiFiConnected = 1;   /* WiFi 状态唯一权威源 */
+    ESP8266_RefreshLastRxTime();   /* 联网成功时重置看门狗, 给操作者全新 30s 窗口 */
     return 0;
 }
 
@@ -174,10 +175,11 @@ void App_Net_Task(void)
 {
     if (!s_WiFiConnected) return;   /* USART2 未初始化, 禁止发送/接收 */
 
-    /* ── ESP8266 静默看门狗: 15s 无数据 → 判定离线 → 关 PWM ── */
+    /* ── ESP8266 静默看门狗: 30s 无数据 → 判定离线 → 关 PWM ── */
     if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
         Inverter_SoftStart_Stop();
         s_WiFiConnected = 0;
+        s_net_state    = NET_IDLE;
         return;
     }
 
@@ -242,6 +244,7 @@ void App_Net_Task(void)
             Inverter_SoftStart_Stop();
             UI_SetBridgeState(0);
             s_WiFiConnected = 0;
+            s_net_state    = NET_IDLE;
         }
     }
 }
@@ -393,7 +396,8 @@ on_fail:
 on_success:
         ESP8266_SetWaitCallback(NULL);
         s_WiFiConnected = 1;
-        LED_Update_WiFi(LED_OFF);
+        ESP8266_RefreshLastRxTime();   /* 联网成功时重置看门狗, 给操作者全新 30s 窗口 */
+        LED_Update_WiFi(LED_SOLID);
         return;
     }
     s_net_sending = 1;

@@ -28,6 +28,7 @@ static volatile uint8_t  s_FrameReady = 0;      /* 内部帧就绪标志 (ISR �
 static volatile uint32_t s_LastRxTick = 0;
 
 uint32_t ESP8266_GetLastRxTime(void) { return s_LastRxTick; }
+void     ESP8266_RefreshLastRxTime(void) { s_LastRxTick = SysTimer_GetTick(); }
 
 /* 外部可见标志 —— main.c 通过 ESP8266_GetRxFlag() 轮询 */
 volatile uint8_t g_ESP8266_RxFrameFlag = 0;
@@ -45,6 +46,7 @@ void ESP8266_SetWaitCallback(void (*cb)(void)) { s_WaitCallback = cb; }
  * @note   引脚映射:
  *           PA2 → USART2_TX  (复用推挽输出, 50MHz)
  *           PA3 → USART2_RX  (浮空输入)
+ *           PB1 → CH_PD/EN   (推挽输出, 50MHz, 用于双重复位)
  *         中断配置:
  *           使能 USART_IT_RXNE 接收中断，每收到 1 字节触发一次
  *           NVIC 抢占优先级 = 1, 子优先级 = 1
@@ -417,12 +419,16 @@ uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len)
 
     USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
 
-    /* 拷贝到第一个 \r 或 \n 为止 (一帧) */
+    /* 拷贝到第一个 \r 或 \n 为止 (一帧), \r\n 成对消费避免空帧残留 */
     while (len < max_len - 1 && s_RxBuf[len] != '\0') {
         dst[len] = s_RxBuf[len];
         if (s_RxBuf[len] == '\r' || s_RxBuf[len] == '\n') {
             len++;
-            break;  /* 帧结束 */
+            if (s_RxBuf[len - 1] == '\r' && len < max_len - 1 && s_RxBuf[len] == '\n') {
+                dst[len] = s_RxBuf[len];
+                len++;
+            }
+            break;
         }
         len++;
     }
