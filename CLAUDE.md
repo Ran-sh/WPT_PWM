@@ -27,6 +27,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
+## 目录架构铁律 (Directory Architecture)
+
+**绝对不允许在根目录下新建任何文件夹。** 三个主文件夹的职责和规则如下：
+
+| 文件夹 | 用途 | 规则 |
+|:---|:---|:---|
+| `Keil_Project/` | Keil MDK 固件工程 | **绝对不允许更改内部架构**: 文件夹名字和数量必须与参考一致 (Hardware/ System/ User/ Library/ Start/ DebugConfig/)，只允许修改或创建 `.c` `.h` 文件 |
+| `Claude_Files/` | Claude Code 生成文件 | 可自由新建文件和文件夹 (docs/ tools/ superpowers/ 等) |
+| `Arduino_Project/` | Arduino 固件工程 | 可自由新建文件和文件夹 |
+
+**需要新建文件夹时**：必须获得用户同意，由用户手动创建后，读取新架构并更新到 CLAUDE.md。
+
+**使用新软件时**：提醒用户在根目录下新建相应文件夹，用户创建后再写入规则。
+
+
 ## Build System
 
 - **IDE**: Keil MDK-ARM V5 (uVision), ARMCC V5.06 update 5 (build 528)
