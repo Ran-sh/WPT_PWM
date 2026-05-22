@@ -27,18 +27,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
-### Git Push 网络配置
-
-本机访问 GitHub 需通过 Windows 系统代理。git push 前自动配置：
-
-```bash
-# 读取 Windows 系统代理
-PROXY=$(powershell -Command "(Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings').ProxyServer")
-# 应用代理到 git
-git config --global http.proxy http://$PROXY
-git config --global https.proxy http://$PROXY
-```
-
 ## Build System
 
 - **IDE**: Keil MDK-ARM V5 (uVision), ARMCC V5.06 update 5 (build 528)
