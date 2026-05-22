@@ -90,7 +90,29 @@
       "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\User\\\\\\\\\")",
       "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\System\\\\\\\\\")",
       "Bash(git rm *)",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Read(//d/Claude Code Project/WPT_PWM_NetAssistant_LAN_V1.0/**)",
+      "Read(//d/Claude Code Project/WPT_PWM_Bemfa_WAN_V2.0/**)",
+      "Bash(ls Keil_Project/Hardware/)",
+      "Bash(ls Keil_Project/User/)",
+      "Bash(ls Keil_Project/System/)",
+      "Bash(rm -rf Keil_Project)",
+      "Bash(cp -r STM32_Keil_Firmware Keil_Project)",
+      "Bash(cp -r Claude_Artifacts Claude_Files)",
+      "Bash(mkdir -p Arduino_Project)",
+      "Bash(rm -rf STM32_Keil_Firmware Claude_Artifacts ESP8266_Arduino_Firmware)",
+      "Bash(rm -f Keil_Project/System/Delay.c Keil_Project/System/Delay.h)",
+      "Bash(touch Arduino_Project/.gitkeep)",
+      "Bash(sed -i 's|PWM/Target 1.BAT|Keil_Project/Target 1.BAT|g' CLAUDE.md)",
+      "Bash(sed -i 's|PWM/Hardware/|Keil_Project/Hardware/|g' CLAUDE.md)",
+      "Bash(sed -i 's|ArduinoProject/|Arduino_Project/|g' CLAUDE.md)",
+      "Bash(sed -i 's|claude_code/|Claude_Files/|g' CLAUDE.md)",
+      "Bash(sed -i 's|PWM/User/|Keil_Project/User/|g' CLAUDE.md)",
+      "Bash(sed -i 's|PWM/Project.uvprojx|Keil_Project/Project.uvprojx|g' README.md)",
+      "Bash(sed -i 's|ArduinoProject/|Arduino_Project/|g' README.md)",
+      "Bash(sed -i 's|claude_code/|Claude_Files/|g' README.md)",
+      "Bash(sed -i 's|PWM/ 文件夹|Keil_Project/ 文件夹|g' README.md)",
+      "Bash(sed -i 's|├── PWM/|├── Keil_Project/|g' README.md)"
     ]
   }
 }

@@ -20,7 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. `/simplify` — 三路代码审查 (复用/质量/效率)，修复发现的问题
 2. `/init` — 重新生成 CLAUDE.md
-3. 更新 `embedded-architect` skill (`Claude_Artifacts/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
+3. 更新 `embedded-architect` skill (`Claude_Files/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
 4. 更新全部文档 (`.md` + `.docx` 配对生成)
 5. 美化 GitHub README.md
 6. `git push` 推送所有分支
@@ -55,25 +55,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **IDE**: Keil MDK-ARM V5 (uVision), ARMCC V5.06 update 5 (build 528)
 - **Target MCU**: STM32F103C8 (Cortex-M3, 64KB Flash, 20KB SRAM)
 - **Device Pack**: Keil.STM32F1xx_DFP.2.2.0
-- **Project File**: `STM32_Keil_Firmware/Project.uvprojx` — open in uVision to compile
-- **Output**: `STM32_Keil_Firmware/Objects/Project.hex` (HEX-80), `STM32_Keil_Firmware/Objects/Project.axf` (debug)
-- **Library**: STM32 Standard Peripheral Library (SPL) V3.5.0 in `STM32_Keil_Firmware/Library/`
-- **Startup**: `STM32_Keil_Firmware/Start/startup_stm32f10x_md.s`
+- **Project File**: `Keil_Project/Project.uvprojx` — open in uVision to compile
+- **Output**: `Keil_Project/Objects/Project.hex` (HEX-80), `Keil_Project/Objects/Project.axf` (debug)
+- **Library**: STM32 Standard Peripheral Library (SPL) V3.5.0 in `Keil_Project/Library/`
+- **Startup**: `Keil_Project/Start/startup_stm32f10x_md.s`
 
-No CLI build — compilation through Keil IDE GUI. `STM32_Keil_Firmware/Target 1.BAT` is a post-build helper only.
+No CLI build — compilation through Keil IDE GUI. `Keil_Project/Target 1.BAT` is a post-build helper only.
 
 ### ESP8266 (Arduino IDE)
 - **IDE**: Arduino IDE 1.8.x or 2.x
 - **Board**: Generic ESP8266 Module, Flash 1M, 80MHz CPU
-- **File**: `ESP8266_Arduino_Firmware/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`
+- **File**: `Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`
 - **Libraries**: ESP8266WiFi, PubSubClient (Nick O'Leary), ArduinoJson v7 (Benoit Blanchon), WiFiManager (tzapu)
 
 ## File Organization
 
 ```
 WPT_PWM_V3.0/
-├── ESP8266_Arduino_Firmware/          ← Arduino 固件工程 (平台无关)
-├── STM32_Keil_Firmware/     ← Keil MDK STM32 固件工程 (所有 C 源码)
+├── Arduino_Project/          ← Arduino 固件工程 (平台无关)
+├── Keil_Project/            ← Keil MDK STM32 固件工程 (所有 C 源码)
 │   ├── Hardware/            ← 硬件驱动层 (ESP8266, PWM, ADC, KEY, OLED, LED, UI)
 │   ├── System/              ← 系统服务层 (SysTimer)
 │   ├── User/                ← 应用层 (main.c, App_Net.c, stm32f10x_conf.h, stm32f10x_it.c)
@@ -82,17 +82,16 @@ WPT_PWM_V3.0/
 │   ├── Project.uvprojx      ← Keil uVision 工程文件
 │   ├── Target 1.BAT         ← 编译后处理脚本
 │   └── keilkill.bat         ← 清理脚本
-├── Claude_Artifacts/             ← Claude Code 生成文件 (docs/, tools/, node_modules/)
+├── Claude_Files/             ← Claude Code 生成文件 (docs/, tools/, node_modules/)
 ├── CLAUDE.md                ← 项目指令 (本文件)
 ├── README.md                ← GitHub 首页 README
 └── .claude/                 ← Claude Code 配置
 ```
 
-- **ESP8266_Arduino_Firmware/**: Arduino 版本固件，平台无关的独立工程
-- **STM32_Keil_Firmware/**: Keil MDK-ARM STM32 固件工程，所有 C 源文件、SPL 库、启动文件均在此目录下。后文所有 `Hardware/`、`System/`、`User/`、`Library/`、`Start/` 路径均相对于 `STM32_Keil_Firmware/`
-- **Claude_Artifacts/**: Claude Code 自动生成的文档、工具脚本、配置文件
-- **项目配置**: `CLAUDE.md` + `.claude/` + `.git/` + `.gitignore` 保留根目录，**绝对不可移动**
-- **根目录铁律**: 任何新文件夹/文件一律禁止直接在根目录创建，必须归入上述三个文件夹之一
+- **Arduino_Project/**: Arduino 版本固件，平台无关的独立工程
+- **Keil_Project/**: Keil MDK-ARM STM32 固件工程，所有 C 源文件、SPL 库、启动文件均在此目录下。后文所有 `Hardware/`、`System/`、`User/`、`Library/`、`Start/` 路径均相对于 `Keil_Project/`
+- **Claude_Files/**: Claude Code 自动生成的文档、工具脚本、配置文件
+- **项目配置**: `CLAUDE.md` + `.claude/` 保留根目录
 
 ## Architecture: STM32 Three-Layer Separation
 
@@ -294,7 +293,7 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 
 ## ESP8266 Arduino Firmware
 
-**File**: `ESP8266_Arduino_Firmware/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`
+**File**: `Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`
 
 **Libraries**: ESP8266WiFi + PubSubClient + ArduinoJson v7 + WiFiManager (tzapu)
 
@@ -312,9 +311,9 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 
 ## Documentation Output
 
-- Every `.md` document in `Claude_Artifacts/docs/` must have a paired `.docx` with identical body content
+- Every `.md` document in `Claude_Files/docs/` must have a paired `.docx` with identical body content
 - `.docx` structure: Section 1 (cover, no page#), Section 2 (TOC with Roman numerals), Section 3 (body, Arabic page# starting at 1)
-- Regenerate `.docx` files from `Claude_Artifacts/` directory: `npm install && node Claude_Artifacts/tools/generate_docx.js "Claude_Artifacts/docs/<filename>.md"`
+- Regenerate `.docx` files from `Claude_Files/` directory: `npm install && node Claude_Files/tools/generate_docx.js "Claude_Files/docs/<filename>.md"`
 - Documents require a version control header with change log. On code changes, auto-increment version (logic change → +0.1, new module → +1.0, formatting only → date refresh).
 - When user says "更新文档": scan all .c/.h, diff against documented state, report changes before rewriting. If no changes: output "没有任何文件变化，无需更新" and exit.
 
@@ -322,12 +321,12 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 
 | Document | Purpose |
 |:---|:---|
-| `Claude_Artifacts/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
-| `Claude_Artifacts/docs/双脑架构V4.0验证与烧录指南.md` | Dual-MCU V4.0 verification, STM32 serial test, ESP8266 flashing guide |
-| `Claude_Artifacts/docs/LabVIEW上位机构建指南.md` | LabVIEW host-side application build guide |
-| `Claude_Artifacts/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
+| `Claude_Files/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
+| `Claude_Files/docs/双脑架构V4.0验证与烧录指南.md` | Dual-MCU V4.0 verification, STM32 serial test, ESP8266 flashing guide |
+| `Claude_Files/docs/LabVIEW上位机构建指南.md` | LabVIEW host-side application build guide |
+| `Claude_Files/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 
 ## Key Build Targets / Variants
 
 - **Target 1**: Main application (flash to STM32 via ST-Link or serial bootloader)
-- `Claude_Artifacts/tools/generate_docx.js`: Node.js script to batch-convert `Claude_Artifacts/docs/*.md` → `Claude_Artifacts/docs/*.docx` with branded formatting
+- `Claude_Files/tools/generate_docx.js`: Node.js script to batch-convert `Claude_Files/docs/*.md` → `Claude_Files/docs/*.docx` with branded formatting

@@ -53,14 +53,14 @@
 ## 快速开始
 
 ### STM32 (Keil MDK)
-1. Keil MDK-ARM V5 打开 `PWM/Project.uvprojx`
+1. Keil MDK-ARM V5 打开 `Keil_Project/Project.uvprojx`
 2. 编译 → ST-Link 烧录
 3. 上电 → OLED 显示 "Wireless Charge" → 按 KEY0 初始化硬件 → "WiFi: READY"
 4. 按 KEY0 触发软启动扫频; 或等待 ESP8266 连云后云端下发指令
 
 ### ESP8266 (Arduino IDE)
 1. 安装库: ArduinoJson v7 + PubSubClient + WiFiManager (tzapu)
-2. 打开 `ArduinoProject/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`
+2. 打开 `Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`
 3. 修改 OneNET 设备凭证宏: `ONENET_PRODUCT_ID`, `ONENET_DEVICE_NAME`, `ONENET_TOKEN`
 4. 选择 "Generic ESP8266 Module" → Flash 1M → 115200 上传
 5. 首次上电 → 手机连热点 `STM32_WPT_Config` → 配网 → 自动连云
@@ -102,14 +102,14 @@
 
 ```
 WPT_PWM_V3.0/
-├── ArduinoProject/     Arduino 固件 (ESP8266 MQTT)
-├── PWM/                Keil MDK STM32 固件
+├── Arduino_Project/     Arduino 固件 (ESP8266 MQTT)
+├── Keil_Project/                Keil MDK STM32 固件
 │   ├── Hardware/       硬件驱动层
 │   ├── System/         系统服务层
 │   ├── User/           应用层
 │   ├── Library/        SPL V3.5.0 (只读)
 │   └── Start/          启动文件
-├── claude_code/        AI 辅助文档与工具
+├── Claude_Files/        AI 辅助文档与工具
 └── CLAUDE.md           AI 开发规范
 ```
 
@@ -117,8 +117,8 @@ WPT_PWM_V3.0/
 
 | 文档 | 说明 |
 |:---|:---|
-| [软件架构与开发者指南](claude_code/docs/软件架构与开发者指南.md) | 完整技术架构, 模块详解 |
-| [双脑架构V4.0验证与烧录指南](claude_code/docs/双脑架构V4.0验证与烧录指南.md) | STM32 验证, ESP8266 烧录, 联调 |
+| [软件架构与开发者指南](Claude_Files/docs/软件架构与开发者指南.md) | 完整技术架构, 模块详解 |
+| [双脑架构V4.0验证与烧录指南](Claude_Files/docs/双脑架构V4.0验证与烧录指南.md) | STM32 验证, ESP8266 烧录, 联调 |
 | [CLAUDE.md](CLAUDE.md) | AI 辅助开发规范 |
 
 ## 作者
