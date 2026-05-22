@@ -95,7 +95,7 @@ void KEY_Init(void)
 }
 
 /**
- * @brief  按键批量扫描 (需由 KEY_Task 每 10ms 调用一次)
+ * @brief  按键批量扫描 (需由 SysTick_Handler 每 10ms 调用一次)
  * @note   核心时序:
  *         1. 读取引脚电平 → 驱动状态机运转
  *         2. 双击判定窗口 = Timer 计数到 20 (= 200ms / 10ms)

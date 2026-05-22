@@ -88,7 +88,9 @@
       "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_NetAssistant_LAN_V1.0\\\\\\\\claude_code\\\\\\\\docs\\\\\\\\\")",
       "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\Hardware\\\\\\\\\")",
       "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\User\\\\\\\\\")",
-      "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\System\\\\\\\\\")"
+      "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\System\\\\\\\\\")",
+      "Bash(git rm *)",
+      "Bash(git mv *)"
     ]
   }
 }

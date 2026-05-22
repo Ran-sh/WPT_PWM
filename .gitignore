@@ -1,7 +1,7 @@
-# Build outputs
-/Objects/
-/Listings/
-/DebugConfig/
+# Build outputs (Keil)
+/STM32_Keil_Firmware/Objects/
+/STM32_Keil_Firmware/Listings/
+/STM32_Keil_Firmware/DebugConfig/
 *.o
 *.axf
 *.hex
@@ -29,7 +29,7 @@
 JLinkLog.txt
 
 # Node
-/claude_code/node_modules/
+/Claude_Artifacts/node_modules/
 
 # User-specific
 *.uvguix.*
