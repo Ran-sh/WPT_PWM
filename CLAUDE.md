@@ -7,12 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 项目 | 内容 |
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
-| **分支** | `WAN` |
+| **分支** | `ONENET` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_V3.0` |
 | **协议** | OneNET MQTT 物模型 (Dual-MCU 架构) |
 | **版本** | V4.0 |
 
-其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`, `ONENET` (OneNET 云) → 待上传
+其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云 TCP) → `WPT_PWM_Bemfa_WAN_V2.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
 
 ### 复合指令触发规则
 
