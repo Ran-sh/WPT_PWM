@@ -125,7 +125,6 @@
 |:---|:---|
 | [软件架构与开发者指南](Claude_Files/docs/软件架构与开发者指南.md) | 完整技术架构, 模块详解, 数据流图 |
 | [巴法云WAN远程联调操作指南](Claude_Files/docs/巴法云WAN远程联调操作指南.md) | 巴法云配置, 远程控制测试, 故障排查 |
-| [LabVIEW上位机构建指南](Claude_Files/docs/LabVIEW上位机构建指南.md) | LabVIEW 上位机构建 (未完成) |
 | [CLAUDE.md](CLAUDE.md) | AI 辅助开发规范 |
 
 ## 作者

@@ -20,7 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. `/simplify` — 三路代码审查 (复用/质量/效率)，修复发现的问题
 2. `/init` — 重新生成 CLAUDE.md
-3. 更新 `embedded-architect` skill (`claude_code/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
+3. 更新 `embedded-architect` skill (`Claude_Files/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
 4. 更新全部文档 (`.md` + `.docx` 配对生成)
 5. 美化 GitHub README.md
 6. `git push` 推送所有分支
@@ -57,7 +57,7 @@ Compilation is done through the Keil IDE GUI. No CLI build script exists—the `
 ## File Organization
 
 - **Keil 编译源文件**: `Hardware/`, `System/`, `User/`, `Keil_Project/Library/`, `Keil_Project/Start/` — 路径不可移动
-- **Claude 生成文件**: 全部放在 `claude_code/` 下 (`docs/`, `tools/`, `superpowers/`, `package.json`, `node_modules/`)
+- **Claude 生成文件**: 全部放在 `Claude_Files/` 下 (`docs/`, `tools/`, `superpowers/`, `package.json`, `node_modules/`)
 - **项目配置**: `CLAUDE.md` + `.claude/` 保留根目录
 
 ## Architecture: Three-Layer Separation
@@ -281,9 +281,9 @@ WiFi credentials and server IP are defined as macros in `User/App_Net.h` (moved 
 
 ## Documentation Output
 
-- Every `.md` document in `claude_code/docs/` must have a paired `.docx` with identical body content
+- Every `.md` document in `Claude_Files/docs/` must have a paired `.docx` with identical body content
 - `.docx` structure: Section 1 (cover, no page#), Section 2 (TOC with Roman numerals), Section 3 (body, Arabic page# starting at 1)
-- Regenerate `.docx` files from `claude_code/` directory: `npm install && node claude_code/tools/generate_docx.js "claude_code/docs/<filename>.md"`
+- Regenerate `.docx` files from `Claude_Files/` directory: `npm install && node Claude_Files/tools/generate_docx.js "Claude_Files/docs/<filename>.md"`
 - Documents require a version control header with change log. On code changes, auto-increment version (logic change → +0.1, new module → +1.0, formatting only → date refresh).
 - When user says "更新文档": scan all .c/.h, diff against documented state, report changes before rewriting. If no changes: output "没有任何文件变化，无需更新" and exit.
 
@@ -291,12 +291,11 @@ WiFi credentials and server IP are defined as macros in `User/App_Net.h` (moved 
 
 | Document | Purpose |
 |:---|:---|
-| `claude_code/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
-| `claude_code/docs/巴法云WAN远程联调操作指南.md` | Bemfa Cloud WAN remote debugging guide |
-| `claude_code/docs/LabVIEW上位机构建指南.md` | LabVIEW host-side application build guide |
-| `claude_code/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
+| `Claude_Files/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
+| `Claude_Files/docs/巴法云WAN远程联调操作指南.md` | Bemfa Cloud WAN remote debugging guide |
+| `Claude_Files/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 
 ## Key Build Targets / Variants
 
 - **Target 1**: Main application (flash to STM32 via ST-Link or serial bootloader)
-- `claude_code/tools/generate_docx.js`: Node.js script to batch-convert `claude_code/docs/*.md` → `claude_code/docs/*.docx` with branded formatting
+- `Claude_Files/tools/generate_docx.js`: Node.js script to batch-convert `Claude_Files/docs/*.md` → `Claude_Files/docs/*.docx` with branded formatting
