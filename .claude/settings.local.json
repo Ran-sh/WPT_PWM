@@ -112,7 +112,13 @@
       "Bash(sed -i 's|ArduinoProject/|Arduino_Project/|g' README.md)",
       "Bash(sed -i 's|claude_code/|Claude_Files/|g' README.md)",
       "Bash(sed -i 's|PWM/ 文件夹|Keil_Project/ 文件夹|g' README.md)",
-      "Bash(sed -i 's|├── PWM/|├── Keil_Project/|g' README.md)"
+      "Bash(sed -i 's|├── PWM/|├── Keil_Project/|g' README.md)",
+      "Bash(ls Claude_Files/)",
+      "Bash(gh repo *)",
+      "Bash(break)",
+      "Bash(GIT_CURL_VERBOSE=1 GIT_TRACE=1 git push --force origin ONENET)",
+      "Bash(cp -r Keil_Project/STM32_Keil_Firmware/* Keil_Project/)",
+      "Bash(rm -rf Keil_Project/STM32_Keil_Firmware)"
     ]
   }
 }
