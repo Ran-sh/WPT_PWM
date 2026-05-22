@@ -2,6 +2,8 @@
 /STM32_Keil_Firmware/Objects/
 /STM32_Keil_Firmware/Listings/
 /STM32_Keil_Firmware/DebugConfig/
+/Keil_Project/Objects/
+/Keil_Project/Listings/
 *.o
 *.axf
 *.hex
@@ -29,7 +31,7 @@
 JLinkLog.txt
 
 # Node
-/claude_code/node_modules/
+/Claude_Files/node_modules/
 
 # User-specific
 *.uvguix.*
