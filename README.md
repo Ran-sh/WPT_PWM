@@ -54,7 +54,7 @@
 
 ## 快速开始
 
-1. **Keil MDK-ARM V5** 打开 `Project.uvprojx`
+1. **Keil MDK-ARM V5** 打开 `Keil_Project/Project.uvprojx`
 2. 修改 `User/App_Net.c` 中的 WiFi 配置:
    ```c
    #define WIFI_SSID       "YourWiFi"

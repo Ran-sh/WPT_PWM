@@ -1,7 +1,7 @@
-# Build outputs
-/Objects/
-/Listings/
-/DebugConfig/
+# Build outputs (Keil)
+/Keil_Project/Objects/
+/Keil_Project/Listings/
+/Keil_Project/DebugConfig/
 *.o
 *.axf
 *.hex
@@ -27,9 +27,6 @@
 *.__i
 *.tra
 JLinkLog.txt
-
-# Node
-/claude_code/node_modules/
 
 # User-specific
 *.uvguix.*

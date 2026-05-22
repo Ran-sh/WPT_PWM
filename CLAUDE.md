@@ -32,16 +32,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **IDE**: Keil MDK-ARM V5 (uVision), ARMCC V5.06 update 5 (build 528)
 - **Target MCU**: STM32F103C8 (Cortex-M3, 64KB Flash, 20KB SRAM)
 - **Device Pack**: Keil.STM32F1xx_DFP.2.2.0
-- **Project File**: `Project.uvprojx` — open in uVision to compile
-- **Output**: `Objects/Project.hex` (HEX-80 format), `Objects/Project.axf` (debug)
-- **Library**: STM32 Standard Peripheral Library (SPL) V3.5.0 in `Library/`
-- **Startup**: `Start/startup_stm32f10x_md.s` (Cortex-M3 medium-density)
+- **Project File**: `Keil_Project/Project.uvprojx` — open in uVision to compile
+- **Output**: `Keil_Project/Objects/Project.hex` (HEX-80 format), `Keil_Project/Objects/Project.axf` (debug)
+- **Library**: STM32 Standard Peripheral Library (SPL) V3.5.0 in `Keil_Project/Library/`
+- **Startup**: `Keil_Project/Start/startup_stm32f10x_md.s` (Cortex-M3 medium-density)
 
 Compilation is done through the Keil IDE GUI. No CLI build script exists—the `Target 1.BAT` file is a batch output helper, not a build script.
 
 ## File Organization
 
-- **Keil 编译源文件**: `Hardware/`, `System/`, `User/`, `Library/`, `Start/` — 路径不可移动
+- **Keil 编译源文件**: `Hardware/`, `System/`, `User/`, `Keil_Project/Library/`, `Keil_Project/Start/` — 路径不可移动
 - **Claude 生成文件**: 全部放在 `claude_code/` 下 (`docs/`, `tools/`, `superpowers/`, `package.json`, `node_modules/`)
 - **项目配置**: `CLAUDE.md` + `.claude/` 保留根目录
 
