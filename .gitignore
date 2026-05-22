@@ -1,7 +1,7 @@
 # Build outputs
-/Objects/
-/Listings/
-/DebugConfig/
+/STM32_Keil_Firmware/Objects/
+/STM32_Keil_Firmware/Listings/
+/STM32_Keil_Firmware/DebugConfig/
 *.o
 *.axf
 *.hex
