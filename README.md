@@ -54,7 +54,7 @@
 
 ## 快速开始
 
-1. **Keil MDK-ARM V5** 打开 `Project.uvprojx`
+1. **Keil MDK-ARM V5** 打开 `Keil_Project/Project.uvprojx`
 2. 修改 `User/App_Net.h` 中的配置:
    ```c
    #define WIFI_SSID       "YourWiFi"           // 你的 WiFi 名
@@ -110,12 +110,12 @@
 ## 项目结构
 
 ```
-├── User/          应用层 (main.c, App_Net.c)
-├── Hardware/      硬件驱动 (PWM, ESP8266, ADC, LED, KEY, OLED, UI)
-├── System/        系统服务 (SysTimer)
-├── Library/       SPL V3.5.0 (只读)
-├── Start/         启动文件
-├── claude_code/   AI 辅助文件 (docs, tools, superpowers)
+├── Keil_Project/User/          应用层 (main.c, App_Net.c)
+├── Keil_Project/Hardware/      硬件驱动 (PWM, ESP8266, ADC, LED, KEY, OLED, UI)
+├── Keil_Project/System/        系统服务 (SysTimer)
+├── Keil_Project/Library/       SPL V3.5.0 (只读)
+├── Keil_Project/Start/         启动文件
+├── Claude_Files/   AI 辅助文件 (docs, tools, superpowers)
 └── CLAUDE.md      项目开发指南
 ```
 
