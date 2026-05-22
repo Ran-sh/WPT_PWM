@@ -23,19 +23,13 @@
 #include "ESP8266.h"
 #include "ADC.h"
 #include "PWM.h"
-#include "UI.h"
+
 #include "OLED.h"
 #include "SysTimer.h"
 #include "LED.h"
 #include "App_Net.h"
 #include <string.h>
 #include <stdio.h>
-
-/* ═══════════════════════════════════════════════════════════════
- *                    本地状态
- * ═══════════════════════════════════════════════════════════════ */
-
-static uint8_t s_WiFiConnected = 0;  /* 硬件初始化完成即置 1 */
 
 /* ═══════════════════════════════════════════════════════════════
  *                    公开接口实现
@@ -48,7 +42,7 @@ static uint8_t s_WiFiConnected = 0;  /* 硬件初始化完成即置 1 */
 uint8_t App_Net_Init(void)
 {
     ESP8266_Init();                        /* CH_PD 硬件复位 + USART2 初始化 (~3s) */
-    s_WiFiConnected = 1;
+                                           /* ESP8266_Init 内部置 s_ready=1 */
     LED_Update_WiFi(LED_SOLID);            /* 常亮 = 硬件就绪 */
     return 0;
 }
@@ -60,7 +54,7 @@ uint8_t App_Net_Init(void)
  */
 void App_Net_Task(void)
 {
-    if (!s_WiFiConnected) return;
+    if (!ESP8266_IsReady()) return;
 
     /* ── 子功能 1: JSON 遥测 (每 2000ms) ── */
     {
@@ -102,10 +96,34 @@ void App_Net_Task(void)
             Inverter_SoftStart_Stop();
             OLED_ShowString(4, 1, "CMD: Remote OFF ");
         }
+        else if (strstr(localBuf, "CMD:F_UP"))
+        {
+            if (Inverter_SoftStart_GetState() == SS_DONE)
+            {
+                uint32_t f = PWM_GetFrequency() + 1000;
+                if (f > 150000) f = 150000;
+                PWM_SetFrequency(f);
+                OLED_ShowString(4, 1, "CMD: Freq +1kHz ");
+            }
+        }
+        else if (strstr(localBuf, "CMD:F_DOWN"))
+        {
+            if (Inverter_SoftStart_GetState() == SS_DONE)
+            {
+                uint32_t f = PWM_GetFrequency();
+                if (f >= 96000)  /* 防止 f-1000 下溢 */
+                {
+                    f -= 1000;
+                    if (f < 95000) f = 95000;
+                }
+                PWM_SetFrequency(f);
+                OLED_ShowString(4, 1, "CMD: Freq -1kHz ");
+            }
+        }
     }
 }
 
 uint8_t App_Net_IsConnected(void)
 {
-    return s_WiFiConnected;
+    return ESP8266_IsReady();
 }

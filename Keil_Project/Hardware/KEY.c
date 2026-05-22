@@ -73,7 +73,7 @@ typedef struct {
  * [0] → KEY0 (PB12): 软开关机 / 翻页 (双击)
  * [1] → KEY1 (PB13): 调频率 / 功能调节 (单击)
  */
-Button_t Key_List[KEY_COUNT] = {
+static Button_t Key_List[KEY_COUNT] = {
     {GPIOB, GPIO_Pin_12, KEY_STATE_IDLE, 0, 0},
     {GPIOB, GPIO_Pin_13, KEY_STATE_IDLE, 0, 0}
 };

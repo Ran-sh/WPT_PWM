@@ -30,4 +30,7 @@ void     ESP8266_RxChar(uint8_t ch);
 
 /* 原子读取帧: 临界区内拷贝+清空, 返回拷贝字节数 */
 uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len);
+
+/* 硬件就绪状态: ESP8266_Init() 成功完成后返回 1 */
+uint8_t  ESP8266_IsReady(void);
 #endif /* __ESP8266_H */

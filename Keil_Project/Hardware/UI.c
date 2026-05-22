@@ -31,8 +31,8 @@ static void UI_ClearAllLines(void)
 /* ── LED 状态更新 (每 200ms) ── */
 static void UI_UpdateLEDs(SoftStart_State_t ss)
 {
-    /* PB3 WiFi: 由 App_Net_IsConnected() 权威持有 */
-    LED_Update_WiFi(App_Net_IsConnected() ? LED_SOLID : LED_SLOW);
+    /* PB3 WiFi: 连接成功后常亮, 未连接时慢闪 */
+    LED_Update_WiFi(ESP8266_IsReady() ? LED_SOLID : LED_SLOW);
 
     /* PB4 PWM */
     if (ss == SS_SWEEP)
@@ -46,7 +46,7 @@ static void UI_UpdateLEDs(SoftStart_State_t ss)
     if (ss == SS_FAULT)
         LED_Update_Ready(0);
     else
-        LED_Update_Ready((UI_Page == 0) && App_Net_IsConnected()
+        LED_Update_Ready((UI_Page == 0) && ESP8266_IsReady()
             && (ss == SS_IDLE || ss == SS_DONE));
 }
 
@@ -235,7 +235,7 @@ void UI_Task(void)
     /* 页面路由 */
     if (UI_Page == 0) {
         /* 控制面板 */
-        if (!App_Net_IsConnected()) {
+        if (!ESP8266_IsReady()) {
             /* 硬件未初始化: 等待 KEY0 触发 */
             if (key0 == 1) UI_TryConnectWiFi();
             else if (need_refresh) {

@@ -14,8 +14,9 @@
 
 #include "stm32f10x.h"
 #include "SysTimer.h"
+#include "ADC.h"
 
-volatile uint16_t ADC_ConvertedValue[2];   /* DMA 循环刷新 */
+static volatile uint16_t ADC_ConvertedValue[2];   /* DMA 循环刷新 */
 
 #define VREF_MCU        3.30f
 #define I_SENSITIVITY   0.132f

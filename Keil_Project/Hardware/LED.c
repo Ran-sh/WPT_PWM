@@ -94,8 +94,11 @@ void LED_Task(void)
     if (SysTimer_GetTick() - last >= 500)
     {
         last = SysTimer_GetTick();
-        GPIO_WriteBit(GPIOC, GPIO_Pin_13,
-            (BitAction)(1 - GPIO_ReadOutputDataBit(GPIOC, GPIO_Pin_13)));
+        /* 原子翻转: BSRR/BRR 寄存器实现无 RMW 的 GPIO 位翻转 */
+        if (GPIO_ReadOutputDataBit(GPIOC, GPIO_Pin_13))
+            GPIO_ResetBits(GPIOC, GPIO_Pin_13);
+        else
+            GPIO_SetBits(GPIOC, GPIO_Pin_13);
     }
 }
 

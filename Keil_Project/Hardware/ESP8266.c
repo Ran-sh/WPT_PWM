@@ -26,6 +26,8 @@ static volatile uint16_t s_RxIndex = 0;         /* 缓冲区写入游标 (ISR �
 /* 帧就绪标志 —— main.c 通过 ESP8266_GetRxFlag() 轮询 */
 static volatile uint8_t g_ESP8266_RxFrameFlag = 0;
 
+static uint8_t s_ready = 0;  /* ESP8266_Init() 成功完成后置 1 */
+
 /* ═══════════════════════════════════════════════════════════════
  *              硬件初始化: USART2 + GPIO + NVIC
  * ═══════════════════════════════════════════════════════════════ */
@@ -114,6 +116,7 @@ void ESP8266_Init(void)
     USART_Cmd(USART2, ENABLE);
 
     ESP8266_ClearRxBuffer();
+    s_ready = 1;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -225,6 +228,8 @@ uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len)
     uint16_t len = 0;
     uint16_t consumed;
 
+    if (max_len < 2) return 0;  /* 防止 uint16 下溢 */
+
     USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
 
     /* 拷贝到第一个 \r 或 \n 为止 (一帧) */
@@ -258,5 +263,10 @@ uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len)
 
     USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
     return len;
+}
+
+uint8_t ESP8266_IsReady(void)
+{
+    return s_ready;
 }
 

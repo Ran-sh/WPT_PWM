@@ -188,8 +188,12 @@ void OLED_Clear(void)
   * @retval 无
   */
 void OLED_ShowChar(uint8_t Line, uint8_t Column, char Char)
-{      	
+{
 	uint8_t i;
+
+	if (Line < 1 || Line > 4) return;
+	if ((uint8_t)Char < ' ' || (uint8_t)Char > '~') return;
+
 	OLED_SetCursor((Line - 1) * 2, (Column - 1) * 8);		//设置光标位置在上半部分
 	for (i = 0; i < 8; i++)
 	{

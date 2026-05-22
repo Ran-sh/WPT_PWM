@@ -4,7 +4,7 @@
 [![Library](https://img.shields.io/badge/Library-SPL%20V3.5.0-green)]()
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-red)]()
-[![Version](https://img.shields.io/badge/Firmware-V4.0-brightgreen)]()
+[![Version](https://img.shields.io/badge/Firmware-V4.1-brightgreen)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统。采用 **Dual-MCU 双脑架构**，STM32 负责物理层发波与保护，ESP8266 独立运行 Arduino MQTT 固件连接 **OneNET 物模型**，支持 OLED 本地控制与云平台远程遥控。应用于植入式医疗设备无线充电。
@@ -70,8 +70,10 @@
 | 指令 | 方向 | 说明 |
 |:---|:---|:---|
 | `{"V":x,"I":x,"F":x}` | STM32 → ESP8266 → OneNET | 遥测数据, 每 2s 上报 |
-| OneNET 属性设置 `Switch=1` | OneNET → ESP8266 → STM32 | `CMD:ON\n` → 触发扫频 |
-| OneNET 属性设置 `Switch=0` | OneNET → ESP8266 → STM32 | `CMD:OFF\n` → PWM 关断 |
+| OneNET 属性设置 `Switch=true` | OneNET → ESP8266 → STM32 | `CMD:ON\n` → 触发扫频 |
+| OneNET 属性设置 `Switch=false` | OneNET → ESP8266 → STM32 | `CMD:OFF\n` → PWM 关断 |
+| OneNET 属性设置 `FreqAdd=true` | OneNET → ESP8266 → STM32 | `CMD:F_UP\n` → +1kHz (点动复位) |
+| OneNET 属性设置 `FreqSub=true` | OneNET → ESP8266 → STM32 | `CMD:F_DOWN\n` → -1kHz (点动复位) |
 
 ## 按键操作
 
@@ -95,8 +97,8 @@
 |:---|:---:|:---|:---|
 | `master` | V1.0 | 无 | 裸机固件基版 |
 | `LAN` | V3.3 | NetAssist TCP | 局域网调试 |
-| **`WAN`** ⬅ | **V4.0** | OneNET MQTT | 双脑架构 + 云远程控制 |
-| `ONENET` | 待上传 | OneNET | 独立 OneNET 分支 |
+| `WAN` | V4.0 | OneNET MQTT | 巴法云 TCP (历史版本) |
+| **`ONENET`** ⬅ | **V4.1** | OneNET MQTT | 双脑架构 + 虚拟按键调频 |
 
 ## 项目结构
 

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `ONENET` |
-| **本地目录** | `D:\Claude Code Project\WPT_PWM_V3.0` |
+| **本地目录** | `D:\Claude Code Project\WPT_PWM_ONENET_V3.0` |
 | **协议** | OneNET MQTT 物模型 (Dual-MCU 架构) |
 | **版本** | V4.0 |
 
@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. 更新 `embedded-architect` skill (`Claude_Files/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
 4. 更新全部文档 (`.md` + `.docx` 配对生成)
 5. 美化 GitHub README.md
-6. `git push` 推送所有分支
+6. `git push` 推送当前分支 (ONENET)
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
@@ -158,14 +158,14 @@ All `static uint32_t last` variables in task functions are per-function private 
 | Module | File | Role |
 |:---|:---|:---|
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
-| ESP8266 | `Hardware/ESP8266.c` | V4.0 Dual-MCU: USART2 async receiver (115200), PB1 CH_PD/EN 1000ms hardware reset only (no AT commands); `ESP8266_SendString/CopyRxFrame/GetRxFlag` for pure JSON serial passthrough |
+| ESP8266 | `Hardware/ESP8266.c` | V4.0 Dual-MCU: USART2 async receiver (115200), PB1 CH_PD/EN 1000ms hardware reset only (no AT commands); `ESP8266_SendString/CopyRxFrame/GetRxFlag/IsReady` for pure JSON serial passthrough |
 | PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time (DEADTIME_NS macro), 50% locked duty, 95-150kHz PFM; non-blocking soft-start state machine (150k→100kHz, 200Hz/10ms step, ~2.5s); atomic `Inverter_SetState()` with irq guards; `Inverter_SoftStart_Trigger/Task/Stop/GetState/GetCurrentFreq` |
 | ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers HW init then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi (LED_SOLID/slow blink) + PB4 PWM (blink) + PB5 Ready (on/off); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | **V4.0 Dual-MCU**: only 3 public APIs; `App_Net_Init()` → ESP8266_Init + mark ready (~3s); `App_Net_Task()` → JSON telemetry `{"V":xx,"I":xx,"F":xx}\n` every 2000ms + `strstr` parse CMD:ON/OFF from ESP8266; `App_Net_IsConnected()` returns `s_WiFiConnected` |
+| App_Net | `User/App_Net.c` | **V4.0 Dual-MCU**: only 3 public APIs; `App_Net_Init()` → ESP8266_Init (~3s); `App_Net_Task()` → JSON telemetry `{"V":xx,"I":xx,"F":xx}\n` every 2000ms + `strstr` parse CMD:ON/OFF/F_UP/F_DOWN; `App_Net_IsConnected()` delegates to `ESP8266_IsReady()` |
 
 ## Startup Flow (V4.0)
 
@@ -200,6 +200,8 @@ All `static uint32_t last` variables in task functions are per-function private 
 | PA12 | GPIO (OD) | OLED SDA |
 | PB0 | TIM1_CH2N | Half-bridge right low-side |
 | PB1 | GPIO (PP) | ESP8266 CH_PD/EN (1000ms low reset → high enable) |
+| PB3 | GPIO (PP) | WiFi LED (active-high, JTAG disabled) |
+| PB4 | GPIO (PP) | PWM LED (active-high, JTAG disabled) |
 | PB5 | GPIO (PP) | Ready LED (active-high) |
 | PB12 | GPIO (IPU) | KEY0 (单击: HW初始化/Trigger, 双击: 切页) |
 | PB13 | GPIO (IPU) | KEY1 (单击: Stop SS_SWEEP时 / +1kHz调频 SS_DONE时) |
@@ -239,7 +241,7 @@ The frame delimiter in `ESP8266_RxChar` matches **both** `\r` (0x0D) and `\n` (0
 
 `g_ESP8266_RxFrameFlag` is `static` within ESP8266.c — all external access goes through `ESP8266_GetRxFlag()`.
 
-**`App_Net_Task` TXE hang prevention**: `s_WiFiConnected` flag guards all USART2 access in `App_Net_Task`. Before hardware init (KEY0 trigger), `App_Net_Task` returns immediately — no `ESP8266_SendString` calls on uninitialized USART2.
+**`App_Net_Task` TXE hang prevention**: `ESP8266_IsReady()` flag guards all USART2 access in `App_Net_Task`. Before hardware init (KEY0 trigger), `App_Net_Task` returns immediately — no `ESP8266_SendString` calls on uninitialized USART2.
 
 **ADC calibration timing**: After `ADC_Cmd(ENABLE)`, a short stabilization delay (~2μs) is required before `ADC_ResetCalibration` per STM32 reference manual (t_STAB ≥ 2 ADC cycles). Without it, calibration includes power-up noise causing reference drift.
 
@@ -316,12 +318,14 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 - **OneNET MQTT 物模型**: 属性上报 `$sys/.../thing/property/post`, 属性设置 `$sys/.../thing/property/set`
 - **非阻塞重连**: 每 5s 检查 WiFi+MQTT, 自动重连
 - **JSON 转换**: STM32 `{"V":x,"I":x,"F":x}` → OneNET `{"id":"123","version":"1.0","params":{...}}`
-- **指令下行**: 解析 OneNET `Switch.value` → 串口输出 `CMD:ON\n` / `CMD:OFF\n`
+- **指令下行**: 解析 OneNET `Switch`(布尔) → `CMD:ON\n` / `CMD:OFF\n`; `FreqAdd`/`FreqSub`(布尔) → `CMD:F_UP\n` / `CMD:F_DOWN\n`
+- **属性回复**: 收到属性设置后发布 `set_reply` 应答 (解决"响应超时")
+- **点动复位**: FreqAdd/FreqSub 触发后立刻 POST 写回 false, 网页端开关自动弹回
 
 **Config macros** in `.ino`:
-- `MQTT_SERVER` / `MQTT_PORT` — OneNET MQTT 地址
+- `MQTT_SERVER` / `MQTT_PORT` — OneNET MQTT 地址 (`mqtts.heclouds.com:1883`)
 - `ONENET_PRODUCT_ID` / `ONENET_DEVICE_NAME` / `ONENET_TOKEN` — 设备凭证
-- `MQTT_TOPIC_PROPERTY_POST` / `MQTT_TOPIC_PROPERTY_SET` — 物模型主题
+- `MQTT_TOPIC_PROPERTY_POST` / `MQTT_TOPIC_PROPERTY_SET` / `MQTT_TOPIC_PROPERTY_SET_REPLY` — 物模型主题
 
 ## Documentation Output
 
@@ -337,7 +341,6 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 |:---|:---|
 | `Claude_Files/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
 | `Claude_Files/docs/双脑架构V4.0验证与烧录指南.md` | Dual-MCU V4.0 verification, STM32 serial test, ESP8266 flashing guide |
-| `Claude_Files/docs/LabVIEW上位机构建指南.md` | LabVIEW host-side application build guide |
 | `Claude_Files/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 
 ## Key Build Targets / Variants
