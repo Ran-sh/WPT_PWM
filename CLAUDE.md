@@ -223,9 +223,9 @@ V4.0 下 ESP8266 运行 Arduino 固件，不再有 AT 指令。已删除 AT+RST 
 
 `USART2_IRQHandler` **must** check `USART_FLAG_ORE` before `USART_IT_RXNE`. On STM32F103, an overrun with RXNEIE enabled also triggers the ISR, and if not cleared, the ISR locks up. Clear ORE by reading SR then DR.
 
-All ISR-shared variables (`s_RxIndex`, `s_FrameReady`, `g_ESP8266_RxFrameFlag`) must be `volatile`.
+All ISR-shared variables (`s_RxIndex`, `g_ESP8266_RxFrameFlag`) must be `static volatile`.
 
-**Critical section pattern** — any function that reads `s_RxBuf` via `strstr` must wrap the access. Use `ESP8266_CopyRxFrame()` (atomic copy + clear in single critical section, preserves tail bytes for TCP粘包) or `ESP8266_BufferContains(needle)` (critical section strstr). Never call `USART_ITConfig(USART2, ...)` from outside ESP8266.c — all USART register access is encapsulated.
+**Critical section pattern** — use `ESP8266_CopyRxFrame()` (atomic copy + clear in single critical section, preserves tail bytes). Never call `USART_ITConfig(USART2, ...)` from outside ESP8266.c — all USART register access is encapsulated.
 
 `ESP8266_SendString` waits for TXE only — the final TC check was removed because USART2 is full-duplex and TXE guarantees the byte is in the shift register.
 
@@ -235,9 +235,9 @@ The frame delimiter in `ESP8266_RxChar` matches **both** `\r` (0x0D) and `\n` (0
 
 `ESP8266_GetRxBuffer` returns `const char*` — callers must not write to the buffer.
 
-`ESP8266_ClearRxBuffer` and `ESP8266_ClearRxFlag` both fully clear buffer (`s_RxBuf[0]='\0'`), reset index (`s_RxIndex=0`), and clear both flags (`s_FrameReady=0`, `g_ESP8266_RxFrameFlag=0`) inside a critical section.
+`ESP8266_ClearRxBuffer` fully clears buffer (`s_RxBuf[0]='\0'`), resets index (`s_RxIndex=0`), and clears the frame flag (`g_ESP8266_RxFrameFlag=0`) inside a critical section.
 
-`g_ESP8266_RxFrameFlag` is no longer `extern` in the header — all external access goes through `ESP8266_GetRxFlag()`.
+`g_ESP8266_RxFrameFlag` is `static` within ESP8266.c — all external access goes through `ESP8266_GetRxFlag()`.
 
 **`App_Net_Task` TXE hang prevention**: `s_WiFiConnected` flag guards all USART2 access in `App_Net_Task`. Before hardware init (KEY0 trigger), `App_Net_Task` returns immediately — no `ESP8266_SendString` calls on uninitialized USART2.
 
