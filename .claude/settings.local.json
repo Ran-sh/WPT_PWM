@@ -69,7 +69,26 @@
       "Bash(git remote *)",
       "Bash(git push *)",
       "Bash(git checkout *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(claude-hud-statusline --setup)",
+      "Read(//c/Users/48376/.claude/plugins/claude-hud/**)",
+      "Read(//c/Users/48376/.claude/plugins/cache/claude-plugins-official/**)",
+      "Read(//c/Users/48376/.claude/**)",
+      "Bash(git config *)",
+      "Bash(ping -n 2 github.com)",
+      "Bash(nslookup github.com)",
+      "Bash(ssh-keygen -t ed25519 -C 48376@users.noreply.github.com -f __TRACKED_VAR__/.ssh/id_ed25519 -N '')",
+      "Bash(gh auth *)",
+      "Bash(GIT_SSH_COMMAND=\"ssh -o StrictHostKeyChecking=accept-new\" git push)",
+      "Bash(cmdkey /list)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 10 https://github.com)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 10 https://api.github.com)",
+      "Bash(GIT_SSL_NO_VERIFY=true git push)",
+      "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_NetAssistant_LAN_V1.0\\\\\\\\claude_code\\\\\\\\tools\\\\\\\\\")",
+      "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_NetAssistant_LAN_V1.0\\\\\\\\claude_code\\\\\\\\docs\\\\\\\\\")",
+      "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\Hardware\\\\\\\\\")",
+      "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\User\\\\\\\\\")",
+      "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\System\\\\\\\\\")"
     ]
   }
 }

@@ -30,7 +30,7 @@ typedef enum {
     SS_IDLE  = 0,   /* 待机: MOE 关, 等待触发 */
     SS_SWEEP = 1,   /* 扫频中: 150kHz → 100kHz */
     SS_DONE  = 2,   /* 完成: 100kHz 谐振稳态运行 */
-    SS_FAULT = 3    /* 故障: 过流保护触发, KEY1 复位退出 */
+    SS_FAULT = 3    /* 故障: 过流保护触发, KEY0/KEY1 复位退出 */
 } SoftStart_State_t;
 
 void     PWM_Init(void);
@@ -40,10 +40,10 @@ void     PWM_Enable(void);
 void     PWM_Disable(void);
 
 /*
- * 非阻塞软启动扫频 (150kHz → 100kHz, 200Hz/步, 20ms/步, 共 250 步 ≈ 5s)
- *   Trigger: KEY0 或 PC "ON" 触发, 仅 SS_IDLE 时有效
- *   Task:    主循环每轮调用, 内部 2ms 时间戳节拍
- *   Stop:    KEY1 或 PC "OFF" 关断, 回复 SS_IDLE
+ * 非阻塞软启动扫频 (150kHz → 100kHz, 200Hz/步, 10ms/步, 共 250 步 ≈ 2.5s)
+ *   Trigger: KEY0 单击触发, 仅 SS_IDLE 时有效
+ *   Task:    主循环每轮调用, 内部 10ms 时间戳节拍
+ *   Stop:    KEY0(SS_DONE) / KEY1(SS_SWEEP) 关断, 回复 SS_IDLE
  *   每次 Trigger 必定从 150kHz 重新开始, 不复用上次状态
  */
 void               Inverter_SoftStart_Trigger(void);

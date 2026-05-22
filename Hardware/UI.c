@@ -2,8 +2,7 @@
  ******************************************************************************
  * @file    Hardware/UI.c
  * @brief   人机交互界面 —— OLED 显示 + 按键事件分发 + LED 状态驱动
- * @note    V3.1: 拆分为 UI_UpdateLEDs / UI_TryConnectWiFi / UI_HandleKeys
- *          UI_DrawPage0 / UI_DrawPage1, 每函数 ≤ 2 层嵌套
+ * @note    纯本地控制版: 无 WiFi/网络依赖, KEY0 单击直接触发软启动
  ******************************************************************************
  */
 
@@ -13,7 +12,6 @@
 #include "KEY.h"
 #include "PWM.h"
 #include "ADC.h"
-#include "App_Net.h"
 #include "SysTimer.h"
 #include "LED.h"
 #include <stdio.h>
@@ -31,14 +29,8 @@ static void UI_ClearAllLines(void)
 /* ── LED 状态更新 (每 200ms) ── */
 static void UI_UpdateLEDs(SoftStart_State_t ss)
 {
-    /* PB3 WiFi: 联网中保持快闪, 不被 UpdateLEDs 覆盖 */
-    {
-        NetState_t ns = App_Net_GetConnectState();
-        if (ns > NET_IDLE && ns < NET_SUCCESS)
-            LED_Update_WiFi(LED_FAST);       /* 联网进行中: 快闪 */
-        else
-            LED_Update_WiFi(App_Net_IsConnected() ? LED_OFF : LED_SLOW);
-    }
+    /* PB3 状态: 无 WiFi, 保持熄灭 */
+    LED_Update_WiFi(LED_OFF);
 
     /* PB4 PWM */
     if (ss == SS_SWEEP)
@@ -48,27 +40,14 @@ static void UI_UpdateLEDs(SoftStart_State_t ss)
     else
         LED_Update_PWM(LED_OFF);
 
-    /* PB5 Ready: SS_FAULT 时灭 */
+    /* PB5 Ready: SS_FAULT 时灭, 否则 Page0 + 待机/运行 时亮 */
     if (ss == SS_FAULT)
         LED_Update_Ready(0);
     else
-        LED_Update_Ready((UI_Page == 0) && App_Net_IsConnected()
-            && (ss == SS_IDLE || ss == SS_DONE));
+        LED_Update_Ready((UI_Page == 0) && (ss == SS_IDLE || ss == SS_DONE));
 }
 
-/* ── 联网触发 (返回 1=已触发 0=未触发) ── */
-static uint8_t UI_TryConnectWiFi(void)
-{
-    /* 先刷屏, 再触发联网 (Connect_Trigger 内部阻塞 ~3.5s, 先给用户反馈) */
-    LED_Update_WiFi(LED_FAST);
-    OLED_Clear();
-    OLED_ShowString(1, 1, "[Control Mode] ");
-    OLED_ShowString(2, 1, "WiFi Connecting ");
-    App_Net_Connect_Trigger();
-    return 1;
-}
-
-/* ── 已联网按键分发 ── */
+/* ── 按键分发 ── */
 static void UI_HandleKeys(uint8_t key0, uint8_t key1, SoftStart_State_t ss)
 {
     if (key0 == 1) {
@@ -109,6 +88,7 @@ static void UI_DrawPage0(SoftStart_State_t ss)
         case SS_IDLE:
             OLED_ShowString(1, 1, "[Control Mode] ");
             OLED_ShowString(2, 1, "State: IDLE   ");
+            OLED_ShowString(2, 15, "  ");  /* 清除残留字符 */
             OLED_ShowString(3, 1, "Press KEY0 start");
             OLED_ShowString(4, 1, "F:  --.- kHz    ");
             break;
@@ -162,6 +142,7 @@ static void UI_DrawPage1(SoftStart_State_t ss)
         case SS_IDLE:
             OLED_ShowString(1, 1, "- Monitor Only -");
             OLED_ShowString(2, 1, "State: IDLE    ");
+            OLED_ShowString(2, 16, " ");   /* 清除残留字符 */
             OLED_ShowString(3, 1, "Waiting trigger ");
             break;
 
@@ -234,52 +215,18 @@ void UI_Task(void)
         last_oled = SysTimer_GetTick();
     }
 
-    /* 页面路由 */
+    /* 页面路由 — 纯本地: 直接按键分发 + 刷新, 无网络状态判断 */
     if (UI_Page == 0) {
-        /* 控制面板 */
-        if (!App_Net_IsConnected()) {
-            NetState_t ns = App_Net_GetConnectState();
-
-            if (ns > NET_IDLE && ns < NET_SUCCESS) {
-                /* ── 联网进行中 ── */
-                if (key1 == 1) App_Net_Connect_Cancel();
-                if (need_refresh) {
-                    OLED_ShowString(1, 1, "[Control Mode] ");
-                    OLED_ShowString(2, 1, "WiFi Connecting ");
-                    OLED_ShowString(4, 1, "KEY1: Cancel    ");
-                }
-            } else if (ns == NET_FAIL) {
-                /* NET_FAIL: UI 负责显示错误码, 3s 后自动恢复 */
-                if (need_refresh) {
-                    uint8_t err = App_Net_GetErrorCode();
-                    OLED_ShowString(1, 1, "!!! WiFi Error !!!");
-                    OLED_ShowString(2, 1, "Err Code:       ");
-                    OLED_ShowNum(2, 11, err, 1);
-                    OLED_ShowString(3, 1, "Retry in 3s...  ");
-                }
-            } else {
-                /* NET_IDLE: 等待触发 */
-                if (key0 == 1) UI_TryConnectWiFi();
-                else if (need_refresh) {
-                    OLED_ShowString(1, 1, "[Control Mode] ");
-                    OLED_ShowString(2, 1, "WiFi: DISCONN  ");
-                    OLED_ShowString(3, 1, "Press KEY0 WiFi");
-                    OLED_ShowString(4, 1, "F:  --.- kHz    ");
-                }
-            }
-        } else {
-            UI_HandleKeys(key0, key1, ss);
-            if (need_refresh) UI_DrawPage0(ss);
-        }
+        UI_HandleKeys(key0, key1, ss);
+        if (need_refresh) UI_DrawPage0(ss);
     } else {
-        /* 锁屏监控 */
         if (need_refresh) UI_DrawPage1(ss);
     }
 }
 
 void UI_SetBridgeState(uint8_t on_off)
 {
-    (void)on_off;  /* V3.1: 由 Inverter_SoftStart_GetState 推导 */
+    (void)on_off;  /* 由 Inverter_SoftStart_GetState 推导 */
 }
 
 uint8_t UI_GetBridgeState(void)
@@ -290,5 +237,5 @@ uint8_t UI_GetBridgeState(void)
 
 void UI_SetWiFiConnected(uint8_t on_off)
 {
-    (void)on_off;  /* V3.1: 由 App_Net_IsConnected() 权威持有 */
+    (void)on_off;  /* 纯本地版: 无 WiFi, 接口保留兼容 */
 }
