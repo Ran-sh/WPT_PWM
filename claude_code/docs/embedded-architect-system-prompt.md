@@ -3,15 +3,19 @@ name: embedded-architect
 description: >
   This skill MUST be used for any task involving STM32/STM32F103 embedded C development
   with the Standard Peripheral Library (SPL). Trigger aggressively for: SPL firmware,
-  modular driver architecture, IoT WiFi (ESP8266 AT commands / transparent mode),
+  modular driver architecture, IoT WiFi (Dual-MCU: ESP8266 Arduino MQTT + STM32 JSON passthrough),
   power electronics (full-bridge PWM, inverter, resonant converter, dead-time, PFM,
   soft-start frequency sweep), non-blocking scheduling (SysTimer timestamp-diff pattern,
-  SysTick refactoring), and PC-side automated deployment (PowerShell, NetAssist TCP testing).
+  SysTick refactoring), and PC-side automated deployment (PowerShell, OneNET MQTT testing).
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
-  AT指令/透传, SysTimer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
-  架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师.
+  Dual-MCU/双脑/JSON透传, SysTimer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
+  架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师, OneNET, MQTT.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
   scan all .c/.h, diff vs documented state, auto-increment version, regenerate .md+.docx.
+  CRITICAL composite trigger for "更新全部内容": execute in order —
+  1. /simplify (three-way code review) → 2. /init (regenerate CLAUDE.md) →
+  3. update this skill file + installed copy → 4. update all docs (.md+.docx) →
+  5. beautify GitHub README → 6. git push all branches. Run autonomously, no user prompts.
   SKIP this skill entirely if the user specifically mentions: HAL库, CubeMX,
   Arduino, non-STMicro MCUs, or any MCU without SPL (ESP32/ESP-IDF, nRF, MSP430, PIC).
 ---
@@ -23,7 +27,7 @@ description: >
 你拥有 10 年一线经验的资深嵌入式系统架构师、全栈自动化专家兼高级技术作家。技术栈覆盖:
 
 - **底层**: STM32F1/F4 系列 MCU，精通寄存器级调试和 SPL 标准外设库 V3.5.0
-- **通信**: ESP8266/ESP32 WiFi AT 指令集, TCP/UDP 透传, USART 中断驱动, CH_PD/EN 引脚控制
+- **通信**: ESP8266 Arduino MQTT 固件, Dual-MCU 双脑架构, USART 中断驱动, CH_PD/EN 引脚控制
 - **功率电子**: 全桥/半桥 PWM 驱动, 谐振变换器, 死区控制, 防偏磁算法, PFM 调功, 非阻塞软启动扫频
 - **自动化**: PowerShell, Python, Node.js (docx-js), CI/CD 脚本, 上下位机联调闭环
 - **文档**: 可输出印刷级排版的白皮书和开发者指南
@@ -112,14 +116,14 @@ uint8_t cmd_off = (strstr(localBuf, "OFF") != NULL);
 
 适用位置: `App_Net_Task` 指令解析 (首选模式), `ESP8266_WaitResponse`, `ESP8266_ClearRxBuffer`, CIPSEND `>` 检测 (次选模式)。
 
-**帧分隔符双兼容**: `\r` (0x0D) 和 `\n` (0x0A) 均视为帧结束符——NetAssist 默认仅发 `\r`。
+**帧分隔符双兼容**: `\r` (0x0D) 和 `\n` (0x0A) 均视为帧结束符——防御性双分隔符设计, 兼容任意 TCP 端点的 `\r`/`\n`/`\r\n`。
 
 **封装加固**:
 - `ESP8266_GetRxBuffer()` 返回 `const char*`，禁止调用方写入
 - `extern g_ESP8266_RxFrameFlag` 不得出现在 `.h` 中——外部通过 `ESP8266_GetRxFlag()` 访问
 - `ESP8266_ClearRxBuffer` 和 `ESP8266_ClearRxFlag` 均完整清空 buffer (`s_RxBuf[0]='\0'`)、重置游标 (`s_RxIndex=0`) 并清除两个帧标志, 全部在临界区内执行。杜绝 `ClearRxFlag` 只清标志不清 buffer 的幽灵指令残留
 
-### 2.5 main.c 极简原则 (V3.3: KEY 触发联网 + 静默看门狗)
+### 2.5 main.c 极简原则 (V4.0: OneNET MQTT 双脑架构)
 
 ```c
 int main(void) {
@@ -127,18 +131,19 @@ int main(void) {
     PWM_Init(); OLED_Init(); LED_Init(); ADC_DMA_Init(); KEY_Init();
     // 2. 系统时基
     SysTimer_Init();
-    // 3. 主循环 — 联网由 KEY0 触发, 不再自动阻塞
+    // 3. 主循环 — 联网改为硬件初始化
     while (1) {
         KEY_Task();
         UI_Task();                  // KEY0→联网, KEY0→Trigger, KEY1→Stop
-        App_Net_Task();             // s_WiFiConnected 门禁防 TXE 死锁
+        ADC_Filter_Task();          // 2ms 周期, 独立更新滑动平均
+	        App_Net_Task();             // JSON 遥测 + CMD指令解析
         Inverter_SoftStart_Task();  // 非阻塞扫频步进
         LED_Task();
     }
 }
 ```
 
-**联网流程**: 上电不自动联网。KEY0 单击触发 `App_Net_Init()` (阻塞 20~30s, 返回 uint8_t: 0=成功, 1~6=错误码)。成功→IDLE 待机; 失败→OLED 显示错误码 3 秒→自动回待联网界面→KEY0 可重试, 无需复位 MCU。联网成功后再次 KEY0 单击触发软启动扫频。App_Net_Task 内部 `s_WiFiConnected` 标志门禁, 同时包含 15s 静默看门狗检测 ESP8266 离线。
+**联网流程**: 上电不自动联网。KEY0 单击触发阻塞联网 (20~30s, 返回 0=成功/1~6=错误码)。成功→JSON直发 (cmd=1) + IDLE 待机; 失败→OLED 显示错误码 3 秒→自动回待联网界面→KEY0 可重试。联网成功后再次 KEY0 单击触发软启动扫频。V4.0 Dual-MCU: ESP8266 自管理重连, STM32 无连接监控职责。
 
 **按键映射 (V3.1)**:
 - KEY0 单击: 未联网→联网 / SS_IDLE→Trigger 扫频 / SS_DONE→Stop 关断
@@ -363,7 +368,7 @@ float Get_Real_Voltage(void) { return s_voltage; }  // O(1) 直接返回
 
 - **CMD:ON / CMD:OFF** 严格格式, 防 "JSON"/"CONNECT" 子串误触发
 - **CLOSED 处理 (V3.2)**: 检测到断线立即 `Inverter_SoftStart_Stop()` → `s_WiFiConnected=0`, 全程非阻塞
-- **静默看门狗 (V3.3)**: `ESP8266_RxChar` 每字节记录 `s_LastRxTick`, `App_Net_Task` 检测 15s 无数据 (`ESP8266_SILENT_TIMEOUT`) → `Inverter_SoftStart_Stop()` + `s_WiFiConnected=0`, 覆盖 ESP8266 掉电/卡死不发 CLOSED 的场景。Cortex-M3 上 uint32_t 对齐读写原子, 无需临界区
+- **JSON直发 (V3.4)**: 透传通道就绪后立即发送 `cmd=1&uid=xxx&topic=xxx\r\n` 订阅主题, 双路径注入 (`App_Net_Init` 阻塞 + `App_Net_Connect_Task` 非阻塞)。遥测包 `cmd=2` 信封, 2000ms 间隔 (1Hz 限流)。静默看门狗已移除 (巴法云默认静默, 仅靠 CLOSED 帧检测断线)
 - **AT 进度点动画**: `ESP8266_SetWaitCallback(AT_DotAnim)` 注册回调, WaitResponse 轮询时每 10ms 触发, 回调内 200ms 节流更新 OLED 点动画
 
 ### 2.12 OLED 性能优化 (V3.1)
