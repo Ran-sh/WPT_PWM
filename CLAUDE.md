@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Branch Identity
+
+| 项目 | 内容 |
+|:---|:---|
+| **仓库** | https://github.com/Ran-sh/WPT_PWM |
+| **分支** | `master` |
+| **本地目录** | `D:\Claude Code Project\WPT_PWM_V0.0` |
+| **协议** | 纯本地控制 (无 WiFi) |
+| **版本** | V1.0 |
+
+其他分支: `WAN` (巴法云 TCP V3.4) → `WPT_PWM_Bemfa_WAN_V2.0`, `ONENET` (OneNET MQTT V4.0 双脑架构) → `WPT_PWM_V3.0`
+
 ## Build System
 
 - **IDE**: Keil MDK-ARM V5 (uVision), ARMCC V5.06 update 5 (build 528)
