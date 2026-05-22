@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **协议** | 纯本地控制 (无 WiFi) |
 | **版本** | V1.0 |
 
-其他分支: `WAN` (巴法云 TCP V3.4) → `WPT_PWM_Bemfa_WAN_V2.0`, `ONENET` (OneNET MQTT V4.0 双脑架构) → `WPT_PWM_V3.0`
+其他分支: `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`, `WAN` (巴法云 TCP V3.4) → `WPT_PWM_Bemfa_WAN_V2.0`, `ONENET` (OneNET MQTT V4.0 双脑架构) → `WPT_PWM_V3.0`
 
 ### 复合指令触发规则
 
