@@ -20,10 +20,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. `/simplify` — 三路代码审查 (复用/质量/效率)，修复发现的问题
 2. `/init` — 重新生成 CLAUDE.md
-3. 更新 `embedded-architect` skill (`claude_code/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
+3. 更新 `embedded-architect` skill (`Claude_Files/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
 4. 更新全部文档 (`.md` + `.docx` 配对生成)
 5. 美化 GitHub README.md
-6. `git push` 推送所有分支
+6. `git push` 推送当前分支
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
@@ -42,7 +42,7 @@ Compilation is done through the Keil IDE GUI. No CLI build script exists — the
 ## File Organization
 
 - **Keil 编译源文件**: `Hardware/`, `System/`, `User/`, `Library/`, `Start/` — 路径不可移动
-- **Claude 生成文件**: 全部放在 `claude_code/` 下 (`docs/`, `tools/`, `superpowers/`, `package.json`, `node_modules/`)
+- **Claude 生成文件**: 全部放在 `Claude_Files/` 下 (`docs/`, `tools/`, `superpowers/`, `package.json`, `node_modules/`)
 - **项目配置**: `CLAUDE.md` + `.claude/` 保留根目录
 
 ## Architecture: Three-Layer Separation
@@ -99,8 +99,8 @@ All `static uint32_t last` variables in task functions are per-function private 
 | PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time (DEADTIME_NS macro), 50% locked duty, 95-150kHz PFM; non-blocking soft-start state machine (150k→100kHz, 200Hz/10ms step, ~2.5s); atomic `Inverter_SetState()` with irq guards; `Inverter_SoftStart_Trigger/Task/Stop/Fault/GetState/GetCurrentFreq` |
 | ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response vs old 3.2s); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce; `KEY_Task()` with timestamp-diff scheduling; KEY0(PB12) / KEY1(PB13) |
-| OLED | `Hardware/OLED.c` | SSD1306 128x64 0.96" over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking |
-| UI | `Hardware/UI.c` | Dual-page UI: Page 0 = control panel (actionable), Page 1 = monitor only (read-only); KEY0 single-click triggers soft-start directly (no WiFi step); KEY1 stops or adjusts freq +1kHz; soft-start real-time frequency + progress bar; state-change auto-clear; `UI_SetBridgeState/UI_GetBridgeState/UI_SetWiFiConnected` retained for compatibility with reference |
+| OLED | `Hardware/OLED.c` | SSD1306 128x64 0.96" over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); line overwrite avoids ~100ms I2C blocking; API: `ShowChar/ShowString/ShowNum/ShowFloatNum` |
+| UI | `Hardware/UI.c` | Dual-page UI: Page 0 = control panel (actionable), Page 1 = monitor only (read-only); KEY0 single-click triggers soft-start directly; KEY1 stops or adjusts freq +1kHz; soft-start real-time frequency + progress bar; state-change auto-clear; `UI_GetBridgeState()` for external query |
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle via `LED_Task`), PB3 status (kept off), PB4 PWM status (fast blink=SS_SWEEP, slow blink=SS_DONE), PB5 Ready (on when Page0+IDLE/DONE, off on FAULT); power-on self-test: PB3/PB4/PB5 all on ~1s then off; JTAG disabled (SWD retained on PA13/PA14) to free PB3/PB4 as GPIO |
 
 ## Startup Flow
@@ -108,7 +108,6 @@ All `static uint32_t last` variables in task functions are per-function private 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA_Init → KEY_Init
      → SysTimer_Init
-     → OLED "Wireless Charge"
      → 主循环 while(1):
          KEY_Task | ADC_Filter_Task | UI_Task | Inverter_SoftStart_Task | LED_Task
 
@@ -205,9 +204,9 @@ After `ADC_Cmd(ENABLE)`, a short stabilization delay (~2μs) is required before 
 
 ## Documentation Output
 
-- Every `.md` document in `claude_code/docs/` must have a paired `.docx` with identical body content
+- Every `.md` document in `Claude_Files/docs/` must have a paired `.docx` with identical body content
 - `.docx` structure: Section 1 (cover, no page#), Section 2 (TOC with Roman numerals), Section 3 (body, Arabic page# starting at 1)
-- Regenerate `.docx` files from `claude_code/` directory: `npm install && node claude_code/tools/generate_docx.js "claude_code/docs/<filename>.md"`
+- Regenerate `.docx` files from `Claude_Files/` directory: `npm install && node Claude_Files/tools/generate_docx.js "Claude_Files/docs/<filename>.md"`
 - Documents require a version control header with change log. On code changes, auto-increment version (logic change → +0.1, new module → +1.0, formatting only → date refresh).
 - When user says "更新文档": scan all .c/.h, diff against documented state, report changes before rewriting. If no changes: output "没有任何文件变化，无需更新" and exit.
 
@@ -215,11 +214,11 @@ After `ADC_Cmd(ENABLE)`, a short stabilization delay (~2μs) is required before 
 
 | Document | Purpose |
 |:---|:---|
-| `claude_code/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
-| `claude_code/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
+| `Claude_Files/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
+| `Claude_Files/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 
 ## Key Build Targets / Variants
 
 - **Target 1**: Main application (flash to STM32 via ST-Link or serial bootloader)
-- `claude_code/tools/generate_docx.js`: Node.js script to batch-convert `claude_code/docs/*.md` → `claude_code/docs/*.docx` with branded formatting
-- `claude_code/docs/embedded-architect-system-prompt.md`: The project's skill definition (also installed at `~/.claude/skills/embedded-architect/SKILL.md`). Contains coding standards, scheduling doctrine, document version control rules, and the auto-diff document update workflow. When Claude needs a refresher on project conventions, read this file.
+- `Claude_Files/tools/generate_docx.js`: Node.js script to batch-convert `Claude_Files/docs/*.md` → `Claude_Files/docs/*.docx` with branded formatting
+- `Claude_Files/docs/embedded-architect-system-prompt.md`: The project's skill definition (also installed at `~/.claude/skills/embedded-architect/SKILL.md`). Contains coding standards, scheduling doctrine, document version control rules, and the auto-diff document update workflow. When Claude needs a refresher on project conventions, read this file.

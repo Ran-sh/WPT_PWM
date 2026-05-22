@@ -79,7 +79,7 @@ static uint32_t          s_ss_last_step    = 0;
 
 /*
  * 原子状态切换: 关全局中断 → 写状态 → 恢复
- * 防止按键和 WiFi 指令同时对 s_ss_state 抢占写入导致状态机错乱
+ * 防止按键和外部指令同时对 s_ss_state 抢占写入导致状态机错乱
  */
 static void Inverter_SetState(SoftStart_State_t new_state)
 {

@@ -98,7 +98,7 @@ void ADC_DMA_Init(void)
 /**
  * @brief  独立滤波任务 — 每 2ms 推入样本并更新平均值
  * @note   由 main.c 主循环调用, 时间戳差值法保证 2ms 节拍
- *         与 UI/App_Net 调用频率完全解耦
+ *         与 UI 调用频率完全解耦
  */
 void ADC_Filter_Task(void)
 {
@@ -115,10 +115,10 @@ void ADC_Filter_Task(void)
         s_vaccum += s_vbuf[s_vidx];                   /* 加新值 */
         if (s_vfilled >= ADC_FILTER_WINDOW)
             s_vaccum -= old_v;                        /* 减真正的旧值 */
-        s_vidx = (s_vidx + 1) % ADC_FILTER_WINDOW;
+        s_vidx = (s_vidx + 1) & (ADC_FILTER_WINDOW - 1);
         if (s_vfilled < ADC_FILTER_WINDOW) s_vfilled++;
     }
-    s_voltage = ((float)(s_vaccum / s_vfilled) / 4095.0f) * VREF_MCU * 20.0f;
+    s_voltage = ((float)s_vaccum / s_vfilled / 4095.0f) * VREF_MCU * 20.0f;
 
     /* ── 电流通道 (运行累加器 O(1)) ── */
     {
@@ -127,11 +127,11 @@ void ADC_Filter_Task(void)
         s_caccum += s_cbuf[s_cidx];                   /* 加新值 */
         if (s_cfilled >= ADC_FILTER_WINDOW)
             s_caccum -= old_c;                        /* 减真正的旧值 */
-        s_cidx = (s_cidx + 1) % ADC_FILTER_WINDOW;
+        s_cidx = (s_cidx + 1) & (ADC_FILTER_WINDOW - 1);
         if (s_cfilled < ADC_FILTER_WINDOW) s_cfilled++;
     }
 
-    pin_v     = ((float)(s_caccum / s_cfilled) / 4095.0f) * VREF_MCU;
+    pin_v     = ((float)s_caccum / s_cfilled / 4095.0f) * VREF_MCU;
     s_current = (pin_v - I_OFFSET) / I_SENSITIVITY;
 }
 

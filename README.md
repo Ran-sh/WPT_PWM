@@ -3,7 +3,7 @@
 [![MCU](https://img.shields.io/badge/MCU-STM32F103C8T6-blue)]()
 [![Library](https://img.shields.io/badge/Library-SPL%20V3.5.0-green)]()
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
-[![Version](https://img.shields.io/badge/Firmware-V1.0-brightgreen)]()
+[![Version](https://img.shields.io/badge/Firmware-V1.1-brightgreen)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
 基于 STM32F103C8T6 的 100kHz LCC-S 谐振全桥无线供电系统，支持 OLED 本地控制和按键操作。**纯本地固件，无网络功能。**
@@ -22,7 +22,7 @@
        │     ├── PA0 ← CC6920-10A 霍尔电流传感器
        │     └── PA1 ← 20:1 分压网络
        │
-       ├── SSD1315 128x64 OLED (软件 I2C, PA11/PA12)
+       ├── SSD1306 128x64 OLED (软件 I2C, PA11/PA12)
        │
        ├── 双按键 (PB12/PB13, 单击/双击识别)
        │
@@ -32,7 +32,7 @@
 | 组件 | 型号 | 说明 |
 |:---|:---|:---|
 | MCU | STM32F103C8T6 | Cortex-M3, 64KB Flash, 20KB SRAM |
-| 显示 | SSD1315 128x64 | 1315驱动 0.96寸 4针 OLED, I2C, 8x16 字体, 双页面 |
+| 显示 | SSD1306 128x64 | 0.96寸 4针 OLED, I2C, 8x16 字体, 双页面 |
 | 栅极驱动 | IR2103S | 高低侧驱动, 1000ns 死区 |
 | 电流传感器 | CC6920-10A | 霍尔效应, 隔离测量 |
 | 电压采样 | 20:1 分压 | 电阻网络 |
@@ -49,7 +49,7 @@
 
 1. **Keil MDK-ARM V5** 打开 `Project.uvprojx`
 2. 编译 → ST-Link 烧录
-3. 上电 → OLED 显示启动画面 → 按 **KEY0** 触发软启动扫频
+3. 上电 → OLED 显示控制面板 → 按 **KEY0** 触发软启动扫频
 4. 按 **KEY1** 关断或调节频率
 
 ## 按键操作
@@ -88,7 +88,7 @@
 ├── System/        系统服务 (SysTimer)
 ├── Library/       SPL V3.5.0 (只读)
 ├── Start/         启动文件
-├── claude_code/   AI 辅助文件
+├── Claude_Files/  AI 辅助文件
 └── CLAUDE.md      项目开发指南
 ```
 

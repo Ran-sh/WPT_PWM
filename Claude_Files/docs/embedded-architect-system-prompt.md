@@ -3,12 +3,12 @@ name: embedded-architect
 description: >
   This skill MUST be used for any task involving STM32/STM32F103 embedded C development
   with the Standard Peripheral Library (SPL). Trigger aggressively for: SPL firmware,
-  modular driver architecture, IoT WiFi (ESP8266 AT commands / transparent mode),
+  modular driver architecture, IoT WiFi (ESP8266 AT commands / Dual-MCU MQTT on other branches),
   power electronics (full-bridge PWM, inverter, resonant converter, dead-time, PFM,
   soft-start frequency sweep), non-blocking scheduling (SysTimer timestamp-diff pattern,
-  SysTick refactoring), and PC-side automated deployment (PowerShell, NetAssist TCP testing).
+  SysTick refactoring), and PC-side automated deployment (PowerShell, MQTT testing).
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
-  AT指令/透传, SysTimer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
+  Dual-MCU/双脑/JSON透传, SysTimer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
   scan all .c/.h, diff vs documented state, auto-increment version, regenerate .md+.docx.
