@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `WAN` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_Bemfa_WAN_V2.0` |
 | **协议** | 巴法云 TCP 创客云 (Bemfa Cloud) |
-| **版本** | V3.4 |
+| **版本** | V3.5 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
 
@@ -113,14 +113,14 @@ All `static uint32_t last` variables in task functions are per-function private 
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
 | ESP8266 | `Hardware/ESP8266.c` | Async USART2 receiver, AT command state machine, TCP transparent mode; PB1 CH_PD/EN pin with 1000ms deep reset + AT+RST software reset; `ESP8266_SetWaitCallback` hook for AT-progress dot animation |
 | PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time (DEADTIME_NS macro), 50% locked duty, 95-150kHz PFM; non-blocking soft-start state machine (150k→100kHz, 200Hz/10ms step, ~2.5s); atomic `Inverter_SetState()` with irq guards; `Inverter_SoftStart_Trigger/Task/Stop/GetState/GetCurrentFreq` |
-| ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response vs old 3.2s); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
+| ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response vs old 3.2s); `Get_Real_Voltage/Current` are O(1) returns of pre-computed float values; floating-point division preserves fractional ADC precision |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
-| OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking |
+| OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking; `pow10_lut[10]` lookup table for fast number display |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers WiFi connect then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
-| LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi (slow/fast blink) + PB4 PWM (blink) + PB5 Ready (on/off); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | **V3.4 Bemfa Cloud**: config macros in `App_Net.h` for branch diff; `Bemfa_Subscribe()` injected in both blocking + non-blocking connect paths; **cmd=2 telemetry** envelope at 2000ms (1Hz rate limit); CMD:ON/CMD:OFF protocol; CLOSED→immediate shutdown + wifi reset; **silent watchdog removed** (Bemfa is silent by default, CLOSED frame suffices); `snprintf` for buffer safety |
+| LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi (slow→connecting, fast→connecting, **solid→connected**) + PB4 PWM (blink) + PB5 Ready (on/off); `LED_Init`/`LED_Task` |
+| App_Net | `User/App_Net.c` | **V3.5 Bemfa Cloud**: config macros in `App_Net.h` for branch diff; `Bemfa_Subscribe()` injected in both blocking + non-blocking connect paths; **cmd=2 telemetry** envelope at 2000ms (1Hz rate limit); CMD:ON/CMD:OFF protocol; CLOSED→immediate shutdown + wifi reset; **silent watchdog removed** (Bemfa is silent by default, CLOSED frame suffices); `snprintf` for buffer safety |
 
-## Startup Flow (V3.4)
+## Startup Flow (V3.5)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA → KEY

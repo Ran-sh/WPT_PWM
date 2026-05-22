@@ -123,7 +123,7 @@ uint8_t cmd_off = (strstr(localBuf, "OFF") != NULL);
 - `extern g_ESP8266_RxFrameFlag` 不得出现在 `.h` 中——外部通过 `ESP8266_GetRxFlag()` 访问
 - `ESP8266_ClearRxBuffer` 和 `ESP8266_ClearRxFlag` 均完整清空 buffer (`s_RxBuf[0]='\0'`)、重置游标 (`s_RxIndex=0`) 并清除两个帧标志, 全部在临界区内执行。杜绝 `ClearRxFlag` 只清标志不清 buffer 的幽灵指令残留
 
-### 2.5 main.c 极简原则 (V3.4: 巴法云 WAN 远程控制)
+### 2.5 main.c 极简原则 (V3.5: 巴法云 WAN 远程控制)
 
 ```c
 int main(void) {
@@ -142,7 +142,7 @@ int main(void) {
 }
 ```
 
-**联网流程**: 上电不自动联网。KEY0 单击触发阻塞联网 (20~30s, 返回 0=成功/1~6=错误码)。成功→巴法云订阅 (cmd=1) + IDLE 待机; 失败→OLED 显示错误码 3 秒→自动回待联网界面→KEY0 可重试。联网成功后再次 KEY0 单击触发软启动扫频。V3.4 WAN 分支移除静默看门狗 (巴法云默认静默, 仅靠 CLOSED 帧检测断线)。
+**联网流程**: 上电不自动联网。KEY0 单击触发阻塞联网 (20~30s, 返回 0=成功/1~6=错误码)。成功→巴法云订阅 (cmd=1) + IDLE 待机; 失败→OLED 显示错误码 3 秒→自动回待联网界面→KEY0 可重试。联网成功后再次 KEY0 单击触发软启动扫频。V3.4 WAN 分支移除静默看门狗 (巴法云默认静默, 仅靠 CLOSED 帧检测断线)。V3.5: WiFi LED 连接成功后常亮 (LED_SOLID), 断线后慢闪。
 
 **按键映射 (V3.1)**:
 - KEY0 单击: 未联网→联网 / SS_IDLE→Trigger 扫频 / SS_DONE→Stop 关断
@@ -196,9 +196,10 @@ TIM_OC2PreloadConfig(TIM1, TIM_OCPreload_Enable);
 **原子状态切换**: 所有 `s_ss_state` 运行时写入必须通过原子函数, 防止按键和 WiFi 指令并发抢占:
 ```c
 static void Inverter_SetState(SoftStart_State_t new_state) {
+    uint32_t primask = __get_PRIMASK();
     __disable_irq();
     s_ss_state = new_state;
-    __enable_irq();
+    __set_PRIMASK(primask);  // 恢复先前中断状态, 不无条件开中断
 }
 ```
 
@@ -208,7 +209,7 @@ static void Inverter_SetState(SoftStart_State_t new_state) {
 
 **上电安全态**: `PWM_Init` 配置完成后 MOE 关断 (`TIM_CtrlPWMOutputs(DISABLE)`), 全桥无输出。仅 `Inverter_SoftStart_Trigger()` 才开启 MOE。
 
-### 2.8 ADC 滑动平均滤波 (V3.1)
+### 2.8 ADC 滑动平均滤波 + 浮点精度修复 (V3.5)
 
 100kHz 强磁场下 DMA 瞬时值噪声严重。`Get_Real_Voltage()` 和 `Get_Real_Current()` 内部实现 16 样本滑动平均:
 ```c
@@ -223,6 +224,8 @@ float Get_Real_Voltage(void) {
 }
 ```
 响应延迟 = 16 × DMA 半周期 ≈ 400μs, 不影响控制带宽。
+
+**V3.5 浮点精度修复**: `(float)(s_vaccum / s_vfilled)` 改为 `(float)s_vaccum / s_vfilled` — 整数除法在先导致丢失小数 ADC 计数, 电压/电流读数有 ~0.015V 系统性截断误差。
 
 ### 2.9 工程目录约定 (V3.1)
 
@@ -370,12 +373,13 @@ float Get_Real_Voltage(void) { return s_voltage; }  // O(1) 直接返回
 - **巴法云订阅 (V3.4)**: 透传通道就绪后立即发送 `cmd=1&uid=xxx&topic=xxx\r\n` 订阅主题, 双路径注入 (`App_Net_Init` 阻塞 + `App_Net_Connect_Task` 非阻塞)。遥测包 `cmd=2` 信封, 2000ms 间隔 (1Hz 限流)。静默看门狗已移除 (巴法云默认静默, 仅靠 CLOSED 帧检测断线)
 - **AT 进度点动画**: `ESP8266_SetWaitCallback(AT_DotAnim)` 注册回调, WaitResponse 轮询时每 10ms 触发, 回调内 200ms 节流更新 OLED 点动画
 
-### 2.12 OLED 性能优化 (V3.1)
+### 2.12 OLED 性能优化 (V3.5)
 
 软件 I2C 全屏清屏 `OLED_Clear` 耗时 ~100ms (1024 bytes), 会阻塞所有保护任务。优化策略:
 - 状态迁移/切页: 仍用 `OLED_Clear` (罕见, 可接受)
 - 日常 200ms 刷新: 16 字符全宽行覆盖, 不调用清屏
 - 扫频频率行: `snprintf` 合并为单次 `OLED_ShowString`, 替代 6 次独立写入
+- **V3.5**: `OLED_ShowFloatNum` 参数类型 `double`→`float` (Cortex-M3 无硬件 FPU, double 软件模拟极慢); 新增 `pow10_lut[10]` 查找表替代 `OLED_Pow(10,...)` 运行时循环计算
 
 ## 5. 默认输出三段式
 

@@ -118,7 +118,7 @@ void ADC_Filter_Task(void)
         s_vidx = (s_vidx + 1) % ADC_FILTER_WINDOW;
         if (s_vfilled < ADC_FILTER_WINDOW) s_vfilled++;
     }
-    s_voltage = ((float)(s_vaccum / s_vfilled) / 4095.0f) * VREF_MCU * 20.0f;
+    s_voltage = ((float)s_vaccum / s_vfilled / 4095.0f) * VREF_MCU * 20.0f;
 
     /* ── 电流通道 (运行累加器 O(1)) ── */
     {
@@ -131,7 +131,7 @@ void ADC_Filter_Task(void)
         if (s_cfilled < ADC_FILTER_WINDOW) s_cfilled++;
     }
 
-    pin_v     = ((float)(s_caccum / s_cfilled) / 4095.0f) * VREF_MCU;
+    pin_v     = ((float)s_caccum / s_cfilled / 4095.0f) * VREF_MCU;
     s_current = (pin_v - I_OFFSET) / I_SENSITIVITY;
 }
 

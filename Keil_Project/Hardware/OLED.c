@@ -232,6 +232,8 @@ uint32_t OLED_Pow(uint32_t X, uint32_t Y)
 	return Result;
 }
 
+static const uint32_t pow10_lut[10] = {1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000};
+
 /**
   * @brief  OLED显示数字（十进制，正数）
   * @param  Line 起始行位置，范围：1~4
@@ -245,7 +247,7 @@ void OLED_ShowNum(uint8_t Line, uint8_t Column, uint32_t Number, uint8_t Length)
 	uint8_t i;
 	for (i = 0; i < Length; i++)							
 	{
-		OLED_ShowChar(Line, Column + i, Number / OLED_Pow(10, Length - i - 1) % 10 + '0');
+		OLED_ShowChar(Line, Column + i, Number / pow10_lut[Length - i - 1] % 10 + '0');
 	}
 }
 
@@ -273,7 +275,7 @@ void OLED_ShowSignedNum(uint8_t Line, uint8_t Column, int32_t Number, uint8_t Le
 	}
 	for (i = 0; i < Length; i++)							
 	{
-		OLED_ShowChar(Line, Column + i + 1, Number1 / OLED_Pow(10, Length - i - 1) % 10 + '0');
+		OLED_ShowChar(Line, Column + i + 1, Number1 / pow10_lut[Length - i - 1] % 10 + '0');
 	}
 }
 
@@ -385,7 +387,7 @@ void OLED_Init(void)
   * @param  FractLength 小数部分的长度，范围：1~9
   * @retval 无
   */
-void OLED_ShowFloatNum(uint8_t Line, uint8_t Column, double Number, uint8_t IntLength, uint8_t FractLength)
+void OLED_ShowFloatNum(uint8_t Line, uint8_t Column, float Number, uint8_t IntLength, uint8_t FractLength)
 {
 	uint32_t IntNum;
 	uint32_t FractNum;
@@ -403,11 +405,11 @@ void OLED_ShowFloatNum(uint8_t Line, uint8_t Column, double Number, uint8_t IntL
 	
 	// 2. 核心魔法：四舍五入补偿
 	// 浮点数在单片机内存里往往是 3.1399999... 直接截断会变成 3.13。加上这个半值就能完美修正为 3.14
-	Number += 0.5 / OLED_Pow(10, FractLength);
-	
+	Number += 0.5f / (float)pow10_lut[FractLength];
+
 	// 3. 暴力拆分：整数部分与小数部分
 	IntNum = (uint32_t)Number;
-	FractNum = (uint32_t)((Number - IntNum) * OLED_Pow(10, FractLength));
+	FractNum = (uint32_t)((Number - (float)IntNum) * (float)pow10_lut[FractLength]);
 	
 	// 4. 依次打屏：整数 + 小数点 + 小数部分
 	OLED_ShowNum(Line, Column + 1, IntNum, IntLength);
