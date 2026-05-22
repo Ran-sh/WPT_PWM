@@ -339,8 +339,7 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 
 | Document | Purpose |
 |:---|:---|
-| `Claude_Files/docs/软件架构与开发者指南.md` | Primary architecture and developer guide |
-| `Claude_Files/docs/双脑架构V4.0验证与烧录指南.md` | Dual-MCU V4.0 verification, STM32 serial test, ESP8266 flashing guide |
+| `Claude_Files/docs/软件架构与开发者指南.md` | 完整技术白皮书: 架构设计 + 模块详解 + 验证、烧录与联调指南 |
 | `Claude_Files/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 
 ## Key Build Targets / Variants
