@@ -39,16 +39,9 @@
       "Bash(echo \"server.tcp.enabled=True\")",
       "Bash(PYTHONUTF8=1 /e/Anaconda3/python *)",
       "Bash(PYTHONUTF8=1 timeout 5 /e/Anaconda3/python \"D:/Claude Code Project/无线充电PWM/Tools/test_tcp_echo_simulator.py\" --port 18080)",
-      "Bash(node Tools/generate_docx.js \"Docs/LabVIEW上位机构建指南.md\")",
-      "Bash(taskkill //F //IM LabVIEW.exe)",
-      "Bash(cp \"Docs/LabVIEW上位机构建指南.docx\" \"Docs/LabVIEW上位机构建指南_v4.docx\")",
-      "Bash(ls -la \"Docs/LabVIEW上位机构建指南.md\" \"Docs/LabVIEW上位机构建指南.docx\")",
+
       "Bash(echo \"exit: $?\")",
-      "Bash(cp \"Docs/LabVIEW上位机构建指南.md\" \"Docs/_temp_guide.md\")",
-      "Bash(node Tools/generate_docx.js \"Docs/_temp_guide.md\")",
-      "Bash(mv \"Docs/_temp_guide.docx\" \"Docs/LabVIEW上位机构建指南_V4.docx\")",
-      "Bash(rm -f \"Docs/_temp_guide.md\" \"Docs/_temp_guide.docx\")",
-      "Bash(ls -la \"Docs/LabVIEW上位机构建指南_V4.docx\")",
+
       "Bash(node -e \"require\\('docx'\\)\")",
       "Bash(node Tools/generate_docx.js \"Docs/PC端联调操作指南.md\")",
       "Bash(node *)",
@@ -57,7 +50,7 @@
       "Skill(superpowers:finishing-a-development-branch)",
       "Bash(git init *)",
       "Bash(mkdir -p \"claude_code/docs\")",
-      "Bash(mv \"Docs/LabVIEW上位机构建指南.md\" \"claude_code/docs/\")",
+
       "Bash(mv \"Docs/PC端联调操作指南.md\" \"claude_code/docs/\")",
       "Bash(mv \"Docs/embedded-architect-system-prompt.md\" \"claude_code/docs/\")",
       "Bash(mv \"Docs/软件架构与开发者指南.md\" \"claude_code/docs/\")",
