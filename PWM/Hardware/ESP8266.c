@@ -22,14 +22,9 @@
  * ═══════════════════════════════════════════════════════════════ */
 static char     s_RxBuf[ESP8266_RX_BUF_SIZE];  /* 接收环形缓冲区 */
 static volatile uint16_t s_RxIndex = 0;         /* 缓冲区写入游标 (ISR 写入, 主循环读取, 必须 volatile) */
-static volatile uint8_t  s_FrameReady = 0;      /* 内部帧就绪标志 (ISR 置位, 主循环消费, 必须 volatile 防编译器缓存) */
 
-/* 外部可见标志 —— main.c 通过 ESP8266_GetRxFlag() 轮询 */
-volatile uint8_t g_ESP8266_RxFrameFlag = 0;
-
-/* WaitResponse 轮询回调 (用于 OLED 点动画等) */
-static void (*s_WaitCallback)(void) = NULL;
-void ESP8266_SetWaitCallback(void (*cb)(void)) { s_WaitCallback = cb; }
+/* 帧就绪标志 —— main.c 通过 ESP8266_GetRxFlag() 轮询 */
+static volatile uint8_t g_ESP8266_RxFrameFlag = 0;
 
 /* ═══════════════════════════════════════════════════════════════
  *              硬件初始化: USART2 + GPIO + NVIC
@@ -149,8 +144,8 @@ void ESP8266_SendString(const char *str)
  * @brief  字符注入 —— 由 USART2_IRQHandler 在中断上下文中调用
  * @param  ch: 刚收到的 8 位数据
  * @note   每收到一个字符追加到 s_RxBuf 末尾；
- *         遇到 '\n' (0x0A) 时认为一帧结束，置位 s_FrameReady 和
- *         g_ESP8266_RxFrameFlag，通知 main.c 主循环取走数据。
+ *         遇到 '\n' (0x0A) 时认为一帧结束，
+ *         置位 g_ESP8266_RxFrameFlag 通知 main.c 主循环取走数据。
  *
  *         缓冲区溢出保护策略：
  *         当写入游标达到缓冲区末尾时，自动将后半段数据前移覆盖前半段，
@@ -177,142 +172,8 @@ void ESP8266_RxChar(uint8_t ch)
     /* ── \r 或 \n 视为帧结束符 (防御性双分隔符设计, 兼容 \r / \n / \r\n) ── */
     if (ch == '\n' || ch == '\r')
     {
-        s_FrameReady          = 1;
         g_ESP8266_RxFrameFlag = 1;
     }
-}
-
-/* ═══════════════════════════════════════════════════════════════
- *              应答匹配引擎 (带超时和错误检测)
- * ═══════════════════════════════════════════════════════════════ */
-
-/**
- * @brief  轮询等待 ESP8266 返回期望的应答字符串
- * @param  expect    : 期望在接收缓冲区中匹配的字符串 (如 "OK")
- * @param  timeout_ms: 最大等待时间 (毫秒)
- * @retval 1 = 收到期望应答
- *         0 = 超时 / 收到 ERROR / 收到 FAIL
- * @note   每次 s_FrameReady 置位 (即收到一个以 '\n' 结尾的帧) 时
- *         检查一次全缓冲区；检查期间短暂关闭 USART2 RXNE 中断，
- *         防止 ISR 在 strstr 扫描期间修改缓冲区导致指针越界。
- */
-static uint8_t ESP8266_WaitResponse(const char *expect, uint32_t timeout_ms)
-{
-    uint32_t elapsed = 0;
-
-    while (elapsed < timeout_ms)
-    {
-        if (s_FrameReady)
-        {
-            uint8_t has_error, has_expect;
-
-            /* ── 临界区: 先关中断, 再消费标志, 最后统一恢复 ── */
-            USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
-            s_FrameReady = 0;
-
-            has_error  = (strstr(s_RxBuf, "ERROR") != NULL ||
-                          strstr(s_RxBuf, "FAIL")  != NULL);
-            has_expect = (strstr(s_RxBuf, expect) != NULL);
-
-            USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
-
-            if (has_error)  return 0;
-            if (has_expect) return 1;
-        }
-        if (s_WaitCallback) s_WaitCallback();   /* OLED 点动画等 */
-        SysTimer_DelayMs(10);
-        elapsed += 10;
-    }
-    return 0;  /* 超时 */
-}
-
-/* ═══════════════════════════════════════════════════════════════
- *               极速联网状态机 (6 步 AT 指令建立透传)
- * ═══════════════════════════════════════════════════════════════ */
-
-/**
- * @brief  执行 6 步 AT 指令序列，建立 TCP 透传连接
- * @param  ssid : WiFi 热点名称 (不超过 32 字符)
- * @param  pwd  : WiFi 密码 (不超过 64 字符)
- * @param  ip   : 目标服务器 IPv4 地址 (点分十进制字符串, 如 "192.168.1.100")
- * @param  port : 目标服务器端口号 (如 8080)
- * @retval 0 = 成功进入透传模式，此后 USART2 即为透明数据通道
- *         1 = 模块无 AT 响应 (检查供电 / 接线 / 波特率)
- *         2 = CWMODE=1 设置失败
- *         3 = WiFi 连接失败 (检查 SSID / 密码 / 信号强度)
- *         4 = TCP 连接失败 (检查 IP / 端口 / 防火墙)
- *         5 = CIPMODE=1 设置失败
- *         6 = CIPSEND 启动失败
- */
-uint8_t ESP8266_ConnectToServer(const char *ssid, const char *pwd,
-                                 const char *ip, uint16_t port)
-{
-    char cmdBuf[160];  /* 160 字节足够容纳最长 SSID(32) + 最长密码(64) + AT指令开销 */
-
-    /* ──────────────────────────────────────────────────────────
-     * Step 1: 确认模块 AT 指令就绪
-     * ────────────────────────────────────────────────────────── */
-    ESP8266_ClearRxBuffer();
-    ESP8266_SendString("AT\r\n");
-    if (!ESP8266_WaitResponse("OK", ESP8266_CMD_TIMEOUT))
-        return 1;  /* 模块无响应 */
-
-    /* ──────────────────────────────────────────────────────────
-     * Step 2: 设置 Station (客户端) 模式
-     * ────────────────────────────────────────────────────────── */
-    ESP8266_ClearRxBuffer();
-    ESP8266_SendString("AT+CWMODE=1\r\n");
-    if (!ESP8266_WaitResponse("OK", ESP8266_CMD_TIMEOUT))
-        return 2;
-
-    /* ──────────────────────────────────────────────────────────
-     * Step 3: 连接 WiFi 热点 (含 DHCP, 耗时较长)
-     * ────────────────────────────────────────────────────────── */
-    ESP8266_ClearRxBuffer();
-    sprintf(cmdBuf, "AT+CWJAP=\"%s\",\"%s\"\r\n", ssid, pwd);
-    ESP8266_SendString(cmdBuf);
-    if (!ESP8266_WaitResponse("OK", ESP8266_WIFI_TIMEOUT))
-        return 3;
-
-    /* ──────────────────────────────────────────────────────────
-     * Step 4: 建立 TCP 连接到目标服务器
-     * ────────────────────────────────────────────────────────── */
-    ESP8266_ClearRxBuffer();
-    sprintf(cmdBuf, "AT+CIPSTART=\"TCP\",\"%s\",%u\r\n", ip, port);
-    ESP8266_SendString(cmdBuf);
-    if (!ESP8266_WaitResponse("OK", ESP8266_TCP_TIMEOUT))
-        return 4;
-
-    /* ──────────────────────────────────────────────────────────
-     * Step 5: 开启透传模式
-     * ────────────────────────────────────────────────────────── */
-    ESP8266_ClearRxBuffer();
-    ESP8266_SendString("AT+CIPMODE=1\r\n");
-    if (!ESP8266_WaitResponse("OK", ESP8266_CMD_TIMEOUT))
-        return 5;
-
-    /* ──────────────────────────────────────────────────────────
-     * Step 6: 启动透传发送
-     *         注意: AT+CIPSEND 的应答是 ">" 不带换行符，
-     *         因此不能依赖帧标志，需要直接轮询缓冲区内容。
-     * ────────────────────────────────────────────────────────── */
-    ESP8266_ClearRxBuffer();
-    ESP8266_SendString("AT+CIPSEND\r\n");
-    {
-        uint32_t elapsed = 0;
-        uint8_t  got_prompt = 0;
-        while (elapsed < ESP8266_CMD_TIMEOUT)
-        {
-            got_prompt = ESP8266_BufferContains(">");
-            if (got_prompt) break;
-            SysTimer_DelayMs(10);
-            elapsed += 10;
-        }
-        if (elapsed >= ESP8266_CMD_TIMEOUT)
-            return 6;
-    }
-
-    return 0;  /* 透传通道已建立 */
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -326,14 +187,6 @@ uint8_t ESP8266_ConnectToServer(const char *ssid, const char *pwd,
 uint8_t ESP8266_GetRxFlag(void)
 {
     return g_ESP8266_RxFrameFlag;
-}
-
-/**
- * @brief  清除帧就绪标志 (main.c 处理完当前帧后调用)
- */
-void ESP8266_ClearRxFlag(void)
-{
-    ESP8266_ClearRxBuffer();   /* 与 ClearRxBuffer 完全一致, 统一实现 */
 }
 
 /**
@@ -355,7 +208,6 @@ void ESP8266_ClearRxBuffer(void)
     USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);  /* 临界区: 防止 ISR 在清零期间写入 */
     s_RxBuf[0]            = '\0';   /* 仅截断, strstr 遇到 \0 即停止, 无需清零全缓冲 */
     s_RxIndex             = 0;
-    s_FrameReady          = 0;
     g_ESP8266_RxFrameFlag = 0;
     USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
 }
@@ -390,7 +242,7 @@ uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len)
     /*
      * 保留尾部未处理字节: 如果 ISR 在 \r\n 之后又写入了新数据
      * (如 "CMD:ON\r\nCMD:OFF\r\n" 粘包), 将后半截移到缓冲区头部,
-     * 下一轮轮询时 s_FrameReady 仍为 1, 可继续处理
+     * 下一轮轮询时标志仍置位, 可继续处理
      */
     if (consumed < s_RxIndex) {
         uint16_t tail = s_RxIndex - consumed;
@@ -401,7 +253,6 @@ uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len)
     } else {
         s_RxBuf[0] = '\0';
         s_RxIndex  = 0;
-        s_FrameReady          = 0;
         g_ESP8266_RxFrameFlag = 0;
     }
 
@@ -409,16 +260,3 @@ uint16_t ESP8266_CopyRxFrame(char *dst, uint16_t max_len)
     return len;
 }
 
-/**
- * @brief  临界区内检查缓冲区是否包含指定字符串
- * @note   封装 USART 中断管理, 调用方无需直接操作 USART2 寄存器
- */
-uint8_t ESP8266_BufferContains(const char *needle)
-{
-    const char *rx = ESP8266_GetRxBuffer();
-    uint8_t found;
-    USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
-    found = (strstr(rx, needle) != NULL);
-    USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
-    return found;
-}
