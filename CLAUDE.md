@@ -72,6 +72,7 @@ No CLI build — compilation through Keil IDE GUI. `Keil_Project/Target 1.BAT` i
 
 ```
 WPT_PWM_V3.0/
+├── APP/                      ← Web 监控面板 (Vite + React + TS + Tailwind)
 ├── Arduino_Project/          ← Arduino 固件工程 (平台无关)
 ├── Keil_Project/            ← Keil MDK STM32 固件工程 (所有 C 源码)
 │   ├── Hardware/            ← 硬件驱动层 (ESP8266, PWM, ADC, KEY, OLED, LED, UI)
@@ -159,13 +160,13 @@ All `static uint32_t last` variables in task functions are per-function private 
 |:---|:---|:---|
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
 | ESP8266 | `Hardware/ESP8266.c` | V4.0 Dual-MCU: USART2 async receiver (115200), PB1 CH_PD/EN 1000ms hardware reset only (no AT commands); `ESP8266_SendString/CopyRxFrame/GetRxFlag/IsReady` for pure JSON serial passthrough |
-| PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time (DEADTIME_NS macro), 50% locked duty, 95-150kHz PFM; non-blocking soft-start state machine (150k→100kHz, 200Hz/10ms step, ~2.5s); atomic `Inverter_SetState()` with irq guards; `Inverter_SoftStart_Trigger/Task/Stop/GetState/GetCurrentFreq` |
+| PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time, 50% locked duty, 95-150kHz PFM; non-blocking soft-start (150k→100kHz, 200Hz/10ms, ~2.5s); `PWM_AdjustFreq_Up/Down` with clean target frequency (s_desired_freq) eliminates integer truncation error accumulation |
 | ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers HW init then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi (LED_SOLID/slow blink) + PB4 PWM (blink) + PB5 Ready (on/off); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | **V4.0 Dual-MCU**: only 3 public APIs; `App_Net_Init()` → ESP8266_Init (~3s); `App_Net_Task()` → JSON telemetry `{"V":xx,"I":xx,"F":xx}\n` every 2000ms + `strstr` parse CMD:ON/OFF/F_UP/F_DOWN; `App_Net_IsConnected()` delegates to `ESP8266_IsReady()` |
+| App_Net | `User/App_Net.c` | **V4.1 Dual-MCU**: `App_Net_Init()` → ESP8266_Init (~3s); `App_Net_Task()` → JSON telemetry every 500ms (SS_DONE=real V/I, SS_IDLE/FAULT=V=0); `strstr` parse CMD:ON/OFF/F_UP/F_DOWN → PWM_AdjustFreq_Up/Down; `App_Net_IsConnected()` delegates to `ESP8266_IsReady()` |
 
 ## Startup Flow (V4.0)
 
@@ -314,13 +315,14 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 **Libraries**: ESP8266WiFi + PubSubClient + ArduinoJson v7 + WiFiManager (tzapu)
 
 **Features**:
-- **WiFiManager 网页配网**: 首次上电开热点 `STM32_WPT_Config` (无密码), 手机连上配网, 凭据存闪存
-- **OneNET MQTT 物模型**: 属性上报 `$sys/.../thing/property/post`, 属性设置 `$sys/.../thing/property/set`
-- **非阻塞重连**: 每 5s 检查 WiFi+MQTT, 自动重连
+- **WiFiManager 网页配网**: 首次上电开热点 `STM32_WPT_Config` (无密码), 手机连上配网, 凭据存闪存。v2.x 需 `startConfigPortal` 兜底
+- **双 MQTT 连接**: OneNET 物模型 (`mqtts.heclouds.com:1883`) + 公共 EMQX Broker (`broker.emqx.io:1883`) 同步上报
+- **非阻塞重连**: 每 5s 检查 WiFi+MQTT, 自动重连, 重连后补订阅
 - **JSON 转换**: STM32 `{"V":x,"I":x,"F":x}` → OneNET `{"id":"123","version":"1.0","params":{...}}`
 - **指令下行**: 解析 OneNET `Switch`(布尔) → `CMD:ON\n` / `CMD:OFF\n`; `FreqAdd`/`FreqSub`(布尔) → `CMD:F_UP\n` / `CMD:F_DOWN\n`
 - **属性回复**: 收到属性设置后发布 `set_reply` 应答 (解决"响应超时")
 - **点动复位**: FreqAdd/FreqSub 触发后立刻 POST 写回 false, 网页端开关自动弹回
+- **Web 指令通道**: 订阅 EMQX `wpt/20260001/cmd`, 接收 Web 端 CMD 指令透传给 STM32
 
 **Config macros** in `.ino`:
 - `MQTT_SERVER` / `MQTT_PORT` — OneNET MQTT 地址 (`mqtts.heclouds.com:1883`)

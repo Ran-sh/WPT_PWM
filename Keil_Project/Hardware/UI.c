@@ -13,6 +13,7 @@
 #include "KEY.h"
 #include "PWM.h"
 #include "ADC.h"
+#include "ESP8266.h"
 #include "App_Net.h"
 #include "SysTimer.h"
 #include "LED.h"
@@ -78,15 +79,8 @@ static void UI_HandleKeys(uint8_t key0, uint8_t key1, SoftStart_State_t ss)
     if (key1 == 1) {
         if (ss == SS_SWEEP)
             Inverter_SoftStart_Stop();
-        else if (ss == SS_DONE) {
-            /*
-             * 频率微调: 仅允许 +1kHz, 150k 封顶不绕回。
-             * 绝不允许从 150k 跳回 100k — 没有软启动的保护,
-             * 瞬间砸入谐振点会产生毁灭性浪涌电流炸毁 MOSFET。
-             */
-            uint32_t f = PWM_GetFrequency() + 1000;
-            if (f <= 150000) PWM_SetFrequency(f);
-        }
+        else if (ss == SS_DONE)
+            PWM_AdjustFreq_Up();
         else if (ss == SS_FAULT)
             Inverter_SoftStart_Stop();   /* KEY1 复位故障 */
     }

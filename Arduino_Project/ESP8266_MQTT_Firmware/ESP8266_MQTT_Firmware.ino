@@ -49,12 +49,20 @@
 #define MQTT_TOPIC_PROPERTY_SET       "$sys/1iS397oJFL/20260001/thing/property/set"
 #define MQTT_TOPIC_PROPERTY_SET_REPLY "$sys/1iS397oJFL/20260001/thing/property/set_reply"
 
+/* 公共 Broker (Web 端数据读取, 支持 WebSocket) */
+#define PUBLIC_MQTT_SERVER  "broker.emqx.io"
+#define PUBLIC_MQTT_PORT    1883
+#define PUBLIC_TOPIC_DATA   "wpt/20260001/data"
+
 /* ═══════════════════════════════════════════════════════════════
  *                    全局对象
  * ═══════════════════════════════════════════════════════════════ */
 
 WiFiClient    espClient;
 PubSubClient  mqttClient(espClient);
+
+WiFiClient    publicEspClient;
+PubSubClient  publicMqttClient(publicEspClient);
 
 static char     serialBuf[128];          /* 串口行缓冲 */
 static uint8_t  serialLen = 0;           /* 缓冲有效字节数 */
@@ -233,6 +241,30 @@ static void ensureConnected()
 #endif
         }
     }
+
+    /* 公共 Broker 重连: 连接成功后设置回调并订阅指令主题 */
+    if (!publicMqttClient.connected())
+    {
+        if (publicMqttClient.connect(ONENET_DEVICE_NAME))
+        {
+#ifdef DEBUG
+            Serial.println("[Public] Connected to EMQX broker");
+#endif
+            publicMqttClient.setCallback([](char* topic, byte* payload, unsigned int length) {
+#ifdef DEBUG
+                Serial.print("[Public] <<< CMD: ");
+                Serial.write(payload, length);
+                Serial.println();
+#endif
+                Serial.write(payload, length);
+                Serial.print("\n");
+            });
+            publicMqttClient.subscribe("wpt/20260001/cmd");
+#ifdef DEBUG
+            Serial.println("[Public] Subscribed to wpt/20260001/cmd");
+#endif
+        }
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -269,6 +301,12 @@ static void processSerialLine(const char* line)
     serializeJson(txDoc, txBuf, sizeof(txBuf));
 
     mqttClient.publish(MQTT_TOPIC_PROPERTY_POST, txBuf);
+
+    /* 同步发布到公共 Broker (原样 JSON, 方便 Web 端解析) */
+    if (publicMqttClient.connected())
+    {
+        publicMqttClient.publish(PUBLIC_TOPIC_DATA, line);
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -323,6 +361,9 @@ void setup()
 
     mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
     mqttClient.setCallback(mqttCallback);
+
+    publicMqttClient.setServer(PUBLIC_MQTT_SERVER, PUBLIC_MQTT_PORT);
+    /* 订阅和 callback 在 ensureConnected() 连接成功后执行 */
 }
 
 void loop()
@@ -330,10 +371,13 @@ void loop()
     /* 1. 非阻塞 WiFi / MQTT 重连维护 */
     ensureConnected();
 
-    /* 2. MQTT 心跳 + 收包 */
+    /* 2. OneNET MQTT 心跳 + 收包 */
     mqttClient.loop();
 
-    /* 3. 串口 → MQTT: 非阻塞读取, 以 \n 为帧结束符 */
+    /* 3. 公共 Broker 心跳 (只发不收) */
+    publicMqttClient.loop();
+
+    /* 4. 串口 → MQTT: 非阻塞读取, 以 \n 为帧结束符 */
     while (Serial.available() > 0)
     {
         char c = (char)Serial.read();

@@ -7,7 +7,7 @@
  *          模块职责:
  *            1. App_Net_Init() — 初始化 ESP8266 硬件 (仅串口 + CH_PD 复位)
  *            2. App_Net_Task() — 非阻塞周期任务
- *               - 每 2000ms: 采集电压/电流/频率 → JSON → USART2 直发
+ *               - 每 500ms: 采集电压/电流/频率 → JSON → USART2 直发
  *               - 实时轮询: strstr CMD:ON / CMD:OFF → 控制逆变器
  *
  *          通信协议 (115200 8N1):
@@ -60,18 +60,31 @@ void App_Net_Task(void)
     {
         static uint32_t last_telemetry = 0;
 
-        if (SysTimer_GetTick() - last_telemetry >= 2000)
+        if (SysTimer_GetTick() - last_telemetry >= 500)
         {
             last_telemetry = SysTimer_GetTick();
 
             if (Inverter_SoftStart_GetState() != SS_SWEEP)
             {
                 char jsonBuf[80];
-                snprintf(jsonBuf, sizeof(jsonBuf),
-                         "{\"V\":%.2f,\"I\":%.2f,\"F\":%lu}\n",
-                         Get_Real_Voltage(),
-                         Get_Real_Current(),
-                         (unsigned long)PWM_GetFrequency());
+                SoftStart_State_t ss = Inverter_SoftStart_GetState();
+
+                if (ss == SS_DONE)
+                {
+                    /* 谐振运行: 上报真实电压/电流 */
+                    snprintf(jsonBuf, sizeof(jsonBuf),
+                             "{\"V\":%.2f,\"I\":%.2f,\"F\":%lu}\n",
+                             Get_Real_Voltage(),
+                             Get_Real_Current(),
+                             (unsigned long)PWM_GetFrequency());
+                }
+                else
+                {
+                    /* SS_IDLE / SS_FAULT: 逆变器未发波, 强制 V=0 I=0 防止 Web 端误判 */
+                    snprintf(jsonBuf, sizeof(jsonBuf),
+                             "{\"V\":0.00,\"I\":0.00,\"F\":%lu}\n",
+                             (unsigned long)PWM_GetFrequency());
+                }
                 ESP8266_SendString(jsonBuf);
             }
         }
@@ -98,27 +111,13 @@ void App_Net_Task(void)
         }
         else if (strstr(localBuf, "CMD:F_UP"))
         {
-            if (Inverter_SoftStart_GetState() == SS_DONE)
-            {
-                uint32_t f = PWM_GetFrequency() + 1000;
-                if (f > 150000) f = 150000;
-                PWM_SetFrequency(f);
-                OLED_ShowString(4, 1, "CMD: Freq +1kHz ");
-            }
+            PWM_AdjustFreq_Up();
+            OLED_ShowString(4, 1, "CMD: Freq +1kHz ");
         }
         else if (strstr(localBuf, "CMD:F_DOWN"))
         {
-            if (Inverter_SoftStart_GetState() == SS_DONE)
-            {
-                uint32_t f = PWM_GetFrequency();
-                if (f >= 96000)  /* 防止 f-1000 下溢 */
-                {
-                    f -= 1000;
-                    if (f < 95000) f = 95000;
-                }
-                PWM_SetFrequency(f);
-                OLED_ShowString(4, 1, "CMD: Freq -1kHz ");
-            }
+            PWM_AdjustFreq_Down();
+            OLED_ShowString(4, 1, "CMD: Freq -1kHz ");
         }
     }
 }

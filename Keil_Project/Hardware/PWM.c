@@ -76,6 +76,7 @@ typedef char __deadtime_linear_check[(DEADTIME_REG_VAL <= 127) ? 1 : -1];
 static SoftStart_State_t s_ss_state       = SS_IDLE;
 static uint32_t          s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
 static uint32_t          s_ss_last_step    = 0;
+static uint32_t          s_desired_freq    = SOFTSTART_TARGET_FREQ_HZ; /* 干净的目标频率, 避免累积误差 */
 
 /*
  * 原子状态切换: 关全局中断 → 写状态 → 恢复
@@ -282,6 +283,7 @@ void Inverter_SoftStart_Task(void)
         s_ss_current_freq -= SOFTSTART_STEP_HZ;
     } else {
         s_ss_current_freq = SOFTSTART_TARGET_FREQ_HZ;
+        s_desired_freq    = SOFTSTART_TARGET_FREQ_HZ;  /* 目标频率同步, 误差清零 */
         Inverter_SetState(SS_DONE);
     }
 
@@ -322,4 +324,35 @@ SoftStart_State_t Inverter_SoftStart_GetState(void)
 uint32_t Inverter_SoftStart_GetCurrentFreq(void)
 {
     return s_ss_current_freq;
+}
+
+/**
+ * @brief  频率调高 +1kHz (仅在 SS_DONE 下有效)
+ * @note   使用干净的目标频率变量, 避免 PWM_GetFrequency 整数截断误差累积
+ */
+void PWM_AdjustFreq_Up(void)
+{
+    if (s_ss_state != SS_DONE) return;
+    if (s_desired_freq >= PWM_FREQ_HARD_MAX_HZ) return;
+
+    s_desired_freq += 1000;
+    if (s_desired_freq > PWM_FREQ_HARD_MAX_HZ)
+        s_desired_freq = PWM_FREQ_HARD_MAX_HZ;
+
+    PWM_SetFrequency(s_desired_freq);
+}
+
+/**
+ * @brief  频率调低 -1kHz
+ */
+void PWM_AdjustFreq_Down(void)
+{
+    if (s_ss_state != SS_DONE) return;
+    if (s_desired_freq <= PWM_FREQ_HARD_MIN_HZ) return;
+
+    s_desired_freq -= 1000;
+    if (s_desired_freq < PWM_FREQ_HARD_MIN_HZ)
+        s_desired_freq = PWM_FREQ_HARD_MIN_HZ;
+
+    PWM_SetFrequency(s_desired_freq);
 }

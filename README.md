@@ -4,7 +4,7 @@
 [![Library](https://img.shields.io/badge/Library-SPL%20V3.5.0-green)]()
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-red)]()
-[![Version](https://img.shields.io/badge/Firmware-V4.1-brightgreen)]()
+[![Version](https://img.shields.io/badge/Firmware-V4.2-brightgreen)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统。采用 **Dual-MCU 双脑架构**，STM32 负责物理层发波与保护，ESP8266 独立运行 Arduino MQTT 固件连接 **OneNET 物模型**，支持 OLED 本地控制与云平台远程遥控。应用于植入式医疗设备无线充电。
