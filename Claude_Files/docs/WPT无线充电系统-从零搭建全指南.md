@@ -559,36 +559,56 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 
 ## 7. 微信小程序
 
-### 7.1 架构
+### 7.1 当前架构 (V5.0)
 
-> 微信小程序真机对 WebSocket 有严格限制——只能用 `wss://` 连接已备案域名。EMQX 公共 Broker 不在白名单内, 直连必挂。
+V5.0 起小程序**直连 OneNET HTTP API**，与网页端完全相同的后端逻辑：
 
 ```
-小程序 ──HTTPS── Railway 桥接 ──MQTT── EMQX ── ESP8266 ── STM32
+小程序 ──HTTPS── OneNET API (iot-api.heclouds.com) ──MQTT── ESP8266 ── STM32
 ```
 
-桥接服务器 (`bridge.cjs`) 做 HTTP ↔ MQTT 转换:
-- `GET /data` → 返回最新遥测 (含 `state` 字段, 0/1/2/3)
-- `POST /cmd` → 下发控制指令
+不再依赖 Railway、EMQX 或任何中间桥接服务器。小程序和网页端共用同一套：
+- `GET /thingmodel/query-device-property` 读取数据
+- `POST /thingmodel/set-device-property` 下发指令 (Switch / SetFreq)
+- 同一套 Token 鉴权
+- 同一套 fromCloud/toCloud 转换逻辑
 
-### 7.2 方案演进
+### 7.2 数据流与轮询
 
-| 阶段 | 方案 | 结果 |
+| 数据类型 | 刷新间隔 | 对标网页端 |
 |:---|:---|:---|
-| 1 | WebSocket 直连 EMQX | 微信真机拒 TLS 证书 ❌ |
-| 2 | HTTP 轮询 + ngrok 隧道 | DNS 污染 + 免费限流 ❌ |
-| 3 | Railway 桥接 ✅ | 稳定 HTTPS, 免费额度够用 |
+| V/I/F 遥测 | 5 秒 | 网页首页 |
+| Switch/SetFreq 控制状态 | 60 秒 + 手动刷新按钮 | 网页控制页 |
+| 乐观锁 | 5 秒 | 防止云端旧值回弹 |
 
-### 7.3 小程序功能
+### 7.3 功能特性
 
-- 深色/浅色双主题 (☀/🌙 切换, 偏好持久化)
-- 状态/电压/电流/频率四卡片
-- **频率设置**卡片: swiper 滑动选频 (只显示实际可达值) + 确认按钮
-- **启停按钮**: 渐变背景+光晕阴影
+- **双主题**: 深色/浅色 (CSS 变量, localStorage 持久化)
+- **启停开关**: `switch` 组件 toggle，与网页控制页完全一致
+- **频率设置**: swiper 滑动选频 (只显示可达值) + 确认按钮，发送 `kHz × 1000` Hz
+- **实时数据卡**: 电压/电流/频率，对标网页首页
+- **手动刷新**: 标题栏 ⟳ 按钮，旋转动画，一键拉取最新状态
 
-### 7.4 已知局限
+### 7.4 方案演进 (历史参考)
 
-小程序目前依赖 Railway 桥接服务器。如果 Railway 免费额度用完或服务休眠, 小程序会不可用。日常使用推荐**网页控制台**（Cloudflare Pages, 稳定且免费）。
+V5.0 之前经历了两代架构：
+
+| 阶段 | 方案 | 结果 | 放弃原因 |
+|:---|:---|:---|:---|
+| V1 | WebSocket 直连 EMQX | ❌ | 微信真机拒 EMQX TLS 证书 |
+| V2 | HTTP 轮询 + ngrok 隧道 | ❌ | DNS 污染 + 免费版限流 |
+| V3 | Railway 桥接 (bridge.cjs) | ✅→废弃 | 多一层中转, 免费额度有限 |
+| **V4** | **OneNET API 直连** | **✅ 当前** | 与网页端统一, 零额外依赖 |
+
+### 7.5 Railway 桥接方案 (备选, 仅作参考)
+
+如果未来 OneNET API 有变化导致小程序无法直连，可以回退到 Railway 桥接方案：
+
+```
+小程序 ──HTTPS── Railway ──MQTT── EMQX ── ESP8266 ── STM32
+```
+
+桥接代码位于 `安卓app/server/bridge.cjs`（本地）和 `Railway_Deploy/bridge.mjs`（云端），部署参考仓库 `Ran-sh/WPT_Railway`。当前版本已不推荐此方案。
 
 ---
 
