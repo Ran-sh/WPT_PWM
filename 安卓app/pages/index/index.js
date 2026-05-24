@@ -1,26 +1,24 @@
-/* 桥接服务器地址 — 二选一 */
-/* ngrok 本地隧道 */
-// const BRIDGE = 'https://kindred-whisking-varnish.ngrok-free.dev';
-/* Railway 云端 */
-const BRIDGE = 'https://wptrailway-production.up.railway.app';
-const POLL_MS = 2000;
+/* OneNET 直连 — 与网页端完全相同的后端逻辑 */
+const ONENET = {
+  PRODUCT_ID: '1iS397oJFL',
+  DEVICE_NAME: '20260001',
+  TOKEN: 'version=2018-10-31&res=products%2F1iS397oJFL%2Fdevices%2F20260001&et=2063362960&method=md5&sign=phYCE26jNI80tiXEeMxxRA%3D%3D',
+  BASE_URL: 'https://iot-api.heclouds.com'
+};
+const POLL_MS = 3000;
 const TIM1_CLK = 72000000;
 
 function buildFreqMap() {
-  /* 映射: 显示 kHz → 发往 STM32 的 Hz 值 (使 OLED 实际显示 = 显示 kHz) */
   const map = new Map();
   for (let hz = 95000; hz <= 150000; hz += 1000) {
     let ticks = Math.floor(TIM1_CLK / hz);
     if (ticks % 2 !== 0) ticks += 1;
     const displayKHz = Math.floor(TIM1_CLK / ticks / 1000);
-    if (displayKHz < 95) continue;  /* 最低显示 95kHz */
+    if (displayKHz < 95) continue;
     if (!map.has(displayKHz)) map.set(displayKHz, hz);
   }
   const entries = Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
-  return {
-    list: entries.map(e => e[0]),
-    hzMap: entries.map(e => e[1])
-  };
+  return { list: entries.map(e => e[0]), hzMap: entries.map(e => e[1]) };
 }
 const FREQ = buildFreqMap();
 const FREQ_LIST = FREQ.list;
@@ -29,17 +27,10 @@ const INIT_IDX  = FREQ_LIST.indexOf(100);
 
 Page({
   data: {
-    voltage: '--',
-    current: '--',
-    frequency: '--',
-    systemState: 'IDLE',
-    stateLabel: '待机',
-    isOn: false,
-    isFault: false,
-    connected: false,
-    freqList: FREQ_LIST,
-    selectedFreq: 100,
-    freqIdx: INIT_IDX,
+    voltage: '--', current: '--', frequency: '--',
+    systemState: 'IDLE', stateLabel: '待机',
+    isOn: false, isFault: false, connected: false,
+    freqList: FREQ_LIST, selectedFreq: 100, freqIdx: INIT_IDX,
     currentTheme: 'theme-dark'
   },
 
@@ -49,106 +40,85 @@ Page({
     this.fetchData();
     this._timer = setInterval(() => this.fetchData(), POLL_MS);
   },
-
   onToggleTheme() {
     const next = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark';
     this.setData({ currentTheme: next });
     wx.setStorageSync('wpt_theme', next);
   },
+  onUnload() { if (this._timer) clearInterval(this._timer); },
 
-  onUnload() {
-    if (this._timer) clearInterval(this._timer);
-  },
-
+  /* ── 数据获取 — 直连 OneNET HTTP API (与网页端一致) ── */
   fetchData() {
     const that = this;
     wx.request({
-      url: BRIDGE + '/data',
+      url: ONENET.BASE_URL + '/thingmodel/query-device-property?product_id=' + ONENET.PRODUCT_ID + '&device_name=' + ONENET.DEVICE_NAME,
       method: 'GET',
-      header: { 'ngrok-skip-browser-warning': 'true' },
+      header: { 'Authorization': ONENET.TOKEN },
       success(res) {
-        if (res.statusCode === 200) {
-          const d = res.data;
-          const fresh = !d.stale;
-
-          if (!fresh) {
-            that.setData({ connected: false, voltage: '--', current: '--', frequency: '--' });
-            return;
-          }
-
-          const v = d.voltage !== undefined ? Number(d.voltage).toFixed(2) : that.data.voltage;
-          const c = d.current !== undefined ? Number(d.current).toFixed(2) : that.data.current;
-          const f = d.frequency !== undefined ? Math.floor(d.frequency / 1000) : that.data.frequency;
-          const s = d.state;  /* 0=IDLE, 1=SWEEP, 2=DONE, 3=FAULT */
-
-          const fNum = Number(f);
-          let state, label;
-
-          if (s === 3)      { state = 'FAULT'; label = '故障'; }
-          else if (s === 2) { state = 'DONE';  label = '运行中'; }
-          else if (s === 1) { state = 'SWEEP'; label = '扫频中'; }
-          else              { state = 'IDLE';  label = '待机'; }
-
-          /* 同步频率选取器到实际频率 */
-          const idx = FREQ_LIST.indexOf(fNum);
-          const syncIdx = idx >= 0 ? idx : that.data.freqIdx;
-
-          that.setData({
-            voltage: v,
-            current: c,
-            frequency: fNum,
-            systemState: state,
-            stateLabel: label,
-            isOn: s === 1 || s === 2,
-            isFault: s === 3,
-            connected: true,
-            selectedFreq: idx >= 0 ? fNum : that.data.selectedFreq,
-            freqIdx: syncIdx
-          });
+        if (res.statusCode !== 200 || res.data.code !== 0) {
+          that.setData({ connected: false });
+          return;
         }
+        const raw = {};
+        (res.data.data || []).forEach(item => {
+          let v = item.value;
+          if (v === 'true') v = true; else if (v === 'false') v = false;
+          else if (!isNaN(v) && v !== '' && v !== undefined) v = Number(v);
+          raw[item.identifier] = v;
+        });
+
+        /* 与网页端完全相同的转换逻辑 */
+        const v = raw.V !== undefined ? Number(raw.V).toFixed(2) : that.data.voltage;
+        const i = raw.I !== undefined ? Number(raw.I).toFixed(2) : that.data.current;
+        const fHz = raw.F; /* Hz, 原始值 */
+        const fNum = fHz !== undefined ? Math.floor(fHz / 1000) : that.data.frequency;
+        const sw = raw.Switch;
+
+        /* 状态推断 — 与网页端一致 */
+        let state, label;
+        if (sw === true && fNum > 0) { state = 'DONE'; label = '运行中'; }
+        else if (sw === true)        { state = 'SWEEP'; label = '扫频中'; }
+        else                         { state = 'IDLE';  label = '待机'; }
+
+        const idx = FREQ_LIST.indexOf(fNum);
+        const syncIdx = idx >= 0 ? idx : that.data.freqIdx;
+
+        that.setData({
+          voltage: v, current: i, frequency: fNum,
+          systemState: state, stateLabel: label,
+          isOn: sw === true, isFault: false, connected: true,
+          selectedFreq: idx >= 0 ? fNum : that.data.selectedFreq,
+          freqIdx: syncIdx
+        });
       },
-      fail(err) {
-        console.log('[HTTP] request fail:', err);
-        that.setData({ connected: false });
-      }
+      fail() { that.setData({ connected: false }); }
     });
   },
 
-  /* ── 控制指令 ── */
-  sendCmd(cmd) {
+  /* ── 控制指令 — 直连 OneNET API ── */
+  onSwitch() {
+    if (this._debounce(800)) return;
+    const on = !this.data.isOn;
+    const that = this;
     wx.request({
-      url: BRIDGE + '/cmd',
+      url: ONENET.BASE_URL + '/thingmodel/set-device-property',
       method: 'POST',
-      header: {
-        'content-type': 'application/json',
-        'ngrok-skip-browser-warning': 'true'
+      header: { 'Authorization': ONENET.TOKEN, 'Content-Type': 'application/json' },
+      data: { product_id: ONENET.PRODUCT_ID, device_name: ONENET.DEVICE_NAME, params: { Switch: on } },
+      success() {
+        that.setData({ isOn: on, systemState: on ? 'SWEEP' : 'IDLE', stateLabel: on ? '扫频中' : '待机' });
       },
-      data: { cmd: cmd },
-      success(res) { console.log('[CMD] sent ok:', cmd); },
-      fail(err) { wx.showToast({ title: '发送失败', icon: 'none' }); }
+      fail() { wx.showToast({ title: '发送失败', icon: 'none' }); }
     });
   },
 
   _debounce(ts) {
     const now = Date.now();
     if (now - (this._lastTap || 0) < ts) return true;
-    this._lastTap = now;
-    return false;
+    this._lastTap = now; return false;
   },
 
-  onSwitch() {
-    if (this._debounce(800)) return;
-    if (this.data.isFault) return;
-    const on = !this.data.isOn;
-    this.sendCmd(on ? 'CMD:ON' : 'CMD:OFF');
-    this.setData({
-      isOn: on,
-      systemState: on ? 'SWEEP' : 'IDLE',
-      stateLabel: on ? '扫频中' : '待机'
-    });
-  },
-
-  /* ── 滑动选频 ── */
+  /* ── 滑动选频 — 与网页端一致 ── */
   onSwiperChange(e) {
     const idx = e.detail.current;
     if (idx !== this.data.freqIdx) {
@@ -156,15 +126,19 @@ Page({
     }
   },
 
-  /* ── 确认设置 ── */
+  /* ── 确认设置 — 使用 FREQ_HZ 精确映射 ── */
   onSetFreq() {
-    if (!this.data.isOn) {
-      wx.showToast({ title: '请先启动设备', icon: 'none' });
-      return;
-    }
+    if (!this.data.isOn) { wx.showToast({ title: '请先启动设备', icon: 'none' }); return; }
     const kHz = this.data.selectedFreq;
-    const hz  = FREQ_HZ[this.data.freqIdx];  /* 用映射的 Hz, 保证 OLED 显示 = kHz */
-    this.sendCmd('CMD:SETFREQ:' + hz);
-    wx.showToast({ title: 'Set ' + kHz + 'kHz', icon: 'none', duration: 800 });
+    const hz  = FREQ_HZ[this.data.freqIdx];
+    const that = this;
+    wx.request({
+      url: ONENET.BASE_URL + '/thingmodel/set-device-property',
+      method: 'POST',
+      header: { 'Authorization': ONENET.TOKEN, 'Content-Type': 'application/json' },
+      data: { product_id: ONENET.PRODUCT_ID, device_name: ONENET.DEVICE_NAME, params: { SetFreq: hz } },
+      success() { wx.showToast({ title: 'Set ' + kHz + 'kHz', icon: 'none', duration: 800 }); },
+      fail() { wx.showToast({ title: '发送失败', icon: 'none' }); }
+    });
   }
 });
