@@ -69,10 +69,10 @@ void App_Net_Task(void)
         {
             last_telemetry = SysTimer_GetTick();
 
-            if (Inverter_SoftStart_GetState() != SS_SWEEP)
+            SoftStart_State_t ss = Inverter_SoftStart_GetState();
+            if (ss != SS_SWEEP)
             {
                 char jsonBuf[80];
-                SoftStart_State_t ss = Inverter_SoftStart_GetState();
 
                 if (ss == SS_DONE)
                 {

@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `ONENET` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_ONENET_V3.0` |
 | **协议** | OneNET MQTT 物模型 (Dual-MCU 架构) |
-| **版本** | V4.2 |
+| **版本** | V5.0 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云 TCP) → `WPT_PWM_Bemfa_WAN_V2.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
 
@@ -191,14 +191,14 @@ All `static uint32_t last` variables in task functions are per-function private 
 | Module | File | Role |
 |:---|:---|:---|
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
-| ESP8266 | `Hardware/ESP8266.c` | V4.0 Dual-MCU: USART2 async receiver (115200), PB1 CH_PD/EN 1000ms hardware reset only (no AT commands); `ESP8266_SendString/CopyRxFrame/GetRxFlag/IsReady` for pure JSON serial passthrough |
+| ESP8266 | `Hardware/ESP8266.c` | V5.0 Dual-MCU: USART2 async receiver (115200), PB1 CH_PD/EN 1000ms hardware reset only (no AT commands); `ESP8266_SendString/CopyRxFrame/GetRxFlag/IsReady` for pure JSON serial passthrough; STATUS:ONLINE tracking via `s_network_online` |
 | PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time, 50% locked duty, 95-150kHz PFM; non-blocking soft-start (150k→100kHz, 200Hz/10ms, ~2.5s); `PWM_GetFrequency/SetFrequency` inline ±1kHz adjustment |
 | ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers HW init then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi (LED_SOLID/slow blink) + PB4 PWM (blink) + PB5 Ready (on/off); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | **V4.2 Dual-MCU**: `App_Net_Init()` → ESP8266_Init (~3s); `App_Net_Task()` → JSON telemetry every 500ms (SS_DONE=real V/I, SS_IDLE/FAULT=V=0); `strstr` parse CMD:ON/OFF/SETFREQ:<Hz> → `PWM_SetFrequency()` direct set (95k-150k, 1kHz step); `App_Net_IsConnected()` delegates to `ESP8266_IsReady()` |
+| App_Net | `User/App_Net.c` | **V5.0 Dual-MCU**: `App_Net_Init()` → ESP8266_Init (~3s); `App_Net_Task()` → JSON telemetry every 500ms (SS_DONE=real V/I, SS_IDLE/FAULT=V=0, includes S state field); `strstr` parse CMD:ON/OFF/SETFREQ:<Hz>/STATUS:ONLINE; `Inverter_FreqRamp_Trigger` frequency ramp; `App_Net_IsConnected()` = `ESP8266_IsReady() && s_network_online` |
 
 ## Startup Flow (V4.2)
 
