@@ -1,0 +1,12 @@
+{
+  "pages": [
+    "pages/index/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "WPT Monitor",
+    "navigationBarBackgroundColor": "#030712",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#030712"
+  },
+  "sitemapLocation": "sitemap.json"
+}

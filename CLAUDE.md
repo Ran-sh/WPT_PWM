@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `ONENET` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_ONENET_V3.0` |
 | **协议** | OneNET MQTT 物模型 (Dual-MCU 架构) |
-| **版本** | V4.0 |
+| **版本** | V4.2 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云 TCP) → `WPT_PWM_Bemfa_WAN_V2.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
 
@@ -27,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
-## Architecture: Dual-MCU (V4.0)
+## Architecture: Dual-MCU (V4.2)
 
 ```
 ┌──────────────────────────────┐    ┌──────────────────────────────┐
@@ -44,10 +44,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
            ├──────────────────────────────────►│
            │  {"V":12.50,"I":1.23,"F":100000}  │
            │◄──────────────────────────────────┤
-           │  CMD:ON\n  或  CMD:OFF\n           │
+           │  CMD:ON\n  或  CMD:OFF\n        │
+│  CMD:SETFREQ:100000\n            │
 ```
 
 **Iron rule**: STM32 never sends AT commands. ESP8266 never touches PWM/ADC. Communication is pure text JSON over USART2 at 115200bps.
+
+## 多仓库推送规则 (Multi-Repo Push Doctrine)
+
+本项目模块分布在 3 个 GitHub 仓库，推送时**必须使用正确的仓库和分支**。
+
+| 本地文件夹 | 远程仓库 | 分支 | 说明 |
+|:---|:---|:---|:---|
+| `Keil_Project/`、`Arduino_Project/`、`安卓app/`、`Claude_Files/`、根目录文件 | `Ran-sh/WPT_PWM` | `ONENET` | 主仓库：全部源码 + 文档 |
+| `ONENETapp/` | `Ran-sh/WPT_Onenet_IoT` | `master` | 网页控制台 (Cloudflare Pages 部署源) |
+| `Railway_Deploy/` | `Ran-sh/WPT_Railway` | `main` | Railway 桥接服务器 |
+
+**推送命令**:
+
+```bash
+# 主仓库 (默认, 在项目根目录操作)
+git add -A && git commit -m "..." && git push origin ONENET
+
+# ONENETapp 网页控制台 (需同时推到 gh-pages 供 Cloudflare 双保险)
+cd ONENETapp && git add -A && git commit -m "..." && git push && git push origin gh-pages:master && cd ..
+
+# Railway 桥接 (修改 bridge.mjs 后才需要)
+cd Railway_Deploy && git add -A && git commit -m "..." && git push && cd ..
+```
+
+**铁律**:
+- `ONENETapp/` 改完必须推，否则网页端不更新
+- Cloudflare Pages 同时监听 `gh-pages` 和 `master` 两个分支
+- 不要在主仓库根目录用 `git push` 推到别的仓库——每个文件夹有独立的 `.git` 目录
+
+---
 
 ## Build System
 
@@ -72,7 +103,8 @@ No CLI build — compilation through Keil IDE GUI. `Keil_Project/Target 1.BAT` i
 
 ```
 WPT_PWM_V3.0/
-├── APP/                      ← Web 监控面板 (Vite + React + TS + Tailwind)
+├── APP/                      ← Web 监控面板 (Vite + React + TS + Tailwind, 只读显示)
+├── 安卓app/                   ← 微信小程序 (显示 + 远程控制 + 桥接服务器)
 ├── Arduino_Project/          ← Arduino 固件工程 (平台无关)
 ├── Keil_Project/            ← Keil MDK STM32 固件工程 (所有 C 源码)
 │   ├── Hardware/            ← 硬件驱动层 (ESP8266, PWM, ADC, KEY, OLED, LED, UI)
@@ -160,15 +192,15 @@ All `static uint32_t last` variables in task functions are per-function private 
 |:---|:---|:---|
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
 | ESP8266 | `Hardware/ESP8266.c` | V4.0 Dual-MCU: USART2 async receiver (115200), PB1 CH_PD/EN 1000ms hardware reset only (no AT commands); `ESP8266_SendString/CopyRxFrame/GetRxFlag/IsReady` for pure JSON serial passthrough |
-| PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time, 50% locked duty, 95-150kHz PFM; non-blocking soft-start (150k→100kHz, 200Hz/10ms, ~2.5s); `PWM_AdjustFreq_Up/Down` with clean target frequency (s_desired_freq) eliminates integer truncation error accumulation |
+| PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time, 50% locked duty, 95-150kHz PFM; non-blocking soft-start (150k→100kHz, 200Hz/10ms, ~2.5s); `PWM_GetFrequency/SetFrequency` inline ±1kHz adjustment |
 | ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers HW init then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi (LED_SOLID/slow blink) + PB4 PWM (blink) + PB5 Ready (on/off); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | **V4.1 Dual-MCU**: `App_Net_Init()` → ESP8266_Init (~3s); `App_Net_Task()` → JSON telemetry every 500ms (SS_DONE=real V/I, SS_IDLE/FAULT=V=0); `strstr` parse CMD:ON/OFF/F_UP/F_DOWN → PWM_AdjustFreq_Up/Down; `App_Net_IsConnected()` delegates to `ESP8266_IsReady()` |
+| App_Net | `User/App_Net.c` | **V4.2 Dual-MCU**: `App_Net_Init()` → ESP8266_Init (~3s); `App_Net_Task()` → JSON telemetry every 500ms (SS_DONE=real V/I, SS_IDLE/FAULT=V=0); `strstr` parse CMD:ON/OFF/SETFREQ:<Hz> → `PWM_SetFrequency()` direct set (95k-150k, 1kHz step); `App_Net_IsConnected()` delegates to `ESP8266_IsReady()` |
 
-## Startup Flow (V4.0)
+## Startup Flow (V4.2)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA → KEY
@@ -178,7 +210,7 @@ All `static uint32_t last` variables in task functions are per-function private 
          KEY_Task  |  ADC_Filter_Task  |  UI_Task  |  App_Net_Task
          |  Inverter_SoftStart_Task  |  LED_Task
 
-硬件初始化: KEY0 单击 → App_Net_Init(阻塞~3s, CH_PD复位) → s_WiFiConnected=1
+硬件初始化: KEY0 单击 → App_Net_Init(阻塞~3s, CH_PD复位) → ESP8266_IsReady()=1
             OLED 显示 "HW Init..." → "WiFi: READY"
 扫频: KEY0 单击(SS_IDLE) → Trigger(150kHz) → Task 10ms/步 → 100kHz DONE (~2.5s)
 关断: KEY1(SS_SWEEP) / KEY0(SS_DONE) / 云端 "CMD:OFF" → Stop → SS_IDLE
@@ -319,15 +351,35 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 - **双 MQTT 连接**: OneNET 物模型 (`mqtts.heclouds.com:1883`) + 公共 EMQX Broker (`broker.emqx.io:1883`) 同步上报
 - **非阻塞重连**: 每 5s 检查 WiFi+MQTT, 自动重连, 重连后补订阅
 - **JSON 转换**: STM32 `{"V":x,"I":x,"F":x}` → OneNET `{"id":"123","version":"1.0","params":{...}}`
-- **指令下行**: 解析 OneNET `Switch`(布尔) → `CMD:ON\n` / `CMD:OFF\n`; `FreqAdd`/`FreqSub`(布尔) → `CMD:F_UP\n` / `CMD:F_DOWN\n`
+- **指令下行**: 解析 OneNET `Switch`(布尔) → `CMD:ON\n` / `CMD:OFF\n`; `SetFreq`(整数) → `CMD:SETFREQ:<Hz>\n` (95k-150k, 1kHz 步长)
 - **属性回复**: 收到属性设置后发布 `set_reply` 应答 (解决"响应超时")
-- **点动复位**: FreqAdd/FreqSub 触发后立刻 POST 写回 false, 网页端开关自动弹回
 - **Web 指令通道**: 订阅 EMQX `wpt/20260001/cmd`, 接收 Web 端 CMD 指令透传给 STM32
 
 **Config macros** in `.ino`:
 - `MQTT_SERVER` / `MQTT_PORT` — OneNET MQTT 地址 (`mqtts.heclouds.com:1883`)
 - `ONENET_PRODUCT_ID` / `ONENET_DEVICE_NAME` / `ONENET_TOKEN` — 设备凭证
 - `MQTT_TOPIC_PROPERTY_POST` / `MQTT_TOPIC_PROPERTY_SET` / `MQTT_TOPIC_PROPERTY_SET_REPLY` — 物模型主题
+
+## WeChat Mini Program (安卓app/)
+
+**File**: `安卓app/pages/index/index.js`
+
+**Architecture**: 微信小程序 ──HTTPS── 桥接服务器 ──MQTT── EMQX ── ESP8266 ── STM32
+
+The Mini Program cannot use WebSocket directly (WeChat requires trusted WSS domains). A Node.js bridge server (`安卓app/server/bridge.js` for local, `bridge.mjs` for Railway cloud) connects to EMQX via MQTT and exposes HTTP endpoints:
+- `GET /data` — latest telemetry JSON
+- `POST /cmd` — send control command (`CMD:ON`/`CMD:OFF`/`CMD:SETFREQ:<Hz>`)
+
+**Local dev**: `cd 安卓app/server && node bridge.js` (port 3000), then `ngrok http 3000` for public HTTPS
+**Cloud deploy**: Push to GitHub → Railway.app auto-deploys `bridge.mjs` (HTTPS domain, no ngrok limits)
+**Automation**: `Claude_Files/tools/start_bridge.ps1` / `stop_bridge.ps1` — one-click start/stop bridge + ngrok
+
+**Key design decisions**:
+- HTTP polling at 2s interval (500ms polling exceeded ngrok free limits)
+- Frequency slider (95-150 kHz) with direct `CMD:SETFREQ:<Hz>` send on release
+- Optimistic UI update on slider release + Toast feedback
+- Frequency display uses `Math.floor(F/1000)` to match OLED integer truncation
+- State inferred from V/I/F telemetry (V=0→IDLE, V>0 unstable→SWEEP, stable→DONE)
 
 ## Documentation Output
 
@@ -342,6 +394,8 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 | Document | Purpose |
 |:---|:---|
 | `Claude_Files/docs/软件架构与开发者指南.md` | 完整技术白皮书: 架构设计 + 模块详解 + 验证、烧录与联调指南 |
+| `Claude_Files/docs/微信小程序开发总结.md` | 微信小程序架构设计 + 数据流 + 技术决策 + 已知问题 |
+| `Claude_Files/docs/桥接服务器部署指南.md` | ngrok 桥接方案部署: DNS 污染修复 + 自动化脚本 + 手动步骤 + Railway 迁移 |
 | `Claude_Files/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 
 ## Key Build Targets / Variants

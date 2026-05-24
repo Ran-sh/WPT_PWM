@@ -1,0 +1,64 @@
+<view class="page">
+  <!-- 1. 状态栏 -->
+  <view class="status-bar">
+    <text class="title">WPT Monitor</text>
+    <view class="indicator">
+      <view class="dot {{connected ? 'dot-green' : 'dot-red'}}"></view>
+      <text class="label">{{connected ? '已连接' : '未连接'}}</text>
+    </view>
+  </view>
+
+  <!-- 2. 状态 -->
+  <view class="row">
+    <text class="row-label">状态</text>
+    <text class="row-value {{systemState === 'DONE' ? 'text-green' : systemState === 'SWEEP' ? 'text-yellow' : systemState === 'FAULT' ? 'text-red' : 'text-gray'}}">{{stateLabel}}</text>
+  </view>
+
+  <!-- 3. 电压 -->
+  <view class="row">
+    <text class="row-label">电压</text>
+    <view class="row-value-row">
+      <text class="row-value text-cyan">{{voltage}}</text>
+      <text class="row-unit">V</text>
+    </view>
+  </view>
+
+  <!-- 4. 电流 -->
+  <view class="row">
+    <text class="row-label">电流</text>
+    <view class="row-value-row">
+      <text class="row-value text-cyan">{{current}}</text>
+      <text class="row-unit">A</text>
+    </view>
+  </view>
+
+  <!-- 5. 频率 -->
+  <view class="row">
+    <text class="row-label">频率</text>
+    <view class="row-value-row">
+      <text class="row-value text-cyan">{{frequency}}</text>
+      <text class="row-unit">kHz</text>
+    </view>
+  </view>
+
+  <!-- 6. 选取器 + 确认 -->
+  <view class="row picker-row">
+    <swiper
+      class="freq-swiper"
+      current="{{freqIdx}}"
+      bindchange="onSwiperChange"
+    >
+      <swiper-item wx:for="{{freqList}}" wx:key="*this" class="swipe-item">
+        <view class="swipe-num {{index === freqIdx ? 'swipe-sel' : ''}}">{{item}}</view>
+      </swiper-item>
+    </swiper>
+    <button class="btn-set" bindtap="onSetFreq" disabled="{{!isOn}}">确认</button>
+  </view>
+
+  <!-- 7. 启停 -->
+  <button class="btn-power {{isOn ? 'btn-stop' : 'btn-start'}}"
+          bindtap="onSwitch"
+          disabled="{{isFault}}">
+    {{isFault ? 'FAULT 已锁定' : isOn ? 'STOP' : 'START'}}
+  </button>
+</view>

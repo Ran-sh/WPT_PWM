@@ -1,0 +1,12 @@
+{
+  "name": "wpt-bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/bridge.mjs"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "mqtt": "^5.10.1"
+  }
+}
