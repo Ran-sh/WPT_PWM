@@ -12,7 +12,7 @@
   </view>
 
   <!-- 系统状态卡片 -->
-  <view class="card state-card">
+  <view class="card">
     <text class="card-label">系统状态</text>
     <view class="state-row">
       <view class="state-dot {{systemState}}"></view>

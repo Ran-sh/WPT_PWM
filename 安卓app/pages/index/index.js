@@ -72,7 +72,7 @@ Page({
           const fresh = !d.stale;
 
           if (!fresh) {
-            that.setData({ connected: false });
+            that.setData({ connected: false, voltage: '--', current: '--', frequency: '--' });
             return;
           }
 
@@ -89,6 +89,10 @@ Page({
           else if (s === 1) { state = 'SWEEP'; label = '扫频中'; }
           else              { state = 'IDLE';  label = '待机'; }
 
+          /* 同步频率选取器到实际频率 */
+          const idx = FREQ_LIST.indexOf(fNum);
+          const syncIdx = idx >= 0 ? idx : that.data.freqIdx;
+
           that.setData({
             voltage: v,
             current: c,
@@ -97,7 +101,9 @@ Page({
             stateLabel: label,
             isOn: s === 1 || s === 2,
             isFault: s === 3,
-            connected: true
+            connected: true,
+            selectedFreq: idx >= 0 ? fNum : that.data.selectedFreq,
+            freqIdx: syncIdx
           });
         }
       },
