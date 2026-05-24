@@ -83,17 +83,21 @@ Page({
         else if (sw === true)        { state = 'SWEEP'; label = '扫频中'; }
         else                         { state = 'IDLE';  label = '待机'; }
 
+        /* 乐观锁: 3秒内刚设的频率不覆盖 */
+        const freqLocked = lock.freq && (now - lock.freq < 3000);
+        const freqKHz = freqLocked ? that.data.selectedFreq : fNum;
+
         /* 首次连接成功 → 强制同步频率选取器 */
         const justConnected = !that.data.connected;
-        const idx = FREQ_LIST.indexOf(fNum);
+        const idx = FREQ_LIST.indexOf(freqKHz);
         const syncIdx = justConnected ? (idx >= 0 ? idx : INIT_IDX)
-                      : (idx >= 0 ? idx : that.data.freqIdx);
+                      : (freqLocked ? that.data.freqIdx : (idx >= 0 ? idx : that.data.freqIdx));
 
         that.setData({
           voltage: v, current: i, frequency: fNum,
           systemState: state, stateLabel: label,
           isOn: sw, isFault: false, connected: true,
-          selectedFreq: idx >= 0 ? fNum : that.data.selectedFreq,
+          selectedFreq: freqKHz,
           freqIdx: syncIdx
         });
       },
