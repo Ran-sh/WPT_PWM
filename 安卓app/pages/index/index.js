@@ -5,7 +5,7 @@ const ONENET = {
   TOKEN: 'version=2018-10-31&res=products%2F1iS397oJFL%2Fdevices%2F20260001&et=2063362960&method=md5&sign=phYCE26jNI80tiXEeMxxRA%3D%3D',
   BASE_URL: 'https://iot-api.heclouds.com'
 };
-const POLL_MS = 3000;
+const POLL_MS = 5000;
 const TIM1_CLK = 72000000;
 
 function buildFreqMap() {
@@ -31,7 +31,15 @@ Page({
     systemState: 'IDLE', stateLabel: '待机',
     isOn: false, isFault: false, connected: false,
     freqList: FREQ_LIST, selectedFreq: 100, freqIdx: INIT_IDX,
-    currentTheme: 'theme-dark'
+    currentTheme: 'theme-dark',
+    spinning: false
+  },
+
+  onRefresh() {
+    if (this.data.spinning) return;
+    this.setData({ spinning: true });
+    this.fetchData();
+    setTimeout(() => this.setData({ spinning: false }), 1000);
   },
 
   onLoad() {
