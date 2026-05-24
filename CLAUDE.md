@@ -366,20 +366,16 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 
 **Architecture**: 微信小程序 ──HTTPS── 桥接服务器 ──MQTT── EMQX ── ESP8266 ── STM32
 
-The Mini Program cannot use WebSocket directly (WeChat requires trusted WSS domains). A Node.js bridge server (`安卓app/server/bridge.js` for local, `bridge.mjs` for Railway cloud) connects to EMQX via MQTT and exposes HTTP endpoints:
-- `GET /data` — latest telemetry JSON
-- `POST /cmd` — send control command (`CMD:ON`/`CMD:OFF`/`CMD:SETFREQ:<Hz>`)
-
-**Local dev**: `cd 安卓app/server && node bridge.js` (port 3000), then `ngrok http 3000` for public HTTPS
-**Cloud deploy**: Push to GitHub → Railway.app auto-deploys `bridge.mjs` (HTTPS domain, no ngrok limits)
-**Automation**: `Claude_Files/tools/start_bridge.ps1` / `stop_bridge.ps1` — one-click start/stop bridge + ngrok
+V5.0: Mini Program now calls OneNET HTTP API directly — same backend as web dashboard. No more Railway bridge / EMQX dependency. Data polling 5s, control state sync 60s, switch toggle, frequency swiper + confirm.
 
 **Key design decisions**:
-- HTTP polling at 2s interval (500ms polling exceeded ngrok free limits)
-- Frequency slider (95-150 kHz) with direct `CMD:SETFREQ:<Hz>` send on release
-- Optimistic UI update on slider release + Toast feedback
-- Frequency display uses `Math.floor(F/1000)` to match OLED integer truncation
-- State inferred from V/I/F telemetry (V=0→IDLE, V>0 unstable→SWEEP, stable→DONE)
+- OneNET HTTP API direct (same as web dashboard), no Railway/EMQX bridge needed
+- Data polling 5s, control state sync 60s + manual refresh button
+- Frequency swiper with achievable values (PWM-quantized) + confirm button
+- Switch toggle component (same as web control page)
+- Dual-theme system (dark/light) with CSS variables + localStorage persistence
+- Optimistic lock 5s to prevent cloud-stale rollback after command
+- Frequency send: `kHz * 1000` (same as web `toCloud`)
 
 ## Documentation Output
 
@@ -393,9 +389,7 @@ The Mini Program cannot use WebSocket directly (WeChat requires trusted WSS doma
 
 | Document | Purpose |
 |:---|:---|
-| `Claude_Files/docs/软件架构与开发者指南.md` | 完整技术白皮书: 架构设计 + 模块详解 + 验证、烧录与联调指南 |
-| `Claude_Files/docs/微信小程序开发总结.md` | 微信小程序架构设计 + 数据流 + 技术决策 + 已知问题 |
-| `Claude_Files/docs/桥接服务器部署指南.md` | ngrok 桥接方案部署: DNS 污染修复 + 自动化脚本 + 手动步骤 + Railway 迁移 |
+| `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` | V5.0 完整全指南: 概述→硬件→OneNET→STM32→ESP8266→网页→小程序→联调→故障速查→踩坑记录 |
 | `Claude_Files/docs/embedded-architect-system-prompt.md` | Skill definition (also at `~/.claude/skills/embedded-architect/SKILL.md`); coding standards reference |
 
 ## Key Build Targets / Variants
