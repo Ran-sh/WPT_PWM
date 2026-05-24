@@ -3,7 +3,7 @@
   <view class="header">
     <view class="header-left">
       <text class="header-title">WPT Monitor</text>
-      <view class="toggle-theme" bindtap="onToggleTheme">{{currentTheme === 'theme-dark' ? '☀' : '🌙'}}</view>
+      <view class="toggle-theme" bindtap="onToggleTheme">{{currentTheme === 'theme-dark' ? '🌙' : '☀'}}</view>
     </view>
     <view class="conn-badge {{connected ? 'conn-on' : 'conn-off'}}">
       <view class="conn-dot"></view>

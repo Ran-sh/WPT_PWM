@@ -22,10 +22,11 @@
   --red: #EF4444;
   --red-glow: rgba(239, 68, 68, 0.5);
   --gray: #9CA3AF;
-  --btn-confirm-bg: rgba(0, 229, 255, 0.12);
-  --btn-confirm-border: rgba(0, 229, 255, 0.3);
-  --btn-confirm-active: rgba(0, 229, 255, 0.25);
-  --btn-confirm-color: #00E5FF;
+  --btn-confirm-bg: rgba(0, 229, 255, 0.18);
+  --btn-confirm-border: rgba(0, 229, 255, 0.45);
+  --btn-confirm-active: rgba(0, 229, 255, 0.35);
+  --btn-confirm-color: #FFFFFF;
+  --btn-confirm-shadow: 0 0 20rpx rgba(0, 229, 255, 0.2);
   --btn-start-from: #DC2626;
   --btn-start-to: #B91C1C;
   --btn-start-active-from: #EF4444;
@@ -67,10 +68,11 @@
   --red: #DC2626;
   --red-glow: rgba(220, 38, 38, 0.25);
   --gray: #666666;
-  --btn-confirm-bg: #E5E5E5;
-  --btn-confirm-border: #CCCCCC;
-  --btn-confirm-active: #D4D4D4;
-  --btn-confirm-color: #333333;
+  --btn-confirm-bg: #0A66C2;
+  --btn-confirm-border: rgba(10, 102, 194, 0.4);
+  --btn-confirm-active: #085299;
+  --btn-confirm-color: #FFFFFF;
+  --btn-confirm-shadow: 0 0 20rpx rgba(10, 102, 194, 0.2);
   --btn-start-from: #DC2626;
   --btn-start-to: #B91C1C;
   --btn-start-active-from: #EF4444;
@@ -295,8 +297,9 @@
   border: 1rpx solid var(--btn-confirm-border);
   border-radius: 14rpx;
   color: var(--btn-confirm-color, var(--accent));
-  font-size: 24rpx;
-  font-weight: 700;
+  font-size: 26rpx;
+  font-weight: 800;
+  box-shadow: var(--btn-confirm-shadow);
   transition: all 0.15s;
 }
 .btn-confirm:active { background: var(--btn-confirm-active); }
