@@ -5,7 +5,7 @@
  * @note    V4.0: 双脑架构 — ESP8266 独立负责 WiFi + MQTT 连云 (OneNET)
  *          通信协议 (115200 8N1):
  *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx}\n  → OneNET 物模型上报
- *            OneNET → ESP8266 → STM32:  CMD:ON\n 或 CMD:OFF\n
+ *            OneNET → ESP8266 → STM32:  CMD:ON\n 或 CMD:OFF\n  或  CMD:SETFREQ:100000\n
  *
  *          依赖: ESP8266WiFi.h + PubSubClient.h + ArduinoJson.h (v7) + WiFiManager.h (tzapu)
  *          烧录: Arduino IDE → 选择 "Generic ESP8266 Module" → 115200 上传
@@ -78,12 +78,13 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
      * 解析 OneNET 属性设置下发 JSON, 支持两种格式:
      *   格式 A (布尔值): {"id":"123","version":"1.0","params":{"Switch":true}}
      *   格式 B (对象值): {"id":"123","version":"1.0","params":{"Switch":{"value":1}}}
-     *   虚拟按键调频: FreqAdd / FreqSub (布尔型, 点动复位)
+     *   SetFreq (整数): {"params":{"SetFreq":{"value":100000}}}  — 95000~150000 Hz
      */
     StaticJsonDocument<256> doc;
     DeserializationError err = deserializeJson(doc, (const char*)payload, length);
 
-    int8_t cmd = 0;  /* 0=无, 1=ON, -1=OFF, 2=F_UP, -2=F_DOWN */
+    int8_t    cmd      = 0;
+    uint32_t  freqVal  = 0;
 
     if (!err)
     {
@@ -105,32 +106,22 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
             cmd = val ? 1 : -1;
         }
 
-        /* ── FreqAdd (加频) ── */
-        if (params.containsKey("FreqAdd"))
+        /* ── SetFreq (直接设置频率) ── */
+        if (params.containsKey("SetFreq"))
         {
-            JsonVariant fa = params["FreqAdd"];
+            JsonVariant sf = params["SetFreq"];
             int val = 0;
 
-            if (fa.is<bool>())
-                val = fa.as<bool>() ? 1 : 0;
-            else if (fa.containsKey("value"))
-                val = (fa["value"].as<int>() != 0) ? 1 : 0;
+            if (sf.is<int>())
+                val = sf.as<int>();
+            else if (sf.containsKey("value"))
+                val = sf["value"].as<int>();
 
-            if (val) cmd = 2;
-        }
-
-        /* ── FreqSub (减频) ── */
-        if (params.containsKey("FreqSub"))
-        {
-            JsonVariant fs = params["FreqSub"];
-            int val = 0;
-
-            if (fs.is<bool>())
-                val = fs.as<bool>() ? 1 : 0;
-            else if (fs.containsKey("value"))
-                val = (fs["value"].as<int>() != 0) ? 1 : 0;
-
-            if (val) cmd = -2;
+            if (val >= 95000 && val <= 150000)
+            {
+                freqVal = (uint32_t)((val / 1000) * 1000);
+                cmd = 3;
+            }
         }
     }
     else
@@ -143,17 +134,19 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
         if      (strstr(msg, "CMD:ON")     || strstr(msg, "\"Switch\":true"))   cmd =  1;
         else if (strstr(msg, "CMD:OFF")    || strstr(msg, "\"Switch\":false"))  cmd = -1;
-        else if (strstr(msg, "FreqAdd")    && strstr(msg, "true"))              cmd =  2;
-        else if (strstr(msg, "FreqSub")    && strstr(msg, "true"))              cmd = -2;
         else return;
     }
 
     /* 转发指令给 STM32 */
     switch (cmd) {
-        case  1: Serial.print("CMD:ON\n");     break;
-        case -1: Serial.print("CMD:OFF\n");    break;
-        case  2: Serial.print("CMD:F_UP\n");   break;
-        case -2: Serial.print("CMD:F_DOWN\n"); break;
+        case  1: Serial.print("CMD:ON\n");            break;
+        case -1: Serial.print("CMD:OFF\n");           break;
+        case  3: {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "CMD:SETFREQ:%lu\n", freqVal);
+            Serial.print(buf);
+            break;
+        }
         default: break;
     }
 
@@ -168,24 +161,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         char replyBuf[128];
         serializeJson(reply, replyBuf, sizeof(replyBuf));
         mqttClient.publish(MQTT_TOPIC_PROPERTY_SET_REPLY, replyBuf);
-    }
-
-    /*
-     * 点动复位: 虚拟按键触发的 FreqAdd/FreqSub,
-     * 立刻 POST 写回 false, 网页端开关自动弹回
-     */
-    if (cmd == 2 || cmd == -2)
-    {
-        const char* key = (cmd == 2) ? "FreqAdd" : "FreqSub";
-
-        StaticJsonDocument<128> reset;
-        reset["id"]      = "123";
-        reset["version"]  = "1.0";
-        reset["params"][key]["value"] = false;
-
-        char resetBuf[128];
-        serializeJson(reset, resetBuf, sizeof(resetBuf));
-        mqttClient.publish(MQTT_TOPIC_PROPERTY_POST, resetBuf);
     }
 }
 
@@ -206,6 +181,7 @@ static boolean mqttReconnect()
 static void ensureConnected()
 {
     unsigned long now = millis();
+    static uint8_t wasOnline = 0;  /* 上次 loop 是否在线, 用于边沿检测 */
 
     /* 每 5 秒尝试一次, 避免频繁重连阻塞 loop */
     if (now - lastReconnectAttempt < RECONNECT_INTERVAL_MS) return;
@@ -214,6 +190,7 @@ static void ensureConnected()
     /* WiFi 断开 → 重连 (ESP8266 已存 WiFiManager 配网凭据, 无参 begin 即可) */
     if (WiFi.status() != WL_CONNECTED)
     {
+        wasOnline = 0;
 #ifdef DEBUG
         Serial.println("[WiFi] Disconnected or Connecting...");
 #endif
@@ -224,6 +201,7 @@ static void ensureConnected()
     /* MQTT 断开 → 重连 */
     if (!mqttClient.connected())
     {
+        wasOnline = 0;
 #ifdef DEBUG
         Serial.println("[MQTT] WiFi OK! Now Connecting to OneNET...");
 #endif
@@ -245,6 +223,7 @@ static void ensureConnected()
     /* 公共 Broker 重连: 连接成功后设置回调并订阅指令主题 */
     if (!publicMqttClient.connected())
     {
+        wasOnline = 0;
         if (publicMqttClient.connect(ONENET_DEVICE_NAME))
         {
 #ifdef DEBUG
@@ -263,6 +242,19 @@ static void ensureConnected()
 #ifdef DEBUG
             Serial.println("[Public] Subscribed to wpt/20260001/cmd");
 #endif
+        }
+    }
+
+    /* 双 MQTT 均在线 → 通知 STM32 (仅上升沿发送一次) */
+    if (mqttClient.connected() && publicMqttClient.connected())
+    {
+        if (!wasOnline)
+        {
+            Serial.print("STATUS:ONLINE\n");
+#ifdef DEBUG
+            Serial.println("[Status] >>> Sent STATUS:ONLINE to STM32 <<<");
+#endif
+            wasOnline = 1;
         }
     }
 }
@@ -285,17 +277,17 @@ static void processSerialLine(const char* line)
     float v = doc["V"];
     float i = doc["I"];
     unsigned long f = doc["F"];
+    int    s = doc["S"] | 0;    /* 软启动状态: 0=IDLE 1=SWEEP 2=DONE 3=FAULT */
+    bool   running = (s == 1 || s == 2);
 
-    /*
-     * 重新组装为 OneNET 物模型格式:
-     *   {"id":"123","version":"1.0","params":{"V":{"value":xx},"I":{"value":xx},"F":{"value":xx}}}
-     */
     StaticJsonDocument<256> txDoc;
     txDoc["id"]      = "123";
     txDoc["version"] = "1.0";
     txDoc["params"]["V"]["value"] = v;
     txDoc["params"]["I"]["value"] = i;
     txDoc["params"]["F"]["value"] = f;
+    txDoc["params"]["Switch"]["value"] = running;
+    txDoc["params"]["SetFreq"]["value"] = f;  /* 同步上报当前频率 */
 
     char txBuf[256];
     serializeJson(txDoc, txBuf, sizeof(txBuf));
@@ -386,6 +378,19 @@ void loop()
             if (serialLen > 0)
             {
                 serialBuf[serialLen] = '\0';
+
+                /* CMD:CLEAR — 清除配网凭据并重启 */
+                if (strstr(serialBuf, "CMD:CLEAR"))
+                {
+#ifdef DEBUG
+                    Serial.println("[System] CMD:CLEAR received — resetting WiFi settings...");
+#endif
+                    WiFiManager wifiManager;
+                    wifiManager.resetSettings();
+                    delay(200);
+                    ESP.restart();
+                }
+
                 processSerialLine(serialBuf);
                 serialLen = 0;
             }

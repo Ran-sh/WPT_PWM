@@ -12,7 +12,8 @@
  *
  *          通信协议 (115200 8N1):
  *            STM32 → ESP8266:  {"V":12.50,"I":1.23,"F":100000}\n
- *            ESP8266 → STM32:  CMD:ON\n  或  CMD:OFF\n
+ *            ESP8266 → STM32:  CMD:ON\n  或  CMD:OFF\n  或  CMD:SETFREQ:100000\n
+ *            ESP8266 → STM32:  STATUS:ONLINE\n  (WiFi+MQTT 连接成功时发送一次)
  *
  *          依赖: Hardware/ESP8266, Hardware/ADC, Hardware/PWM, Hardware/UI,
  *               Hardware/OLED, System/SysTimer, Hardware/LED
@@ -30,6 +31,9 @@
 #include "App_Net.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+static uint8_t s_network_online = 0;  /* ESP8266 上报 STATUS:ONLINE 后置 1 */
 
 /* ═══════════════════════════════════════════════════════════════
  *                    公开接口实现
@@ -41,22 +45,23 @@
  */
 uint8_t App_Net_Init(void)
 {
+    s_network_online = 0;                  /* 重置在线标志, 等待 STATUS:ONLINE */
     ESP8266_Init();                        /* CH_PD 硬件复位 + USART2 初始化 (~3s) */
                                            /* ESP8266_Init 内部置 s_ready=1 */
-    LED_Update_WiFi(LED_SOLID);            /* 常亮 = 硬件就绪 */
+    LED_Update_WiFi(LED_SLOW);             /* 慢闪 = 等待 WiFi 连接 */
     return 0;
 }
 
 /**
  * @brief  网络应用层周期任务 (非阻塞)
- * @note   发送: 每 2000ms JSON 遥测
+ * @note   发送: 每 500ms JSON 遥测
  *         接收: 实时轮询 CMD:ON / CMD:OFF
  */
 void App_Net_Task(void)
 {
     if (!ESP8266_IsReady()) return;
 
-    /* ── 子功能 1: JSON 遥测 (每 2000ms) ── */
+    /* ── 子功能 1: JSON 遥测 (每 500ms) ── */
     {
         static uint32_t last_telemetry = 0;
 
@@ -71,19 +76,19 @@ void App_Net_Task(void)
 
                 if (ss == SS_DONE)
                 {
-                    /* 谐振运行: 上报真实电压/电流 */
                     snprintf(jsonBuf, sizeof(jsonBuf),
-                             "{\"V\":%.2f,\"I\":%.2f,\"F\":%lu}\n",
+                             "{\"V\":%.2f,\"I\":%.2f,\"F\":%lu,\"S\":%d}\n",
                              Get_Real_Voltage(),
                              Get_Real_Current(),
-                             (unsigned long)PWM_GetFrequency());
+                             (unsigned long)PWM_GetFrequency(),
+                             (int)ss);
                 }
                 else
                 {
-                    /* SS_IDLE / SS_FAULT: 逆变器未发波, 强制 V=0 I=0 防止 Web 端误判 */
                     snprintf(jsonBuf, sizeof(jsonBuf),
-                             "{\"V\":0.00,\"I\":0.00,\"F\":%lu}\n",
-                             (unsigned long)PWM_GetFrequency());
+                             "{\"V\":0.00,\"I\":0.00,\"F\":%lu,\"S\":%d}\n",
+                             (unsigned long)PWM_GetFrequency(),
+                             (int)ss);
                 }
                 ESP8266_SendString(jsonBuf);
             }
@@ -97,7 +102,12 @@ void App_Net_Task(void)
 
         ESP8266_CopyRxFrame(localBuf, sizeof(localBuf));
 
-        if (strstr(localBuf, "CMD:ON"))
+        if (strstr(localBuf, "STATUS:ONLINE"))
+        {
+            s_network_online = 1;
+            LED_Update_WiFi(LED_SOLID);
+        }
+        else if (strstr(localBuf, "CMD:ON"))
         {
             if (Inverter_SoftStart_GetState() == SS_IDLE) {
                 Inverter_SoftStart_Trigger();
@@ -109,20 +119,25 @@ void App_Net_Task(void)
             Inverter_SoftStart_Stop();
             OLED_ShowString(4, 1, "CMD: Remote OFF ");
         }
-        else if (strstr(localBuf, "CMD:F_UP"))
+        else if (strstr(localBuf, "CMD:SETFREQ:"))
         {
-            PWM_AdjustFreq_Up();
-            OLED_ShowString(4, 1, "CMD: Freq +1kHz ");
-        }
-        else if (strstr(localBuf, "CMD:F_DOWN"))
-        {
-            PWM_AdjustFreq_Down();
-            OLED_ShowString(4, 1, "CMD: Freq -1kHz ");
+            if (Inverter_SoftStart_GetState() == SS_DONE)
+            {
+                long f = atol(localBuf + 12);
+                if (f >= 95000 && f <= 150000)
+                {
+                    Inverter_FreqRamp_Trigger((uint32_t)f);
+                    char disp[17];
+                    snprintf(disp, sizeof(disp), "CMD: Ramp %lukHz",
+                             (unsigned long)(f / 1000));
+                    OLED_ShowString(4, 1, disp);
+                }
+            }
         }
     }
 }
 
 uint8_t App_Net_IsConnected(void)
 {
-    return ESP8266_IsReady();
+    return ESP8266_IsReady() && s_network_online;  /* 硬件就绪 + ESP8266 确认联网 */
 }

@@ -76,7 +76,10 @@ typedef char __deadtime_linear_check[(DEADTIME_REG_VAL <= 127) ? 1 : -1];
 static SoftStart_State_t s_ss_state       = SS_IDLE;
 static uint32_t          s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
 static uint32_t          s_ss_last_step    = 0;
-static uint32_t          s_desired_freq    = SOFTSTART_TARGET_FREQ_HZ; /* 干净的目标频率, 避免累积误差 */
+
+/* ── 频率渐变斜坡私有变量 ── */
+static uint32_t s_ramp_target   = 0;  /* 0=无渐变任务 */
+static uint32_t s_ramp_last_ms  = 0;
 
 /*
  * 原子状态切换: 关全局中断 → 写状态 → 恢复
@@ -283,7 +286,6 @@ void Inverter_SoftStart_Task(void)
         s_ss_current_freq -= SOFTSTART_STEP_HZ;
     } else {
         s_ss_current_freq = SOFTSTART_TARGET_FREQ_HZ;
-        s_desired_freq    = SOFTSTART_TARGET_FREQ_HZ;  /* 目标频率同步, 误差清零 */
         Inverter_SetState(SS_DONE);
     }
 
@@ -293,10 +295,12 @@ void Inverter_SoftStart_Task(void)
 /**
  * @brief  紧急关断全桥输出
  * @note   关 MOE → 回 SS_IDLE, 下次 Trigger 重新从 150kHz 扫频
+ *         同时清零频率渐变斜坡目标
  */
 void Inverter_SoftStart_Stop(void)
 {
     PWM_Disable();
+    s_ramp_target = 0;
     Inverter_SetState(SS_IDLE);
 }
 
@@ -327,32 +331,72 @@ uint32_t Inverter_SoftStart_GetCurrentFreq(void)
 }
 
 /**
- * @brief  频率调高 +1kHz (仅在 SS_DONE 下有效)
- * @note   使用干净的目标频率变量, 避免 PWM_GetFrequency 整数截断误差累积
+ * @brief  触发频率渐变斜坡 (仅 SS_DONE 时有效)
+ * @param  target_Hz: 目标频率 (Hz), 自动钳位 95k~150k, 1kHz 步长对齐
+ * @note   新目标覆盖旧目标, 渐变方向自动调整
  */
-void PWM_AdjustFreq_Up(void)
+void Inverter_FreqRamp_Trigger(uint32_t target_Hz)
 {
     if (s_ss_state != SS_DONE) return;
-    if (s_desired_freq >= PWM_FREQ_HARD_MAX_HZ) return;
 
-    s_desired_freq += 1000;
-    if (s_desired_freq > PWM_FREQ_HARD_MAX_HZ)
-        s_desired_freq = PWM_FREQ_HARD_MAX_HZ;
+    /* 钳位 + 1kHz 步长对齐 */
+    if (target_Hz < PWM_FREQ_HARD_MIN_HZ)
+        target_Hz = PWM_FREQ_HARD_MIN_HZ;
+    else if (target_Hz > PWM_FREQ_HARD_MAX_HZ)
+        target_Hz = PWM_FREQ_HARD_MAX_HZ;
+    target_Hz = (target_Hz / 1000) * 1000;
 
-    PWM_SetFrequency(s_desired_freq);
+    s_ramp_target  = target_Hz;
+    s_ramp_last_ms = SysTimer_GetTick();
 }
 
 /**
- * @brief  频率调低 -1kHz
+ * @brief  频率渐变步进任务 (主循环每轮调用, 非阻塞)
+ * @note   每 FREQ_RAMP_STEP_DELAY_MS 向目标方向步进 FREQ_RAMP_STEP_HZ
+ *         到达目标后自动清零 s_ramp_target
  */
-void PWM_AdjustFreq_Down(void)
+void Inverter_FreqRamp_Task(void)
 {
-    if (s_ss_state != SS_DONE) return;
-    if (s_desired_freq <= PWM_FREQ_HARD_MIN_HZ) return;
+    uint32_t now, cur;
 
-    s_desired_freq -= 1000;
-    if (s_desired_freq < PWM_FREQ_HARD_MIN_HZ)
-        s_desired_freq = PWM_FREQ_HARD_MIN_HZ;
+    if (s_ramp_target == 0) return;
+    if (s_ss_state != SS_DONE) {
+        s_ramp_target = 0;
+        return;
+    }
 
-    PWM_SetFrequency(s_desired_freq);
+    now = SysTimer_GetTick();
+    if (now - s_ramp_last_ms < FREQ_RAMP_STEP_DELAY_MS) return;
+    s_ramp_last_ms = now;
+
+    cur = PWM_GetFrequency();
+
+    if (cur == s_ramp_target) {
+        s_ramp_target = 0;
+        return;
+    }
+
+    if (cur < s_ramp_target) {
+        cur += FREQ_RAMP_STEP_HZ;
+        if (cur >= s_ramp_target) cur = s_ramp_target;
+    } else {
+        if (cur > FREQ_RAMP_STEP_HZ)
+            cur -= FREQ_RAMP_STEP_HZ;
+        else
+            cur = PWM_FREQ_HARD_MIN_HZ;
+        if (cur <= s_ramp_target) cur = s_ramp_target;
+    }
+
+    PWM_SetFrequency(cur);
+
+    if (cur == s_ramp_target)
+        s_ramp_target = 0;
+}
+
+/**
+ * @brief  查询当前渐变目标频率 (0=无渐变, 供 UI 显示)
+ */
+uint32_t Inverter_FreqRamp_GetTarget(void)
+{
+    return s_ramp_target;
 }

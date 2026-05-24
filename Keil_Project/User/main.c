@@ -59,6 +59,7 @@ int main(void)
         UI_Task();
         App_Net_Task();
         Inverter_SoftStart_Task();  /* 非阻塞扫频步进 (内部 10ms 节拍) */
+        Inverter_FreqRamp_Task();   /* 非阻塞频率渐变 (内部 10ms 节拍) */
         LED_Task();
     }
 }

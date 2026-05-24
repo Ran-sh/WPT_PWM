@@ -53,8 +53,12 @@ void               Inverter_SoftStart_Fault(void);   /* 过流保护: 紧急关�
 SoftStart_State_t  Inverter_SoftStart_GetState(void);
 uint32_t           Inverter_SoftStart_GetCurrentFreq(void);
 
-/* 频率微调 (±1kHz): 使用干净的目标频率, 无累积误差 */
-void PWM_AdjustFreq_Up(void);
-void PWM_AdjustFreq_Down(void);
+/* ── 频率渐变斜坡 (SS_DONE 时有效, 非阻塞, 50kHz/s) ── */
+#define FREQ_RAMP_STEP_HZ         500UL
+#define FREQ_RAMP_STEP_DELAY_MS   10U
+
+void     Inverter_FreqRamp_Trigger(uint32_t target_Hz);
+void     Inverter_FreqRamp_Task(void);
+uint32_t Inverter_FreqRamp_GetTarget(void);
 
 #endif

@@ -16,7 +16,7 @@
  *                                         │    └→ 超时无按压 → IDLE (单击!)
  *                                         └→ PRESSED (仍按住)
  *
- *          事件投递: 单击=1, 双击=2, 读取后自动清零 (阅后即焚机制)
+ *          事件投递: 单击=1, 双击=2, 长按=3 (>3000ms), 读取后自动清零 (阅后即焚机制)
  ******************************************************************************
  */
 
@@ -47,7 +47,8 @@ typedef enum {
     KEY_STATE_PRESSED,          /* 已按下: 等待释放 */
     KEY_STATE_WAIT_RELEASE,     /* 确认释放: 第一次松手 */
     KEY_STATE_WAIT_DOUBLE,      /* 双击窗口: 200ms 内等待第二次按下 */
-    KEY_STATE_WAIT_DOUBLE_REL   /* 等待第二次松手: 确认双击完成 */
+    KEY_STATE_WAIT_DOUBLE_REL,  /* 等待第二次松手: 确认双击完成 */
+    KEY_STATE_LONG_PRESS        /* 长按已触发: 等待松手复位 */
 } KeyState_t;
 
 /*
@@ -124,9 +125,17 @@ void KEY_Scan_All(void)
                 else            Key_List[i].State = KEY_STATE_IDLE;  /* 毛刺, 忽略 */
                 break;
 
-            /* ── 已按下: 等待释放 ── */
+            /* ── 已按下: 等待释放 / 长按检测 (3000ms) ── */
             case KEY_STATE_PRESSED:
-                if (level == 1) Key_List[i].State = KEY_STATE_WAIT_RELEASE;
+                Key_List[i].Timer++;
+                if (level == 1) {
+                    Key_List[i].Timer = 0;
+                    Key_List[i].State = KEY_STATE_WAIT_RELEASE;
+                } else if (Key_List[i].Timer >= 300) {
+                    Key_List[i].EventFlag = 3;     /* 投递事件: 长按 */
+                    Key_List[i].Timer = 0;
+                    Key_List[i].State = KEY_STATE_LONG_PRESS;
+                }
                 break;
 
             /* ── 确认第一次释放: 进入双击窗口期 ── */
@@ -163,6 +172,11 @@ void KEY_Scan_All(void)
                     Key_List[i].EventFlag = 2;     /* 投递事件: 双击 */
                     Key_List[i].State = KEY_STATE_IDLE;
                 }
+                break;
+
+            /* ── 长按已触发: 等待松手复位 ── */
+            case KEY_STATE_LONG_PRESS:
+                if (level == 1) Key_List[i].State = KEY_STATE_IDLE;
                 break;
         }
     }

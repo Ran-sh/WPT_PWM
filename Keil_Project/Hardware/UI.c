@@ -61,7 +61,7 @@ static uint8_t UI_TryConnectWiFi(void)
     App_Net_Init();                        /* 阻塞 ~3s: CH_PD 复位 + USART2 初始化 */
     OLED_Clear();
     OLED_ShowString(1, 1, "[Control Mode] ");
-    OLED_ShowString(2, 1, "WiFi: READY    ");
+    OLED_ShowString(2, 1, "HW: READY      ");  /* 仅硬件复位完成, WiFi 由 ESP8266 自管理 */
     return 1;
 }
 
@@ -79,8 +79,10 @@ static void UI_HandleKeys(uint8_t key0, uint8_t key1, SoftStart_State_t ss)
     if (key1 == 1) {
         if (ss == SS_SWEEP)
             Inverter_SoftStart_Stop();
-        else if (ss == SS_DONE)
-            PWM_AdjustFreq_Up();
+        else if (ss == SS_DONE) {
+            uint32_t f = PWM_GetFrequency() + 1000;
+            if (f <= 150000) PWM_SetFrequency(f);
+        }
         else if (ss == SS_FAULT)
             Inverter_SoftStart_Stop();   /* KEY1 复位故障 */
     }
@@ -218,6 +220,20 @@ void UI_Task(void)
     if (need_refresh) UI_UpdateLEDs(ss);
     LED_Status_Task();
 
+    /* KEY0 长按: 清除 WiFi 配网凭据 (>1000ms) */
+    if (key0 == 3) {
+        if (ESP8266_IsReady()) {
+            ESP8266_SendString("CMD:CLEAR\n");
+            OLED_Clear();
+            OLED_ShowString(1, 1, "[Control Mode] ");
+            OLED_ShowString(2, 1, "WiFi Cleared... ");
+            OLED_ShowString(3, 1, "ESP restarting  ");
+            OLED_ShowString(4, 1, "                ");
+            need_refresh = 0;
+            last_oled = SysTimer_GetTick();
+        }
+    }
+
     /* KEY0 双击: 切页 */
     if (key0 == 2) {
         UI_Page = !UI_Page;
@@ -230,15 +246,25 @@ void UI_Task(void)
     if (UI_Page == 0) {
         /* 控制面板 */
         if (!ESP8266_IsReady()) {
-            /* 硬件未初始化: 等待 KEY0 触发 */
+            /* 状态 1: 硬件未初始化 → KEY0 触发 */
             if (key0 == 1) UI_TryConnectWiFi();
             else if (need_refresh) {
                 OLED_ShowString(1, 1, "[Control Mode] ");
-                OLED_ShowString(2, 1, "WiFi: DISCONN  ");
+                OLED_ShowString(2, 1, "HW: DISCONN    ");
                 OLED_ShowString(3, 1, "Press KEY0 WiFi");
                 OLED_ShowString(4, 1, "F:  --.- kHz    ");
             }
+        } else if (!App_Net_IsConnected()) {
+            /* 状态 2: 硬件就绪但 ESP8266 未联网 → KEY0 重试 */
+            if (key0 == 1) UI_TryConnectWiFi();
+            else if (need_refresh) {
+                OLED_ShowString(1, 1, "[Control Mode] ");
+                OLED_ShowString(2, 1, "No WiFi        ");
+                OLED_ShowString(3, 1, "Press KEY0 retry");
+                OLED_ShowString(4, 1, "F:  --.- kHz    ");
+            }
         } else {
+            /* 状态 3: 全部在线 → 正常操作 */
             UI_HandleKeys(key0, key1, ss);
             if (need_refresh) UI_DrawPage0(ss);
         }
