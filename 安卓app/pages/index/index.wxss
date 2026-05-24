@@ -1,116 +1,333 @@
+/* ═══════════════════════════════════════════
+   WPT Monitor — 双主题系统
+   ═══════════════════════════════════════════ */
+
+/* ── 深色主题 (默认) ── */
+.theme-dark {
+  --bg: #0A0C15;
+  --bg-gradient: linear-gradient(180deg, #0A0C15 0%, #0F111A 100%);
+  --card-bg: #13151F;
+  --card-border: rgba(255, 255, 255, 0.06);
+  --text-primary: #E8ECF1;
+  --text-secondary: #6B7280;
+  --text-tertiary: #4B5563;
+  --accent: #00E5FF;
+  --accent-glow: rgba(0, 229, 255, 0.2);
+  --accent-bg: rgba(0, 229, 255, 0.08);
+  --accent-border: rgba(0, 229, 255, 0.2);
+  --green: #22C55E;
+  --green-glow: rgba(34, 197, 94, 0.5);
+  --yellow: #EAB308;
+  --yellow-glow: rgba(234, 179, 8, 0.5);
+  --red: #EF4444;
+  --red-glow: rgba(239, 68, 68, 0.5);
+  --gray: #9CA3AF;
+  --btn-confirm-bg: rgba(0, 229, 255, 0.12);
+  --btn-confirm-border: rgba(0, 229, 255, 0.3);
+  --btn-confirm-active: rgba(0, 229, 255, 0.25);
+  --btn-start-from: #DC2626;
+  --btn-start-to: #B91C1C;
+  --btn-start-active-from: #EF4444;
+  --btn-start-active-to: #DC2626;
+  --btn-start-border: rgba(220, 38, 38, 0.3);
+  --btn-start-shadow: rgba(220, 38, 38, 0.25);
+  --btn-stop-from: #16A34A;
+  --btn-stop-to: #15803D;
+  --btn-stop-active-from: #22C55E;
+  --btn-stop-active-to: #16A34A;
+  --btn-stop-border: rgba(22, 163, 74, 0.3);
+  --btn-stop-shadow: rgba(22, 163, 74, 0.25);
+  --conn-on-bg: rgba(0, 229, 255, 0.08);
+  --conn-on-border: rgba(0, 229, 255, 0.2);
+  --conn-off-bg: rgba(239, 68, 68, 0.08);
+  --conn-off-border: rgba(239, 68, 68, 0.2);
+  --toggle-bg: rgba(255, 255, 255, 0.08);
+  --fault-bg: #1F2937;
+  --fault-border: rgba(107, 114, 128, 0.3);
+}
+
+/* ── 浅色主题 ── */
+.theme-light {
+  --bg: #F5F7FA;
+  --bg-gradient: linear-gradient(180deg, #F5F7FA 0%, #EDF0F4 100%);
+  --card-bg: #FFFFFF;
+  --card-border: rgba(0, 0, 0, 0.06);
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+  --accent: #0EA5E9;
+  --accent-glow: rgba(14, 165, 233, 0.15);
+  --accent-bg: rgba(14, 165, 233, 0.06);
+  --accent-border: rgba(14, 165, 233, 0.25);
+  --green: #16A34A;
+  --green-glow: rgba(22, 163, 74, 0.3);
+  --yellow: #CA8A04;
+  --yellow-glow: rgba(202, 138, 4, 0.3);
+  --red: #DC2626;
+  --red-glow: rgba(220, 38, 38, 0.3);
+  --gray: #6B7280;
+  --btn-confirm-bg: rgba(14, 165, 233, 0.1);
+  --btn-confirm-border: rgba(14, 165, 233, 0.3);
+  --btn-confirm-active: rgba(14, 165, 233, 0.22);
+  --btn-start-from: #EF4444;
+  --btn-start-to: #DC2626;
+  --btn-start-active-from: #F87171;
+  --btn-start-active-to: #EF4444;
+  --btn-start-border: rgba(239, 68, 68, 0.3);
+  --btn-start-shadow: rgba(239, 68, 68, 0.15);
+  --btn-stop-from: #22C55E;
+  --btn-stop-to: #16A34A;
+  --btn-stop-active-from: #4ADE80;
+  --btn-stop-active-to: #22C55E;
+  --btn-stop-border: rgba(34, 197, 94, 0.3);
+  --btn-stop-shadow: rgba(34, 197, 94, 0.15);
+  --conn-on-bg: rgba(14, 165, 233, 0.08);
+  --conn-on-border: rgba(14, 165, 233, 0.2);
+  --conn-off-bg: rgba(239, 68, 68, 0.08);
+  --conn-off-border: rgba(239, 68, 68, 0.2);
+  --toggle-bg: rgba(0, 0, 0, 0.06);
+  --fault-bg: #E5E7EB;
+  --fault-border: rgba(156, 163, 175, 0.5);
+}
+
+/* ═══════════════════════════════════════════
+   通用样式 (使用 CSS 变量)
+   ═══════════════════════════════════════════ */
+
 .page {
   min-height: 100vh;
-  background: #030712;
-  padding: 0 16px;
+  background: var(--bg-gradient);
+  padding: 0 20rpx 40rpx;
 }
 
-/* ── 状态栏 ── */
-.status-bar {
+/* ── 顶部状态栏 ── */
+.header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 0;
-  border-bottom: 1rpx solid #1f2937;
-  margin-bottom: 8px;
+  padding: 32rpx 8rpx 24rpx;
 }
-.title { font-size: 18px; font-weight: 600; color: #e5e7eb; }
-.indicator { display: flex; align-items: center; gap: 6px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; }
-.dot-green  { background: #4ade80; }
-.dot-red    { background: #ef4444; }
-.label { font-size: 12px; color: #9ca3af; }
-
-/* ── 数据行 ── */
-.row {
+.header-left {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background: #111827;
-  border: 1rpx solid #1f2937;
-  border-radius: 10px;
-  margin-bottom: 8px;
+  gap: 16rpx;
 }
-.row-label {
-  font-size: 14px;
-  color: #9ca3af;
+.header-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 2rpx;
 }
-.row-value {
-  font-size: 28px;
+
+/* 主题切换按钮 */
+.toggle-theme {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 50%;
+  background: var(--toggle-bg);
+  font-size: 30rpx;
+  transition: all 0.3s;
+}
+.toggle-theme:active {
+  transform: scale(0.9);
+}
+
+.conn-badge {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+.conn-on {
+  background: var(--conn-on-bg);
+  color: var(--accent);
+  border: 1rpx solid var(--conn-on-border);
+}
+.conn-off {
+  background: var(--conn-off-bg);
+  color: var(--red);
+  border: 1rpx solid var(--conn-off-border);
+}
+.conn-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+}
+.conn-on .conn-dot {
+  background: var(--accent);
+  box-shadow: 0 0 12rpx var(--accent-glow);
+}
+.conn-off .conn-dot {
+  background: var(--red);
+  box-shadow: 0 0 12rpx var(--red-glow);
+}
+
+/* ── 通用卡片 ── */
+.card {
+  background: var(--card-bg);
+  border: 1rpx solid var(--card-border);
+  border-radius: 20rpx;
+  padding: 24rpx 28rpx;
+  margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 16rpx rgba(0, 0, 0, 0.04);
+}
+.card-label {
+  font-size: 24rpx;
+  color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: 1rpx;
+  margin-bottom: 12rpx;
+  display: block;
+}
+
+/* ── 系统状态卡片 ── */
+.state-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.state-dot {
+  width: 20rpx;
+  height: 20rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.state-dot.DONE  { background: var(--green); box-shadow: 0 0 16rpx var(--green-glow); }
+.state-dot.SWEEP { background: var(--yellow); box-shadow: 0 0 16rpx var(--yellow-glow); }
+.state-dot.IDLE  { background: var(--gray); }
+.state-dot.FAULT { background: var(--red); box-shadow: 0 0 16rpx var(--red-glow); }
+.state-text {
+  font-size: 36rpx;
   font-weight: 700;
 }
-.row-value-row {
+.state-text.DONE  { color: var(--green); }
+.state-text.SWEEP { color: var(--yellow); }
+.state-text.IDLE  { color: var(--gray); }
+.state-text.FAULT { color: var(--red); }
+
+/* ── 数据卡片双列 ── */
+.cards-row {
+  display: flex;
+  gap: 16rpx;
+}
+.cards-row .data-card { flex: 1; }
+.data-value-row {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: 6rpx;
 }
-.row-unit {
-  font-size: 14px;
-  color: #6b7280;
+.data-value {
+  font-size: 52rpx;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -1rpx;
+  text-shadow: 0 0 30rpx var(--accent-glow);
+}
+.data-unit {
+  font-size: 26rpx;
+  color: var(--text-tertiary);
+  font-weight: 600;
 }
 
-.text-cyan   { color: #22d3ee; }
-.text-green  { color: #4ade80; }
-.text-yellow { color: #facc15; }
-.text-red    { color: #ef4444; }
-.text-gray   { color: #6b7280; }
-
-/* ── 选取器行 ── */
-.picker-row {
-  padding: 4px 8px 4px 16px;
+/* ── 目标频率设置 ── */
+.freq-set-card { padding-bottom: 20rpx; }
+.freq-set-row {
+  display: flex;
+  align-items: center;
   gap: 0;
 }
 .freq-swiper {
   flex: 1;
-  height: 80rpx;
+  height: 88rpx;
 }
-.swipe-item {
+.swipe-num {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.swipe-num {
-  font-size: 18px;
-  color: #9ca3af;
+  height: 100%;
+  font-size: 30rpx;
+  color: var(--text-tertiary);
+  font-weight: 600;
 }
 .swipe-sel {
-  font-size: 30px;
-  font-weight: 700;
-  color: #22d3ee;
+  font-size: 48rpx;
+  font-weight: 800;
+  color: var(--accent);
+  text-shadow: 0 0 24rpx var(--accent-glow);
 }
-.btn-set {
-  width: 100rpx;
-  height: 56rpx;
-  padding: 0;
-  margin: 0;
-  background: rgba(34,211,238,0.15);
-  border: 1rpx solid rgba(34,211,238,0.4);
-  border-radius: 8px;
-  color: #22d3ee;
-  font-size: 13px;
+.freq-unit-inline {
+  font-size: 24rpx;
+  color: var(--text-tertiary);
   font-weight: 600;
-  line-height: 56rpx;
+  margin-right: 16rpx;
+  flex-shrink: 0;
 }
-.btn-set[disabled] { opacity: 0.3; }
+.btn-confirm {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 64rpx;
+  padding: 0 32rpx;
+  background: var(--btn-confirm-bg);
+  border: 1rpx solid var(--btn-confirm-border);
+  border-radius: 16rpx;
+  color: var(--accent);
+  font-size: 26rpx;
+  font-weight: 700;
+  transition: all 0.15s;
+}
+.btn-confirm:active { background: var(--btn-confirm-active); }
+.btn-disabled { opacity: 0.3; pointer-events: none; }
 
 /* ── 启停按钮 ── */
 .btn-power {
-  width: 100%;
-  height: 52px;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 52px;
-  margin-top: 8px;
+  margin-top: 12rpx;
+  padding: 36rpx;
+  border-radius: 24rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+  transition: all 0.2s;
 }
 .btn-start {
-  background: rgba(239,68,68,0.15);
-  border: 1rpx solid rgba(239,68,68,0.5);
-  color: #f87171;
+  background: linear-gradient(135deg, var(--btn-start-from) 0%, var(--btn-start-to) 100%);
+  border: 1rpx solid var(--btn-start-border);
+  box-shadow: 0 8rpx 40rpx var(--btn-start-shadow);
+}
+.btn-start:active {
+  background: linear-gradient(135deg, var(--btn-start-active-from) 0%, var(--btn-start-active-to) 100%);
+  transform: scale(0.98);
 }
 .btn-stop {
-  background: rgba(34,197,94,0.15);
-  border: 1rpx solid rgba(34,197,94,0.5);
-  color: #4ade80;
+  background: linear-gradient(135deg, var(--btn-stop-from) 0%, var(--btn-stop-to) 100%);
+  border: 1rpx solid var(--btn-stop-border);
+  box-shadow: 0 8rpx 40rpx var(--btn-stop-shadow);
 }
-.btn-power[disabled] { opacity: 0.4; }
+.btn-stop:active {
+  background: linear-gradient(135deg, var(--btn-stop-active-from) 0%, var(--btn-stop-active-to) 100%);
+  transform: scale(0.98);
+}
+.btn-fault {
+  background: var(--fault-bg);
+  border: 1rpx solid var(--fault-border);
+  opacity: 0.6;
+}
+.btn-power-text {
+  font-size: 36rpx;
+  font-weight: 800;
+  color: #FFFFFF;
+  letter-spacing: 4rpx;
+}
+.btn-power-sub {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}

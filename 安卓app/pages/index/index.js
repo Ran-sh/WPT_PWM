@@ -39,12 +39,21 @@ Page({
     connected: false,
     freqList: FREQ_LIST,
     selectedFreq: 100,
-    freqIdx: INIT_IDX
+    freqIdx: INIT_IDX,
+    currentTheme: 'theme-dark'
   },
 
   onLoad() {
+    const saved = wx.getStorageSync('wpt_theme');
+    if (saved) this.setData({ currentTheme: saved });
     this.fetchData();
     this._timer = setInterval(() => this.fetchData(), POLL_MS);
+  },
+
+  onToggleTheme() {
+    const next = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark';
+    this.setData({ currentTheme: next });
+    wx.setStorageSync('wpt_theme', next);
   },
 
   onUnload() {

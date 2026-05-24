@@ -1,64 +1,75 @@
-<view class="page">
-  <!-- 1. 状态栏 -->
-  <view class="status-bar">
-    <text class="title">WPT Monitor</text>
-    <view class="indicator">
-      <view class="dot {{connected ? 'dot-green' : 'dot-red'}}"></view>
-      <text class="label">{{connected ? '已连接' : '未连接'}}</text>
+<view class="page {{currentTheme}}">
+  <!-- 顶部状态栏 -->
+  <view class="header">
+    <view class="header-left">
+      <text class="header-title">WPT Monitor</text>
+      <view class="toggle-theme" bindtap="onToggleTheme">{{currentTheme === 'theme-dark' ? '☀' : '🌙'}}</view>
+    </view>
+    <view class="conn-badge {{connected ? 'conn-on' : 'conn-off'}}">
+      <view class="conn-dot"></view>
+      <text>{{connected ? '已连接' : '未连接'}}</text>
     </view>
   </view>
 
-  <!-- 2. 状态 -->
-  <view class="row">
-    <text class="row-label">状态</text>
-    <text class="row-value {{systemState === 'DONE' ? 'text-green' : systemState === 'SWEEP' ? 'text-yellow' : systemState === 'FAULT' ? 'text-red' : 'text-gray'}}">{{stateLabel}}</text>
-  </view>
-
-  <!-- 3. 电压 -->
-  <view class="row">
-    <text class="row-label">电压</text>
-    <view class="row-value-row">
-      <text class="row-value text-cyan">{{voltage}}</text>
-      <text class="row-unit">V</text>
+  <!-- 系统状态卡片 -->
+  <view class="card state-card">
+    <text class="card-label">系统状态</text>
+    <view class="state-row">
+      <view class="state-dot {{systemState}}"></view>
+      <text class="state-text {{systemState}}">{{stateLabel}}</text>
     </view>
   </view>
 
-  <!-- 4. 电流 -->
-  <view class="row">
-    <text class="row-label">电流</text>
-    <view class="row-value-row">
-      <text class="row-value text-cyan">{{current}}</text>
-      <text class="row-unit">A</text>
+  <!-- 数据卡片行: 电压 | 电流 -->
+  <view class="cards-row">
+    <view class="card data-card">
+      <text class="card-label">电压</text>
+      <view class="data-value-row">
+        <text class="data-value">{{voltage}}</text>
+        <text class="data-unit">V</text>
+      </view>
+    </view>
+    <view class="card data-card">
+      <text class="card-label">电流</text>
+      <view class="data-value-row">
+        <text class="data-value">{{current}}</text>
+        <text class="data-unit">A</text>
+      </view>
     </view>
   </view>
 
-  <!-- 5. 频率 -->
-  <view class="row">
-    <text class="row-label">频率</text>
-    <view class="row-value-row">
-      <text class="row-value text-cyan">{{frequency}}</text>
-      <text class="row-unit">kHz</text>
+  <!-- 频率显示卡片 -->
+  <view class="card data-card data-card-full">
+    <text class="card-label">当前频率</text>
+    <view class="data-value-row">
+      <text class="data-value">{{frequency}}</text>
+      <text class="data-unit">kHz</text>
     </view>
   </view>
 
-  <!-- 6. 选取器 + 确认 -->
-  <view class="row picker-row">
-    <swiper
-      class="freq-swiper"
-      current="{{freqIdx}}"
-      bindchange="onSwiperChange"
-    >
-      <swiper-item wx:for="{{freqList}}" wx:key="*this" class="swipe-item">
-        <view class="swipe-num {{index === freqIdx ? 'swipe-sel' : ''}}">{{item}}</view>
-      </swiper-item>
-    </swiper>
-    <button class="btn-set" bindtap="onSetFreq" disabled="{{!isOn}}">确认</button>
+  <!-- 目标频率设置 -->
+  <view class="card freq-set-card">
+    <text class="card-label">目标频率</text>
+    <view class="freq-set-row">
+      <swiper
+        class="freq-swiper"
+        current="{{freqIdx}}"
+        bindchange="onSwiperChange"
+      >
+        <swiper-item wx:for="{{freqList}}" wx:key="*this">
+          <view class="swipe-num {{index === freqIdx ? 'swipe-sel' : ''}}">{{item}}</view>
+        </swiper-item>
+      </swiper>
+      <text class="freq-unit-inline">kHz</text>
+      <view class="btn-confirm {{isOn ? '' : 'btn-disabled'}}" bindtap="onSetFreq">
+        <text>确认</text>
+      </view>
+    </view>
   </view>
 
-  <!-- 7. 启停 -->
-  <button class="btn-power {{isOn ? 'btn-stop' : 'btn-start'}}"
-          bindtap="onSwitch"
-          disabled="{{isFault}}">
-    {{isFault ? 'FAULT 已锁定' : isOn ? 'STOP' : 'START'}}
-  </button>
+  <!-- 启停按钮 -->
+  <view class="btn-power {{isFault ? 'btn-fault' : isOn ? 'btn-stop' : 'btn-start'}}" bindtap="onSwitch">
+    <text class="btn-power-text">{{isFault ? 'FAULT 已锁定' : isOn ? 'STOP' : 'START'}}</text>
+    <text class="btn-power-sub" wx:if="{{!isFault}}">{{isOn ? '点击关断逆变器' : '点击触发软启动扫频'}}</text>
+  </view>
 </view>
