@@ -521,14 +521,30 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 
 ## 6. 网页控制台
 
-### 6.1 方案演进 (我们踩过的全记录)
+### 6.1 本地开发 (V1, 调试保留)
+
+在电脑上直接运行，浏览器 `http://localhost:4567` 打开：
+
+```bash
+cd ONENETapp
+node -e "const h=require('http');const f=require('fs');const p=require('path');
+h.createServer((q,r)=>{let fp=q.url.split('?')[0];if(fp==='/')fp='/login.html';
+if(!p.extname(fp))fp+='.html';
+f.readFile(p.join(__dirname,fp),(e,d)=>{if(e){f.readFile(p.join(__dirname,
+'login.html'),(e2,d2)=>{r.writeHead(200);r.end(d2)});return}
+r.writeHead(200);r.end(d)})}).listen(4567,()=>console.log('http://localhost:4567'))"
+```
+
+本地模式适合调试——改了代码立刻刷新看效果。缺点是无法外网访问，手机和其他设备打不开。
+
+### 6.2 方案演进 (我们踩过的全记录)
 
 | 阶段 | 用了什么 | 为什么换了 |
 |:---|:---|:---|
-| V1 | 本地 `node -e "..."` 启动 | 只能自己电脑用 |
-| V2 | **Netlify** 拖拽部署 | 免费带宽耗尽, 网站被暂停 ☠️ |
-| V3 | **GitHub Pages** | 子目录路由 `/monitoring` 不认 `.html` → 404 |
-| V4 | **Cloudflare Pages** ✅ | 免费不限量, 支持SPA路由, 当前方案 |
+| V1 | **本地 Node.js 服务** | 只能自己电脑用, 无法外网访问 |
+| V2 | **Netlify** 拖拽部署 | 刚上线时正常, 后来免费带宽耗尽被暂停 ☠️ |
+| V3 | **GitHub Pages** | 部署成功但路由有 bug——`/monitoring` 无法映射到 `monitoring.html` → 404 |
+| **V4** | **Cloudflare Pages** ✅ | 免费不限量, 原生支持 SPA 路由, **当前方案** |
 
 ### 6.2 Cloudflare Pages 部署 (当前稳定方案)
 
