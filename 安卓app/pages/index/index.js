@@ -67,26 +67,32 @@ Page({
           raw[item.identifier] = v;
         });
 
-        /* 与网页端完全相同的转换逻辑 */
+        const now = Date.now();
+        const lock = that._cmdLock || {};
+
+        /* 乐观锁: 3秒内刚下发的指令不覆盖 (与网页端一致) */
+        const sw = (lock.switch && (now - lock.switch < 3000)) ? that.data.isOn : (raw.Switch === true);
+
         const v = raw.V !== undefined ? Number(raw.V).toFixed(2) : that.data.voltage;
         const i = raw.I !== undefined ? Number(raw.I).toFixed(2) : that.data.current;
-        const fHz = raw.F; /* Hz, 原始值 */
+        const fHz = raw.F;
         const fNum = fHz !== undefined ? Math.floor(fHz / 1000) : that.data.frequency;
-        const sw = raw.Switch;
 
-        /* 状态推断 — 与网页端一致 */
         let state, label;
         if (sw === true && fNum > 0) { state = 'DONE'; label = '运行中'; }
         else if (sw === true)        { state = 'SWEEP'; label = '扫频中'; }
         else                         { state = 'IDLE';  label = '待机'; }
 
+        /* 首次连接成功 → 强制同步频率选取器 */
+        const justConnected = !that.data.connected;
         const idx = FREQ_LIST.indexOf(fNum);
-        const syncIdx = idx >= 0 ? idx : that.data.freqIdx;
+        const syncIdx = justConnected ? (idx >= 0 ? idx : INIT_IDX)
+                      : (idx >= 0 ? idx : that.data.freqIdx);
 
         that.setData({
           voltage: v, current: i, frequency: fNum,
           systemState: state, stateLabel: label,
-          isOn: sw === true, isFault: false, connected: true,
+          isOn: sw, isFault: false, connected: true,
           selectedFreq: idx >= 0 ? fNum : that.data.selectedFreq,
           freqIdx: syncIdx
         });
@@ -98,6 +104,8 @@ Page({
   /* ── 启停开关 — 与网页端完全一致 ── */
   onSwitch(e) {
     const on = e.detail.value;
+    if (!this._cmdLock) this._cmdLock = {};
+    this._cmdLock.switch = Date.now();  /* 乐观锁: 3秒内不回弹 */
     const that = this;
     wx.request({
       url: ONENET.BASE_URL + '/thingmodel/set-device-property',
@@ -128,6 +136,8 @@ Page({
   /* ── 确认设置 — 使用 FREQ_HZ 精确映射 ── */
   onSetFreq() {
     if (!this.data.isOn) { wx.showToast({ title: '请先启动设备', icon: 'none' }); return; }
+    if (!this._cmdLock) this._cmdLock = {};
+    this._cmdLock.freq = Date.now();  /* 乐观锁: 3秒内不回弹 */
     const kHz = this.data.selectedFreq;
     const hz  = FREQ_HZ[this.data.freqIdx];
     const that = this;
