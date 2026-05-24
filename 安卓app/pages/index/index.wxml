@@ -38,19 +38,19 @@
     </view>
   </view>
 
-  <!-- 频率显示卡片 -->
-  <view class="card data-card data-card-full">
-    <text class="card-label">当前频率</text>
-    <view class="data-value-row">
-      <text class="data-value">{{frequency}}</text>
-      <text class="data-unit">kHz</text>
+  <!-- 当前频率 -->
+  <view class="card freq-card">
+    <text class="freq-card-label">当前频率</text>
+    <view class="freq-card-right">
+      <text class="freq-card-value">{{frequency}}</text>
+      <text class="freq-card-unit">kHz</text>
     </view>
   </view>
 
-  <!-- 目标频率设置 -->
-  <view class="card freq-set-card">
-    <text class="card-label">目标频率</text>
-    <view class="freq-set-row">
+  <!-- 目标频率 -->
+  <view class="card freq-card">
+    <text class="freq-card-label">目标频率</text>
+    <view class="freq-card-right">
       <swiper
         class="freq-swiper"
         current="{{freqIdx}}"
@@ -60,7 +60,7 @@
           <view class="swipe-num {{index === freqIdx ? 'swipe-sel' : ''}}">{{item}}</view>
         </swiper-item>
       </swiper>
-      <text class="freq-unit-inline">kHz</text>
+      <text class="freq-card-unit">kHz</text>
       <view class="btn-confirm {{isOn ? '' : 'btn-disabled'}}" bindtap="onSetFreq">
         <text>确认</text>
       </view>

@@ -237,51 +237,65 @@
   font-weight: 600;
 }
 
-/* ── 目标频率设置 ── */
-.freq-set-card { padding-bottom: 20rpx; }
-.freq-set-row {
+/* ── 频率卡片 (当前/目标统一布局) ── */
+.freq-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: row;
+}
+.freq-card-label {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.freq-card-right {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 8rpx;
+  flex-shrink: 0;
+}
+.freq-card-value {
+  font-size: 44rpx;
+  font-weight: 800;
+  color: var(--accent);
+  text-shadow: 0 0 24rpx var(--accent-glow);
+}
+.freq-card-unit {
+  font-size: 24rpx;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  flex-shrink: 0;
 }
 .freq-swiper {
-  flex: 1;
-  height: 88rpx;
+  width: 120rpx;
+  height: 64rpx;
 }
 .swipe-num {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
-  font-size: 30rpx;
-  color: var(--text-tertiary);
-  font-weight: 600;
-}
-.swipe-sel {
-  font-size: 48rpx;
+  font-size: 32rpx;
   font-weight: 800;
   color: var(--accent);
-  text-shadow: 0 0 24rpx var(--accent-glow);
 }
-.freq-unit-inline {
-  font-size: 24rpx;
-  color: var(--text-tertiary);
-  font-weight: 600;
-  margin-right: 16rpx;
-  flex-shrink: 0;
+.swipe-sel {
+  text-shadow: 0 0 16rpx var(--accent-glow);
 }
 .btn-confirm {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 64rpx;
-  padding: 0 32rpx;
+  height: 56rpx;
+  padding: 0 28rpx;
   background: var(--btn-confirm-bg);
   border: 1rpx solid var(--btn-confirm-border);
-  border-radius: 16rpx;
+  border-radius: 14rpx;
   color: var(--btn-confirm-color, var(--accent));
-  font-size: 26rpx;
+  font-size: 24rpx;
   font-weight: 700;
   transition: all 0.15s;
 }
