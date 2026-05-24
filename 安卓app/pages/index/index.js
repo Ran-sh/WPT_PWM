@@ -39,23 +39,29 @@ Page({
     if (this.data.spinning) return;
     this.setData({ spinning: true });
     this.fetchData();
+    this.fetchControlState();
     setTimeout(() => this.setData({ spinning: false }), 1000);
   },
 
   onLoad() {
     const saved = wx.getStorageSync('wpt_theme');
     if (saved) this.setData({ currentTheme: saved });
-    this.fetchData();
-    this._timer = setInterval(() => this.fetchData(), POLL_MS);
+    this.fetchData();           /* 数据: 5s (对标网页首页) */
+    this.fetchControlState();   /* 控制状态: 60s (对标网页控制页) */
+    this._timerData  = setInterval(() => this.fetchData(), 5000);
+    this._timerCtrl  = setInterval(() => this.fetchControlState(), 60000);
   },
   onToggleTheme() {
     const next = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark';
     this.setData({ currentTheme: next });
     wx.setStorageSync('wpt_theme', next);
   },
-  onUnload() { if (this._timer) clearInterval(this._timer); },
+  onUnload() {
+    if (this._timerData) clearInterval(this._timerData);
+    if (this._timerCtrl) clearInterval(this._timerCtrl);
+  },
 
-  /* ── 数据获取 — 直连 OneNET HTTP API (与网页端一致) ── */
+  /* ── 数据获取: V/I/F 每5s (对标网页首页) ── */
   fetchData() {
     const that = this;
     wx.request({
@@ -75,41 +81,63 @@ Page({
           raw[item.identifier] = v;
         });
 
-        const now = Date.now();
-        const lock = that._cmdLock || {};
-
-        /* 乐观锁: 3秒内刚下发的指令不覆盖 (与网页端一致) */
-        const sw = (lock.switch && (now - lock.switch < 3000)) ? that.data.isOn : (raw.Switch === true);
-
         const v = raw.V !== undefined ? Number(raw.V).toFixed(2) : that.data.voltage;
         const i = raw.I !== undefined ? Number(raw.I).toFixed(2) : that.data.current;
         const fHz = raw.F;
         const fNum = fHz !== undefined ? Math.floor(fHz / 1000) : that.data.frequency;
 
-        let state, label;
-        if (sw === true && fNum > 0) { state = 'DONE'; label = '运行中'; }
-        else if (sw === true)        { state = 'SWEEP'; label = '扫频中'; }
-        else                         { state = 'IDLE';  label = '待机'; }
-
-        /* 乐观锁: 3秒内刚设的频率不覆盖 */
-        const freqLocked = lock.freq && (now - lock.freq < 3000);
-        const freqKHz = freqLocked ? that.data.selectedFreq : fNum;
-
-        /* 首次连接成功 → 强制同步频率选取器 */
         const justConnected = !that.data.connected;
-        const idx = FREQ_LIST.indexOf(freqKHz);
-        const syncIdx = justConnected ? (idx >= 0 ? idx : INIT_IDX)
-                      : (freqLocked ? that.data.freqIdx : (idx >= 0 ? idx : that.data.freqIdx));
+        const idx = FREQ_LIST.indexOf(fNum);
 
         that.setData({
           voltage: v, current: i, frequency: fNum,
-          systemState: state, stateLabel: label,
-          isOn: sw, isFault: false, connected: true,
-          selectedFreq: freqKHz,
-          freqIdx: syncIdx
+          connected: true,
+          selectedFreq: justConnected && idx >= 0 ? fNum : that.data.selectedFreq,
+          freqIdx: justConnected && idx >= 0 ? idx : that.data.freqIdx
         });
       },
       fail() { that.setData({ connected: false }); }
+    });
+  },
+
+  /* ── 控制状态同步: Switch/SetFreq 每60s (对标网页控制页) ── */
+  fetchControlState() {
+    const that = this;
+    wx.request({
+      url: ONENET.BASE_URL + '/thingmodel/query-device-property?product_id=' + ONENET.PRODUCT_ID + '&device_name=' + ONENET.DEVICE_NAME,
+      method: 'GET',
+      header: { 'Authorization': ONENET.TOKEN },
+      success(res) {
+        if (res.statusCode !== 200 || res.data.code !== 0) return;
+        const raw = {};
+        (res.data.data || []).forEach(item => {
+          let v = item.value;
+          if (v === 'true') v = true; else if (v === 'false') v = false;
+          else if (!isNaN(v) && v !== '' && v !== undefined) v = Number(v);
+          raw[item.identifier] = v;
+        });
+
+        const now = Date.now();
+        const lock = that._cmdLock || {};
+
+        /* 乐观锁保护 */
+        const sw = (lock.switch && (now - lock.switch < 5000)) ? that.data.isOn : (raw.Switch === true);
+        const setFreqHz = raw.SetFreq;
+        const setFreqKHz = setFreqHz !== undefined ? Math.floor(setFreqHz / 1000) : null;
+        const freqLocked = lock.freq && (now - lock.freq < 5000);
+
+        let state, label;
+        if (sw === true) { state = 'DONE';  label = '运行中'; }
+        else             { state = 'IDLE';  label = '待机'; }
+
+        const idx = FREQ_LIST.indexOf(setFreqKHz);
+
+        that.setData({
+          isOn: sw, systemState: state, stateLabel: label,
+          selectedFreq: freqLocked ? that.data.selectedFreq : (idx >= 0 ? setFreqKHz : that.data.selectedFreq),
+          freqIdx: freqLocked ? that.data.freqIdx : (idx >= 0 ? idx : that.data.freqIdx)
+        });
+      }
     });
   },
 
@@ -145,19 +173,18 @@ Page({
     }
   },
 
-  /* ── 确认设置 — 使用 FREQ_HZ 精确映射 ── */
+  /* ── 确认设置 — 与网页端 toCloud 一致: kHz × 1000 ── */
   onSetFreq() {
     if (!this.data.isOn) { wx.showToast({ title: '请先启动设备', icon: 'none' }); return; }
     if (!this._cmdLock) this._cmdLock = {};
-    this._cmdLock.freq = Date.now();  /* 乐观锁: 3秒内不回弹 */
+    this._cmdLock.freq = Date.now();
     const kHz = this.data.selectedFreq;
-    const hz  = FREQ_HZ[this.data.freqIdx];
     const that = this;
     wx.request({
       url: ONENET.BASE_URL + '/thingmodel/set-device-property',
       method: 'POST',
       header: { 'Authorization': ONENET.TOKEN, 'Content-Type': 'application/json' },
-      data: { product_id: ONENET.PRODUCT_ID, device_name: ONENET.DEVICE_NAME, params: { SetFreq: hz } },
+      data: { product_id: ONENET.PRODUCT_ID, device_name: ONENET.DEVICE_NAME, params: { SetFreq: kHz * 1000 } },
       success() { wx.showToast({ title: 'Set ' + kHz + 'kHz', icon: 'none', duration: 800 }); },
       fail() { wx.showToast({ title: '发送失败', icon: 'none' }); }
     });
