@@ -95,10 +95,9 @@ Page({
     });
   },
 
-  /* ── 控制指令 — 直连 OneNET API ── */
-  onSwitch() {
-    if (this._debounce(800)) return;
-    const on = !this.data.isOn;
+  /* ── 启停开关 — 与网页端完全一致 ── */
+  onSwitch(e) {
+    const on = e.detail.value;
     const that = this;
     wx.request({
       url: ONENET.BASE_URL + '/thingmodel/set-device-property',

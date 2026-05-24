@@ -239,6 +239,26 @@
   font-weight: 600;
 }
 
+/* ── 启停开关 ── */
+.switch-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: row;
+}
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex-shrink: 0;
+}
+.switch-text {
+  font-size: 26rpx;
+  font-weight: 700;
+}
+.switch-on  { color: var(--green); }
+.switch-off { color: var(--text-tertiary); }
+
 /* ── 频率卡片 (当前/目标统一布局) ── */
 .freq-card {
   display: flex;
@@ -305,48 +325,3 @@
 .btn-confirm:active { background: var(--btn-confirm-active); }
 .btn-disabled { opacity: 0.3; pointer-events: none; }
 
-/* ── 启停按钮 ── */
-.btn-power {
-  margin-top: 12rpx;
-  padding: 36rpx;
-  border-radius: 24rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8rpx;
-  transition: all 0.2s;
-}
-.btn-start {
-  background: linear-gradient(135deg, var(--btn-start-from) 0%, var(--btn-start-to) 100%);
-  border: 1rpx solid var(--btn-start-border);
-  box-shadow: 0 8rpx 40rpx var(--btn-start-shadow);
-}
-.btn-start:active {
-  background: linear-gradient(135deg, var(--btn-start-active-from) 0%, var(--btn-start-active-to) 100%);
-  transform: scale(0.98);
-}
-.btn-stop {
-  background: linear-gradient(135deg, var(--btn-stop-from) 0%, var(--btn-stop-to) 100%);
-  border: 1rpx solid var(--btn-stop-border);
-  box-shadow: 0 8rpx 40rpx var(--btn-stop-shadow);
-}
-.btn-stop:active {
-  background: linear-gradient(135deg, var(--btn-stop-active-from) 0%, var(--btn-stop-active-to) 100%);
-  transform: scale(0.98);
-}
-.btn-fault {
-  background: var(--fault-bg);
-  border: 1rpx solid var(--fault-border);
-  opacity: 0.6;
-}
-.btn-power-text {
-  font-size: 36rpx;
-  font-weight: 800;
-  color: #FFFFFF;
-  letter-spacing: 4rpx;
-}
-.btn-power-sub {
-  font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.5);
-  font-weight: 500;
-}

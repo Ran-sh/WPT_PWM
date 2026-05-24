@@ -67,9 +67,12 @@
     </view>
   </view>
 
-  <!-- 启停按钮 -->
-  <view class="btn-power {{isFault ? 'btn-fault' : isOn ? 'btn-stop' : 'btn-start'}}" bindtap="onSwitch">
-    <text class="btn-power-text">{{isFault ? 'FAULT 已锁定' : isOn ? 'STOP' : 'START'}}</text>
-    <text class="btn-power-sub" wx:if="{{!isFault}}">{{isOn ? '点击关断逆变器' : '点击触发软启动扫频'}}</text>
+  <!-- 启停开关 — 与网页端一致 -->
+  <view class="card switch-card">
+    <text class="freq-card-label">启停控制</text>
+    <view class="switch-row">
+      <text class="switch-text {{isOn ? 'switch-on' : 'switch-off'}}">{{isOn ? '运行中' : '已停止'}}</text>
+      <switch checked="{{isOn}}" bindchange="onSwitch" color="#22C55E"/>
+    </view>
   </view>
 </view>
