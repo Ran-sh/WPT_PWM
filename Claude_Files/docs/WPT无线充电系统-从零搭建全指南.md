@@ -17,9 +17,9 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V5.0 |
-| **最后更新** | 2026-05-24 |
-| **对应固件版本** | V5.0 |
+| **文档版本** | V5.1 |
+| **最后更新** | 2026-05-25 |
+| **对应固件版本** | V5.1 |
 | **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) (分支 `ONENET`) |
 | **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages 部署源) |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接) |
@@ -30,6 +30,7 @@
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
 | V5.0 | 2026-05-24 | 全篇重构：新增调试避坑模块、配图标注、双主题小程序、频率渐变斜坡、网页端Cloudflare部署、1.6万字扩写 |
+| V5.1 | 2026-05-25 | STM32: 7界面状态机(INIT→CONNECTING→READY→SWEEPING→RUNNING→FAULT), 上电自动连WiFi+3次重试, OneNET遥测门控(仅>=READY发送), 新LED逻辑。ESP8266: SetFreq防覆盖, Switch命令后跳变次遥测, DEBUG关。小程序: fetchAll合并轮询2s, 在线检测(10s超时), Swiper首次同步后锁定。网页: 修复SetFreq下发崩溃 |
 
 ---
 
@@ -409,11 +410,18 @@ SSD1315 128×64, 软件模拟 I2C (PA11=SCL, PA12=SDA, 开漏+4.7k上拉), 8×16
 
 #### 4.3.8 App_Net — 网络层
 
-`App_Net_Init()`: ESP8266 硬件复位 (~3s 阻塞) → 设 `s_network_online=0` → LED 变慢闪 (等待 WiFi 连接)。
+> **V5.1 重大重构**: 上电自动连 WiFi、3 次重试、UI 状态门控遥测
 
-`App_Net_Task()`: 每 500ms 发 JSON 遥测 + 实时轮询串口指令。
+**启动流程** (`App_Net_StartConnect()`): `main.c` 直接调用 → 阻塞 ~3s (CH_PD 硬件复位) → 设 `s_connecting=1` → LED 慢闪。不再需要手动按 KEY0 触发联网。
 
-`App_Net_IsConnected()`: `ESP8266_IsReady() && s_network_online`。注意这里**两个条件缺一不可**: 硬件就绪 ≠ 网络连通。
+**重试机制** (`App_Net_CheckRetry()`): 每 15s 超时 → `ESP8266_Init()` 硬件复位重试, 最多 3 次。3 次耗尽 → 切换到界面1(初始)显示错误。用户可按 KEY0 再次启动。
+
+**遥测门控** (`App_Net_Task()`): **仅在 UI 状态 >= 界面3(READY) 时发送遥测**。界面1(初始)和界面2(连接中)不发数据, OneNET 设备保持离线。这样小程序/网页端看到的"设备在线" = 用户已可操作。
+
+**状态查询**:
+- `App_Net_GetConnectStatus()`: 0=空闲, 1=连接中, 2=已连接, 3=失败
+- `App_Net_SoftReset()`: CMD:CLEAR 后调用, 不触发硬件复位 (ESP8266 已重启)
+- `App_Net_IsConnected()`: `ESP8266_IsReady() && s_network_online`
 
 **JSON 遥测格式**:
 ```json
@@ -429,6 +437,37 @@ CMD:SETFREQ:100000\n → 频率渐变到 100kHz (仅 DONE 状态)
 CMD:CLEAR\n          → STM32→ESP8266: 清除WiFi配网凭据 (KEY0长按触发)
 STATUS:ONLINE\n      → ESP8266→STM32: "我已联网" (STM32收到后切LED常亮)
 ```
+
+#### 4.3.9 UI — 7 界面状态机 (V5.1)
+
+V5.1 重构为 7 界面状态机, 替代旧的三状态 (DISCONN/NoWiFi/Online):
+
+```
+上电 → main.c 调用 App_Net_StartConnect() → 界面2(连接中)
+         ├─ 收到 STATUS:ONLINE → 界面3(已连接) → KEY0 Start
+         └─ 15s×3超时 → 界面1(初始) + 底部错误 "WiFi Failed x3"
+                        └─ 按 KEY0 → 重新 StartConnect
+```
+
+| 界面 | 状态 | OLED 显示 | 按键操作 |
+|:---|:---|:---|:---|
+| 1 | INIT | "Press KEY0 WiFi" | KEY0=联网, KEY0长按=清除配网 |
+| 2 | CONNECTING | "Retry: X/3" | 无 (等待中) |
+| 3 | READY | "Press KEY0 Start" | KEY0=触发扫频 |
+| 4 | SWEEPING | 实时频率+进度条 | KEY0/KEY1=停止扫频 |
+| 5 | RUNNING | V/I/F + "K0:Stop K1:+1k" | KEY0=停止, KEY1=+1kHz |
+| — | FAULT | "!!! Over Current !!!" | KEY0/KEY1=复位 |
+| 6/7 | 双击切换 | 控制面板/监测模式 | 在界面3/4/5均可双击 |
+
+**LED 逻辑 (V5.1)**:
+| LED | 等待/失败 | 连接中 | 已连接/待机 | 扫频 | 运行中 | 故障 |
+|:---|:---|:---|:---|:---|:---|:---|
+| PB3 WiFi | 慢闪 | **快闪** | 常亮 | 常亮 | 常亮 | 常亮/慢闪 |
+| PB4 (Start) | 灭 | 灭 | **亮** | 灭 | 灭 | 灭 |
+| PB5 (KEY1) | 灭 | 灭 | 灭 | 灭 | **亮** | **亮** |
+
+- PB4 = Start 按钮可操作 (仅 READY 界面)
+- PB5 = KEY1 可 +1kHz 或复位 (RUNNING/FAULT)
 
 ---
 
@@ -489,6 +528,30 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 ```
 
 `S=1` 或 `S=2` → `Switch=true` (运行中)。`S=0` 或 `S=3` → `Switch=false` (停止)。
+
+> #### V5.1 关键修复: 遥测覆盖命令问题
+>
+> 旧版固件有两个严重的 bug:
+>
+> **SetFreq 覆盖**: 每次遥测把 `SetFreq = 当前F`, 导致云端下发 108kHz 后下一秒就被覆盖成 100kHz:
+> ```cpp
+> // ❌ 旧代码
+> txDoc["params"]["SetFreq"]["value"] = f;   // 用当前F覆盖了指令值!
+> // ✅ 新代码
+> txDoc["params"]["SetFreq"]["value"] = s_lastSetFreq;  // 只上报最后收到的指令值
+> ```
+>
+> **Switch 覆盖**: 收到云端 Switch=false 命令, ESP8266 同一轮 loop 里发 CMD:OFF 给 STM32 后立即处理旧串口数据 — STM32 还没执行, 旧 S=2 又把 Switch 覆盖成 true:
+> ```cpp
+> // ✅ 新代码: 收到 ON/OFF 命令后跳过下一次遥测的 Switch 字段
+> if (s_skipSwitch) {
+>     s_skipSwitch = 0;  // 跳过, 等 STM32 更新状态再上报
+> } else {
+>     txDoc["params"]["Switch"]["value"] = running;
+> }
+> ```
+>
+> 另外 `#define DEBUG` 已注释 — 旧版开了调试输出, ESP8266 往串口打 `[WiFi]` 等日志, 会和 JSON 帧混在一起污染通信。
 
 **STATUS:ONLINE 机制**: ESP8266 在 WiFi+OneNET MQTT 双通后, 向 STM32 串口发 `STATUS:ONLINE\n`。STM32 收到后才知道网络真的通了——这是解决"硬件初始化完了但WiFi没连"这个坑的关键。
 
@@ -575,7 +638,7 @@ r.writeHead(200);r.end(d)})}).listen(4567,()=>console.log('http://localhost:4567
 
 ## 7. 微信小程序
 
-### 7.1 当前架构 (V5.0)
+### 7.1 当前架构 (V5.1)
 
 V5.0 起小程序**直连 OneNET HTTP API**，与网页端完全相同的后端逻辑：
 
@@ -587,23 +650,30 @@ V5.0 起小程序**直连 OneNET HTTP API**，与网页端完全相同的后端�
 - `GET /thingmodel/query-device-property` 读取数据
 - `POST /thingmodel/set-device-property` 下发指令 (Switch / SetFreq)
 - 同一套 Token 鉴权
-- 同一套 fromCloud/toCloud 转换逻辑
 
 ### 7.2 数据流与轮询
 
-| 数据类型 | 刷新间隔 | 对标网页端 |
+| 数据类型 | 刷新间隔 | 说明 |
 |:---|:---|:---|
-| V/I/F 遥测 | 5 秒 | 网页首页 |
-| Switch/SetFreq 控制状态 | 60 秒 + 手动刷新按钮 | 网页控制页 |
-| 乐观锁 | 5 秒 | 防止云端旧值回弹 |
+| 全部数据 (V/I/F/Switch/SetFreq) | **2 秒** (单次请求) | V5.1合并为 fetchAll |
+| 在线检测 | 10 秒超时 | 数据时间戳 > 10s → 离线 |
+| Switch 命令验证 | 3 秒后验证 + 重发 | 防 MQTT 丢包 |
+| Swiper 同步 | 仅首次连接 | 之后永不被云端覆盖 |
+
+> #### V5.1 关键变更
+>
+> - **合并轮询**: 旧版 `fetchData`(5s) + `fetchControlState`(60s) 两次独立请求 → 新版 `fetchAll` 单次请求 2s 间隔, 减少 50% 的 API 调用同时刷新更快
+> - **在线检测**: 之前只判断 HTTP 请求成功与否 → V5.1 检查数据时间戳, 超过 10s 无新数据判定设备离线. 配合 STM32 固件 V5.1 的遥测门控 (UI>=READY 才发), 实现"设备在线=可操作"的准确判断
+> - **Switch 命令验证重发**: `onSwitch` 发送命令后 3 秒验证 OneNET Switch 是否真的变化, 若未生效自动重发一次. 解决 ESP8266 MQTT 断连导致命令丢失的偶发问题
+> - **Swiper 永不自动跳**: Swiper 只在首次拿到在线数据时同步一次实际频率, 之后锁死仅受用户手指控制 (轮询/乐观锁过期/网络抖动都不会改变 swiper 位置)
 
 ### 7.3 功能特性
 
 - **双主题**: 深色/浅色 (CSS 变量, localStorage 持久化)
-- **启停开关**: `switch` 组件 toggle，与网页控制页完全一致
-- **频率设置**: swiper 滑动选频 (只显示可达值) + 确认按钮，发送 `kHz × 1000` Hz
-- **实时数据卡**: 电压/电流/频率，对标网页首页
-- **手动刷新**: 标题栏 ⟳ 按钮，旋转动画，一键拉取最新状态
+- **启停开关**: `switch` 组件 toggle, 带 3s 后验证重发
+- **频率设置**: swiper 滑动选频 (PWM 量化可达值) + 确认按钮, 发送 `kHz × 1000` Hz
+- **实时数据卡**: 电压/电流/频率, 2s 刷新
+- **手动刷新**: 标题栏 ⟳ 按钮，旋转动画，立即拉取最新状态
 
 ### 7.4 方案演进 (历史参考)
 
@@ -685,6 +755,9 @@ curl "https://iot-api.heclouds.com/thingmodel/query-device-property?product_id=�
 | 长按 KEY0 没反应 | STM32 固件版本 | 旧版 KEY FSM 没长按检测 |
 | 网页端 404 | Cloudflare 分支 | 推送到了 gh-pages 但 master 没同步 |
 | 控制页开关状态不对 | ESP8266 是否上报了 S 字段 | 需烧录最新 ESP8266 + STM32 固件 |
+| 网页/小程序设频率无效 | config.js toCloud 崩溃 | V5.1: FREQ_HZ/FREQ_LIST 未定义, 已修复 |
+| 小程序 Swiper 自动跳 | 云端 SetFreq 覆盖 | V5.1: swiper 锁定仅首连同步, 之后不受云影响 |
+| 设 Stop 硬件没反应 | ESP8266 MQTT 丢命令 | V5.1: Switch 带 3s 验证重发 |
 
 ---
 
