@@ -17,7 +17,7 @@
  ******************************************************************************
  */
 
-#define DEBUG  /* Uncomment to enable debug serial output */
+// #define DEBUG  /* Uncomment to enable debug serial output */
 
 #define SERIAL_LINE_MAX       128
 #define RECONNECT_INTERVAL_MS 5000
@@ -67,6 +67,8 @@ PubSubClient  publicMqttClient(publicEspClient);
 static char     serialBuf[128];          /* 串口行缓冲 */
 static uint8_t  serialLen = 0;           /* 缓冲有效字节数 */
 static unsigned long   lastReconnectAttempt = 0;  /* 重连间隔控制 */
+static uint32_t s_lastSetFreq = 100000;  /* 上次指令目标频率，遥测不覆盖 */
+static uint8_t  s_skipSwitch  = 0;      /* 收到ON/OFF后跳过1次Switch遥测, 防覆盖 */
 
 /* ═══════════════════════════════════════════════════════════════
  *                    MQTT 回调
@@ -120,6 +122,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
             if (val >= 95000 && val <= 150000)
             {
                 freqVal = (uint32_t)((val / 1000) * 1000);
+                s_lastSetFreq = freqVal;  /* 记录目标频率 */
                 cmd = 3;
             }
         }
@@ -139,8 +142,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
     /* 转发指令给 STM32 */
     switch (cmd) {
-        case  1: Serial.print("CMD:ON\n");            break;
-        case -1: Serial.print("CMD:OFF\n");           break;
+        case  1: Serial.print("CMD:ON\n");  s_skipSwitch = 1; break;
+        case -1: Serial.print("CMD:OFF\n"); s_skipSwitch = 1; break;
         case  3: {
             char buf[32];
             snprintf(buf, sizeof(buf), "CMD:SETFREQ:%lu\n", freqVal);
@@ -286,8 +289,13 @@ static void processSerialLine(const char* line)
     txDoc["params"]["V"]["value"] = v;
     txDoc["params"]["I"]["value"] = i;
     txDoc["params"]["F"]["value"] = f;
-    txDoc["params"]["Switch"]["value"] = running;
-    txDoc["params"]["SetFreq"]["value"] = f;  /* 同步上报当前频率 */
+    /* Switch: 收到云端命令后跳过1次遥测, 等STM32更新状态再上报 */
+    if (s_skipSwitch) {
+        s_skipSwitch = 0;
+    } else {
+        txDoc["params"]["Switch"]["value"] = running;
+    }
+    txDoc["params"]["SetFreq"]["value"] = s_lastSetFreq;  /* 仅上报指令值，不覆盖 */
 
     char txBuf[256];
     serializeJson(txDoc, txBuf, sizeof(txBuf));

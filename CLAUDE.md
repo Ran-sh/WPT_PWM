@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `ONENET` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_ONENET_V3.0` |
 | **协议** | OneNET MQTT 物模型 (Dual-MCU 架构) |
-| **版本** | V5.0 |
+| **版本** | V5.1 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云 TCP) → `WPT_PWM_Bemfa_WAN_V2.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
 
@@ -196,26 +196,32 @@ All `static uint32_t last` variables in task functions are per-function private 
 | ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
 | KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce |
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite |
-| UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers HW init then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
-| LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi (LED_SOLID/slow blink) + PB4 PWM (blink) + PB5 Ready (on/off); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | **V5.0 Dual-MCU**: `App_Net_Init()` → ESP8266_Init (~3s); `App_Net_Task()` → JSON telemetry every 500ms (SS_DONE=real V/I, SS_IDLE/FAULT=V=0, includes S state field); `strstr` parse CMD:ON/OFF/SETFREQ:<Hz>/STATUS:ONLINE; `Inverter_FreqRamp_Trigger` frequency ramp; `App_Net_IsConnected()` = `ESP8266_IsReady() && s_network_online` |
+| UI | `Hardware/UI.c` | **V5.1 7-state machine**: INIT→CONNECTING→READY→SWEEPING→RUNNING→FAULT, double-click sub-pages (6/7); auto-connect on power-up via `App_Net_StartConnect()`; 3-retry logic with 15s timeout; key dispatch per state; LED logic: PB3=connect status (slow/fast/solid), PB4=Start available (READY), PB5=KEY1 usable (RUNNING/FAULT) |
+| LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi + PB4 PWM + PB5 Ready; `LED_Init`/`LED_Task`; LED state set by `UI_UpdateLEDs()` every 200ms |
+| App_Net | `User/App_Net.c` | **V5.1**: `App_Net_StartConnect()` → ESP8266_Init (~3s) + retry counter; `App_Net_CheckRetry()` 15s×3 HW resets; `App_Net_Task()` → telemetry gated by `UI_GetState() >= READY` (device offline when not operational); `App_Net_GetConnectStatus()` 0=idle/1=connecting/2=connected/3=failed; `App_Net_SoftReset()` after CMD:CLEAR |
 
-## Startup Flow (V4.2)
+## Startup Flow (V5.1)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA → KEY
      → SysTimer_Init
-     → OLED "Wireless Charge"
+     → OLED "Wireless Charge / Booting ESP..."
+     → App_Net_StartConnect(阻塞~3s)   ← 自动启动联网!
      → 主循环 while(1):
          KEY_Task  |  ADC_Filter_Task  |  UI_Task  |  App_Net_Task
-         |  Inverter_SoftStart_Task  |  LED_Task
+         |  Inverter_SoftStart_Task  |  Inverter_FreqRamp_Task  |  LED_Task
 
-硬件初始化: KEY0 单击 → App_Net_Init(阻塞~3s, CH_PD复位) → ESP8266_IsReady()=1
-            OLED 显示 "HW Init..." → "WiFi: READY"
-扫频: KEY0 单击(SS_IDLE) → Trigger(150kHz) → Task 10ms/步 → 100kHz DONE (~2.5s)
-关断: KEY1(SS_SWEEP) / KEY0(SS_DONE) / 云端 "CMD:OFF" → Stop → SS_IDLE
-调频: KEY1(SS_DONE) → freq +1kHz (循环 100k~150k)
-每次 ON 都是全新扫频 150k→100k
+界面流转: 界面2(连接中) → STATUS:ONLINE → 界面3(READY)
+         ├─ 15s×3超时 → 界面1(初始) + "WiFi Failed x3"
+         └─ KEY0 单击(界面1) → App_Net_StartConnect() 重试
+
+扫频: KEY0 单击(界面3/SS_IDLE) → Trigger(150kHz) → 界面4(SWEEPING)
+      → Task 10ms/步 → 100kHz DONE → 界面5(RUNNING) (~2.5s)
+关断: KEY0/KEY1(SS_SWEEP) / KEY0(SS_DONE) / 云端 "CMD:OFF" → Stop → 界面3(READY)
+调频: KEY1(界面5) → freq +1kHz (循环 100k~150k)
+     云端 CMD:SETFREQ:<Hz> → Inverter_FreqRamp_Trigger → 斜坡渐变
+
+OneNET 遥测门控: 仅在界面3+(READY以上)发送, 界面1/2设备离线
 ```
 
 ## Pin Mapping (STM32F103C8 LQFP-48)
@@ -364,18 +370,18 @@ ESP8266 runs independent Arduino firmware — WiFi and MQTT reconnection are han
 
 **File**: `安卓app/pages/index/index.js`
 
-**Architecture**: 微信小程序 ──HTTPS── 桥接服务器 ──MQTT── EMQX ── ESP8266 ── STM32
+**Architecture**: 微信小程序 ──HTTPS── OneNET API (iot-api.heclouds.com) ──MQTT── ESP8266 ── STM32
 
-V5.0: Mini Program now calls OneNET HTTP API directly — same backend as web dashboard. No more Railway bridge / EMQX dependency. Data polling 5s, control state sync 60s, switch toggle, frequency swiper + confirm.
+V5.1: Merged `fetchData`+`fetchControlState` → `fetchAll` single API call at 2s interval. Online detection via data timestamp (10s stale → offline). Switch command with 3s verify+retry. Swiper syncs only on first connection then locked to user control.
 
 **Key design decisions**:
-- OneNET HTTP API direct (same as web dashboard), no Railway/EMQX bridge needed
-- Data polling 5s, control state sync 60s + manual refresh button
-- Frequency swiper with achievable values (PWM-quantized) + confirm button
-- Switch toggle component (same as web control page)
+- Single API call 2s polling (was two calls at 5s+60s)
+- Online detection: `Date.now() - dataTime < 10000` — matches STM32 telemetry gate (UI>=READY)
+- Switch: toggle + 3s verify + auto-resend if not applied
+- Frequency swiper: PWM-quantized values, sync once on first connect, never auto-override
 - Dual-theme system (dark/light) with CSS variables + localStorage persistence
-- Optimistic lock 5s to prevent cloud-stale rollback after command
-- Frequency send: `kHz * 1000` (same as web `toCloud`)
+- `_sendCmd` helper with explicit `JSON.stringify`
+- Frequency send: `kHz * 1000`
 
 ## Documentation Output
 
