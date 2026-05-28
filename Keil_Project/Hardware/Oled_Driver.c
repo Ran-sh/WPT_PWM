@@ -208,21 +208,21 @@ void Oled_Driver_Show_Float(uint8_t line, uint8_t column, double num,
 {
     uint32_t int_part, fract_part;
     uint32_t pow10 = Oled_Int_Pow(10, fract_len);
+    uint8_t  offset = 0;
 
     if (num < 0) {
         Oled_Driver_Show_Char(line, column, '-');
         num = -num;
-    } else {
-        Oled_Driver_Show_Char(line, column, ' ');
+        offset = 1;
     }
 
-    num += 0.5 / (double)pow10;               /* 四舍五入 */
+    num += 0.5 / (double)pow10;
     int_part   = (uint32_t)num;
     fract_part = (uint32_t)((num - int_part) * (double)pow10);
 
-    Oled_Driver_Show_Num(line, column + 1, int_part, int_len);
-    Oled_Driver_Show_Char(line, column + 1 + int_len, '.');
-    Oled_Driver_Show_Num(line, column + 1 + int_len + 1, fract_part, fract_len);
+    Oled_Driver_Show_Num(line, column + offset, int_part, int_len);
+    Oled_Driver_Show_Char(line, column + offset + int_len, '.');
+    Oled_Driver_Show_Num(line, column + offset + int_len + 1, fract_part, fract_len);
 }
 
 void Oled_Driver_Show_Hex(uint8_t line, uint8_t column, uint32_t num, uint8_t len)

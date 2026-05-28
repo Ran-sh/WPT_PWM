@@ -176,7 +176,7 @@ static void Draw_Running(void)
         Oled_Driver_Show_Num(2, 3, f / 1000, 3);
         Oled_Driver_Show_String(2, 6, "kHz  ");
         Oled_Driver_Show_String(3, 1, "V:");
-        Oled_Driver_Show_Float(3, 3, s_disp_v, 2, 1);
+        Oled_Driver_Show_Float(3, 2, s_disp_v, 2, 2);
         Oled_Driver_Show_String(3, 9, "I:");
         Oled_Driver_Show_Float(3, 11, s_disp_i, 1, 2);
         Oled_Driver_Show_String(4, 1, STR_K0_STOP_K1_ADD);
