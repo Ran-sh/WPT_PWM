@@ -157,6 +157,18 @@ static void Draw_Sweeping(void)
 static void Draw_Running(void)
 {
     uint32_t f = Pwm_Driver_Get_Frequency();
+    static float s_disp_v = 0.0f;   /* 显示用 EMA 平滑 (α=0.25, τ≈800ms) */
+    static float s_disp_i = 0.0f;
+    static uint8_t s_disp_init = 0;
+
+    if (!s_disp_init) {
+        s_disp_v = Adc_Driver_Get_Voltage();
+        s_disp_i = Adc_Driver_Get_Current();
+        s_disp_init = 1;
+    } else {
+        s_disp_v = s_disp_v * 0.75f + Adc_Driver_Get_Voltage() * 0.25f;
+        s_disp_i = s_disp_i * 0.75f + Adc_Driver_Get_Current() * 0.25f;
+    }
 
     if (s_page == 0) {
         Oled_Driver_Show_String(1, 1, STR_RESONANT_MODE);
@@ -164,9 +176,9 @@ static void Draw_Running(void)
         Oled_Driver_Show_Num(2, 3, f / 1000, 3);
         Oled_Driver_Show_String(2, 6, "kHz  ");
         Oled_Driver_Show_String(3, 1, "V:");
-        Oled_Driver_Show_Float(3, 3, Adc_Driver_Get_Voltage(), 2, 1);
+        Oled_Driver_Show_Float(3, 3, s_disp_v, 2, 1);
         Oled_Driver_Show_String(3, 9, "I:");
-        Oled_Driver_Show_Float(3, 11, Adc_Driver_Get_Current(), 1, 2);
+        Oled_Driver_Show_Float(3, 11, s_disp_i, 1, 2);
         Oled_Driver_Show_String(4, 1, STR_K0_STOP_K1_ADD);
     } else {
         Oled_Driver_Show_String(1, 1, STR_MONITOR_ONLY);
@@ -174,9 +186,9 @@ static void Draw_Running(void)
         Oled_Driver_Show_Num(2, 7, f / 1000, 3);
         Oled_Driver_Show_String(2, 10, "kHz");
         Oled_Driver_Show_String(3, 1, "Volt: ");
-        Oled_Driver_Show_Float(3, 7, Adc_Driver_Get_Voltage(), 2, 2);
+        Oled_Driver_Show_Float(3, 7, s_disp_v, 2, 2);
         Oled_Driver_Show_String(4, 1, "Curr: ");
-        Oled_Driver_Show_Float(4, 7, Adc_Driver_Get_Current(), 2, 2);
+        Oled_Driver_Show_Float(4, 7, s_disp_i, 2, 2);
     }
 }
 

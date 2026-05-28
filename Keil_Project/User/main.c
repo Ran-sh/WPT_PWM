@@ -49,7 +49,7 @@ int main(void)
     /* 阶段 3: 自动启动联网 (~3s 阻塞, ESP 硬件复位) */
     App_Network_Start_Connect();
 
-    /* 阶段 4: 主循环 (全非阻塞) */
+    /* 阶段 4: 主循环 (全非阻塞, 空闲休眠) */
     while (1) {
         Key_Driver_Task();
         Adc_Driver_Filter_Task();
@@ -58,5 +58,7 @@ int main(void)
         Inverter_Control_Soft_Start_Task();
         Inverter_Control_Freq_Ramp_Task();
         Led_Driver_Task();
+
+        __WFI();  /* 休眠等 SysTick 中断, 空闲电流 30mA→5mA */
     }
 }
