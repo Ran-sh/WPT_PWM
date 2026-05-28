@@ -177,8 +177,3 @@ uint16_t Esp8266_Driver_Copy_Rx_Frame(char* dst, uint16_t max_len)
     __enable_irq();
     return len;
 }
-
-uint8_t Esp8266_Driver_Is_Ready(void)
-{
-    return s_ready;
-}

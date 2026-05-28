@@ -104,7 +104,7 @@ Keil_Project/
 │   ├── Inverter_Control  ← 软启动状态机 + 频率斜坡 (应用层, 依赖 Pwm_Driver)
 │   ├── Adc_Driver        ← ADC1+DMA1 双通道 + 64样本滤波 + 自动零点校准
 │   ├── Key_Driver        ← 双按键 FSM (PB12/PB13), 10ms去抖, 单击/双击/长按
-│   ├── Esp8266_Driver    ← USART2 115200 异步收发, CH_PD 硬件复位
+│   ├── Esp8266_Driver    ← USART2 115200 异步收发, CH_PD 非阻塞初始化状态机
 │   └── Ui_Controller     ← 7界面状态机 + OLED绘制 + 按键分发 + LED联动
 ├── System/
 │   └── Sys_Timer         ← SysTick 1ms + DWT 周期计数器 (亚毫秒定时)
@@ -128,7 +128,7 @@ void Some_Task(void) {
     }
 }
 ```
-`Sys_Timer_Delay_Ms()` is blocking — use only during initialization (ESP8266 CH_PD reset). Runtime tasks MUST use the timestamp pattern. `System/Delay.c` is deprecated.
+`Sys_Timer_Delay_Ms()` is deprecated — use non-blocking state machines even for initialization sequences (see `Esp8266_Driver_Init_Task` for the CH_PD reset pattern). `System/Delay.c` is deleted, do not revive.
 
 ### ADC Anti-Aliasing
 采样周期 144241 CPU cycles 与 100kHz PWM (720 cycles) 互质 → 720 个不同相位均匀覆盖。64 样本滑动窗口 (128ms) 收敛至 DC 分量。自动零点校准: READY 状态首次采集 50 样本取平均, 后续 EMA 追踪。
