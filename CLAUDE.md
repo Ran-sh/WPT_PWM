@@ -39,11 +39,61 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 静态函数: 建议加模块前缀, 如 `Ui_Controller_Draw_Running()`
 - 头文件保护: `MODULE_NAME_H` (无前导下划线, 避免 C 保留标识符)
 
-### 枚举设计原则
+### 编码规范 (Code Design Rules)
 
-- 禁止用隐式 bool/int 标志组合表达状态 — 必须用显式枚举
-- 状态机必须有命名的枚举类型 + 单一状态变量
-- 枚举值必须带模块名前缀, 防止命名空间污染
+**状态机**
+- 禁止用隐式 bool/int 标志组合表达状态 — 必须用显式 `typedef enum`
+- 每个状态机有命名的枚举类型 + 单一状态变量, 不准用 `s_flag1`+`s_flag2` 拼凑
+- 状态转换集中在一个 Task 函数内, 用 `switch` 分发
+- 示例: `App_Network_Conn_State` 替代 `s_network_online`+`s_connecting` 双 bool
+
+**调度**
+- 所有周期任务用 `Sys_Timer_Get_Tick() - last >= PERIOD` 时间戳差值模式
+- `Sys_Timer_Delay_Ms()` 仅限初始化阶段, 运行时绝对禁止阻塞延时
+- 初始化序列也优先用非阻塞状态机 (参考 `Esp8266_Driver_Init_Task` 的 CH_PD 时序)
+- 主循环末尾 `__WFI()` 休眠, SysTick 唤醒, 不空转
+
+**模块架构**
+- 每个模块 `.h` 只放公开接口, `.c` 放全部实现 + 静态变量
+- `.c` 内部函数一律 `static`, 不准跨模块 `extern` 访问私有变量
+- 不允许 `#include ".c"` 文件
+- 模块内部辅助函数建议加模块前缀避免与 SPL 库函数冲突 (如 `Oled_I2C_Init` 而非 `I2C_Init`)
+- 头文件保护: `MODULE_NAME_H`, 禁止双下划线前缀 (`__NAME_H` 是 C 保留字)
+
+**OOP 在 C 中的实践**
+- 相关变量封装到 struct 中, 避免多个分散的 static 变量
+- 状态机用 struct 打包 (状态 + 定时器 + 上下文)
+- 一个 `.c` 只管理自己定义的结构体, 外部通过函数接口访问
+
+**分层依赖**
+- Hardware → System → Application, 严格单向
+- 应用层不直接操作寄存器, 不绕过硬件抽象层
+- `Ui_Controller` 可通过 `Inverter_Control` 间接访问 PWM, 但不直接调 `Pwm_Driver`
+
+**临界区**
+- 统一 PRIMASK 保存/恢复模式, 禁止裸 `__disable_irq()`:
+  ```c
+  uint32_t primask = __get_PRIMASK();
+  __disable_irq();
+  /* critical section */
+  __set_PRIMASK(primask);
+  ```
+
+**注释**
+- 公开函数: `@brief` 一行说明功能, `@param`/`@retval` 标注参数和返回值
+- 模块 `.h` 顶部: `@brief` 一句话 + `@note` 关键设计约束
+- 不写 HOW (代码本身说明), 只写 WHY (为什么这样做, 踩过什么坑)
+
+**安全**
+- 故障处理器进入死循环前必须关断 PWM (`TIM_CtrlPWMOutputs(TIM1, DISABLE)`)
+- IWDG 看门狗在 main() 初始化, 主循环喂狗
+- 编译期可验证的约束用 `typedef char assertion[(condition)?1:-1]` 检查
+
+**可维护性**
+- 魔法数字命名常量, 不准裸值散落代码中
+- 显示字符串集中为 `#define STR_*` 宏, 方便多语言替换
+- 频率/电压/电流限制单一定义, 全项目引用同一处
+- 不保留废弃代码和旧文件, 删干净避免维护陷阱
 - 示例: `App_Network_Conn_State { APP_NETWORK_CONN_IDLE, APP_NETWORK_CONN_WIFI, ... }`
 
 ## Architecture: Dual-MCU
