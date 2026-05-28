@@ -94,7 +94,7 @@ void Inverter_Control_Freq_Ramp_Trigger(uint32_t target_hz)
 
     s_ramp_target  = target_hz;
     s_ramp_state   = INVERTER_CONTROL_RAMP_ACTIVE;
-    s_ramp_last_ms = 0;
+    s_ramp_last_ms = Sys_Timer_Get_Tick();
 }
 
 void Inverter_Control_Freq_Ramp_Task(void)

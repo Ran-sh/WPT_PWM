@@ -78,11 +78,9 @@ static void Hardware_Configure(void)
 /* ── 公开: 启动非阻塞初始化 ── */
 void Esp8266_Driver_Start_Init(void)
 {
-    if (s_init_state != ESP8266_DRIVER_INIT_STATE_IDLE) return;
-
+    /* 允许重入: 已有帧缓冲保持, 仅重新走 CH_PD 硬件复位时序 */
     Hardware_Configure();
 
-    /* 开始 CH_PD 时序: 拉低 */
     GPIO_ResetBits(CH_PD_PORT, CH_PD_PIN);
     s_init_timer = Sys_Timer_Get_Tick();
     s_init_state = ESP8266_DRIVER_INIT_STATE_RESET_LOW;
@@ -131,15 +129,15 @@ void Esp8266_Driver_Send_String(const char* str)
 
 void Esp8266_Driver_Rx_Char(uint8_t ch)
 {
-    /* 双分隔符兼容: \r 和 \n 都视为帧尾 */
     if (ch == '\r' || ch == '\n') {
-        if (s_rx_index > 0) {
+        if (s_rx_index > 0 && !s_rx_frame_flag) {
             s_rx_buf[s_rx_index] = '\0';
             s_rx_frame_flag = 1;
         }
-    } else if (s_rx_index < RX_BUF_SIZE - 1) {
+    } else if (!s_rx_frame_flag && s_rx_index < RX_BUF_SIZE - 1) {
         s_rx_buf[s_rx_index++] = ch;
     }
+    /* 已有未消费帧时丢弃后续字节, 防止越界写入 NUL 之后 */
 }
 
 uint8_t Esp8266_Driver_Get_Rx_Flag(void)

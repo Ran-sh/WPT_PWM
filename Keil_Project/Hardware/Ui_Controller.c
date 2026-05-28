@@ -63,9 +63,9 @@ static void Update_Leds(Ui_Controller_State ui_state)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
 
-    if (cs == 2)
+    if (cs == APP_NETWORK_CONN_ONLINE)
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
-    else if (cs == 1)
+    else if (cs == APP_NETWORK_CONN_WIFI)
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
     else
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
@@ -275,21 +275,21 @@ static Ui_Controller_State Calc_Ui_State(void)
 {
     Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
 
-    if (ss == SS_STATE_FAULT)          return UI_CONTROLLER_STATE_FAULT;
-    if (!Esp8266_Driver_Is_Ready())    return UI_CONTROLLER_STATE_INIT;
+    if (ss == INVERTER_CONTROL_SS_STATE_FAULT) return UI_CONTROLLER_STATE_FAULT;
+    if (!Esp8266_Driver_Is_Ready())           return UI_CONTROLLER_STATE_INIT;
 
     uint8_t cs = App_Network_Get_Connect_Status();
 
     switch (cs) {
-        case 0:  return UI_CONTROLLER_STATE_INIT;
-        case 1:  return UI_CONTROLLER_STATE_CONNECTING;
-        case 3:
+        case APP_NETWORK_CONN_IDLE:   return UI_CONTROLLER_STATE_INIT;
+        case APP_NETWORK_CONN_WIFI:   return UI_CONTROLLER_STATE_CONNECTING;
+        case APP_NETWORK_CONN_FAILED:
             if (!s_has_error) Set_Error("WiFi Failed x3  ");
             return UI_CONTROLLER_STATE_INIT;
-        case 2:
-            if (ss == SS_STATE_IDLE)   return UI_CONTROLLER_STATE_READY;
-            if (ss == SS_STATE_SWEEP)  return UI_CONTROLLER_STATE_SWEEPING;
-            return UI_CONTROLLER_STATE_RUNNING;   /* SS_DONE */
+        case APP_NETWORK_CONN_ONLINE:
+            if (ss == INVERTER_CONTROL_SS_STATE_IDLE)  return UI_CONTROLLER_STATE_READY;
+            if (ss == INVERTER_CONTROL_SS_STATE_SWEEP) return UI_CONTROLLER_STATE_SWEEPING;
+            return UI_CONTROLLER_STATE_RUNNING;
         default: return UI_CONTROLLER_STATE_INIT;
     }
 }
@@ -353,7 +353,7 @@ void Ui_Controller_Task(void)
 
     /* READY 状态持续追踪电流零点 */
     if (ui_state == UI_CONTROLLER_STATE_READY &&
-        Inverter_Control_Soft_Start_Get_State() == SS_STATE_IDLE) {
+        Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE) {
         Adc_Driver_Calibrate_Offset();
     }
 
@@ -377,5 +377,5 @@ Ui_Controller_State Ui_Controller_Get_State(void) { return s_ui_state; }
 uint8_t Ui_Controller_Get_Bridge_State(void)
 {
     Inverter_Control_Soft_Start_State s = Inverter_Control_Soft_Start_Get_State();
-    return (s == SS_STATE_SWEEP || s == SS_STATE_DONE);
+    return (s == INVERTER_CONTROL_SS_STATE_SWEEP || s == INVERTER_CONTROL_SS_STATE_DONE);
 }
