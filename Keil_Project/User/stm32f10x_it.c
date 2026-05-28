@@ -15,18 +15,19 @@
   */
 
 #include "stm32f10x_it.h"
-#include "ESP8266.h"
-#include "SysTimer.h"
+#include "Esp8266_Driver.h"
+#include "Sys_Timer.h"
 
 /******************************************************************************/
 /*            Cortex-M3 Processor Exceptions Handlers                         */
 /******************************************************************************/
 
 void NMI_Handler(void)          { }
-void HardFault_Handler(void)    { while (1); }
-void MemManage_Handler(void)    { while (1); }
-void BusFault_Handler(void)     { while (1); }
-void UsageFault_Handler(void)   { while (1); }
+/* 故障处理器: 进入死循环前强制关断 PWM 输出, 防止桥臂直通烧毁 MOSFET */
+void HardFault_Handler(void)    { TIM_CtrlPWMOutputs(TIM1, DISABLE); while (1); }
+void MemManage_Handler(void)    { TIM_CtrlPWMOutputs(TIM1, DISABLE); while (1); }
+void BusFault_Handler(void)     { TIM_CtrlPWMOutputs(TIM1, DISABLE); while (1); }
+void UsageFault_Handler(void)   { TIM_CtrlPWMOutputs(TIM1, DISABLE); while (1); }
 void SVC_Handler(void)          { }
 void DebugMon_Handler(void)     { }
 void PendSV_Handler(void)       { }
@@ -38,7 +39,7 @@ void PendSV_Handler(void)       { }
   */
 void SysTick_Handler(void)
 {
-    SysTimer_IncTick();
+    Sys_Timer_Inc_Tick();
 }
 
 /******************************************************************************/
@@ -62,7 +63,7 @@ void USART2_IRQHandler(void)
     if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
     {
         uint8_t ch = USART_ReceiveData(USART2);
-        ESP8266_RxChar(ch);
+        Esp8266_Driver_Rx_Char(ch);
         USART_ClearITPendingBit(USART2, USART_IT_RXNE);
     }
 }

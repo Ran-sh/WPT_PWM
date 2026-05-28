@@ -98,10 +98,17 @@ static void UI_DrawConnecting(uint8_t retry, uint8_t max_retry)
 /* 界面3: 已连接 — KEY0 Start (底部无频率) */
 static void UI_DrawReady(void)
 {
-    OLED_ShowString(1, 1, "[Control Mode] ");
-    OLED_ShowString(2, 1, "WiFi: CONNECTED ");
-    OLED_ShowString(3, 1, "Press KEY0 Start");
-    OLED_ShowString(4, 1, "F:  --.- kHz    ");
+    if (UI_Page == 0) {
+        OLED_ShowString(1, 1, "[Control Mode] ");
+        OLED_ShowString(2, 1, "WiFi: CONNECTED ");
+        OLED_ShowString(3, 1, "Press KEY0 Start");
+        OLED_ShowString(4, 1, "F:  --.- kHz    ");
+    } else {
+        OLED_ShowString(1, 1, "- Monitor Only -");
+        OLED_ShowString(2, 1, "State: READY    ");
+        OLED_ShowString(3, 1, "Awaiting Start  ");
+        OLED_ShowString(4, 1, "                ");
+    }
 }
 
 /* 界面4: 扫频中 */
@@ -191,13 +198,16 @@ static void UI_DrawFault(void)
 
 static void UI_HandleKeys(UI_State_t ui_state, uint8_t key0, uint8_t key1)
 {
-    /* KEY0 双击: 切换控制面板/监测模式 — 所有界面通用 */
+    /* KEY0 双击: 切换控制面板/监测模式 — 所有界面通用, 监测模式下唯一有效操作 */
     if (key0 == 2) {
         UI_Page = !UI_Page;
         OLED_Clear();
         UI_SetError(NULL);
         return;
     }
+
+    /* 监测模式下仅双击切回有效, 其余按键全部禁用 */
+    if (UI_Page == 1) return;
 
     switch (ui_state) {
         case UI_STATE_INIT:
@@ -357,6 +367,11 @@ void UI_Task(void)
 
     /* ── 更新全局 UI 状态 ── */
     s_ui_state = ui_state;
+
+    /* READY 状态 + PWM 关断时持续追踪电流零点 (EMA 慢速收敛) */
+    if (ui_state == UI_STATE_READY && Inverter_SoftStart_GetState() == SS_IDLE) {
+        ADC_CalibrateCurrentOffset();
+    }
 
     /* ── LED 更新 ── */
     if (need_refresh) UI_UpdateLEDs(ui_state);

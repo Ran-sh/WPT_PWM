@@ -8,8 +8,11 @@ description: >
   soft-start frequency sweep), non-blocking scheduling (SysTimer timestamp-diff pattern,
   SysTick refactoring), and PC-side automated deployment (PowerShell, OneNET MQTT testing).
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
-  Dual-MCU/双脑/JSON透传, SysTimer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
+  Dual-MCU/双脑/JSON透传, Sys_Timer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师, OneNET, MQTT.
+  V6.0 naming convention: Module_Name_Action_Object — all public functions follow PascalCase+underscore.
+  Key modules: Sys_Timer, Oled_Driver, Led_Driver, Pwm_Driver, Inverter_Control, Adc_Driver,
+  Key_Driver, Esp8266_Driver, Ui_Controller, App_Network.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
   scan all .c/.h, diff vs documented state, auto-increment version, regenerate .md+.docx.
   CRITICAL composite trigger for "更新全部内容": execute in order —

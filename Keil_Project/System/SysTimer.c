@@ -13,6 +13,10 @@
  *            uint32_t 最大值 ≈ 49.7 天, 溢出后回绕到 0。
  *            无符号减法自动处理溢出: (now - last) 在任何情况下均正确。
  *
+ *          DWT 周期计数器:
+ *            Cortex-M3 DWT 单元内含 32 位自由运行计数器 (CPU 时钟频率),
+ *            用于亚毫秒级高精度定时。在 SysTimer_Init() 中自动使能。
+ *
  *          依赖: STM32F10x 标准外设库 (SPL)
  ******************************************************************************
  */
@@ -22,14 +26,27 @@
 /* ── 全局时基计数器 (ISR 写入, 主循环读取, 必须 volatile) ── */
 static volatile uint32_t s_SysTick = 0;
 
+/*
+ * DWT 寄存器手动定义 (旧版 CMSIS core_cm3.h 不含 DWT 段)
+ * Cortex-M3 DWT 基址 0xE0001000, CYCCNT 偏移 0x04
+ */
+#define DWT_CTRL    (*(volatile uint32_t *)0xE0001000)
+#define DWT_CYCCNT  (*(volatile uint32_t *)0xE0001004)
+#define DWT_CTRL_CYCCNTENA  (1u << 0)
+
 /**
- * @brief  初始化 SysTick 定时器为 1ms 中断周期
+ * @brief  初始化 SysTick 定时器为 1ms 中断周期 + 使能 DWT 周期计数器
  * @note   调用 SysTick_Config(时钟频率/1000) 将系统滴答配置为 1ms
  *         必须在所有依赖 SysTimer_GetTick() 的模块之前调用。
  */
 void SysTimer_Init(void)
 {
     SysTick_Config(SystemCoreClock / 1000);
+
+    /* 使能 DWT 周期计数器, 用于亚毫秒定时 */
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT_CYCCNT = 0;
+    DWT_CTRL |= DWT_CTRL_CYCCNTENA;
 }
 
 /**
@@ -62,4 +79,15 @@ void SysTimer_DelayMs(uint32_t ms)
 {
     uint32_t start = s_SysTick;
     while ((s_SysTick - start) < ms);
+}
+
+/**
+ * @brief  获取 DWT 周期计数器值 (自由运行, CPU 时钟频率)
+ * @retval 上电以来的 CPU 周期数, 32 位, 约 59.7 秒回绕
+ * @note   用于需要亚毫秒精度的定时场景,
+ *         无符号减法自动处理溢出
+ */
+uint32_t SysTimer_GetCycles(void)
+{
+    return DWT_CYCCNT;
 }

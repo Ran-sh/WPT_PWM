@@ -1,72 +1,62 @@
 /**
  ******************************************************************************
- * @file    User/main.c
- * @brief   无线充电 PWM 系统 —— 主程序入口
- * @note    存放路径: 项目根目录\User\
+ * @file    User/Main.c
+ * @brief   无线充电 PWM 系统 — 程序入口
+ * @note    V6.0: 全面重构 — 面向对象模块化架构
  *
- *          架构 (V3.1):
- *          - 上电: 硬件配置 → 时基 → 等待 KEY0 触发联网
- *          - 全桥默认关断 (MOE OFF), 由 Trigger 开启扫频
- *          - 非阻塞软启动状态机: 150kHz → 100kHz, ~5s
- *          - 触发源: KEY0 (联网 + 扫频) / PC "ON/OFF" 指令
+ *          上电流程: 硬件 Init → 系统时基 → 联网 → 主循环
  *
- *          依赖: STM32F10x 标准外设库 (SPL)
+ *          主循环调度 (全非阻塞):
+ *            Key_Driver_Task       10ms 按键轮询
+ *            Adc_Driver_Filter_Task    ~2ms 模拟量采集
+ *            Ui_Controller_Task    200ms 界面刷新
+ *            App_Network_Task      指令接收 + 遥测发送
+ *            Inverter_Control_*    软启动扫频 + 频率斜坡
+ *            Led_Driver_Task       心跳 + 闪烁
  ******************************************************************************
  */
 
 #include "stm32f10x.h"
-#include "SysTimer.h"
-#include "LED.h"
-#include "OLED.h"
-#include "PWM.h"
-#include "ADC.h"
-#include "KEY.h"
-#include "UI.h"
-#include "App_Net.h"
+#include "Sys_Timer.h"
+#include "Led_Driver.h"
+#include "Oled_Driver.h"
+#include "Pwm_Driver.h"
+#include "Inverter_Control.h"
+#include "Adc_Driver.h"
+#include "Key_Driver.h"
+#include "Esp8266_Driver.h"
+#include "Ui_Controller.h"
+#include "App_Network.h"
 
 int main(void)
 {
-    /*
-     * NVIC 优先级分组: 2 位抢占 (0~3), 2 位子优先级 (0~3)
-     * 须在任何中断使能前配置, 否则优先级嵌套行为不可预期
-     */
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 
-    /* ═══════════════════════════════════════════════════════════
-     *  阶段 1: 板载外设初始化 (硬件层, 全桥无输出)
-     * ═══════════════════════════════════════════════════════════ */
-    PWM_Init();           /* TIM1 配置完成, MOE 关, 安全态 */
-    OLED_Init();
-    LED_Init();
-    ADC_DMA_Init();
-    KEY_Init();
+    /* 阶段 1: 硬件层初始化 (MOE 关断, 全桥无输出) */
+    Pwm_Driver_Init();
+    Oled_Driver_Init();
+    Led_Driver_Init();
+    Adc_Driver_Init();
+    Key_Driver_Init();
 
-    OLED_Clear();
-    OLED_ShowString(1, 1, "Wireless Charge");
-    OLED_ShowString(2, 1, "Booting ESP... ");
+    Oled_Driver_Clear();
+    Oled_Driver_Show_String(1, 1, "Wireless Charge");
+    Oled_Driver_Show_String(2, 1, "Booting ESP... ");
 
-    /* ═══════════════════════════════════════════════════════════
-     *  阶段 2: 系统时基初始化 (SysTick 1ms)
-     * ═══════════════════════════════════════════════════════════ */
-    SysTimer_Init();
+    /* 阶段 2: 系统时基 */
+    Sys_Timer_Init();
 
-    /* ═══════════════════════════════════════════════════════════
-     *  阶段 3: 自动启动联网 (阻塞 ~3s)
-     *  上电直接进入界面2(连接中), 不需要手动按KEY0
-     * ═══════════════════════════════════════════════════════════ */
-    App_Net_StartConnect();
+    /* 阶段 3: 自动启动联网 (~3s 阻塞, ESP 硬件复位) */
+    App_Network_Start_Connect();
 
-    /* ═══════════════════════════════════════════════════════════
-     *  阶段 4: 主循环
-     * ═══════════════════════════════════════════════════════════ */
-    while (1)
-    {
-        KEY_Task();
-        ADC_Filter_Task();          /* 2ms 周期, 独立更新滑动平均 */
-        UI_Task();
-        App_Net_Task();
-        Inverter_SoftStart_Task();  /* 非阻塞扫频步进 (内部 10ms 节拍) */
-        Inverter_FreqRamp_Task();   /* 非阻塞频率渐变 (内部 10ms 节拍) */
-        LED_Task();
+    /* 阶段 4: 主循环 (全非阻塞) */
+    while (1) {
+        Key_Driver_Task();
+        Adc_Driver_Filter_Task();
+        Ui_Controller_Task();
+        App_Network_Task();
+        Inverter_Control_Soft_Start_Task();
+        Inverter_Control_Freq_Ramp_Task();
+        Led_Driver_Task();
     }
 }

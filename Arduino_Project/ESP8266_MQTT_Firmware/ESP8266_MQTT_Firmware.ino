@@ -2,354 +2,407 @@
  ******************************************************************************
  * @file    ESP8266_MQTT_Firmware.ino
  * @brief   ESP8266 Dual-MCU MQTT 固件 (Arduino)
- * @note    V4.0: 双脑架构 — ESP8266 独立负责 WiFi + MQTT 连云 (OneNET)
- *          通信协议 (115200 8N1):
- *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx}\n  → OneNET 物模型上报
- *            OneNET → ESP8266 → STM32:  CMD:ON\n 或 CMD:OFF\n  或  CMD:SETFREQ:100000\n
+ * @note    V5.1: 面向对象架构 — 命名空间前缀 + 显式连接状态机 + 防误触协议解析
  *
- *          依赖: ESP8266WiFi.h + PubSubClient.h + ArduinoJson.h (v7) + WiFiManager.h (tzapu)
- *          烧录: Arduino IDE → 选择 "Generic ESP8266 Module" → 115200 上传
+ *          Dual-MCU 通信协议 (115200 8N1):
+ *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx,"S":x}\n
+ *            ESP8266 → STM32:  CMD:ON\n  /  CMD:OFF\n  /  CMD:SETFREQ:<Hz>\n
+ *                              STATUS:ONLINE\n  (WiFi+MQTT 就绪)
  *
- *          ⚠️ 请在 Arduino IDE 库管理器中安装:
+ *          依赖: ESP8266WiFi + PubSubClient + ArduinoJson v7 + WiFiManager
+ *          烧录: Arduino IDE → Generic ESP8266 Module → 115200
+ *
+ *          ⚠️ Arduino IDE 库管理器安装:
  *             - ArduinoJson (by Benoit Blanchon) — v7
  *             - PubSubClient (by Nick O'Leary)
- *             - WiFiManager (by tzapu) — Web 网页配网
+ *             - WiFiManager (by tzapu) — 网页配网
  ******************************************************************************
  */
 
-// #define DEBUG  /* Uncomment to enable debug serial output */
+/* ═══════════════════════════════════════════════════════════════
+ *  1. 用户配置 — 改参数只改这里
+ * ═══════════════════════════════════════════════════════════════ */
 
+// #define DEBUG  /* 取消注释以启用串口调试输出 */
+
+/* ── 串口通信 ── */
+#define SERIAL_BAUDRATE       115200
 #define SERIAL_LINE_MAX       128
-#define RECONNECT_INTERVAL_MS 5000
+
+/* ── WiFi 配网 ── */
 #define WIFI_AP_NAME          "STM32_WPT_Config"
+#define WIFI_AP_TIMEOUT_S     180
+
+/* ── OneNET MQTT 设备凭证 ── */
+#define MQTT_SERVER           "mqtts.heclouds.com"
+#define MQTT_PORT             1883
+#define ONENET_PRODUCT_ID     "1iS397oJFL"
+#define ONENET_DEVICE_NAME    "20260001"
+#define ONENET_TOKEN          "version=2018-10-31&res=products%2F1iS397oJFL%2Fdevices%2F20260001&et=2063362960&method=md5&sign=phYCE26jNI80tiXEeMxxRA%3D%3D"
+
+/* ── OneNET 物模型主题 ── */
+#define MQTT_TOPIC_PROPERTY_POST      "$sys/1iS397oJFL/20260001/thing/property/post"
+#define MQTT_TOPIC_PROPERTY_SET       "$sys/1iS397oJFL/20260001/thing/property/set"
+#define MQTT_TOPIC_PROPERTY_SET_REPLY "$sys/1iS397oJFL/20260001/thing/property/set_reply"
+
+/* ── 公共 Broker (Web 控制台) ── */
+#define PUBLIC_MQTT_SERVER    "broker.emqx.io"
+#define PUBLIC_MQTT_PORT      1883
+#define PUBLIC_TOPIC_DATA     "wpt/20260001/data"
+#define PUBLIC_TOPIC_CMD      "wpt/20260001/cmd"
+
+/* ── 重连间隔 ── */
+#define RECONNECT_INTERVAL_MS 5000
+
+/* ── 频率限制 ── */
+#define FREQ_MIN_HZ           95000
+#define FREQ_MAX_HZ           150000
+
+
+/* ═══════════════════════════════════════════════════════════════
+ *  2. 库引用
+ * ═══════════════════════════════════════════════════════════════ */
 
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
 
-/* ═══════════════════════════════════════════════════════════════
- *          WiFi 配网: 首次上电或找不到已存网络时,
- *          ESP8266 会开启 "STM32_WPT_Config" 无密码热点,
- *          手机连接后浏览器自动弹出配网页, 选择路由器并输入密码即可.
- *          WiFiManager 会将凭据存入闪存, 后续自动连接.
- * ═══════════════════════════════════════════════════════════════ */
-
-/* OneNET MQTT 服务器 */
-#define MQTT_SERVER     "mqtts.heclouds.com"
-#define MQTT_PORT       1883
-
-/* OneNET 设备凭证 */
-#define ONENET_PRODUCT_ID   "1iS397oJFL"
-#define ONENET_DEVICE_NAME  "20260001"
-#define ONENET_TOKEN        "version=2018-10-31&res=products%2F1iS397oJFL%2Fdevices%2F20260001&et=2063362960&method=md5&sign=phYCE26jNI80tiXEeMxxRA%3D%3D"
-
-/* OneNET 物模型主题 */
-#define MQTT_TOPIC_PROPERTY_POST      "$sys/1iS397oJFL/20260001/thing/property/post"
-#define MQTT_TOPIC_PROPERTY_SET       "$sys/1iS397oJFL/20260001/thing/property/set"
-#define MQTT_TOPIC_PROPERTY_SET_REPLY "$sys/1iS397oJFL/20260001/thing/property/set_reply"
-
-/* 公共 Broker (Web 端数据读取, 支持 WebSocket) */
-#define PUBLIC_MQTT_SERVER  "broker.emqx.io"
-#define PUBLIC_MQTT_PORT    1883
-#define PUBLIC_TOPIC_DATA   "wpt/20260001/data"
 
 /* ═══════════════════════════════════════════════════════════════
- *                    全局对象
+ *  3. 连接状态机 — 显式状态枚举, 替代隐式 bool 标志组合
  * ═══════════════════════════════════════════════════════════════ */
 
-WiFiClient    espClient;
-PubSubClient  mqttClient(espClient);
+typedef enum {
+    CONN_STATE_IDLE        = 0,  /* 未启动 */
+    CONN_STATE_WIFI_CONN   = 1,  /* WiFi 连接中 */
+    CONN_STATE_MQTT_CONN   = 2,  /* MQTT 连接中 */
+    CONN_STATE_ONLINE      = 3,  /* 双 MQTT 均在线, 可收发 */
+    CONN_STATE_FAILED      = 4   /* 重试耗尽 */
+} Conn_State;
 
-WiFiClient    publicEspClient;
-PubSubClient  publicMqttClient(publicEspClient);
+static Conn_State    s_conn_state      = CONN_STATE_IDLE;
+static unsigned long s_conn_retry_ms   = 0;
+static uint8_t       s_conn_retry_cnt  = 0;
+static uint8_t       s_conn_max_retry  = 3;
+static unsigned long s_conn_timeout_ms = 15000;
 
-static char     serialBuf[128];          /* 串口行缓冲 */
-static uint8_t  serialLen = 0;           /* 缓冲有效字节数 */
-static unsigned long   lastReconnectAttempt = 0;  /* 重连间隔控制 */
-static uint32_t s_lastSetFreq = 100000;  /* 上次指令目标频率，遥测不覆盖 */
-static uint8_t  s_skipSwitch  = 0;      /* 收到ON/OFF后跳过1次Switch遥测, 防覆盖 */
 
 /* ═══════════════════════════════════════════════════════════════
- *                    MQTT 回调
+ *  4. MQTT 模块 — Mqtt_Task 命名空间
  * ═══════════════════════════════════════════════════════════════ */
 
-void mqttCallback(char* topic, byte* payload, unsigned int length)
+static WiFiClient    s_mqtt_esp_client;
+static PubSubClient  s_mqtt_client(s_mqtt_esp_client);
+static WiFiClient    s_mqtt_public_client;
+static PubSubClient  s_mqtt_public(s_mqtt_public_client);
+
+static uint32_t s_mqtt_last_set_freq = 100000;
+static uint8_t  s_mqtt_skip_switch   = 0;
+
+/* ── 防误触: 前缀匹配替代 strstr 子串搜索 ── */
+static int Str_Starts_With(const char* str, const char* prefix)
 {
-    /*
-     * 解析 OneNET 属性设置下发 JSON, 支持两种格式:
-     *   格式 A (布尔值): {"id":"123","version":"1.0","params":{"Switch":true}}
-     *   格式 B (对象值): {"id":"123","version":"1.0","params":{"Switch":{"value":1}}}
-     *   SetFreq (整数): {"params":{"SetFreq":{"value":100000}}}  — 95000~150000 Hz
-     */
+    while (*prefix) {
+        if (*str++ != *prefix++) return 0;
+    }
+    return 1;
+}
+
+/* ── OneNET 指令 → STM32 ── */
+static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
+{
     StaticJsonDocument<256> doc;
     DeserializationError err = deserializeJson(doc, (const char*)payload, length);
 
-    int8_t    cmd      = 0;
-    uint32_t  freqVal  = 0;
+    int8_t   cmd     = 0;
+    uint32_t freq_hz = 0;
 
-    if (!err)
-    {
+    if (!err) {
         JsonObject params = doc["params"];
 
-        /* ── Switch ── */
-        if (params.containsKey("Switch"))
-        {
+        if (params.containsKey("Switch")) {
             JsonVariant sw = params["Switch"];
             int val = 0;
-
             if (sw.is<bool>())
                 val = sw.as<bool>() ? 1 : 0;
             else if (sw.containsKey("value"))
                 val = (sw["value"].as<int>() != 0) ? 1 : 0;
             else
                 val = sw.as<int>() ? 1 : 0;
-
             cmd = val ? 1 : -1;
         }
 
-        /* ── SetFreq (直接设置频率) ── */
-        if (params.containsKey("SetFreq"))
-        {
+        if (params.containsKey("SetFreq")) {
             JsonVariant sf = params["SetFreq"];
             int val = 0;
-
             if (sf.is<int>())
                 val = sf.as<int>();
             else if (sf.containsKey("value"))
                 val = sf["value"].as<int>();
-
-            if (val >= 95000 && val <= 150000)
-            {
-                freqVal = (uint32_t)((val / 1000) * 1000);
-                s_lastSetFreq = freqVal;  /* 记录目标频率 */
+            if (val >= FREQ_MIN_HZ && val <= FREQ_MAX_HZ) {
+                freq_hz            = (uint32_t)((val / 1000) * 1000);
+                s_mqtt_last_set_freq = freq_hz;
                 cmd = 3;
             }
         }
-    }
-    else
-    {
-        /* JSON 解析失败, 简单字符串匹配兜底 */
+    } else {
+        /* 非 JSON → 前缀字符串匹配兜底, 防子串误触 */
         char msg[64];
         unsigned int len = (length < sizeof(msg) - 1) ? length : (sizeof(msg) - 1);
         memcpy(msg, payload, len);
         msg[len] = '\0';
 
-        if      (strstr(msg, "CMD:ON")     || strstr(msg, "\"Switch\":true"))   cmd =  1;
-        else if (strstr(msg, "CMD:OFF")    || strstr(msg, "\"Switch\":false"))  cmd = -1;
+        if      (Str_Starts_With(msg, "CMD:ON")  || strstr(msg, "\"Switch\":true"))  cmd =  1;
+        else if (Str_Starts_With(msg, "CMD:OFF") || strstr(msg, "\"Switch\":false")) cmd = -1;
         else return;
     }
 
-    /* 转发指令给 STM32 */
+    /* 透传到 STM32 串口 */
     switch (cmd) {
-        case  1: Serial.print("CMD:ON\n");  s_skipSwitch = 1; break;
-        case -1: Serial.print("CMD:OFF\n"); s_skipSwitch = 1; break;
+        case  1: Serial.print("CMD:ON\n");  s_mqtt_skip_switch = 1; break;
+        case -1: Serial.print("CMD:OFF\n"); s_mqtt_skip_switch = 1; break;
         case  3: {
             char buf[32];
-            snprintf(buf, sizeof(buf), "CMD:SETFREQ:%lu\n", freqVal);
+            snprintf(buf, sizeof(buf), "CMD:SETFREQ:%lu\n", freq_hz);
             Serial.print(buf);
             break;
         }
         default: break;
     }
 
-    /* 回复 OneNET 平台 (解决"响应超时") */
+    /* set_reply 应答 */
     {
-        const char* reqId = doc["id"];
+        const char* req_id = doc["id"];
         StaticJsonDocument<128> reply;
-        if (reqId) reply["id"] = reqId;
+        if (req_id) reply["id"] = req_id;
         reply["code"] = 200;
         reply["msg"]  = "success";
-
-        char replyBuf[128];
-        serializeJson(reply, replyBuf, sizeof(replyBuf));
-        mqttClient.publish(MQTT_TOPIC_PROPERTY_SET_REPLY, replyBuf);
+        char buf[128];
+        serializeJson(reply, buf, sizeof(buf));
+        s_mqtt_client.publish(MQTT_TOPIC_PROPERTY_SET_REPLY, buf);
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *              非阻塞 WiFi / MQTT 重连
- * ═══════════════════════════════════════════════════════════════ */
-
-static boolean mqttReconnect()
+static void Mqtt_Task_On_OneNET_Message(char* topic, byte* payload, unsigned int length)
 {
-    if (mqttClient.connect(ONENET_DEVICE_NAME, ONENET_PRODUCT_ID, ONENET_TOKEN))
-    {
-        mqttClient.subscribe(MQTT_TOPIC_PROPERTY_SET);
-        return true;
-    }
-    return false;
+    Mqtt_Task_Parse_Command((const char*)payload, length);
 }
 
-static void ensureConnected()
+static void Mqtt_Task_On_Public_Message(char* topic, byte* payload, unsigned int length)
+{
+#ifdef DEBUG
+    Serial.print("[Public] <<< CMD: ");
+    Serial.write(payload, length);
+    Serial.println();
+#endif
+    Serial.write(payload, length);
+    Serial.print("\n");
+}
+
+/* ── 连接维护: 驱动 Conn_State 状态机 ── */
+static void Mqtt_Task_Maintain_Connection(void)
 {
     unsigned long now = millis();
-    static uint8_t wasOnline = 0;  /* 上次 loop 是否在线, 用于边沿检测 */
 
-    /* 每 5 秒尝试一次, 避免频繁重连阻塞 loop */
-    if (now - lastReconnectAttempt < RECONNECT_INTERVAL_MS) return;
-    lastReconnectAttempt = now;
+    switch (s_conn_state) {
+        case CONN_STATE_IDLE:
+            break;  /* 等待外部触发 */
 
-    /* WiFi 断开 → 重连 (ESP8266 已存 WiFiManager 配网凭据, 无参 begin 即可) */
-    if (WiFi.status() != WL_CONNECTED)
-    {
-        wasOnline = 0;
-#ifdef DEBUG
-        Serial.println("[WiFi] Disconnected or Connecting...");
-#endif
-        WiFi.begin();
-        return;
-    }
+        case CONN_STATE_WIFI_CONN:
+            if (WiFi.status() == WL_CONNECTED) {
+                s_conn_state = CONN_STATE_MQTT_CONN;
+            } else if (now - s_conn_retry_ms >= s_conn_timeout_ms) {
+                s_conn_retry_cnt++;
+                if (s_conn_retry_cnt >= s_conn_max_retry) {
+                    s_conn_state = CONN_STATE_FAILED;
+                } else {
+                    s_conn_retry_ms = now;
+                    WiFi.begin();
+                }
+            }
+            break;
 
-    /* MQTT 断开 → 重连 */
-    if (!mqttClient.connected())
-    {
-        wasOnline = 0;
+        case CONN_STATE_MQTT_CONN: {
+            boolean one_ok  = s_mqtt_client.connected() ||
+                s_mqtt_client.connect(ONENET_DEVICE_NAME, ONENET_PRODUCT_ID, ONENET_TOKEN);
+            if (one_ok) s_mqtt_client.subscribe(MQTT_TOPIC_PROPERTY_SET);
+
+            boolean pub_ok = s_mqtt_public.connected() ||
+                s_mqtt_public.connect(ONENET_DEVICE_NAME);
+            if (pub_ok && !s_mqtt_public.connected()) {
+                /* 刚连上: 首次设置回调 */
+            }
+            if (pub_ok) {
+                s_mqtt_public.setCallback(Mqtt_Task_On_Public_Message);
+                s_mqtt_public.subscribe(PUBLIC_TOPIC_CMD);
+            }
+
+            if (one_ok && pub_ok) {
+                s_conn_state = CONN_STATE_ONLINE;
+                Serial.print("STATUS:ONLINE\n");
 #ifdef DEBUG
-        Serial.println("[MQTT] WiFi OK! Now Connecting to OneNET...");
+                Serial.println("[Status] >>> Sent STATUS:ONLINE to STM32 <<<");
 #endif
-        if (mqttReconnect())
-        {
-#ifdef DEBUG
-            Serial.println("[MQTT] >>> OneNET Connected successfully! <<<");
-#endif
+            }
+            break;
         }
-        else
-        {
-#ifdef DEBUG
-            Serial.print("[MQTT] Connect failed, Error Code (rc) = ");
-            Serial.println(mqttClient.state());
-#endif
-        }
-    }
 
-    /* 公共 Broker 重连: 连接成功后设置回调并订阅指令主题 */
-    if (!publicMqttClient.connected())
-    {
-        wasOnline = 0;
-        if (publicMqttClient.connect(ONENET_DEVICE_NAME))
-        {
-#ifdef DEBUG
-            Serial.println("[Public] Connected to EMQX broker");
-#endif
-            publicMqttClient.setCallback([](char* topic, byte* payload, unsigned int length) {
-#ifdef DEBUG
-                Serial.print("[Public] <<< CMD: ");
-                Serial.write(payload, length);
-                Serial.println();
-#endif
-                Serial.write(payload, length);
-                Serial.print("\n");
-            });
-            publicMqttClient.subscribe("wpt/20260001/cmd");
-#ifdef DEBUG
-            Serial.println("[Public] Subscribed to wpt/20260001/cmd");
-#endif
-        }
-    }
+        case CONN_STATE_ONLINE:
+            /* 周期性检查: 任一掉线则回退 */
+            if (WiFi.status() != WL_CONNECTED) {
+                s_conn_state = CONN_STATE_WIFI_CONN;
+                s_conn_retry_ms = now;
+                WiFi.begin();
+            } else if (!s_mqtt_client.connected() || !s_mqtt_public.connected()) {
+                s_conn_state = CONN_STATE_MQTT_CONN;
+            }
+            break;
 
-    /* 双 MQTT 均在线 → 通知 STM32 (仅上升沿发送一次) */
-    if (mqttClient.connected() && publicMqttClient.connected())
-    {
-        if (!wasOnline)
-        {
-            Serial.print("STATUS:ONLINE\n");
-#ifdef DEBUG
-            Serial.println("[Status] >>> Sent STATUS:ONLINE to STM32 <<<");
-#endif
-            wasOnline = 1;
-        }
+        case CONN_STATE_FAILED:
+            break;  /* 需外部复位 */
     }
 }
 
+/* ── 公开接口 ── */
+static void Mqtt_Task_Start_Connect(void)
+{
+    s_conn_state     = CONN_STATE_WIFI_CONN;
+    s_conn_retry_ms  = millis();
+    s_conn_retry_cnt = 0;
+    WiFi.begin();
+}
+
+static void Mqtt_Task_Soft_Reset(void)
+{
+    s_conn_state     = CONN_STATE_WIFI_CONN;
+    s_conn_retry_ms  = millis();
+    s_conn_retry_cnt = 0;
+}
+
+static uint8_t Mqtt_Task_Get_Connect_Status(void)
+{
+    return (uint8_t)s_conn_state;  /* 0=IDLE 1=WIFI 2=MQTT 3=ONLINE 4=FAILED */
+}
+
+static uint8_t Mqtt_Task_Get_Retry_Count(void) { return s_conn_retry_cnt; }
+static uint8_t Mqtt_Task_Is_Connected(void)     { return s_conn_state == CONN_STATE_ONLINE; }
+
+static void Mqtt_Task_Loop(void)
+{
+    Mqtt_Task_Maintain_Connection();
+    s_mqtt_client.loop();
+    s_mqtt_public.loop();
+}
+
+static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
+{
+    StaticJsonDocument<128> doc;
+    if (deserializeJson(doc, stm32_json)) return;
+
+    float        v = doc["V"];
+    float        i = doc["I"];
+    unsigned long f = doc["F"];
+    int           s = doc["S"] | 0;
+    bool    running = (s == 1 || s == 2);
+
+    StaticJsonDocument<256> tx;
+    tx["id"]      = "123";
+    tx["version"] = "1.0";
+    tx["params"]["V"]["value"]        = v;
+    tx["params"]["I"]["value"]        = i;
+    tx["params"]["F"]["value"]        = f;
+    tx["params"]["SetFreq"]["value"]  = s_mqtt_last_set_freq;
+
+    if (s_mqtt_skip_switch) {
+        s_mqtt_skip_switch = 0;
+    } else {
+        tx["params"]["Switch"]["value"] = running;
+    }
+
+    char buf[256];
+    serializeJson(tx, buf, sizeof(buf));
+    s_mqtt_client.publish(MQTT_TOPIC_PROPERTY_POST, buf);
+
+    if (s_mqtt_public.connected()) {
+        s_mqtt_public.publish(PUBLIC_TOPIC_DATA, stm32_json);
+    }
+}
+
+
 /* ═══════════════════════════════════════════════════════════════
- *              串口 → MQTT 数据转发
+ *  5. 串口解析模块 — Serial_Parse 命名空间
  * ═══════════════════════════════════════════════════════════════ */
 
-static void processSerialLine(const char* line)
+static char    s_serial_buf[SERIAL_LINE_MAX];
+static uint8_t s_serial_len = 0;
+
+static void Serial_Parse_Process_Line(const char* line)
 {
-    /*
-     * 解析 STM32 发来的 JSON:
-     *   {"V":12.50,"I":1.23,"F":100000}
-     */
-    StaticJsonDocument<128> doc;
-    DeserializationError err = deserializeJson(doc, line);
-
-    if (err) return;  /* 非 JSON 或格式错误, 静默丢弃 */
-
-    float v = doc["V"];
-    float i = doc["I"];
-    unsigned long f = doc["F"];
-    int    s = doc["S"] | 0;    /* 软启动状态: 0=IDLE 1=SWEEP 2=DONE 3=FAULT */
-    bool   running = (s == 1 || s == 2);
-
-    StaticJsonDocument<256> txDoc;
-    txDoc["id"]      = "123";
-    txDoc["version"] = "1.0";
-    txDoc["params"]["V"]["value"] = v;
-    txDoc["params"]["I"]["value"] = i;
-    txDoc["params"]["F"]["value"] = f;
-    /* Switch: 收到云端命令后跳过1次遥测, 等STM32更新状态再上报 */
-    if (s_skipSwitch) {
-        s_skipSwitch = 0;
-    } else {
-        txDoc["params"]["Switch"]["value"] = running;
+    /* CMD:CLEAR — 前缀匹配防误触 */
+    if (Str_Starts_With(line, "CMD:CLEAR")) {
+#ifdef DEBUG
+        Serial.println("[System] CMD:CLEAR — resetting WiFi...");
+#endif
+        WiFiManager wm;
+        wm.resetSettings();
+        Serial.flush();          /* 等 UART FIFO 排空再重启 */
+        delay(200);
+        ESP.restart();
     }
-    txDoc["params"]["SetFreq"]["value"] = s_lastSetFreq;  /* 仅上报指令值，不覆盖 */
 
-    char txBuf[256];
-    serializeJson(txDoc, txBuf, sizeof(txBuf));
+    Mqtt_Task_Publish_Telemetry(line);
+}
 
-    mqttClient.publish(MQTT_TOPIC_PROPERTY_POST, txBuf);
-
-    /* 同步发布到公共 Broker (原样 JSON, 方便 Web 端解析) */
-    if (publicMqttClient.connected())
-    {
-        publicMqttClient.publish(PUBLIC_TOPIC_DATA, line);
+static void Serial_Parse_Read_Loop(void)
+{
+    while (Serial.available() > 0) {
+        char c = (char)Serial.read();
+        if (c == '\n') {
+            if (s_serial_len > 0) {
+                s_serial_buf[s_serial_len] = '\0';
+                Serial_Parse_Process_Line(s_serial_buf);
+                s_serial_len = 0;
+            }
+        } else if (c != '\r' && s_serial_len < sizeof(s_serial_buf) - 1) {
+            s_serial_buf[s_serial_len++] = c;
+        }
     }
 }
 
+
 /* ═══════════════════════════════════════════════════════════════
- *                    setup / loop
+ *  6. setup() & loop()
  * ═══════════════════════════════════════════════════════════════ */
 
 void setup()
 {
-    Serial.begin(115200);
-    delay(500);  /* 等待串口稳定 */
+    Serial.begin(SERIAL_BAUDRATE);
 
 #ifdef DEBUG
     Serial.println();
     Serial.println("[System] ESP8266 Booting...");
     Serial.print("[System] Free heap: ");
     Serial.println(ESP.getFreeHeap());
-    Serial.print("[System] WiFi mode: ");
-    WiFi.mode(WIFI_STA);
-    delay(100);
 #endif
 
-    /*
-     * WiFiManager 网页配网:
-     *   - 有已存凭据 → 直接连接
-     *   - 无已存凭据或连接失败 → 开启 "STM32_WPT_Config" AP (无密码)
-     *     手机连上此热点, 浏览器会自动弹出配网页
-     */
-    WiFiManager wifiManager;
-    wifiManager.setDebugOutput(true);           /* 打开 WiFiManager 调试 */
-    wifiManager.setConfigPortalTimeout(180);    /* AP 模式 3 分钟后自动退出 */
+    WiFi.mode(WIFI_STA);
+
+    WiFiManager wifi_manager;
+    wifi_manager.setDebugOutput(true);
+    wifi_manager.setConfigPortalTimeout(WIFI_AP_TIMEOUT_S);
 
 #ifdef DEBUG
     Serial.println("[WiFi] Starting WiFiManager autoConnect...");
 #endif
 
-    if (!wifiManager.autoConnect(WIFI_AP_NAME))
-    {
+    if (!wifi_manager.autoConnect(WIFI_AP_NAME)) {
 #ifdef DEBUG
         Serial.println("[WiFi] No saved WiFi — starting Config Portal...");
         Serial.print("[WiFi] Connect to AP: ");
         Serial.println(WIFI_AP_NAME);
 #endif
-        wifiManager.startConfigPortal(WIFI_AP_NAME);
+        wifi_manager.startConfigPortal(WIFI_AP_NAME);
     }
 
 #ifdef DEBUG
@@ -359,57 +412,16 @@ void setup()
     Serial.println(ESP.getFreeHeap());
 #endif
 
-    mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
-    mqttClient.setCallback(mqttCallback);
+    /* 初始化 MQTT 客户端并启动联网状态机 */
+    s_mqtt_client.setServer(MQTT_SERVER, MQTT_PORT);
+    s_mqtt_client.setCallback(Mqtt_Task_On_OneNET_Message);
+    s_mqtt_public.setServer(PUBLIC_MQTT_SERVER, PUBLIC_MQTT_PORT);
 
-    publicMqttClient.setServer(PUBLIC_MQTT_SERVER, PUBLIC_MQTT_PORT);
-    /* 订阅和 callback 在 ensureConnected() 连接成功后执行 */
+    Mqtt_Task_Start_Connect();
 }
 
 void loop()
 {
-    /* 1. 非阻塞 WiFi / MQTT 重连维护 */
-    ensureConnected();
-
-    /* 2. OneNET MQTT 心跳 + 收包 */
-    mqttClient.loop();
-
-    /* 3. 公共 Broker 心跳 (只发不收) */
-    publicMqttClient.loop();
-
-    /* 4. 串口 → MQTT: 非阻塞读取, 以 \n 为帧结束符 */
-    while (Serial.available() > 0)
-    {
-        char c = (char)Serial.read();
-        if (c == '\n')
-        {
-            if (serialLen > 0)
-            {
-                serialBuf[serialLen] = '\0';
-
-                /* CMD:CLEAR — 清除配网凭据并重启 */
-                if (strstr(serialBuf, "CMD:CLEAR"))
-                {
-#ifdef DEBUG
-                    Serial.println("[System] CMD:CLEAR received — resetting WiFi settings...");
-#endif
-                    WiFiManager wifiManager;
-                    wifiManager.resetSettings();
-                    delay(200);
-                    ESP.restart();
-                }
-
-                processSerialLine(serialBuf);
-                serialLen = 0;
-            }
-        }
-        else if (c == '\r')
-        {
-            /* 忽略 */
-        }
-        else if (serialLen < sizeof(serialBuf) - 1)
-        {
-            serialBuf[serialLen++] = c;
-        }
-    }
+    Mqtt_Task_Loop();
+    Serial_Parse_Read_Loop();
 }

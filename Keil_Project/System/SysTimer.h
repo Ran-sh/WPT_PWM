@@ -31,9 +31,10 @@
 
 /* ── 公开接口 ── */
 
-void     SysTimer_Init(void);                  /* 初始化 SysTick, 配置 1ms 中断 */
+void     SysTimer_Init(void);                  /* 初始化 SysTick, 配置 1ms 中断 + DWT 周期计数器 */
 void     SysTimer_IncTick(void);               /* 由 SysTick_Handler 调用, 递增 1ms */
 uint32_t SysTimer_GetTick(void);               /* 获取上电以来的毫秒时间戳 */
+uint32_t SysTimer_GetCycles(void);             /* 获取 DWT 周期计数器 (CPU 时钟, 亚毫秒定时) */
 void     SysTimer_DelayMs(uint32_t ms);        /* 阻塞毫秒延时 (使用前须先 SysTimer_Init) */
 
 #endif

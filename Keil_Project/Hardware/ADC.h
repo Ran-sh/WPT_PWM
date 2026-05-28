@@ -12,8 +12,9 @@
 #define __ADC_H
 
 void  ADC_DMA_Init(void);
-void  ADC_Filter_Task(void);    /* 2ms 周期, 主循环调用, 更新滑动平均 */
-float Get_Real_Voltage(void);   /* 直接返回预计算值, 无采集开销 */
+void  ADC_Filter_Task(void);            /* 2ms 周期, 主循环调用, 更新滑动平均 */
+void  ADC_CalibrateCurrentOffset(void); /* 逆变器未工作时调用, 自动校准电流零点 */
+float Get_Real_Voltage(void);           /* 直接返回预计算值, 无采集开销 */
 float Get_Real_Current(void);
 
 #endif

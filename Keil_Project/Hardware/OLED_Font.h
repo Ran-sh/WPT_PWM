@@ -10,11 +10,11 @@
  ******************************************************************************
  */
 
-#ifndef __OLED_FONT_H
-#define __OLED_FONT_H
+#ifndef OLED_FONT_H
+#define OLED_FONT_H
 
 /* ASCII 字模库: 8×16 像素, 按 SSD1306 垂直寻址排列 */
-const uint8_t OLED_F8x16[][16]=
+static const uint8_t OLED_F8x16[][16]=
 {
 	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
 	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,//  0
@@ -302,4 +302,4 @@ const uint8_t OLED_F8x16[][16]=
 	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,//~ 94
 };
 
-#endif
+#endif /* OLED_FONT_H */
