@@ -230,9 +230,6 @@ static void Mqtt_Task_Maintain_Connection(void)
 
             boolean pub_ok = s_mqtt_public.connected() ||
                 s_mqtt_public.connect(ONENET_DEVICE_NAME);
-            if (pub_ok && !s_mqtt_public.connected()) {
-                /* 刚连上: 首次设置回调 */
-            }
             if (pub_ok) {
                 s_mqtt_public.setCallback(Mqtt_Task_On_Public_Message);
                 s_mqtt_public.subscribe(PUBLIC_TOPIC_CMD);

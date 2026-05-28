@@ -9,7 +9,7 @@
 #include "Oled_Driver.h"
 
 /* ── 字体数据 (8x16, ASCII 空格 ~ '~') ── */
-#include "Oled_Font.h"
+#include "OLED_Font.h"
 
 /* ── 硬件常量 ── */
 #define OLED_I2C_ADDR       0x78

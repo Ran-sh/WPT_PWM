@@ -4,7 +4,7 @@
 [![Library](https://img.shields.io/badge/Library-SPL%20V3.5.0-green)]()
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-red)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V5.1-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V6.0-brightgreen)]()
 [![App](https://img.shields.io/badge/App-WeChat%20Mini%20Program-07C160)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
@@ -217,20 +217,21 @@ uint32_t 无符号减法天然防溢出 (49.7 天窗口)。
 ```
 Keil_Project/
 ├── Hardware/          ← 硬件驱动层 (只增删 .c/.h, 不改架构)
-│   ├── PWM.c/.h       ← TIM1 全桥PWM + 软启动 + 频率渐变
-│   ├── ADC.c/.h       ← ADC1+DMA 双通道 + 滑动滤波
-│   ├── KEY.c/.h       ← 八态FSM按键 (单击/双击/长按)
-│   ├── OLED.c/.h      ← SSD1315 I2C 驱动 + 浮点显示
-│   ├── ESP8266.c/.h   ← USART2 ISR + 环形缓冲 + 纯JSON透传
-│   ├── UI.c/.h        ← 7界面状态机 + 按键分发 + LED更新
-│   └── LED.c/.h       ← 4 LED 状态管理
+│   ├── Pwm_Driver     ← TIM1 全桥PWM 硬件抽象 (95-150kHz, 1000ns死区)
+│   ├── Inverter_Control ← 软启动状态机 + 频率渐变 (应用层)
+│   ├── Adc_Driver     ← ADC1+DMA 双通道 + 64样本互质相位滤波 + 自动零点校准
+│   ├── Key_Driver     ← 双按键FSM (单击/双击/长按, 10ms去抖)
+│   ├── Oled_Driver    ← SSD1315 I2C 驱动 + 浮点显示
+│   ├── Esp8266_Driver ← USART2 ISR + 环形缓冲 + 纯JSON透传
+│   ├── Ui_Controller  ← 7界面状态机 + 按键分发 + LED联动
+│   └── Led_Driver     ← 4 LED 状态管理
 ├── System/            ← 系统服务层
-│   └── SysTimer.c/.h  ← SysTick 1ms 时基 + DelayMs
+│   └── Sys_Timer      ← SysTick 1ms + DWT周期计数器 (亚毫秒定时)
 ├── User/              ← 应用层
-│   ├── main.c         ← 主入口, 上电自动喊 App_Net_StartConnect()
-│   ├── App_Net.c/.h   ← 网络层, 重试逻辑, 遥测门控
+│   ├── Main.c         ← 主入口, 4阶段启动 + 非阻塞主循环
+│   ├── App_Network    ← 联网管理 + 遥测门控 + 指令接收
 │   ├── stm32f10x_conf.h ← SPL 头文件配置
-│   └── stm32f10x_it.c   ← ISR (只含 SysTick)
+│   └── stm32f10x_it.c   ← ISR (SysTick+USART2, 故障关断PWM)
 ├── Library/           ← SPL V3.5.0 (只读)
 └── Start/             ← 启动文件 + system_stm32f10x
 ```
@@ -270,16 +271,17 @@ setup()
   └─ publicMqttClient.setServer
 
 loop()
-  ├─ ensureConnected()     每 5s: WiFi/MQTT 自动重连
-  ├─ mqttClient.loop()     收 OneNET 指令 + 回调
-  ├─ publicMqttClient.loop()
-  └─ 串口轮询: 读 JSON → 转 OneNET 格式 → publish
+  ├─ Mqtt_Task_Loop()        连接状态机 + 双 Broker 心跳
+  └─ Serial_Parse_Read_Loop() 逐字节读行 + 前缀匹配 + MQTT 发布
 ```
 
-**V5.1 关键修复**:
-- `s_lastSetFreq`: SetFreq 不再被遥测 F 值覆盖
-- `s_skipSwitch`: 收到 ON/OFF 命令后跳过下一次遥测 Switch 字段 (等 STM32 更新)
-- `DEBUG` 注释: 不污染串口通信
+**V6.0 关键改进**:
+- **全模块统一命名**: `Module_Name_Action_Object()` 帕斯卡+下划线, 头文件保护 `MODULE_NAME_H`
+- **PWM 拆分**: `Pwm_Driver` (硬件抽象) + `Inverter_Control` (软启动+斜坡)
+- **ADC 防混叠**: DWT 周期计数器 + 互质采样周期 (144241 cycles), 64 样本窗口, 自动零点 EMA 追踪
+- **故障保护**: HardFault/MemManage/BusFault/UsageFault 死循环前强制关断 PWM
+- **ESP8266 协议安全**: `Str_Starts_With()` 前缀匹配替代 `strstr()`, 防子串误触发
+- **连接状态机**: `Conn_State` 显式状态枚举 (IDLE→WIFI→MQTT→ONLINE→FAILED)
 
 ---
 
@@ -397,7 +399,7 @@ KEY0 (PB12) 和 KEY1 (PB13) 均内部上拉 (IPU), 10ms 扫描, 八态 FSM:
 | `master` | V1.0 | — | 裸机基版 |
 | `LAN` | V3.3 | NetAssist TCP | 局域网 PC 调试 |
 | `WAN` | V4.0 | 巴法云 MQTT | 历史版本 |
-| **`ONENET`** | **V5.1** | OneNET MQTT | 双脑架构 + 7 界面状态机 + 自动联网 |
+| **`ONENET`** | **V6.0** | OneNET MQTT | 双脑架构 + 模块化命名 + 连接状态机 |
 
 ---
 
