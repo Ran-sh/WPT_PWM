@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `ONENET` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_ONENET_V3.0` |
 | **协议** | OneNET MQTT 物模型 (Dual-MCU 架构) |
-| **版本** | V6.0 |
+| **版本** | V6.1 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云 TCP) → `WPT_PWM_Bemfa_WAN_V2.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
 
@@ -94,7 +94,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 显示字符串集中为 `#define STR_*` 宏, 方便多语言替换
 - 频率/电压/电流限制单一定义, 全项目引用同一处
 - 不保留废弃代码和旧文件, 删干净避免维护陷阱
-- 示例: `App_Network_Conn_State { APP_NETWORK_CONN_IDLE, APP_NETWORK_CONN_WIFI, ... }`
 
 ## Architecture: Dual-MCU
 
@@ -260,7 +259,7 @@ ESP8266 requires independent 3.3V LDO ≥500mA with 100μF+0.1μF decoupling. RS
 | 段 | 命名空间 | 职责 |
 |:---|:---|:---|
 | 配置区 | `#define` | 所有可调参数 |
-| 连接状态机 | `Conn_State` 枚举 | IDLE→WIFI→MQTT→ONLINE→FAILED 显式状态 |
+| 连接状态机 | `MQTT_CONN_STATE_*` 枚举 | IDLE→WIFI→MQTT→ONLINE→FAILED 显式状态 |
 | MQTT 模块 | `Mqtt_Task_*` | 双 Broker 连接 + OneNET 物模型收发 |
 | 串口模块 | `Serial_Parse_*` | 非阻塞行读取 + 前缀匹配防协议误触发 |
 
