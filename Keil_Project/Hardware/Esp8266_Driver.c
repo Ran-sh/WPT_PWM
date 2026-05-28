@@ -2,6 +2,7 @@
  ******************************************************************************
  * @file    Hardware/Esp8266_Driver.c
  * @brief   ESP8266 串口通信驱动 — 实现
+ * @note    V6.0: CH_PD 硬件复位改为非阻塞状态机, 主循环不冻结
  ******************************************************************************
  */
 
@@ -14,40 +15,45 @@
 #define CH_PD_RESET_MS      1000
 #define CH_PD_BOOT_MS       2000
 
+typedef enum {
+    INIT_STATE_IDLE = 0,     /* 未启动 */
+    INIT_STATE_HW_DONE = 1,  /* GPIO+USART 已配置, 等待 CH_PD 时序 */
+    INIT_STATE_RESET_LOW,    /* CH_PD=0, 等待 1000ms */
+    INIT_STATE_BOOT_WAIT,   /* CH_PD=1, 等待 2000ms */
+    INIT_STATE_READY         /* 就绪 */
+} Esp8266_Init_State;
+
 static char    s_rx_buf[RX_BUF_SIZE];
 static volatile uint16_t s_rx_index = 0;
 static volatile uint8_t  s_rx_frame_flag = 0;
-static uint8_t           s_ready = 0;
 
-void Esp8266_Driver_Init(void)
+static Esp8266_Init_State s_init_state = INIT_STATE_IDLE;
+static uint32_t           s_init_timer = 0;
+
+/* ── 硬件配置 (GPIO + USART + NVIC, 寄存器写入, 微秒级完成) ── */
+static void Hardware_Configure(void)
 {
-    GPIO_InitTypeDef      gpio;
-    USART_InitTypeDef     usart;
-    NVIC_InitTypeDef      nvic;
+    GPIO_InitTypeDef  gpio;
+    USART_InitTypeDef usart;
+    NVIC_InitTypeDef  nvic;
 
-    /* CH_PD 控制引脚 */
+    /* CH_PD 引脚 */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
     gpio.GPIO_Pin   = CH_PD_PIN;
     gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(CH_PD_PORT, &gpio);
 
-    /* 硬件复位: 拉低 1000ms → 拉高 → 等 2000ms 冷启动 */
-    GPIO_ResetBits(CH_PD_PORT, CH_PD_PIN);
-    Sys_Timer_Delay_Ms(CH_PD_RESET_MS);
-    GPIO_SetBits(CH_PD_PORT, CH_PD_PIN);
-    Sys_Timer_Delay_Ms(CH_PD_BOOT_MS);
-
     /* USART2 */
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
-    gpio.GPIO_Pin   = GPIO_Pin_2;  /* TX */
+    gpio.GPIO_Pin   = GPIO_Pin_2;
     gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &gpio);
 
-    gpio.GPIO_Pin   = GPIO_Pin_3;  /* RX */
+    gpio.GPIO_Pin   = GPIO_Pin_3;
     gpio.GPIO_Mode  = GPIO_Mode_IN_FLOATING;
     GPIO_Init(GPIOA, &gpio);
 
@@ -67,8 +73,52 @@ void Esp8266_Driver_Init(void)
     nvic.NVIC_IRQChannelPreemptionPriority = 1;
     nvic.NVIC_IRQChannelSubPriority        = 0;
     NVIC_Init(&nvic);
+}
 
-    s_ready = 1;
+/* ── 公开: 启动非阻塞初始化 ── */
+void Esp8266_Driver_Start_Init(void)
+{
+    if (s_init_state != INIT_STATE_IDLE) return;
+
+    Hardware_Configure();
+
+    /* 开始 CH_PD 时序: 拉低 */
+    GPIO_ResetBits(CH_PD_PORT, CH_PD_PIN);
+    s_init_timer = Sys_Timer_Get_Tick();
+    s_init_state = INIT_STATE_RESET_LOW;
+}
+
+/* ── 公开: 驱动 CH_PD 时序状态机 (主循环调用) ── */
+void Esp8266_Driver_Init_Task(void)
+{
+    switch (s_init_state) {
+        case INIT_STATE_IDLE:
+        case INIT_STATE_READY:
+            break;
+
+        case INIT_STATE_HW_DONE:
+            break;  /* 不应出现, 由 Start_Init 直接进入 RESET_LOW */
+
+        case INIT_STATE_RESET_LOW:
+            if (Sys_Timer_Get_Tick() - s_init_timer >= CH_PD_RESET_MS) {
+                GPIO_SetBits(CH_PD_PORT, CH_PD_PIN);
+                s_init_timer = Sys_Timer_Get_Tick();
+                s_init_state = INIT_STATE_BOOT_WAIT;
+            }
+            break;
+
+        case INIT_STATE_BOOT_WAIT:
+            if (Sys_Timer_Get_Tick() - s_init_timer >= CH_PD_BOOT_MS) {
+                s_init_state = INIT_STATE_READY;
+            }
+            break;
+    }
+}
+
+/* ── 公开: 就绪查询 ── */
+uint8_t Esp8266_Driver_Is_Ready(void)
+{
+    return (s_init_state == INIT_STATE_READY);
 }
 
 void Esp8266_Driver_Send_String(const char* str)

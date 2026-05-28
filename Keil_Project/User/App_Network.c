@@ -32,7 +32,7 @@ uint8_t App_Network_Start_Connect(void)
     s_connecting     = 1;
     s_retry_count    = 0;
     s_connect_start  = Sys_Timer_Get_Tick();
-    Esp8266_Driver_Init();
+    Esp8266_Driver_Start_Init();
     Led_Driver_Set_WiFi(LED_STATE_SLOW);
     return 0;
 }
@@ -71,7 +71,7 @@ static void Check_Retry(void)
         s_retry_count++;
         if (s_retry_count < MAX_RETRIES) {
             s_connect_start = Sys_Timer_Get_Tick();
-            Esp8266_Driver_Init();
+            Esp8266_Driver_Start_Init();
             Led_Driver_Set_WiFi(LED_STATE_SLOW);
         }
     }
@@ -79,6 +79,9 @@ static void Check_Retry(void)
 
 void App_Network_Task(void)
 {
+    /* 驱动 ESP8266 硬件初始化状态机 (非阻塞) */
+    Esp8266_Driver_Init_Task();
+
     if (!Esp8266_Driver_Is_Ready()) return;
 
     Check_Retry();
