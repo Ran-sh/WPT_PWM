@@ -167,11 +167,11 @@ void Oled_Driver_Show_Char(uint8_t line, uint8_t column, char ch)
 
     Oled_Set_Cursor((line - 1) * 2, (column - 1) * OLED_FONT_WIDTH);
     for (i = 0; i < 8; i++)
-        Oled_Write_Data(OLED_F8x16[ch - ' '][i]);
+        Oled_Write_Data(OLED_F8X16[ch - ' '][i]);
 
     Oled_Set_Cursor((line - 1) * 2 + 1, (column - 1) * OLED_FONT_WIDTH);
     for (i = 0; i < 8; i++)
-        Oled_Write_Data(OLED_F8x16[ch - ' '][i + 8]);
+        Oled_Write_Data(OLED_F8X16[ch - ' '][i + 8]);
 }
 
 void Oled_Driver_Show_String(uint8_t line, uint8_t column, const char* str)
@@ -221,7 +221,7 @@ void Oled_Driver_Show_Float(uint8_t line, uint8_t column, double num,
     fract_part = (uint32_t)((num - int_part) * (double)pow10);
 
     Oled_Driver_Show_Num(line, column + offset, int_part, int_len);
-    Oled_Driver_Show_Char(line, column + offset + int_len, '.');
+    Oled_Driver_Show_Char(line, column + offset + int_len, ':');
     Oled_Driver_Show_Num(line, column + offset + int_len + 1, fract_part, fract_len);
 }
 

@@ -34,7 +34,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 公开函数: `Module_Name_Verb_Noun()` — 如 `Oled_Driver_Show_String()`, `Adc_Driver_Get_Voltage()`
 - 静态变量: `s_module_description` — 如 `s_ui_state`, `s_rx_frame_flag`
 - 类型/枚举: `Module_Name_Type` — 如 `Ui_Controller_State`, `Inverter_Control_Soft_Start_State`
-- 头文件保护: `MODULE_NAME_H` (无前导下划线, 避免保留标识符)
+- 枚举值: `MODULE_NAME_ENUM_VALUE` — 全大写+下划线+模块前缀, 如 `LED_DRIVER_STATE_ON`, `INVERTER_CONTROL_SS_STATE_DONE`, `UI_CONTROLLER_STATE_READY`
+- 宏常量: `MODULE_NAME_VALUE` — 全大写+下划线+模块前缀, 如 `ADC_DRIVER_VREF_MCU`, `APP_NETWORK_MAX_RETRIES`
+- 静态函数: 建议加模块前缀, 如 `Ui_Controller_Draw_Running()`
+- 头文件保护: `MODULE_NAME_H` (无前导下划线, 避免 C 保留标识符)
+
+### 枚举设计原则
+
+- 禁止用隐式 bool/int 标志组合表达状态 — 必须用显式枚举
+- 状态机必须有命名的枚举类型 + 单一状态变量
+- 枚举值必须带模块名前缀, 防止命名空间污染
+- 示例: `App_Network_Conn_State { APP_NETWORK_CONN_IDLE, APP_NETWORK_CONN_WIFI, ... }`
 
 ## Architecture: Dual-MCU
 

@@ -16,18 +16,18 @@
 #define CH_PD_BOOT_MS       2000
 
 typedef enum {
-    INIT_STATE_IDLE = 0,     /* 未启动 */
-    INIT_STATE_HW_DONE = 1,  /* GPIO+USART 已配置, 等待 CH_PD 时序 */
-    INIT_STATE_RESET_LOW,    /* CH_PD=0, 等待 1000ms */
-    INIT_STATE_BOOT_WAIT,   /* CH_PD=1, 等待 2000ms */
-    INIT_STATE_READY         /* 就绪 */
+    ESP8266_DRIVER_INIT_STATE_IDLE = 0,     /* 未启动 */
+    ESP8266_DRIVER_INIT_STATE_HW_DONE = 1,  /* GPIO+USART 已配置, 等待 CH_PD 时序 */
+    ESP8266_DRIVER_INIT_STATE_RESET_LOW,    /* CH_PD=0, 等待 1000ms */
+    ESP8266_DRIVER_INIT_STATE_BOOT_WAIT,   /* CH_PD=1, 等待 2000ms */
+    ESP8266_DRIVER_INIT_STATE_READY         /* 就绪 */
 } Esp8266_Init_State;
 
 static char    s_rx_buf[RX_BUF_SIZE];
 static volatile uint16_t s_rx_index = 0;
 static volatile uint8_t  s_rx_frame_flag = 0;
 
-static Esp8266_Init_State s_init_state = INIT_STATE_IDLE;
+static Esp8266_Init_State s_init_state = ESP8266_DRIVER_INIT_STATE_IDLE;
 static uint32_t           s_init_timer = 0;
 
 /* ── 硬件配置 (GPIO + USART + NVIC, 寄存器写入, 微秒级完成) ── */
@@ -78,38 +78,38 @@ static void Hardware_Configure(void)
 /* ── 公开: 启动非阻塞初始化 ── */
 void Esp8266_Driver_Start_Init(void)
 {
-    if (s_init_state != INIT_STATE_IDLE) return;
+    if (s_init_state != ESP8266_DRIVER_INIT_STATE_IDLE) return;
 
     Hardware_Configure();
 
     /* 开始 CH_PD 时序: 拉低 */
     GPIO_ResetBits(CH_PD_PORT, CH_PD_PIN);
     s_init_timer = Sys_Timer_Get_Tick();
-    s_init_state = INIT_STATE_RESET_LOW;
+    s_init_state = ESP8266_DRIVER_INIT_STATE_RESET_LOW;
 }
 
 /* ── 公开: 驱动 CH_PD 时序状态机 (主循环调用) ── */
 void Esp8266_Driver_Init_Task(void)
 {
     switch (s_init_state) {
-        case INIT_STATE_IDLE:
-        case INIT_STATE_READY:
+        case ESP8266_DRIVER_INIT_STATE_IDLE:
+        case ESP8266_DRIVER_INIT_STATE_READY:
             break;
 
-        case INIT_STATE_HW_DONE:
+        case ESP8266_DRIVER_INIT_STATE_HW_DONE:
             break;  /* 不应出现, 由 Start_Init 直接进入 RESET_LOW */
 
-        case INIT_STATE_RESET_LOW:
+        case ESP8266_DRIVER_INIT_STATE_RESET_LOW:
             if (Sys_Timer_Get_Tick() - s_init_timer >= CH_PD_RESET_MS) {
                 GPIO_SetBits(CH_PD_PORT, CH_PD_PIN);
                 s_init_timer = Sys_Timer_Get_Tick();
-                s_init_state = INIT_STATE_BOOT_WAIT;
+                s_init_state = ESP8266_DRIVER_INIT_STATE_BOOT_WAIT;
             }
             break;
 
-        case INIT_STATE_BOOT_WAIT:
+        case ESP8266_DRIVER_INIT_STATE_BOOT_WAIT:
             if (Sys_Timer_Get_Tick() - s_init_timer >= CH_PD_BOOT_MS) {
-                s_init_state = INIT_STATE_READY;
+                s_init_state = ESP8266_DRIVER_INIT_STATE_READY;
             }
             break;
     }
@@ -118,7 +118,7 @@ void Esp8266_Driver_Init_Task(void)
 /* ── 公开: 就绪查询 ── */
 uint8_t Esp8266_Driver_Is_Ready(void)
 {
-    return (s_init_state == INIT_STATE_READY);
+    return (s_init_state == ESP8266_DRIVER_INIT_STATE_READY);
 }
 
 void Esp8266_Driver_Send_String(const char* str)

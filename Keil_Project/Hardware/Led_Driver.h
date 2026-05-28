@@ -13,10 +13,10 @@
 #include "stm32f10x.h"
 
 typedef enum {
-    LED_STATE_OFF  = 0,
-    LED_STATE_ON   = 1,
-    LED_STATE_SLOW = 2,   /* 500ms 周期慢闪 */
-    LED_STATE_FAST = 3    /* 200ms 周期快闪 */
+    LED_DRIVER_STATE_OFF  = 0,
+    LED_DRIVER_STATE_ON   = 1,
+    LED_DRIVER_STATE_SLOW = 2,   /* 500ms 周期慢闪 */
+    LED_DRIVER_STATE_FAST = 3    /* 200ms 周期快闪 */
 } Led_Driver_State;
 
 void Led_Driver_Init(void);

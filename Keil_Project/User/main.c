@@ -53,7 +53,7 @@ int main(void)
     IWDG_ReloadCounter();
     IWDG_Enable();
 
-    /* 阶段 3: 自动启动联网 (~3s 阻塞, ESP 硬件复位) */
+    /* 阶段 3: 自动启动联网 (ESP 非阻塞初始化) */
     App_Network_Start_Connect();
 
     /* 阶段 4: 主循环 (全非阻塞, 空闲休眠) */

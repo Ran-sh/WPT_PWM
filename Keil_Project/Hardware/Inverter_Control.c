@@ -13,7 +13,7 @@
  *  软启动状态机
  * ═══════════════════════════════════════════════════════════════ */
 
-static Inverter_Control_Soft_Start_State s_ss_state        = SS_STATE_IDLE;
+static Inverter_Control_Soft_Start_State s_ss_state        = INVERTER_CONTROL_SS_STATE_IDLE;
 static uint32_t s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
 static uint32_t s_ss_last_ms      = 0;
 
@@ -27,18 +27,18 @@ static void Set_State_Atomic(Inverter_Control_Soft_Start_State new_state)
 
 void Inverter_Control_Soft_Start_Trigger(void)
 {
-    if (s_ss_state != SS_STATE_IDLE) return;
+    if (s_ss_state != INVERTER_CONTROL_SS_STATE_IDLE) return;
 
     s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
     Pwm_Driver_Set_Frequency(s_ss_current_freq);
     Pwm_Driver_Enable();
     s_ss_last_ms = Sys_Timer_Get_Tick();
-    Set_State_Atomic(SS_STATE_SWEEP);
+    Set_State_Atomic(INVERTER_CONTROL_SS_STATE_SWEEP);
 }
 
 void Inverter_Control_Soft_Start_Task(void)
 {
-    if (s_ss_state != SS_STATE_SWEEP) return;
+    if (s_ss_state != INVERTER_CONTROL_SS_STATE_SWEEP) return;
 
     if (Sys_Timer_Get_Tick() - s_ss_last_ms >= SOFTSTART_STEP_MS) {
         s_ss_last_ms = Sys_Timer_Get_Tick();
@@ -46,7 +46,7 @@ void Inverter_Control_Soft_Start_Task(void)
         if (s_ss_current_freq <= SOFTSTART_TARGET_FREQ_HZ + SOFTSTART_STEP_HZ) {
             Pwm_Driver_Set_Frequency(SOFTSTART_TARGET_FREQ_HZ);
             s_ss_current_freq = SOFTSTART_TARGET_FREQ_HZ;
-            Set_State_Atomic(SS_STATE_DONE);
+            Set_State_Atomic(INVERTER_CONTROL_SS_STATE_DONE);
         } else {
             s_ss_current_freq -= SOFTSTART_STEP_HZ;
             if (s_ss_current_freq < SOFTSTART_TARGET_FREQ_HZ)
@@ -60,13 +60,13 @@ void Inverter_Control_Soft_Start_Stop(void)
 {
     Pwm_Driver_Disable();
     s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
-    Set_State_Atomic(SS_STATE_IDLE);
+    Set_State_Atomic(INVERTER_CONTROL_SS_STATE_IDLE);
 }
 
 void Inverter_Control_Soft_Start_Fault(void)
 {
     Pwm_Driver_Disable();
-    Set_State_Atomic(SS_STATE_FAULT);
+    Set_State_Atomic(INVERTER_CONTROL_SS_STATE_FAULT);
 }
 
 Inverter_Control_Soft_Start_State Inverter_Control_Soft_Start_Get_State(void)
@@ -83,7 +83,8 @@ uint32_t Inverter_Control_Soft_Start_Get_Current_Freq(void)
  *  频率斜坡 (运行时微调)
  * ═══════════════════════════════════════════════════════════════ */
 
-static uint32_t s_ramp_target   = 0;
+static uint32_t                    s_ramp_target  = 0;
+static Inverter_Control_Ramp_State s_ramp_state   = INVERTER_CONTROL_RAMP_IDLE;
 static uint32_t s_ramp_last_ms  = 0;
 
 void Inverter_Control_Freq_Ramp_Trigger(uint32_t target_hz)
@@ -92,16 +93,17 @@ void Inverter_Control_Freq_Ramp_Trigger(uint32_t target_hz)
     if (target_hz > PWM_DRIVER_FREQ_MAX_HZ) target_hz = PWM_DRIVER_FREQ_MAX_HZ;
 
     s_ramp_target  = target_hz;
-    s_ramp_last_ms = 0;  /* 下一周期立即执行第一步 */
+    s_ramp_state   = INVERTER_CONTROL_RAMP_ACTIVE;
+    s_ramp_last_ms = 0;
 }
 
 void Inverter_Control_Freq_Ramp_Task(void)
 {
-    if (s_ramp_target == 0) return;
+    if (s_ramp_state == INVERTER_CONTROL_RAMP_IDLE) return;
 
     uint32_t current = Pwm_Driver_Get_Frequency();
     if (current == s_ramp_target) {
-        s_ramp_target = 0;
+        s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
         return;
     }
 
@@ -117,7 +119,7 @@ void Inverter_Control_Freq_Ramp_Task(void)
         }
         Pwm_Driver_Set_Frequency(current);
 
-        if (current == s_ramp_target) s_ramp_target = 0;
+        if (current == s_ramp_target) s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
     }
 }
 

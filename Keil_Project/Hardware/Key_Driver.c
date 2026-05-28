@@ -18,11 +18,11 @@
 
 /* ── 按键状态机 ── */
 typedef enum {
-    KEY_FSM_IDLE = 0,
-    KEY_FSM_DEBOUNCE,
-    KEY_FSM_PRESS,
-    KEY_FSM_WAIT_DOUBLE,
-    KEY_FSM_LONG_HOLD
+    KEY_DRIVER_FSM_IDLE = 0,
+    KEY_DRIVER_FSM_DEBOUNCE,
+    KEY_DRIVER_FSM_PRESS,
+    KEY_DRIVER_FSM_WAIT_DOUBLE,
+    KEY_DRIVER_FSM_LONG_HOLD
 } Key_Fsm_State;
 
 typedef struct {
@@ -35,8 +35,8 @@ typedef struct {
 } Key_Instance;
 
 static Key_Instance s_keys[KEY_COUNT] = {
-    { GPIOB, GPIO_Pin_12, KEY_FSM_IDLE, 0, KEY_EVENT_NONE, 0 },
-    { GPIOB, GPIO_Pin_13, KEY_FSM_IDLE, 0, KEY_EVENT_NONE, 0 }
+    { GPIOB, GPIO_Pin_12, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 },
+    { GPIOB, GPIO_Pin_13, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 }
 };
 
 void Key_Driver_Init(void)
@@ -54,51 +54,51 @@ static void Key_Fsm_Update(Key_Instance* key)
     uint8_t pressed = (GPIO_ReadInputDataBit(key->port, key->pin) == Bit_RESET);
 
     switch (key->state) {
-        case KEY_FSM_IDLE:
+        case KEY_DRIVER_FSM_IDLE:
             if (pressed) {
-                key->state = KEY_FSM_DEBOUNCE;
+                key->state = KEY_DRIVER_FSM_DEBOUNCE;
                 key->timer = Sys_Timer_Get_Tick();
             }
             break;
 
-        case KEY_FSM_DEBOUNCE:
+        case KEY_DRIVER_FSM_DEBOUNCE:
             if (Sys_Timer_Get_Tick() - key->timer >= KEY_DEBOUNCE_MS) {
                 if (pressed) {
-                    key->state = KEY_FSM_PRESS;
+                    key->state = KEY_DRIVER_FSM_PRESS;
                     key->timer = Sys_Timer_Get_Tick();
                 } else {
-                    key->state = KEY_FSM_IDLE;
+                    key->state = KEY_DRIVER_FSM_IDLE;
                 }
             }
             break;
 
-        case KEY_FSM_PRESS:
+        case KEY_DRIVER_FSM_PRESS:
             if (!pressed) {  /* 释放 */
                 key->click_count++;
-                key->state = KEY_FSM_WAIT_DOUBLE;
+                key->state = KEY_DRIVER_FSM_WAIT_DOUBLE;
                 key->timer = Sys_Timer_Get_Tick();
             } else if (Sys_Timer_Get_Tick() - key->timer >= KEY_LONG_PRESS_MS) {
-                key->event = KEY_EVENT_LONG_PRESS;
+                key->event = KEY_DRIVER_EVENT_LONG_PRESS;
                 key->click_count = 0;
-                key->state = KEY_FSM_LONG_HOLD;
+                key->state = KEY_DRIVER_FSM_LONG_HOLD;
             }
             break;
 
-        case KEY_FSM_WAIT_DOUBLE:
+        case KEY_DRIVER_FSM_WAIT_DOUBLE:
             if (pressed) {
-                key->state = KEY_FSM_DEBOUNCE;
+                key->state = KEY_DRIVER_FSM_DEBOUNCE;
                 key->timer = Sys_Timer_Get_Tick();
             } else if (Sys_Timer_Get_Tick() - key->timer >= KEY_DOUBLE_WINDOW_MS) {
-                key->event = (key->click_count >= 2) ? KEY_EVENT_DOUBLE_CLICK : KEY_EVENT_CLICK;
+                key->event = (key->click_count >= 2) ? KEY_DRIVER_EVENT_DOUBLE_CLICK : KEY_DRIVER_EVENT_CLICK;
                 key->click_count = 0;
-                key->state = KEY_FSM_IDLE;
+                key->state = KEY_DRIVER_FSM_IDLE;
             }
             break;
 
-        case KEY_FSM_LONG_HOLD:
+        case KEY_DRIVER_FSM_LONG_HOLD:
             if (!pressed) {
                 key->click_count = 0;
-                key->state = KEY_FSM_IDLE;
+                key->state = KEY_DRIVER_FSM_IDLE;
             }
             break;
     }
@@ -120,11 +120,11 @@ void Key_Driver_Task(void)
 Key_Driver_Event Key_Driver_Get_Event(uint8_t key_id)
 {
     Key_Driver_Event evt;
-    if (key_id >= KEY_COUNT) return KEY_EVENT_NONE;
+    if (key_id >= KEY_COUNT) return KEY_DRIVER_EVENT_NONE;
 
     __disable_irq();
     evt = (Key_Driver_Event)s_keys[key_id].event;
-    s_keys[key_id].event = KEY_EVENT_NONE;
+    s_keys[key_id].event = KEY_DRIVER_EVENT_NONE;
     __enable_irq();
     return evt;
 }

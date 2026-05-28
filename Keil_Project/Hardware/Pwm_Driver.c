@@ -13,7 +13,7 @@
  * 线性段 DTG[7:5]=0xx, Tdtg_step = 1/72MHz, DTG = DEADTIME_NS * 72 / 1000
  */
 #define DEADTIME_CYCLES  ((PWM_DRIVER_DEADTIME_NS) * 72 + 500) / 1000
-typedef char __deadtime_linear_check[(DEADTIME_CYCLES <= 127) ? 1 : -1];
+typedef char deadtime_linear_check[(DEADTIME_CYCLES <= 127) ? 1 : -1];
 
 static uint32_t s_current_freq = 150000;  /* 上电默认 150kHz, 启动后由软启动覆盖 */
 

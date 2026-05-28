@@ -26,11 +26,17 @@
 #define FREQ_RAMP_STEP_MS         10
 
 typedef enum {
-    SS_STATE_IDLE   = 0,
-    SS_STATE_SWEEP  = 1,
-    SS_STATE_DONE   = 2,
-    SS_STATE_FAULT  = 3
+    INVERTER_CONTROL_SS_STATE_IDLE   = 0,
+    INVERTER_CONTROL_SS_STATE_SWEEP  = 1,
+    INVERTER_CONTROL_SS_STATE_DONE   = 2,
+    INVERTER_CONTROL_SS_STATE_FAULT  = 3
 } Inverter_Control_Soft_Start_State;
+
+/** @brief 频率斜坡状态 */
+typedef enum {
+    INVERTER_CONTROL_RAMP_IDLE  = 0,
+    INVERTER_CONTROL_RAMP_ACTIVE = 1
+} Inverter_Control_Ramp_State;
 
 void     Inverter_Control_Soft_Start_Trigger(void);
 void     Inverter_Control_Soft_Start_Task(void);

@@ -74,14 +74,14 @@
  * ═══════════════════════════════════════════════════════════════ */
 
 typedef enum {
-    CONN_STATE_IDLE        = 0,  /* 未启动 */
-    CONN_STATE_WIFI_CONN   = 1,  /* WiFi 连接中 */
-    CONN_STATE_MQTT_CONN   = 2,  /* MQTT 连接中 */
-    CONN_STATE_ONLINE      = 3,  /* 双 MQTT 均在线, 可收发 */
-    CONN_STATE_FAILED      = 4   /* 重试耗尽 */
+    MQTT_CONN_STATE_IDLE        = 0,  /* 未启动 */
+    MQTT_CONN_STATE_WIFI_CONN   = 1,  /* WiFi 连接中 */
+    MQTT_CONN_STATE_MQTT_CONN   = 2,  /* MQTT 连接中 */
+    MQTT_CONN_STATE_ONLINE      = 3,  /* 双 MQTT 均在线, 可收发 */
+    MQTT_CONN_STATE_FAILED      = 4   /* 重试耗尽 */
 } Conn_State;
 
-static Conn_State    s_conn_state      = CONN_STATE_IDLE;
+static Conn_State    s_conn_state      = MQTT_CONN_STATE_IDLE;
 static unsigned long s_conn_retry_ms   = 0;
 static uint8_t       s_conn_retry_cnt  = 0;
 static uint8_t       s_conn_max_retry  = 3;
@@ -206,16 +206,16 @@ static void Mqtt_Task_Maintain_Connection(void)
     unsigned long now = millis();
 
     switch (s_conn_state) {
-        case CONN_STATE_IDLE:
+        case MQTT_CONN_STATE_IDLE:
             break;  /* 等待外部触发 */
 
-        case CONN_STATE_WIFI_CONN:
+        case MQTT_CONN_STATE_WIFI_CONN:
             if (WiFi.status() == WL_CONNECTED) {
-                s_conn_state = CONN_STATE_MQTT_CONN;
+                s_conn_state = MQTT_CONN_STATE_MQTT_CONN;
             } else if (now - s_conn_retry_ms >= s_conn_timeout_ms) {
                 s_conn_retry_cnt++;
                 if (s_conn_retry_cnt >= s_conn_max_retry) {
-                    s_conn_state = CONN_STATE_FAILED;
+                    s_conn_state = MQTT_CONN_STATE_FAILED;
                 } else {
                     s_conn_retry_ms = now;
                     WiFi.begin();
@@ -223,7 +223,7 @@ static void Mqtt_Task_Maintain_Connection(void)
             }
             break;
 
-        case CONN_STATE_MQTT_CONN: {
+        case MQTT_CONN_STATE_MQTT_CONN: {
             boolean one_ok  = s_mqtt_client.connected() ||
                 s_mqtt_client.connect(ONENET_DEVICE_NAME, ONENET_PRODUCT_ID, ONENET_TOKEN);
             if (one_ok) s_mqtt_client.subscribe(MQTT_TOPIC_PROPERTY_SET);
@@ -236,7 +236,7 @@ static void Mqtt_Task_Maintain_Connection(void)
             }
 
             if (one_ok && pub_ok) {
-                s_conn_state = CONN_STATE_ONLINE;
+                s_conn_state = MQTT_CONN_STATE_ONLINE;
                 Serial.print("STATUS:ONLINE\n");
 #ifdef DEBUG
                 Serial.println("[Status] >>> Sent STATUS:ONLINE to STM32 <<<");
@@ -245,18 +245,18 @@ static void Mqtt_Task_Maintain_Connection(void)
             break;
         }
 
-        case CONN_STATE_ONLINE:
+        case MQTT_CONN_STATE_ONLINE:
             /* 周期性检查: 任一掉线则回退 */
             if (WiFi.status() != WL_CONNECTED) {
-                s_conn_state = CONN_STATE_WIFI_CONN;
+                s_conn_state = MQTT_CONN_STATE_WIFI_CONN;
                 s_conn_retry_ms = now;
                 WiFi.begin();
             } else if (!s_mqtt_client.connected() || !s_mqtt_public.connected()) {
-                s_conn_state = CONN_STATE_MQTT_CONN;
+                s_conn_state = MQTT_CONN_STATE_MQTT_CONN;
             }
             break;
 
-        case CONN_STATE_FAILED:
+        case MQTT_CONN_STATE_FAILED:
             break;  /* 需外部复位 */
     }
 }
@@ -264,7 +264,7 @@ static void Mqtt_Task_Maintain_Connection(void)
 /* ── 公开接口 ── */
 static void Mqtt_Task_Start_Connect(void)
 {
-    s_conn_state     = CONN_STATE_WIFI_CONN;
+    s_conn_state     = MQTT_CONN_STATE_WIFI_CONN;
     s_conn_retry_ms  = millis();
     s_conn_retry_cnt = 0;
     WiFi.begin();
@@ -272,7 +272,7 @@ static void Mqtt_Task_Start_Connect(void)
 
 static void Mqtt_Task_Soft_Reset(void)
 {
-    s_conn_state     = CONN_STATE_WIFI_CONN;
+    s_conn_state     = MQTT_CONN_STATE_WIFI_CONN;
     s_conn_retry_ms  = millis();
     s_conn_retry_cnt = 0;
 }
@@ -283,7 +283,7 @@ static uint8_t Mqtt_Task_Get_Connect_Status(void)
 }
 
 static uint8_t Mqtt_Task_Get_Retry_Count(void) { return s_conn_retry_cnt; }
-static uint8_t Mqtt_Task_Is_Connected(void)     { return s_conn_state == CONN_STATE_ONLINE; }
+static uint8_t Mqtt_Task_Is_Connected(void)     { return s_conn_state == MQTT_CONN_STATE_ONLINE; }
 
 static void Mqtt_Task_Loop(void)
 {

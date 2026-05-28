@@ -42,7 +42,7 @@
 
 /* ── 模块状态 ── */
 static uint8_t             s_page       = 0;
-static Ui_Controller_State s_ui_state   = UI_STATE_INIT;
+static Ui_Controller_State s_ui_state   = UI_CONTROLLER_STATE_INIT;
 static char                s_error_line[17];
 static uint8_t             s_has_error  = 0;
 
@@ -64,18 +64,18 @@ static void Update_Leds(Ui_Controller_State ui_state)
     uint8_t cs = App_Network_Get_Connect_Status();
 
     if (cs == 2)
-        Led_Driver_Set_WiFi(LED_STATE_ON);
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
     else if (cs == 1)
-        Led_Driver_Set_WiFi(LED_STATE_FAST);
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
     else
-        Led_Driver_Set_WiFi(LED_STATE_SLOW);
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
 
-    if (ui_state == UI_STATE_SWEEPING || ui_state == UI_STATE_RUNNING)
-        Led_Driver_Set_Pwm(LED_STATE_ON);
+    if (ui_state == UI_CONTROLLER_STATE_SWEEPING || ui_state == UI_CONTROLLER_STATE_RUNNING)
+        Led_Driver_Set_Pwm(LED_DRIVER_STATE_ON);
     else
-        Led_Driver_Set_Pwm(LED_STATE_OFF);
+        Led_Driver_Set_Pwm(LED_DRIVER_STATE_OFF);
 
-    Led_Driver_Set_Ready((ui_state == UI_STATE_RUNNING || ui_state == UI_STATE_FAULT));
+    Led_Driver_Set_Ready((ui_state == UI_CONTROLLER_STATE_RUNNING || ui_state == UI_CONTROLLER_STATE_FAULT));
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -216,7 +216,7 @@ static void Draw_Fault(void)
 static void Handle_Keys(Ui_Controller_State ui_state, Key_Driver_Event key0, Key_Driver_Event key1)
 {
     /* 双击切页 — 所有界面通用, 监测模式下唯一有效操作 */
-    if (key0 == KEY_EVENT_DOUBLE_CLICK) {
+    if (key0 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
         s_page = !s_page;
         Oled_Driver_Clear();
         Clear_Error();
@@ -227,38 +227,38 @@ static void Handle_Keys(Ui_Controller_State ui_state, Key_Driver_Event key0, Key
     if (s_page == 1) return;
 
     switch (ui_state) {
-        case UI_STATE_INIT:
-            if (key0 == KEY_EVENT_CLICK) {
+        case UI_CONTROLLER_STATE_INIT:
+            if (key0 == KEY_DRIVER_EVENT_CLICK) {
                 App_Network_Start_Connect();
                 Clear_Error();
                 Oled_Driver_Clear();
             }
             break;
 
-        case UI_STATE_CONNECTING:
+        case UI_CONTROLLER_STATE_CONNECTING:
             break;
 
-        case UI_STATE_READY:
-            if (key0 == KEY_EVENT_CLICK)
+        case UI_CONTROLLER_STATE_READY:
+            if (key0 == KEY_DRIVER_EVENT_CLICK)
                 Inverter_Control_Soft_Start_Trigger();
             break;
 
-        case UI_STATE_SWEEPING:
-            if (key0 == KEY_EVENT_CLICK || key1 == KEY_EVENT_CLICK)
+        case UI_CONTROLLER_STATE_SWEEPING:
+            if (key0 == KEY_DRIVER_EVENT_CLICK || key1 == KEY_DRIVER_EVENT_CLICK)
                 Inverter_Control_Soft_Start_Stop();
             break;
 
-        case UI_STATE_RUNNING:
-            if (key0 == KEY_EVENT_CLICK)
+        case UI_CONTROLLER_STATE_RUNNING:
+            if (key0 == KEY_DRIVER_EVENT_CLICK)
                 Inverter_Control_Soft_Start_Stop();
-            if (key1 == KEY_EVENT_CLICK) {
+            if (key1 == KEY_DRIVER_EVENT_CLICK) {
                 uint32_t f = Pwm_Driver_Get_Frequency() + 1000;
                 if (f <= PWM_DRIVER_FREQ_MAX_HZ) Pwm_Driver_Set_Frequency(f);
             }
             break;
 
-        case UI_STATE_FAULT:
-            if (key0 == KEY_EVENT_CLICK || key1 == KEY_EVENT_CLICK)
+        case UI_CONTROLLER_STATE_FAULT:
+            if (key0 == KEY_DRIVER_EVENT_CLICK || key1 == KEY_DRIVER_EVENT_CLICK)
                 Inverter_Control_Soft_Start_Stop();
             break;
     }
@@ -275,22 +275,22 @@ static Ui_Controller_State Calc_Ui_State(void)
 {
     Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
 
-    if (ss == SS_STATE_FAULT)          return UI_STATE_FAULT;
-    if (!Esp8266_Driver_Is_Ready())    return UI_STATE_INIT;
+    if (ss == SS_STATE_FAULT)          return UI_CONTROLLER_STATE_FAULT;
+    if (!Esp8266_Driver_Is_Ready())    return UI_CONTROLLER_STATE_INIT;
 
     uint8_t cs = App_Network_Get_Connect_Status();
 
     switch (cs) {
-        case 0:  return UI_STATE_INIT;
-        case 1:  return UI_STATE_CONNECTING;
+        case 0:  return UI_CONTROLLER_STATE_INIT;
+        case 1:  return UI_CONTROLLER_STATE_CONNECTING;
         case 3:
             if (!s_has_error) Set_Error("WiFi Failed x3  ");
-            return UI_STATE_INIT;
+            return UI_CONTROLLER_STATE_INIT;
         case 2:
-            if (ss == SS_STATE_IDLE)   return UI_STATE_READY;
-            if (ss == SS_STATE_SWEEP)  return UI_STATE_SWEEPING;
-            return UI_STATE_RUNNING;   /* SS_DONE */
-        default: return UI_STATE_INIT;
+            if (ss == SS_STATE_IDLE)   return UI_CONTROLLER_STATE_READY;
+            if (ss == SS_STATE_SWEEP)  return UI_CONTROLLER_STATE_SWEEPING;
+            return UI_CONTROLLER_STATE_RUNNING;   /* SS_DONE */
+        default: return UI_CONTROLLER_STATE_INIT;
     }
 }
 
@@ -321,7 +321,7 @@ void Ui_Controller_Task(void)
     Key_Driver_Event key1 = Key_Driver_Get_Event(1);
 
     /* KEY0 长按 → 清除 WiFi */
-    if (key0 == KEY_EVENT_LONG_PRESS) {
+    if (key0 == KEY_DRIVER_EVENT_LONG_PRESS) {
         if (Esp8266_Driver_Is_Ready()) {
             Esp8266_Driver_Send_String("CMD:CLEAR\n");
             App_Network_Soft_Reset();
@@ -330,8 +330,8 @@ void Ui_Controller_Task(void)
             Oled_Driver_Show_String(2, 1, "WiFi Cleared... ");
             Oled_Driver_Show_String(3, 1, "Please reconfi-");
             Oled_Driver_Show_String(4, 1, "gure WiFi      ");
-            last_state = (uint8_t)UI_STATE_CONNECTING;
-            s_ui_state = UI_STATE_CONNECTING;
+            last_state = (uint8_t)UI_CONTROLLER_STATE_CONNECTING;
+            s_ui_state = UI_CONTROLLER_STATE_CONNECTING;
             Led_Driver_Task();
         }
         return;
@@ -352,7 +352,7 @@ void Ui_Controller_Task(void)
     s_ui_state = ui_state;
 
     /* READY 状态持续追踪电流零点 */
-    if (ui_state == UI_STATE_READY &&
+    if (ui_state == UI_CONTROLLER_STATE_READY &&
         Inverter_Control_Soft_Start_Get_State() == SS_STATE_IDLE) {
         Adc_Driver_Calibrate_Offset();
     }
@@ -363,12 +363,12 @@ void Ui_Controller_Task(void)
     if (!need_refresh) return;
 
     switch (ui_state) {
-        case UI_STATE_INIT:       Draw_Init();                      break;
-        case UI_STATE_CONNECTING: Draw_Connecting(App_Network_Get_Retry_Count() + 1, 3); break;
-        case UI_STATE_READY:      Draw_Ready();                     break;
-        case UI_STATE_SWEEPING:   Draw_Sweeping();                  break;
-        case UI_STATE_RUNNING:    Draw_Running();                   break;
-        case UI_STATE_FAULT:      Draw_Fault();                     break;
+        case UI_CONTROLLER_STATE_INIT:       Draw_Init();                      break;
+        case UI_CONTROLLER_STATE_CONNECTING: Draw_Connecting(App_Network_Get_Retry_Count() + 1, 3); break;
+        case UI_CONTROLLER_STATE_READY:      Draw_Ready();                     break;
+        case UI_CONTROLLER_STATE_SWEEPING:   Draw_Sweeping();                  break;
+        case UI_CONTROLLER_STATE_RUNNING:    Draw_Running();                   break;
+        case UI_CONTROLLER_STATE_FAULT:      Draw_Fault();                     break;
     }
 }
 

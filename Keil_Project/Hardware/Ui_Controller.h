@@ -14,12 +14,12 @@
 #include "stm32f10x.h"
 
 typedef enum {
-    UI_STATE_INIT       = 0,
-    UI_STATE_CONNECTING = 1,
-    UI_STATE_READY      = 2,
-    UI_STATE_SWEEPING   = 3,
-    UI_STATE_RUNNING    = 4,
-    UI_STATE_FAULT      = 5
+    UI_CONTROLLER_STATE_INIT       = 0,
+    UI_CONTROLLER_STATE_CONNECTING = 1,
+    UI_CONTROLLER_STATE_READY      = 2,
+    UI_CONTROLLER_STATE_SWEEPING   = 3,
+    UI_CONTROLLER_STATE_RUNNING    = 4,
+    UI_CONTROLLER_STATE_FAULT      = 5
 } Ui_Controller_State;
 
 void              Ui_Controller_Task(void);

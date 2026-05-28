@@ -2,6 +2,7 @@
  ******************************************************************************
  * @file    User/App_Network.c
  * @brief   网络应用层 — 实现
+ * @note    V6.0: 显式 App_Network_Conn_State 枚举替代隐式 bool 组合
  ******************************************************************************
  */
 
@@ -17,62 +18,60 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define CONNECT_TIMEOUT_MS  15000
-#define MAX_RETRIES          3
-#define TELEMETRY_PERIOD_MS  500
+#define APP_NETWORK_CONNECT_TIMEOUT_MS  15000
+#define APP_NETWORK_MAX_RETRIES           3
+#define APP_NETWORK_TELEMETRY_PERIOD_MS  500
 
-static uint8_t  s_network_online = 0;
-static uint8_t  s_connecting     = 0;
-static uint8_t  s_retry_count    = 0;
-static uint32_t s_connect_start  = 0;
+static App_Network_Conn_State s_conn_state    = APP_NETWORK_CONN_IDLE;
+static uint8_t                s_retry_count   = 0;
+static uint32_t               s_connect_start = 0;
 
 uint8_t App_Network_Start_Connect(void)
 {
-    s_network_online = 0;
-    s_connecting     = 1;
-    s_retry_count    = 0;
-    s_connect_start  = Sys_Timer_Get_Tick();
+    s_conn_state    = APP_NETWORK_CONN_WIFI;
+    s_retry_count   = 0;
+    s_connect_start = Sys_Timer_Get_Tick();
     Esp8266_Driver_Start_Init();
-    Led_Driver_Set_WiFi(LED_STATE_SLOW);
+    Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     return 0;
 }
 
 uint8_t App_Network_Soft_Reset(void)
 {
-    s_network_online = 0;
-    s_connecting     = 1;
-    s_retry_count    = 0;
-    s_connect_start  = Sys_Timer_Get_Tick();
-    Led_Driver_Set_WiFi(LED_STATE_SLOW);
+    s_conn_state    = APP_NETWORK_CONN_WIFI;
+    s_retry_count   = 0;
+    s_connect_start = Sys_Timer_Get_Tick();
+    Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     return 0;
 }
 
 uint8_t App_Network_Get_Connect_Status(void)
 {
-    if (!s_connecting) return s_network_online ? 2 : 0;
-    if (s_network_online) { s_connecting = 0; return 2; }
-    if (s_retry_count >= MAX_RETRIES) { s_connecting = 0; return 3; }
-    return 1;
+    return (uint8_t)s_conn_state;
 }
 
 uint8_t App_Network_Get_Retry_Count(void)  { return s_retry_count; }
 
 uint8_t App_Network_Is_Connected(void)
 {
-    return Esp8266_Driver_Is_Ready() && s_network_online;
+    return Esp8266_Driver_Is_Ready() && (s_conn_state == APP_NETWORK_CONN_ONLINE);
 }
 
 /* ── 内部: 重试超时检查 ── */
 static void Check_Retry(void)
 {
-    if (!s_connecting || s_network_online || s_retry_count >= MAX_RETRIES) return;
+    if (s_conn_state != APP_NETWORK_CONN_WIFI) return;
+    if (s_retry_count >= APP_NETWORK_MAX_RETRIES) {
+        s_conn_state = APP_NETWORK_CONN_FAILED;
+        return;
+    }
 
-    if (Sys_Timer_Get_Tick() - s_connect_start >= CONNECT_TIMEOUT_MS) {
+    if (Sys_Timer_Get_Tick() - s_connect_start >= APP_NETWORK_CONNECT_TIMEOUT_MS) {
         s_retry_count++;
-        if (s_retry_count < MAX_RETRIES) {
+        if (s_retry_count < APP_NETWORK_MAX_RETRIES) {
             s_connect_start = Sys_Timer_Get_Tick();
             Esp8266_Driver_Start_Init();
-            Led_Driver_Set_WiFi(LED_STATE_SLOW);
+            Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
         }
     }
 }
@@ -92,19 +91,18 @@ void App_Network_Task(void)
         Esp8266_Driver_Copy_Rx_Frame(local_buf, sizeof(local_buf));
 
         if (strstr(local_buf, "STATUS:ONLINE")) {
-            s_network_online = 1;
-            s_connecting     = 0;
-            Led_Driver_Set_WiFi(LED_STATE_ON);
+            s_conn_state = APP_NETWORK_CONN_ONLINE;
+            Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
         }
         else if (strstr(local_buf, "CMD:ON")) {
-            if (Inverter_Control_Soft_Start_Get_State() == SS_STATE_IDLE)
+            if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE)
                 Inverter_Control_Soft_Start_Trigger();
         }
         else if (strstr(local_buf, "CMD:OFF")) {
             Inverter_Control_Soft_Start_Stop();
         }
         else if (strstr(local_buf, "CMD:SETFREQ:")) {
-            if (Inverter_Control_Soft_Start_Get_State() == SS_STATE_DONE) {
+            if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE) {
                 long f = atol(local_buf + 12);
                 if (f >= PWM_DRIVER_FREQ_MIN_HZ && f <= PWM_DRIVER_FREQ_MAX_HZ)
                     Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);
@@ -116,17 +114,17 @@ void App_Network_Task(void)
     {
         static uint32_t last_telemetry = 0;
 
-        if (Sys_Timer_Get_Tick() - last_telemetry >= TELEMETRY_PERIOD_MS) {
+        if (Sys_Timer_Get_Tick() - last_telemetry >= APP_NETWORK_TELEMETRY_PERIOD_MS) {
             last_telemetry = Sys_Timer_Get_Tick();
 
-            if (!s_network_online) return;
-            if (Ui_Controller_Get_State() < UI_STATE_READY) return;
+            if (s_conn_state != APP_NETWORK_CONN_ONLINE) return;
+            if (Ui_Controller_Get_State() < UI_CONTROLLER_STATE_READY) return;
 
             Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
-            if (ss == SS_STATE_SWEEP) return;
+            if (ss == INVERTER_CONTROL_SS_STATE_SWEEP) return;
 
             char json_buf[80];
-            if (ss == SS_STATE_DONE) {
+            if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
                 snprintf(json_buf, sizeof(json_buf),
                          "{\"V\":%.2f,\"I\":%.2f,\"F\":%lu,\"S\":%d}\n",
                          Adc_Driver_Get_Voltage(),

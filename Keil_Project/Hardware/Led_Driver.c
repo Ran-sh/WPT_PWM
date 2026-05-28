@@ -20,8 +20,8 @@
 #define BLINK_SLOW_PERIOD_MS   500
 #define BLINK_FAST_PERIOD_MS   200
 
-static Led_Driver_State s_wifi_state  = LED_STATE_OFF;
-static Led_Driver_State s_pwm_state   = LED_STATE_OFF;
+static Led_Driver_State s_wifi_state  = LED_DRIVER_STATE_OFF;
+static Led_Driver_State s_pwm_state   = LED_DRIVER_STATE_OFF;
 static uint8_t          s_ready_on    = 0;
 static uint32_t         s_wifi_last   = 0;
 static uint32_t         s_pwm_last    = 0;
@@ -32,19 +32,19 @@ static void Drive_Pin(GPIO_TypeDef* port, uint16_t pin, Led_Driver_State state, 
     uint32_t now = Sys_Timer_Get_Tick();
 
     switch (state) {
-        case LED_STATE_ON:
+        case LED_DRIVER_STATE_ON:
             GPIO_SetBits(port, pin);
             break;
-        case LED_STATE_OFF:
+        case LED_DRIVER_STATE_OFF:
             GPIO_ResetBits(port, pin);
             break;
-        case LED_STATE_SLOW:
+        case LED_DRIVER_STATE_SLOW:
             if (now - *p_last >= BLINK_SLOW_PERIOD_MS) {
                 *p_last = now;
                 GPIO_WriteBit(port, pin, (BitAction)!GPIO_ReadOutputDataBit(port, pin));
             }
             break;
-        case LED_STATE_FAST:
+        case LED_DRIVER_STATE_FAST:
             if (now - *p_last >= BLINK_FAST_PERIOD_MS) {
                 *p_last = now;
                 GPIO_WriteBit(port, pin, (BitAction)!GPIO_ReadOutputDataBit(port, pin));

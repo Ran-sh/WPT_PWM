@@ -13,10 +13,10 @@
 #include "stm32f10x.h"
 
 typedef enum {
-    KEY_EVENT_NONE        = 0,
-    KEY_EVENT_CLICK       = 1,
-    KEY_EVENT_DOUBLE_CLICK = 2,
-    KEY_EVENT_LONG_PRESS  = 3
+    KEY_DRIVER_EVENT_NONE        = 0,
+    KEY_DRIVER_EVENT_CLICK       = 1,
+    KEY_DRIVER_EVENT_DOUBLE_CLICK = 2,
+    KEY_DRIVER_EVENT_LONG_PRESS  = 3
 } Key_Driver_Event;
 
 void Key_Driver_Init(void);
