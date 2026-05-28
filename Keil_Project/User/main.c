@@ -46,6 +46,13 @@ int main(void)
     /* 阶段 2: 系统时基 */
     Sys_Timer_Init();
 
+    /* 阶段 2.5: 独立看门狗 (LSI 40kHz, 分频 64 → 1.6s 超时) */
+    IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);
+    IWDG_SetPrescaler(IWDG_Prescaler_64);
+    IWDG_SetReload(1000);  /* 1000 / (40k/64) = 1.6s */
+    IWDG_ReloadCounter();
+    IWDG_Enable();
+
     /* 阶段 3: 自动启动联网 (~3s 阻塞, ESP 硬件复位) */
     App_Network_Start_Connect();
 
@@ -59,6 +66,7 @@ int main(void)
         Inverter_Control_Freq_Ramp_Task();
         Led_Driver_Task();
 
+        IWDG_ReloadCounter();  /* 喂狗 */
         __WFI();  /* 休眠等 SysTick 中断, 空闲电流 30mA→5mA */
     }
 }
