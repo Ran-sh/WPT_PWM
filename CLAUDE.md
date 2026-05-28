@@ -130,6 +130,15 @@ void Some_Task(void) {
 ```
 `Sys_Timer_Delay_Ms()` is deprecated — use non-blocking state machines even for initialization sequences (see `Esp8266_Driver_Init_Task` for the CH_PD reset pattern). `System/Delay.c` is deleted, do not revive.
 
+### IWDG Watchdog + Power Saving (V6.0)
+
+IWDG: LSI 40kHz, prescaler 64, reload 1000 → ~1.6s timeout. `IWDG_ReloadCounter()` in main loop. Any task hang triggers auto-reset.
+`__WFI()` at loop end: idle current ~30mA → ~5mA. SysTick ISR wakes CPU every 1ms.
+
+### Display Smoothing (V6.0)
+
+OLED V/I/F use EMA (α=0.25, τ≈800ms) separate from fast ADC filter used for telemetry/protection. Display jitter eliminated without affecting measurement accuracy.
+
 ### ADC Anti-Aliasing
 采样周期 144241 CPU cycles 与 100kHz PWM (720 cycles) 互质 → 720 个不同相位均匀覆盖。64 样本滑动窗口 (128ms) 收敛至 DC 分量。自动零点校准: READY 状态首次采集 50 样本取平均, 后续 EMA 追踪。
 
@@ -175,12 +184,13 @@ ESP8266 requires independent 3.3V LDO ≥500mA with 100μF+0.1μF decoupling. RS
 ```
 上电 → Pwm_Driver_Init(MOE=OFF) → Oled_Driver_Init → Led_Driver_Init
      → Adc_Driver_Init → Key_Driver_Init
-     → Sys_Timer_Init (SysTick + DWT)
-     → App_Network_Start_Connect (阻塞~3s, ESP CH_PD 复位)
+     → Sys_Timer_Init (SysTick + DWT) → IWDG_Init (1.6s 超时)
+     → App_Network_Start_Connect (ESP 非阻塞初始化)
      → while(1):
          Key_Driver_Task | Adc_Driver_Filter_Task | Ui_Controller_Task
          | App_Network_Task | Inverter_Control_Soft_Start_Task
          | Inverter_Control_Freq_Ramp_Task | Led_Driver_Task
+         | IWDG_ReloadCounter | __WFI
 ```
 
 ## ESP8266 Firmware (V5.1)

@@ -381,14 +381,19 @@ KEY0 (PB12) 和 KEY1 (PB13) 均内部上拉 (IPU), 10ms 扫描, 八态 FSM:
 
 | 场景 | 机制 | 动作 |
 |:---|:---|:---|
-| 上电 | `PWM_Init(MOE=OFF)` | 硬件级安全, 全桥无输出 |
-| 过流 | `Inverter_SoftStart_Fault()` | 紧急关断 + SS_FAULT 锁存 (仅 KEY0/KEY1 可复位) |
-| 频率越界 | `PWM_SetFrequency` 硬钳位 95k~150k | 拒绝执行 |
+| 上电 | `Pwm_Driver_Init(MOE=OFF)` | 硬件级安全, 全桥无输出 |
+| 过流 | `Inverter_Control_Soft_Start_Fault()` | 紧急关断 + SS_FAULT 锁存 (仅 KEY0/KEY1 可复位) |
+| CPU 故障 | HardFault/MemManage/BusFault/UsageFault | 强制关断 PWM 后死循环, 防止桥臂直通 |
+| 主循环卡死 | IWDG 独立看门狗 (1.6s 超时) | 自动复位 |
+| 频率越界 | `Pwm_Driver_Set_Frequency` 硬钳位 95k~150k | 拒绝执行 |
 | 死区不足 | 编译期 `__deadtime_linear_check` typedef 断言 | 编译失败 |
 | 占空比偏移 | 影子寄存器 + `UDIS` 原子更新 | 防止周期裁剪磁饱和 |
-| ESP8266 断线 | ESP8266 自管理重连 | STM32 无感, 继续发 JSON |
-| STM32 掉电后上电 | `PWM_Init(MOE=OFF)` | 安全态启动 |
+| ESP8266 掉线 | ESP8266 自管理重连 + `Conn_State` 状态机 | STM32 无感, 继续发 JSON |
 | 连接超时 | 15s×3 次硬件复位重试 | 失败回初始界面 + 错误提示 |
+
+### 低功耗
+
+主循环末尾 `__WFI()` 休眠等 SysTick 中断唤醒, 空闲电流 ~30mA → ~5mA。
 
 ---
 
