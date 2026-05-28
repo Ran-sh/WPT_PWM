@@ -156,24 +156,26 @@ static void Draw_Sweeping(void)
 
 static void Draw_Running(void)
 {
-    uint32_t f = Pwm_Driver_Get_Frequency();
-    static float s_disp_v = 0.0f;   /* 显示用 EMA 平滑 (α=0.25, τ≈800ms) */
-    static float s_disp_i = 0.0f;
+    static float   s_disp_v    = 0.0f;    /* EMA 平滑 (α=0.25, τ≈800ms) */
+    static float   s_disp_i    = 0.0f;
+    static float   s_disp_f_khz = 0.0f;
     static uint8_t s_disp_init = 0;
 
     if (!s_disp_init) {
-        s_disp_v = Adc_Driver_Get_Voltage();
-        s_disp_i = Adc_Driver_Get_Current();
-        s_disp_init = 1;
+        s_disp_v     = Adc_Driver_Get_Voltage();
+        s_disp_i     = Adc_Driver_Get_Current();
+        s_disp_f_khz = (float)Pwm_Driver_Get_Frequency() / 1000.0f;
+        s_disp_init  = 1;
     } else {
-        s_disp_v = s_disp_v * 0.75f + Adc_Driver_Get_Voltage() * 0.25f;
-        s_disp_i = s_disp_i * 0.75f + Adc_Driver_Get_Current() * 0.25f;
+        s_disp_v     = s_disp_v     * 0.75f + Adc_Driver_Get_Voltage()              * 0.25f;
+        s_disp_i     = s_disp_i     * 0.75f + Adc_Driver_Get_Current()              * 0.25f;
+        s_disp_f_khz = s_disp_f_khz * 0.75f + (float)Pwm_Driver_Get_Frequency() / 1000.0f * 0.25f;
     }
 
     if (s_page == 0) {
         Oled_Driver_Show_String(1, 1, STR_RESONANT_MODE);
         Oled_Driver_Show_String(2, 1, "F:");
-        Oled_Driver_Show_Num(2, 3, f / 1000, 3);
+        Oled_Driver_Show_Num(2, 3, (uint32_t)(s_disp_f_khz + 0.5f), 3);
         Oled_Driver_Show_String(2, 6, "kHz  ");
         Oled_Driver_Show_String(3, 1, "V:");
         Oled_Driver_Show_Float(3, 2, s_disp_v, 2, 2);
@@ -183,7 +185,7 @@ static void Draw_Running(void)
     } else {
         Oled_Driver_Show_String(1, 1, STR_MONITOR_ONLY);
         Oled_Driver_Show_String(2, 1, "Freq: ");
-        Oled_Driver_Show_Num(2, 7, f / 1000, 3);
+        Oled_Driver_Show_Num(2, 7, (uint32_t)(s_disp_f_khz + 0.5f), 3);
         Oled_Driver_Show_String(2, 10, "kHz");
         Oled_Driver_Show_String(3, 1, "Volt: ");
         Oled_Driver_Show_Float(3, 7, s_disp_v, 2, 2);

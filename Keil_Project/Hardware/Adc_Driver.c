@@ -44,7 +44,7 @@ static void Filter_Push(Filter_Window* fw, uint16_t new_val)
 
 static float Filter_To_Voltage(const Filter_Window* fw)
 {
-    return ((float)(fw->accum / fw->filled) / 4095.0f) * VREF_MCU;
+    return ((float)fw->accum / (float)fw->filled / 4095.0f) * VREF_MCU;
 }
 
 /* ── 模块状态 ── */
