@@ -16,7 +16,14 @@
 
 /*
  * 采样周期: 144241 CPU 周期, 与 100kHz PWM 互质 → 覆盖 720 个相位
+ *
+ * 互质性验证: gcd(144241, 720) = 1
+ *   144241 ≡ 241 (mod 720), gcd(241, 720) = 1  ✓
+ *
+ * 以下静态断言确保系统时钟 = 72MHz (DWT 周期计数器与 PWM 频率计算依赖此假设):
  */
+typedef char Adc_Driver_Assert_HSE_72MHz[(SystemCoreClock == 72000000) ? 1 : -1];
+
 #define FILTER_PERIOD_CYCLES  144241
 
 /* ── 校准参数 ── */

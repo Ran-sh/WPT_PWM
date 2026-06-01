@@ -102,9 +102,15 @@ void Inverter_Control_Freq_Ramp_Task(void)
     if (s_ramp_state == INVERTER_CONTROL_RAMP_IDLE) return;
 
     uint32_t current = Pwm_Driver_Get_Frequency();
-    if (current == s_ramp_target) {
-        s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
-        return;
+
+    /* 频率由硬件整数分频决定, 实际值可能偏离目标一个步进以内 */
+    {
+        int32_t diff = (int32_t)(current - s_ramp_target);
+        if (diff >= -(int32_t)FREQ_RAMP_STEP_HZ && diff <= (int32_t)FREQ_RAMP_STEP_HZ) {
+            Pwm_Driver_Set_Frequency(s_ramp_target);
+            s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
+            return;
+        }
     }
 
     if (Sys_Timer_Get_Tick() - s_ramp_last_ms >= FREQ_RAMP_STEP_MS) {
@@ -118,8 +124,6 @@ void Inverter_Control_Freq_Ramp_Task(void)
             if (current < s_ramp_target) current = s_ramp_target;
         }
         Pwm_Driver_Set_Frequency(current);
-
-        if (current == s_ramp_target) s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
     }
 }
 

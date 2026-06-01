@@ -40,11 +40,22 @@
 
 #define OLED_REFRESH_MS     200
 
+/* ── 过流保护阈值 ── */
+#define UI_CONTROLLER_OVERCURRENT_THRESHOLD_A  5.0f   /* 5A 触发故障保护 */
+
 /* ── 模块状态 ── */
 static uint8_t             s_page       = 0;
 static Ui_Controller_State s_ui_state   = UI_CONTROLLER_STATE_INIT;
 static char                s_error_line[17];
 static uint8_t             s_has_error  = 0;
+
+/* EMA 显示平滑状态 — 提升到模块级, 确保状态转移时正确重置 */
+static float   s_disp_v     = 0.0f;
+static float   s_disp_i     = 0.0f;
+static float   s_disp_f_khz = 0.0f;
+static uint8_t s_disp_init  = 0;
+
+static void Reset_Display_EMA(void) { s_disp_init = 0; }
 
 static void Clear_Error(void) { s_has_error = 0; }
 
@@ -156,11 +167,6 @@ static void Draw_Sweeping(void)
 
 static void Draw_Running(void)
 {
-    static float   s_disp_v    = 0.0f;    /* EMA 平滑 (α=0.25, τ≈800ms) */
-    static float   s_disp_i    = 0.0f;
-    static float   s_disp_f_khz = 0.0f;
-    static uint8_t s_disp_init = 0;
-
     if (!s_disp_init) {
         s_disp_v     = Adc_Driver_Get_Voltage();
         s_disp_i     = Adc_Driver_Get_Current();
@@ -308,11 +314,12 @@ void Ui_Controller_Task(void)
 
     Ui_Controller_State ui_state = Calc_Ui_State();
 
-    /* 状态/页面迁移 → 全屏清零 */
+    /* 状态/页面迁移 → 全屏清零, 重置 EMA 平滑避免跳变 */
     if ((uint8_t)ui_state != last_state || s_page != last_page) {
         last_state = (uint8_t)ui_state;
         last_page  = s_page;
         Oled_Driver_Clear();
+        Reset_Display_EMA();
         need_refresh = 1;
     }
 
@@ -346,10 +353,23 @@ void Ui_Controller_Task(void)
         last_state = (uint8_t)ui_state;
         last_page  = s_page;
         Oled_Driver_Clear();
+        Reset_Display_EMA();
         need_refresh = 1;
     }
 
     s_ui_state = ui_state;
+
+    /* ── 过流保护: 逆变器工作时持续监测电流, 超出阈值立即关断 ── */
+    if (ui_state == UI_CONTROLLER_STATE_SWEEPING || ui_state == UI_CONTROLLER_STATE_RUNNING) {
+        if (Adc_Driver_Get_Current() > UI_CONTROLLER_OVERCURRENT_THRESHOLD_A) {
+            Inverter_Control_Soft_Start_Fault();
+            ui_state = UI_CONTROLLER_STATE_FAULT;
+            last_state = (uint8_t)UI_CONTROLLER_STATE_FAULT;
+            s_ui_state = UI_CONTROLLER_STATE_FAULT;
+            Oled_Driver_Clear();
+            need_refresh = 1;
+        }
+    }
 
     /* READY 状态持续追踪电流零点 */
     if (ui_state == UI_CONTROLLER_STATE_READY &&

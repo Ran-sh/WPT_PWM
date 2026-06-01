@@ -203,22 +203,22 @@ void Oled_Driver_Show_Signed_Num(uint8_t line, uint8_t column, int32_t num, uint
         Oled_Driver_Show_Char(line, column + i + 1, abs_val / Oled_Int_Pow(10, len - i - 1) % 10 + '0');
 }
 
-void Oled_Driver_Show_Float(uint8_t line, uint8_t column, double num,
+void Oled_Driver_Show_Float(uint8_t line, uint8_t column, float num,
                              uint8_t int_len, uint8_t fract_len)
 {
     uint32_t int_part, fract_part;
     uint32_t pow10 = Oled_Int_Pow(10, fract_len);
     uint8_t  offset = 0;
 
-    if (num < 0) {
+    if (num < 0.0f) {
         Oled_Driver_Show_Char(line, column, '-');
         num = -num;
         offset = 1;
     }
 
-    num += 0.5 / (double)pow10;
+    num += 0.5f / (float)pow10;
     int_part   = (uint32_t)num;
-    fract_part = (uint32_t)((num - int_part) * (double)pow10);
+    fract_part = (uint32_t)((num - (float)int_part) * (float)pow10);
 
     Oled_Driver_Show_Num(line, column + offset, int_part, int_len);
     Oled_Driver_Show_Char(line, column + offset + int_len, ':');

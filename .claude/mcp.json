@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "visio": {
+      "command": "uv",
+      "args": ["run", "--with", "visio-mcp", "python", "-m", "visio_mcp"]
+    }
+  }
+}

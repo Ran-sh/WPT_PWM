@@ -110,34 +110,38 @@ void App_Network_Task(void)
         }
     }
 
-    /* ── 遥测发送 (门控: 仅 UI >= READY) ── */
+    /* ── 遥测发送 (门控: 仅 UI >= READY 且系统在线) ── */
     {
         static uint32_t last_telemetry = 0;
 
         if (Sys_Timer_Get_Tick() - last_telemetry >= APP_NETWORK_TELEMETRY_PERIOD_MS) {
             last_telemetry = Sys_Timer_Get_Tick();
 
-            if (s_conn_state != APP_NETWORK_CONN_ONLINE) return;
-            if (Ui_Controller_Get_State() < UI_CONTROLLER_STATE_READY) return;
+            uint8_t allow_telemetry = 1;
+
+            if (s_conn_state != APP_NETWORK_CONN_ONLINE)     allow_telemetry = 0;
+            if (Ui_Controller_Get_State() < UI_CONTROLLER_STATE_READY) allow_telemetry = 0;
 
             Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
-            if (ss == INVERTER_CONTROL_SS_STATE_SWEEP) return;
+            if (ss == INVERTER_CONTROL_SS_STATE_SWEEP)       allow_telemetry = 0;
 
-            char json_buf[80];
-            if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
-                snprintf(json_buf, sizeof(json_buf),
-                         "{\"V\":%.2f,\"I\":%.2f,\"F\":%lu,\"S\":%d}\n",
-                         Adc_Driver_Get_Voltage(),
-                         Adc_Driver_Get_Current(),
-                         (unsigned long)Pwm_Driver_Get_Frequency(),
-                         (int)ss);
-            } else {
-                snprintf(json_buf, sizeof(json_buf),
-                         "{\"V\":0.00,\"I\":0.00,\"F\":%lu,\"S\":%d}\n",
-                         (unsigned long)Pwm_Driver_Get_Frequency(),
-                         (int)ss);
+            if (allow_telemetry) {
+                char json_buf[80];
+                if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
+                    snprintf(json_buf, sizeof(json_buf),
+                             "{\"V\":%.2f,\"I\":%.2f,\"F\":%lu,\"S\":%d}\n",
+                             Adc_Driver_Get_Voltage(),
+                             Adc_Driver_Get_Current(),
+                             (unsigned long)Pwm_Driver_Get_Frequency(),
+                             (int)ss);
+                } else {
+                    snprintf(json_buf, sizeof(json_buf),
+                             "{\"V\":0.00,\"I\":0.00,\"F\":%lu,\"S\":%d}\n",
+                             (unsigned long)Pwm_Driver_Get_Frequency(),
+                             (int)ss);
+                }
+                Esp8266_Driver_Send_String(json_buf);
             }
-            Esp8266_Driver_Send_String(json_buf);
         }
     }
 }

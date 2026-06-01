@@ -52,6 +52,7 @@ int main(void)
     IWDG_SetReload(1000);  /* 1000 / (40k/64) = 1.6s */
     IWDG_ReloadCounter();
     IWDG_Enable();
+    DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;  /* 调试/下载时冻结看门狗, 避免 Flash Download failed */
 
     /* 阶段 3: 自动启动联网 (ESP 非阻塞初始化) */
     App_Network_Start_Connect();

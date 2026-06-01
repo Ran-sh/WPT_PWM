@@ -89,11 +89,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - IWDG 看门狗在 main() 初始化, 主循环喂狗
 - 编译期可验证的约束用 `typedef char assertion[(condition)?1:-1]` 检查
 
+**全桥 PWM 基线 (重构不改, 关系到全桥是否输出波形)**
+- `GPIO_PinRemapConfig(GPIO_PartialRemap_TIM1, ENABLE)` — PA7=CH1N, PB0=CH2N, 缺失则无输出
+- `TIM_CounterMode_Up` — 不可改为 CenterAligned (频率公式不同, 两路 CH1=PWM1+CH2=PWM2 配合 Up 计数实现对角线交替导通)
+- CH1=`TIM_OCMode_PWM1`, CH2=`TIM_OCMode_PWM2` — 两路不同模式, 桥间产生差分电压; 同模式则桥间电压为零
+- `TIM_OCNPolarity_Low` — IR2103S LIN 为低有效, 不可改为 High
+- `TIM_OCNIdleState_Set` — MOE 关断时下管必须关断 (LIN=HIGH), 不可改为 Reset
+- 死区 1000ns, 由 `PWM_DRIVER_DEADTIME_NS` 宏统一定义
+- 频率范围 95kHz~150kHz (`PWM_DRIVER_FREQ_MIN_HZ`/`MAX_HZ`), 软启动从 150k 扫到 100k
+- 以上参数源自 V0.0 已验证硬件, 重构时逐行对照, 不准擅自改动
+
 **可维护性**
 - 魔法数字命名常量, 不准裸值散落代码中
 - 显示字符串集中为 `#define STR_*` 宏, 方便多语言替换
 - 频率/电压/电流限制单一定义, 全项目引用同一处
 - 不保留废弃代码和旧文件, 删干净避免维护陷阱
+- 生成的文件放到指定目录, 不准散落在桌面或其他无关位置; 不确定存放路径时先询问
 
 ## Architecture: Dual-MCU
 

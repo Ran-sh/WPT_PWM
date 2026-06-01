@@ -78,7 +78,16 @@ static void Hardware_Configure(void)
 /* ── 公开: 启动非阻塞初始化 ── */
 void Esp8266_Driver_Start_Init(void)
 {
-    /* 允许重入: 已有帧缓冲保持, 仅重新走 CH_PD 硬件复位时序 */
+    /* 允许重入: 清除旧帧缓冲, 防止 ESP 复位后残留数据被误消费 */
+    {
+        uint32_t primask = __get_PRIMASK();
+        __disable_irq();
+        s_rx_buf[0]     = '\0';
+        s_rx_index      = 0;
+        s_rx_frame_flag = 0;
+        __set_PRIMASK(primask);
+    }
+
     Hardware_Configure();
 
     GPIO_ResetBits(CH_PD_PORT, CH_PD_PIN);
@@ -152,17 +161,20 @@ const char* Esp8266_Driver_Get_Rx_Buffer(void)
 
 void Esp8266_Driver_Clear_Rx_Buffer(void)
 {
+    uint32_t primask = __get_PRIMASK();
     __disable_irq();
     s_rx_buf[0]     = '\0';
     s_rx_index      = 0;
     s_rx_frame_flag = 0;
-    __enable_irq();
+    __set_PRIMASK(primask);
 }
 
 uint16_t Esp8266_Driver_Copy_Rx_Frame(char* dst, uint16_t max_len)
 {
     uint16_t len = 0;
+    uint32_t primask;
     if (max_len < 2) return 0;
+    primask = __get_PRIMASK();
     __disable_irq();
     while (s_rx_buf[len] && len < max_len - 1) {
         dst[len] = s_rx_buf[len];
@@ -172,6 +184,6 @@ uint16_t Esp8266_Driver_Copy_Rx_Frame(char* dst, uint16_t max_len)
     s_rx_buf[0]   = '\0';
     s_rx_index    = 0;
     s_rx_frame_flag = 0;
-    __enable_irq();
+    __set_PRIMASK(primask);
     return len;
 }

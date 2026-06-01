@@ -19,7 +19,7 @@ void Oled_Driver_Show_Char(uint8_t line, uint8_t column, char ch);
 void Oled_Driver_Show_String(uint8_t line, uint8_t column, const char* str);
 void Oled_Driver_Show_Num(uint8_t line, uint8_t column, uint32_t num, uint8_t len);
 void Oled_Driver_Show_Signed_Num(uint8_t line, uint8_t column, int32_t num, uint8_t len);
-void Oled_Driver_Show_Float(uint8_t line, uint8_t column, double num, uint8_t int_len, uint8_t fract_len);
+void Oled_Driver_Show_Float(uint8_t line, uint8_t column, float num, uint8_t int_len, uint8_t fract_len);
 void Oled_Driver_Show_Hex(uint8_t line, uint8_t column, uint32_t num, uint8_t len);
 void Oled_Driver_Show_Bin(uint8_t line, uint8_t column, uint32_t num, uint8_t len);
 

@@ -120,11 +120,13 @@ void Key_Driver_Task(void)
 Key_Driver_Event Key_Driver_Get_Event(uint8_t key_id)
 {
     Key_Driver_Event evt;
+    uint32_t primask;
     if (key_id >= KEY_COUNT) return KEY_DRIVER_EVENT_NONE;
 
+    primask = __get_PRIMASK();
     __disable_irq();
     evt = (Key_Driver_Event)s_keys[key_id].event;
     s_keys[key_id].event = KEY_DRIVER_EVENT_NONE;
-    __enable_irq();
+    __set_PRIMASK(primask);
     return evt;
 }
