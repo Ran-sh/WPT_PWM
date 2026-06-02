@@ -221,6 +221,21 @@ OLED V/I/F use EMA (α=0.25, τ≈800ms) separate from fast ADC filter used for 
 ### HardFault Protection (V6.0)
 All fault handlers (`HardFault_Handler`, `MemManage_Handler`, `BusFault_Handler`, `UsageFault_Handler`) call `TIM_CtrlPWMOutputs(TIM1, DISABLE)` before `while(1)` to prevent bridge shoot-through on CPU crash.
 
+### Overcurrent Protection (V6.1)
+`Ui_Controller_Task` 在 SWEEPING/RUNNING 状态每 200ms 检测电流 > `UI_CONTROLLER_OVERCURRENT_THRESHOLD_A` (5.0A), 触发 `Inverter_Control_Soft_Start_Fault()` → MOE 关断 + SS_FAULT 锁存。仅 KEY0/KEY1 可复位。
+
+### V6.1 Key Fixes
+| 级别 | 文件 | 修复内容 |
+|:---|:---|:---|
+| CRITICAL | `Inverter_Control.c` | 频率斜坡: `current==target` → `\|diff\|≤1000Hz` 容差收敛 |
+| CRITICAL | `Pwm_Driver.c` | 恢复 V0.0 基线: Up 计数 + PartialRemap + PWM1/PWM2 + OCNPolarity_Low + OCNIdleState_Set |
+| HIGH | `Esp8266_Driver.c` | Start_Init 清空 RX 缓冲 (防止 ESP 复位后残留帧) |
+| HIGH | `Esp8266_Driver.c` `Key_Driver.c` | 裸 `__enable_irq()` → PRIMASK 保存/恢复 (3 处) |
+| MEDIUM | `Adc_Driver.c` | 编译期断言 `SystemCoreClock == 72MHz` (DWT 互质依赖) |
+| MEDIUM | `Oled_Driver.c/h` | `double` → `float` (Cortex-M3 无硬件 FPU) |
+| MEDIUM | `Ui_Controller.c` | EMA 显示状态模块级 + `Reset_Display_EMA()` (消除重启收敛滞后) |
+| LOW | `App_Network.c` | 遥测门控: 嵌套 `return` → 单 `if(allow_telemetry)` 模式 |
+
 ### Library Doctrine
 - **SPL V3.5.0 ONLY**. No HAL/LL functions.
 - Internal functions prefixed with module name to avoid SPL name clashes (e.g., `Oled_I2C_Init` not `I2C_Init`).
@@ -249,13 +264,14 @@ All fault handlers (`HardFault_Handler`, `MemManage_Handler`, `BusFault_Handler`
 
 ESP8266 requires independent 3.3V LDO ≥500mA with 100μF+0.1μF decoupling. RST pin: 10kΩ pull-up to 3.3V. GPIO0: pull low during firmware upload.
 
-## Startup Flow (V6.0)
+## Startup Flow (V6.1)
 
 ```
 上电 → Pwm_Driver_Init(MOE=OFF) → Oled_Driver_Init → Led_Driver_Init
      → Adc_Driver_Init → Key_Driver_Init
      → Sys_Timer_Init (SysTick + DWT) → IWDG_Init (1.6s 超时)
-     → App_Network_Start_Connect (ESP 非阻塞初始化)
+     → DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP (调试安全)
+     → App_Network_Start_Connect (ESP 非阻塞初始化, 自动清空RX缓冲)
      → while(1):
          Key_Driver_Task | Adc_Driver_Filter_Task | Ui_Controller_Task
          | App_Network_Task | Inverter_Control_Soft_Start_Task
