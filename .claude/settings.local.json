@@ -211,7 +211,9 @@
       "Bash(uv --version)",
       "Bash(uv pip *)",
       "Read(//d/Claude Code Project/WPT_PWM_ONENET_V3.0/**)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Read(//d/tmp/**)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
