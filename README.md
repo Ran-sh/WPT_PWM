@@ -41,12 +41,12 @@
 | 版本 | 日期 | 分支 | 主要变更 |
 |:---|:---|:---|:---|
 | V0.0 | 2024 | `master` | 裸机基版, 全桥 PWM + OLED + 按键 |
-| V1.0 | 2024 | `WPT_PWM_V0.0` | 基础功能验证 |
-| V2.0 | 2024 | `WAN` | 巴法云 MQTT TCP 协议 |
-| V3.0 | 2024 | `LAN` | NetAssist 局域网 UDP 调试 |
-| V5.0 | 2025 | `ONENET` | OneNET MQTT 物模型 + Dual-MCU 架构 |
-| V6.0 | 2025 | `ONENET` | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
-| **V6.1** | **2026-06** | **`ONENET`** | **8 项 Bug 修复 + 过流保护 + 代码质量提升** |
+| V3.4 | 2024 | `1.0LAN` | NetAssist 局域网 UDP 调试 |
+| V3.5 | 2024 | `2.0WAN` | 巴法云 MQTT TCP 协议 |
+| V5.0 | 2025 | `3.0ONENET` | OneNET MQTT 物模型 + Dual-MCU 架构 |
+| V6.0 | 2025 | `3.0ONENET` | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
+| **V6.1** | **2026-06** | **`3.0ONENET`** | **8 项 Bug 修复 + 过流保护 + 代码质量提升** |
+| **V6.2** | **2026-06** | **`4.0TFT`** | **OLED→TFT 彩屏 + 4键 + 6 LED + 蜂鸣器 + PWM默认映射** |
 
 ### V6.1 Bug 修复清单
 
@@ -633,11 +633,11 @@ void HardFault_Handler(void) {
 
 | 分支 | 版本 | 协议 | 说明 |
 |:---|:---:|:---|:---|
-| `master` | V0.0 | — | 裸机基版, 全桥 PWM + OLED + 按键 |
-| `WPT_PWM_V0.0` | V1.0 | — | 基础功能验证 |
-| `LAN` | V3.3 | NetAssist TCP | 局域网 PC 调试 |
-| `WAN` | V4.0 | 巴法云 MQTT | 历史版本 |
-| **`ONENET`** | **V6.1** | OneNET MQTT | Dual-MCU + 命名规范 + 状态机 + 过流保护 |
+| `master` | V0.0 | — | OLED | 裸机基版, 全桥 PWM + OLED + 按键 |
+| `1.0LAN` | V3.4 | NetAssist TCP | OLED | 局域网 PC 调试 |
+| `2.0WAN` | V3.5 | 巴法云 MQTT | OLED | 巴法云创客云版本 |
+| **`3.0ONENET`** | **V6.1** | **OneNET MQTT** | **OLED** | **Dual-MCU + 命名规范 + 状态机 + 过流保护** |
+| **`4.0TFT`** | **V6.2** | **OneNET MQTT** | **TFT 彩屏** | **OLED→TFT + 4键 + 6 LED + 蜂鸣器 + PWM默认映射** |
 
 ---
 
