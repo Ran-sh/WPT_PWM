@@ -1,9 +1,9 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.h
- * @brief   LED 指示灯驱动 — 公开接口
- * @note    PC13=心跳, PB3=WiFi, PB4=PWM, PB5=Ready
- *          LED 状态由 Ui_Controller 层调用更新, 底层只负责 GPIO 驱动
+ * @brief   LED 指示灯驱动 — 公开接口 (V6.2 6 LED 版)
+ * @note    V6.2: 6 LED
+ *          PA15=SYSTEM心跳, PB4=WiFi, PB3=PWM, PA10=COM, PA11=POWER, PA12=TEMP
  ******************************************************************************
  */
 
@@ -22,8 +22,12 @@ typedef enum {
 void Led_Driver_Init(void);
 void Led_Driver_Task(void);                      /* 心跳 + 闪烁调度, 主循环周期性调用 */
 
+/* V6.2 各 LED 独立控制 */
 void Led_Driver_Set_WiFi(Led_Driver_State state);
 void Led_Driver_Set_Pwm(Led_Driver_State state);
-void Led_Driver_Set_Ready(uint8_t on_off);
+void Led_Driver_Set_Com(Led_Driver_State state);
+void Led_Driver_Set_Power(Led_Driver_State state);
+void Led_Driver_Set_Temp(Led_Driver_State state);
+void Led_Driver_Set_System(uint8_t on_off);
 
 #endif /* LED_DRIVER_H */

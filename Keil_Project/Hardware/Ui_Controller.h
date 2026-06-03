@@ -1,10 +1,9 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.h
- * @brief   人机界面控制器 — 公开接口
- * @note    7 界面状态机: INIT → CONNECTING → READY → SWEEPING → RUNNING → FAULT
- *          双击 KEY0 切控制面板/监测模式
- *          监测模式下仅双击切回有效, 其余按键全部禁用
+ * @brief   人机界面控制器 — 公开接口 (V6.2 TFT 版)
+ * @note    TFT 8行20列彩屏界面, 4键操作
+ *          6 态状态机: INIT → CONNECTING → READY → SWEEPING → RUNNING → FAULT
  ******************************************************************************
  */
 
@@ -24,6 +23,6 @@ typedef enum {
 
 void              Ui_Controller_Task(void);
 Ui_Controller_State Ui_Controller_Get_State(void);
-uint8_t           Ui_Controller_Get_Bridge_State(void);   /* 0=停止, 1=运行中 */
+uint8_t           Ui_Controller_Get_Bridge_State(void);
 
 #endif /* UI_CONTROLLER_H */

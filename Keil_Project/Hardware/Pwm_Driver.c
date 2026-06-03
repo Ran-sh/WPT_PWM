@@ -1,7 +1,9 @@
 /**
  ******************************************************************************
  * @file    Hardware/Pwm_Driver.c
- * @brief   全桥 PWM 驱动 — 实现
+ * @brief   全桥 PWM 驱动 — 实现 (V6.2 默认映射版)
+ * @note    V6.2: 不执行任何 TIM1 重映射
+ *          PA8=TIM1_CH1, PA9=TIM1_CH2, PB13=TIM1_CH1N, PB14=TIM1_CH2N
  ******************************************************************************
  */
 
@@ -27,14 +29,14 @@ void Pwm_Driver_Init(void)
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1 | RCC_APB2Periph_GPIOA |
                            RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
 
-    GPIO_PinRemapConfig(GPIO_PartialRemap_TIM1, ENABLE);
-
-    /* PA8=TIM1_CH1, PA9=TIM1_CH2, PA7=TIM1_CH1N, PB0=TIM1_CH2N (需 PartialRemap) */
+    /* V6.2: 默认映射 — 不执行任何 TIM1 重映射
+     * PA8=TIM1_CH1, PA9=TIM1_CH2, PB13=TIM1_CH1N, PB14=TIM1_CH2N */
     gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
-    gpio.GPIO_Pin   = GPIO_Pin_8 | GPIO_Pin_9 | GPIO_Pin_7;
+    gpio.GPIO_Pin   = GPIO_Pin_8 | GPIO_Pin_9;
     GPIO_Init(GPIOA, &gpio);
-    gpio.GPIO_Pin   = GPIO_Pin_0;
+
+    gpio.GPIO_Pin   = GPIO_Pin_13 | GPIO_Pin_14;
     GPIO_Init(GPIOB, &gpio);
 
     /* 时基: Up 计数, 72MHz/(ARR+1) = 目标频率 */

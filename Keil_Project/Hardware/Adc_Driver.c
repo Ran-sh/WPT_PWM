@@ -1,7 +1,8 @@
 /**
  ******************************************************************************
  * @file    Hardware/Adc_Driver.c
- * @brief   模拟量采集驱动 — 实现
+ * @brief   模拟量采集驱动 — 实现 (V6.2)
+ * @note    PB0=ADC_CH8 电流, PB1=ADC_CH9 电压
  ******************************************************************************
  */
 
@@ -76,12 +77,13 @@ void Adc_Driver_Init(void)
     DMA_InitTypeDef  dma;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_GPIOA, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_GPIOB, ENABLE);
     RCC_ADCCLKConfig(RCC_PCLK2_Div6);
 
+    /* V6.2: PB0=CH8 (电流), PB1=CH9 (电压) — 模拟输入 */
     gpio.GPIO_Pin  = GPIO_Pin_0 | GPIO_Pin_1;
     gpio.GPIO_Mode = GPIO_Mode_AIN;
-    GPIO_Init(GPIOA, &gpio);
+    GPIO_Init(GPIOB, &gpio);
 
     DMA_DeInit(DMA1_Channel1);
     dma.DMA_PeripheralBaseAddr = (uint32_t)&(ADC1->DR);
@@ -106,8 +108,9 @@ void Adc_Driver_Init(void)
     adc.ADC_NbrOfChannel       = 2;
     ADC_Init(ADC1, &adc);
 
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_239Cycles5);
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 2, ADC_SampleTime_239Cycles5);
+    /* V6.2: CH8 (PB0) = 电流, CH9 (PB1) = 电压 */
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_8, 1, ADC_SampleTime_239Cycles5);
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_9, 2, ADC_SampleTime_239Cycles5);
 
     ADC_DMACmd(ADC1, ENABLE);
     ADC_Cmd(ADC1, ENABLE);
