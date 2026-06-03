@@ -93,10 +93,12 @@
 | 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | LED | 看门狗 | 适用场景 |
 |:---|:---|:---:|:---|:---|:---:|:---:|:---|
 | `master` | `WPT_PWM_V0.0` | V1.0 | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
-| **`LAN`** ⬅ | `WPT_PWM_NetAssistant_LAN_V1.0` | **V3.4** | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 30s | 内网调试 |
-| `WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V3.4 | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
+| **`1.0LAN`** ⬅ | `WPT_PWM_NetAssistant_LAN_V1.0` | **V3.4** | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 30s | 内网调试 |
+| `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V3.5 | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
+| `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V6.1 | OneNET MQTT | OneNET Studio | 4 LED | IWDG 1.6s | 物联网双脑架构 |
+| `4.0TFT` | `WPT_PWM_V4.0_ONENET_TFT` | V6.2 | OneNET MQTT | OneNET Studio | 6 LED | IWDG 1.6s | TFT彩屏升级版 |
 
-**分支间关系**: `master` 是基版 → `LAN` 增加 ESP8266 + 局域网联网 → `WAN` 在 LAN 基础上改为巴法云协议
+**分支间关系**: `master` 是基版 → `1.0LAN` 增加 ESP8266 + 局域网联网 → `2.0WAN` 在 LAN 基础上改为巴法云协议 → `3.0ONENET` 升级为 OneNET MQTT 双脑架构 → `4.0TFT` OLED→TFT 彩屏硬件升级
 
 ## 项目结构
 
