@@ -7,12 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 项目 | 内容 |
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
-| **分支** | `WAN` |
+| **分支** | `2.0WAN` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_Bemfa_WAN_V2.0` |
 | **协议** | 巴法云 TCP 创客云 (Bemfa Cloud) |
 | **版本** | V3.5 |
 
-其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
+其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `1.0LAN` (NetAssist 局域网 V3.4) → `WPT_PWM_NetAssistant_LAN_V1.0`, `3.0ONENET` (OneNET MQTT V6.1 OLED) → `WPT_PWM_ONENET_V3.0`, `4.0TFT` (OneNET MQTT V6.2 TFT彩屏) → `WPT_PWM_V4.0_ONENET_TFT`
 
 ### 复合指令触发规则
 
@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. 更新 `embedded-architect` skill (`Claude_Files/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
 4. 更新全部文档 (`.md` + `.docx` 配对生成)
 5. 美化 GitHub README.md
-6. `git push` 推送所有分支
+6. `git push` 推送当前分支 (2.0WAN)
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
