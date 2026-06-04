@@ -11,6 +11,7 @@
 
 #include "Tft_Driver.h"
 #include "TFT_Font.h"
+#include "TFT_CN_Font.h"
 
 /* ── 硬件引脚宏 ── */
 #define TFT_CS_PORT     GPIOA
@@ -368,4 +369,91 @@ void Tft_Driver_Show_Float(uint8_t line, uint8_t column, float num,
         Tft_Driver_Show_Char(line, (uint8_t)(col + int_len + 1 + i),
                              (char)(fract_part / Tft_Int_Pow(10, fract_len - i - 1) % 10 + '0'),
                              fg_color, bg_color);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  中英文混合字符串 (UTF-8 中文 + ASCII)
+ *  中文 16×16 占 2 字符宽度, ASCII 8×16 不变
+ * ═══════════════════════════════════════════════════════════════ */
+
+/* 在 CN_INDEX 中查找 UTF-8 中文字符, 返回索引 0~CN_CHAR_COUNT-1, 找不到返回 0xFF */
+static uint8_t Tft_Lookup_CN(const char* utf8)
+{
+    uint8_t i;
+    for (i = 0; i < CN_CHAR_COUNT; i++) {
+        if (CN_INDEX[i * 3]     == utf8[0] &&
+            CN_INDEX[i * 3 + 1] == utf8[1] &&
+            CN_INDEX[i * 3 + 2] == utf8[2])
+            return i;
+    }
+    return 0xFF;  /* not found */
+}
+
+/* 在指定位置画 16×16 汉字 (占 2 列宽) */
+static void Tft_Draw_CN_Char(uint8_t line, uint8_t column, uint8_t idx,
+                              uint16_t fg_color, uint16_t bg_color)
+{
+    uint8_t  row, byte_idx, bit;
+    uint16_t x_base, y_base, bytes_per_row;
+
+    if (line >= TFT_LINE_COUNT || column >= TFT_CHAR_PER_LINE) return;
+
+    x_base = column * TFT_FONT_WIDTH;
+    y_base = line * TFT_FONT_HEIGHT;
+    bytes_per_row = 2;  /* 16 像素宽 = 2 字节/行 */
+
+    Tft_Set_Address_Window(x_base, y_base,
+                           x_base + 16 - 1,
+                           y_base + TFT_FONT_HEIGHT - 1);
+
+    for (row = 0; row < TFT_FONT_HEIGHT; row++) {
+        for (byte_idx = 0; byte_idx < bytes_per_row; byte_idx++) {
+            uint8_t col_byte = CN_FONT_16X16[idx][row * bytes_per_row + byte_idx];
+            for (bit = 0; bit < 8; bit++) {
+                if (col_byte & (0x80 >> bit))
+                    Tft_Write_Data_16(fg_color);
+                else
+                    Tft_Write_Data_16(bg_color);
+            }
+        }
+    }
+}
+
+/* 判断当前字节是否是 UTF-8 中文起始字节 (0xE0~0xEF 三字节编码) */
+static uint8_t Tft_Is_CN_Start(uint8_t ch)
+{
+    return (ch >= 0xE0 && ch <= 0xEF);
+}
+
+/*
+ * 混合字符串显示: 自动识别 UTF-8 中文和 ASCII
+ * 中文占 2 英文字符宽度 (16px), 英文占 1 字符宽度 (8px)
+ * 每行 20 英文字符 = 160 像素, 等价于 10 个中文 + 任意英文混合
+ */
+void Tft_Driver_Show_CN_String(uint8_t line, uint8_t column, const char* str,
+                                uint16_t fg_color, uint16_t bg_color)
+{
+    uint8_t col = column;
+    const char* p = str;
+
+    while (*p && col < TFT_CHAR_PER_LINE) {
+        if (Tft_Is_CN_Start((uint8_t)*p)) {
+            /* 尝试查找中文 */
+            uint8_t idx = Tft_Lookup_CN(p);
+            if (idx != 0xFF && col + 1 < TFT_CHAR_PER_LINE) {
+                Tft_Draw_CN_Char(line, col, idx, fg_color, bg_color);
+                col += 2;  /* 16px = 2 列 */
+                p += 3;    /* UTF-8 3 字节 */
+            } else {
+                /* 未找到 → 跳过 3 字节, 显示空格 */
+                col += 2;
+                p += 3;
+            }
+        } else {
+            /* ASCII 字符 */
+            Tft_Driver_Show_Char(line, col, *p, fg_color, bg_color);
+            col += 1;
+            p += 1;
+        }
+    }
 }

@@ -55,8 +55,8 @@ int main(void)
     Key_Driver_Init();
 
     Tft_Driver_Clear(TFT_COLOR_BLACK);
-    Tft_Driver_Show_String(3, 2, "Wireless Charge", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
-    Tft_Driver_Show_String(5, 3, "Booting ESP...", TFT_COLOR_WHITE, TFT_COLOR_BLACK);
+    Tft_Driver_Show_CN_String(3, 2, "无线充电", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
+    Tft_Driver_Show_CN_String(5, 3, "启动中...", TFT_COLOR_WHITE, TFT_COLOR_BLACK);
     Tft_Driver_Set_Backlight(255);
 
     /* 阶段 2: 系统时基 */

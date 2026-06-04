@@ -1,11 +1,11 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   人机界面控制器 — 实现 (V6.2 TFT 彩屏版)
- * @note    TFT 8行×20列 16px 字体, 横屏 160×128 RGB565
- *          4键: KEY0=ON/OFF(PB9), KEY1=F_UP(PB8), KEY2=F_DOWN(PB7), KEY3=PAGE(PB5)
+ * @brief   人机界面控制器 — 实现 (V6.2 TFT 彩屏中文版)
+ * @note    TFT 8行×20列 16px, 中文占 2 列宽, 横屏 160×128 RGB565
+ *          4键: KEY0=启停(PB9), KEY1=F+(PB8), KEY2=F-(PB7), KEY3=切页(PB5)
  *
- *          配色方案: 深蓝背景 + 亮白前景 + 青色高亮 + 红色告警
+ *          配色: 黑底 + 黄标题 + 白正文 + 青数值 + 红报警 + 绿正常
  ******************************************************************************
  */
 
@@ -23,13 +23,12 @@
 #include <stdio.h>
 
 /* ── 配色 ── */
-#define COLOR_BG          TFT_COLOR_BLACK       /* 背景 */
-#define COLOR_TITLE       TFT_COLOR_YELLOW      /* 标题 */
-#define COLOR_TEXT        TFT_COLOR_WHITE       /* 正文 */
-#define COLOR_VALUE       TFT_COLOR_CYAN        /* 数值 */
-#define COLOR_ALARM       TFT_COLOR_RED         /* 告警 */
-#define COLOR_OK          TFT_COLOR_GREEN       /* 正常 */
-#define COLOR_BAR_BG      TFT_COLOR_GRAY        /* 进度条背景 */
+#define COLOR_BG          TFT_COLOR_BLACK
+#define COLOR_TITLE       TFT_COLOR_YELLOW
+#define COLOR_TEXT        TFT_COLOR_WHITE
+#define COLOR_VALUE       TFT_COLOR_CYAN
+#define COLOR_ALARM       TFT_COLOR_RED
+#define COLOR_OK          TFT_COLOR_GREEN
 
 #define TFT_REFRESH_MS     200
 
@@ -39,7 +38,6 @@
 /* ── 模块状态 ── */
 static uint8_t             s_page       = 0;
 static Ui_Controller_State s_ui_state   = UI_CONTROLLER_STATE_INIT;
-static uint8_t             s_has_error  = 0;
 
 /* EMA 显示平滑 */
 static float   s_disp_v     = 0.0f;
@@ -77,37 +75,40 @@ static void Update_Leds(Ui_Controller_State ui_state)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  各页面绘制 (TFT 彩屏版)
+ *  各页面绘制 (中文全界面)
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Draw_Init(void)
 {
-    Tft_Driver_Show_String(1, 0, "[Control Mode]", COLOR_TITLE, COLOR_BG);
-    Tft_Driver_Show_String(3, 0, "WiFi: DISCONN", COLOR_TEXT, COLOR_BG);
-    Tft_Driver_Show_String(5, 0, "Press KEY0 WiFi", COLOR_VALUE, COLOR_BG);
+    /* 行1: 控制面板          (黄色标题) */
+    /* 行3: WiFi:未连接       (白色) */
+    /* 行5: 按K0连接          (青色) */
+    Tft_Driver_Show_CN_String(1, 0, "控制面板", COLOR_TITLE, COLOR_BG);
+    Tft_Driver_Show_CN_String(3, 0, "WiFi:未连接", COLOR_TEXT, COLOR_BG);
+    Tft_Driver_Show_CN_String(5, 0, "按K0连接WiFi", COLOR_VALUE, COLOR_BG);
 }
 
 static void Draw_Connecting(uint8_t retry, uint8_t max_retry)
 {
     char buf[21];
-    Tft_Driver_Show_String(1, 0, "[Connecting...]", COLOR_TITLE, COLOR_BG);
-    Tft_Driver_Show_String(3, 0, "ESP WiFi Init", COLOR_TEXT, COLOR_BG);
-    snprintf(buf, sizeof(buf), "Retry: %d/%d", retry, max_retry);
-    Tft_Driver_Show_String(5, 0, buf, COLOR_VALUE, COLOR_BG);
-    Tft_Driver_Show_String(7, 0, "Please wait...", COLOR_TEXT, COLOR_BG);
+    Tft_Driver_Show_CN_String(1, 0, "正在连接...", COLOR_TITLE, COLOR_BG);
+    Tft_Driver_Show_CN_String(3, 0, "ESP初始化中", COLOR_TEXT, COLOR_BG);
+    snprintf(buf, sizeof(buf), "重试:%d/%d", retry, max_retry);
+    Tft_Driver_Show_CN_String(5, 0, buf, COLOR_VALUE, COLOR_BG);
+    Tft_Driver_Show_CN_String(7, 0, "请等待...", COLOR_TEXT, COLOR_BG);
 }
 
 static void Draw_Ready(void)
 {
     if (s_page == 0) {
-        Tft_Driver_Show_String(1, 0, "[Control Mode]", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_String(3, 0, "WiFi: CONNECTED", COLOR_OK, COLOR_BG);
-        Tft_Driver_Show_String(5, 0, "Press KEY0 Start", COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_String(7, 0, "F:  --.- kHz", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(1, 0, "控制面板", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "WiFi:已连接", COLOR_OK, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "按K0启动", COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0, "频率: --.-kHz", COLOR_TEXT, COLOR_BG);
     } else {
-        Tft_Driver_Show_String(1, 0, "- Monitor Only -", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_String(3, 0, "State: READY", COLOR_OK, COLOR_BG);
-        Tft_Driver_Show_String(5, 0, "Awaiting Start", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "状态:就绪", COLOR_OK, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "等待启动", COLOR_TEXT, COLOR_BG);
     }
 }
 
@@ -118,28 +119,28 @@ static void Draw_Sweeping(void)
     char fline[21];
     uint8_t j;
 
+    progress = (SOFTSTART_START_FREQ_HZ - f) * 10
+             / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
+    if (progress > 10) progress = 10;
+
     if (s_page == 0) {
-        progress = (SOFTSTART_START_FREQ_HZ - f) * 10
-                 / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
-        if (progress > 10) progress = 10;
+        Tft_Driver_Show_CN_String(1, 0, "扫频中...", COLOR_TITLE, COLOR_BG);
 
-        Tft_Driver_Show_String(1, 0, "[Sweeping...]", COLOR_TITLE, COLOR_BG);
-
-        snprintf(fline, sizeof(fline), "Freq: %3lu.%1lukHz",
+        snprintf(fline, sizeof(fline), "频率:%3lu.%1lukHz",
                  (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
-        Tft_Driver_Show_String(3, 0, fline, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, fline, COLOR_VALUE, COLOR_BG);
 
-        /* 进度条 */
+        /* 进度条 [#####     ] */
         fline[0] = '[';
         for (j = 0; j < 10; j++) fline[1 + j] = (j < (int)progress) ? '#' : ' ';
         fline[11] = ']';
         fline[12] = '\0';
-        Tft_Driver_Show_String(5, 0, fline, COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, fline, COLOR_TEXT, COLOR_BG);
     } else {
-        Tft_Driver_Show_String(1, 0, "- Monitor Only -", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_String(3, 0, "Sweeping...", COLOR_VALUE, COLOR_BG);
-        snprintf(fline, sizeof(fline), "F: %lukHz", (unsigned long)(f / 1000));
-        Tft_Driver_Show_String(5, 0, fline, COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "扫频中...", COLOR_VALUE, COLOR_BG);
+        snprintf(fline, sizeof(fline), "频率:%lukHz", (unsigned long)(f / 1000));
+        Tft_Driver_Show_CN_String(5, 0, fline, COLOR_TEXT, COLOR_BG);
     }
 }
 
@@ -158,58 +159,58 @@ static void Draw_Running(void)
 
     if (s_page == 0) {
         char buf[21];
-        Tft_Driver_Show_String(1, 0, "[Resonant Mode]", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(1, 0, "谐振模式", COLOR_TITLE, COLOR_BG);
 
         snprintf(buf, sizeof(buf), "F:%3lukHz", (unsigned long)(s_disp_f_khz + 0.5f));
-        Tft_Driver_Show_String(3, 0, buf, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, buf, COLOR_VALUE, COLOR_BG);
 
-        Tft_Driver_Show_String(5, 0, "V:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "V:", COLOR_TEXT, COLOR_BG);
         Tft_Driver_Show_Float(5, 2, s_disp_v, 2, 2, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_String(5, 9, "V", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 9, "V", COLOR_TEXT, COLOR_BG);
 
-        Tft_Driver_Show_String(5, 11, "I:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 11, "I:", COLOR_TEXT, COLOR_BG);
         Tft_Driver_Show_Float(5, 13, s_disp_i, 1, 2, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_String(5, 18, "A", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 18, "A", COLOR_TEXT, COLOR_BG);
 
-        Tft_Driver_Show_String(7, 0, "K0:Stop K1/2:f+/-", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0, "K0:停K1/2:f+/-", COLOR_TEXT, COLOR_BG);
     } else {
-        Tft_Driver_Show_String(1, 0, "- Monitor Only -", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_String(3, 0, "Freq:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "频率:", COLOR_TEXT, COLOR_BG);
         Tft_Driver_Show_Num(3, 6, (uint32_t)(s_disp_f_khz + 0.5f), 3, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_String(3, 9, "kHz", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_String(5, 0, "Volt:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 9, "kHz", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "电压:", COLOR_TEXT, COLOR_BG);
         Tft_Driver_Show_Float(5, 6, s_disp_v, 2, 2, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_String(5, 12, "V", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_String(7, 0, "Curr:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 12, "V", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0, "电流:", COLOR_TEXT, COLOR_BG);
         Tft_Driver_Show_Float(7, 6, s_disp_i, 2, 2, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_String(7, 12, "A", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 12, "A", COLOR_TEXT, COLOR_BG);
     }
 }
 
 static void Draw_Fault(void)
 {
     if (s_page == 0) {
-        Tft_Driver_Show_String(1, 0, "!!! FAULT !!!", COLOR_ALARM, COLOR_BG);
-        Tft_Driver_Show_String(3, 0, "Over Current", COLOR_ALARM, COLOR_BG);
-        Tft_Driver_Show_String(5, 0, "PWM Disabled", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_String(7, 0, "K0/K1: Reset", COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(1, 0, "!!!故障!!!", COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "过流保护", COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "PWM已关断", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0, "K0/K1:复位", COLOR_VALUE, COLOR_BG);
     } else {
-        Tft_Driver_Show_String(1, 0, "- Monitor Only -", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_String(3, 0, "!!! FAULT !!!", COLOR_ALARM, COLOR_BG);
-        Tft_Driver_Show_String(5, 0, "Over Current", COLOR_ALARM, COLOR_BG);
-        Tft_Driver_Show_String(7, 0, "Reset: K0/K1", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "!!!故障!!!", COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "过流保护", COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0, "按K0/K1复位", COLOR_TEXT, COLOR_BG);
     }
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  按键分发 (V6.2 4键版)
+ *  按键分发
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Handle_Keys(Ui_Controller_State ui_state,
                         Key_Driver_Event k0, Key_Driver_Event k1,
                         Key_Driver_Event k2, Key_Driver_Event k3)
 {
-    /* PAGE 双击切页 — 所有界面通用 */
+    /* PAGE 双击切页 */
     if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
         s_page = !s_page;
         Tft_Driver_Clear(COLOR_BG);
@@ -307,7 +308,6 @@ void Ui_Controller_Task(void)
         need_refresh = 1;
     }
 
-    /* 按键: 0=ON/OFF, 1=F_UP, 2=F_DOWN, 3=PAGE */
     Key_Driver_Event k0 = Key_Driver_Get_Event(KEY_ID_ONOFF);
     Key_Driver_Event k1 = Key_Driver_Get_Event(KEY_ID_F_UP);
     Key_Driver_Event k2 = Key_Driver_Get_Event(KEY_ID_F_DOWN);
@@ -319,9 +319,9 @@ void Ui_Controller_Task(void)
             Esp8266_Driver_Send_String("CMD:CLEAR\n");
             App_Network_Soft_Reset();
             Tft_Driver_Clear(COLOR_BG);
-            Tft_Driver_Show_String(1, 0, "[Control Mode]", COLOR_TITLE, COLOR_BG);
-            Tft_Driver_Show_String(3, 0, "WiFi Cleared...", COLOR_VALUE, COLOR_BG);
-            Tft_Driver_Show_String(5, 0, "Reconfigure WiFi", COLOR_TEXT, COLOR_BG);
+            Tft_Driver_Show_CN_String(1, 0, "控制面板", COLOR_TITLE, COLOR_BG);
+            Tft_Driver_Show_CN_String(3, 0, "WiFi已清除", COLOR_VALUE, COLOR_BG);
+            Tft_Driver_Show_CN_String(5, 0, "请重新配网", COLOR_TEXT, COLOR_BG);
             last_state = (uint8_t)UI_CONTROLLER_STATE_CONNECTING;
             s_ui_state = UI_CONTROLLER_STATE_CONNECTING;
             Led_Driver_Task();
@@ -356,11 +356,9 @@ void Ui_Controller_Task(void)
         }
     }
 
-    /* FAULT 复位时关闭蜂鸣器 */
     if (ui_state != UI_CONTROLLER_STATE_FAULT)
         Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
 
-    /* READY 状态持续追踪电流零点 */
     if (ui_state == UI_CONTROLLER_STATE_READY &&
         Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE) {
         Adc_Driver_Calibrate_Offset();

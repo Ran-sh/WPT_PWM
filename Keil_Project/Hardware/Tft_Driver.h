@@ -49,6 +49,8 @@ void Tft_Driver_Show_Num(uint8_t line, uint8_t column, uint32_t num,
 void Tft_Driver_Show_Float(uint8_t line, uint8_t column, float num,
                            uint8_t int_len, uint8_t fract_len,
                            uint16_t fg_color, uint16_t bg_color);
+void Tft_Driver_Show_CN_String(uint8_t line, uint8_t column, const char* str,
+                              uint16_t fg_color, uint16_t bg_color);
 void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
 
 #endif /* TFT_DRIVER_H */
