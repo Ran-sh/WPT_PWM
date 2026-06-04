@@ -48,8 +48,8 @@ static void Tft_SPI_Init(void)
 
     /* SPI1 + GPIO 时钟 */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA |
-                           RCC_APB2Periph_GPIOB | RCC_APB2Periph_TIM4 |
-                           RCC_APB2Periph_AFIO, ENABLE);
+                           RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);  /* TIM4 在 APB1 总线上 */
 
     /* PA5=SCK, PA7=MOSI (SPI1 默认映射, 不重映射) */
     gpio.GPIO_Pin   = GPIO_Pin_5 | GPIO_Pin_7;

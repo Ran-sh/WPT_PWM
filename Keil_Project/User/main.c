@@ -34,8 +34,20 @@ int main(void)
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 
-    /* 阶段 1: 硬件层初始化 (MOE 关断, 全桥无输出) */
+    /* 阶段 1: 硬件层初始化 (MOE 关断, PowerContrl=OFF, 全桥零输出) */
     Pwm_Driver_Init();
+
+    /* ── PB10 PowerContrl: 12V 动力电源闸, 初始关断, 待机零功耗 ── */
+    {
+        GPIO_InitTypeDef gpio;
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+        gpio.GPIO_Pin   = GPIO_Pin_10;
+        gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
+        gpio.GPIO_Speed = GPIO_Speed_50MHz;
+        GPIO_Init(GPIOB, &gpio);
+        GPIO_ResetBits(GPIOB, GPIO_Pin_10);  /* OFF: 12V 动力电源断开 */
+    }
+
     Tft_Driver_Init();
     Led_Driver_Init();
     Buzzer_Driver_Init();

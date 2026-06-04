@@ -91,10 +91,11 @@ void Led_Driver_Init(void)
     GPIO_Init(LED_PORT_B, &cfg);
     GPIO_ResetBits(LED_PORT_B, LED_PWM_PIN | LED_WIFI_PIN);
 
-    /* 上电自检: 全亮 1 秒 */
+    /* 上电自检: 全亮 500ms (此时 SysTimer 尚未初始化, 使用粗略 busy-wait) */
+    /* 注意: 此延时发生在 IWDG 启动之前, 不会触发看门狗复位 */
     GPIO_SetBits(LED_PORT_A, LED_COM_PIN | LED_POWER_PIN | LED_TEMP_PIN | LED_SYSTEM_PIN);
     GPIO_SetBits(LED_PORT_B, LED_PWM_PIN | LED_WIFI_PIN);
-    { volatile uint32_t i; for (i = 0; i < 350000; i++) __NOP(); }  /* ~1s @72MHz */
+    { volatile uint32_t i; for (i = 0; i < 175000; i++) __NOP(); }  /* ~500ms @72MHz */
     GPIO_ResetBits(LED_PORT_A, LED_COM_PIN | LED_POWER_PIN | LED_TEMP_PIN | LED_SYSTEM_PIN);
     GPIO_ResetBits(LED_PORT_B, LED_PWM_PIN | LED_WIFI_PIN);
 }

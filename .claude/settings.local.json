@@ -90,7 +90,8 @@
       "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\User\\\\\\\\\")",
       "Bash(ls -la \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V0.0\\\\\\\\System\\\\\\\\\")",
       "Bash(git branch *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(git rm *)"
     ]
   }
 }

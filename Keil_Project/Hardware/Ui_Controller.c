@@ -171,7 +171,7 @@ static void Draw_Running(void)
         Tft_Driver_Show_Float(5, 13, s_disp_i, 1, 2, COLOR_VALUE, COLOR_BG);
         Tft_Driver_Show_String(5, 18, "A", COLOR_TEXT, COLOR_BG);
 
-        Tft_Driver_Show_String(7, 0, "K0:Stop K1/2:f+/", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_String(7, 0, "K0:Stop K1/2:f+/-", COLOR_TEXT, COLOR_BG);
     } else {
         Tft_Driver_Show_String(1, 0, "- Monitor Only -", COLOR_TITLE, COLOR_BG);
         Tft_Driver_Show_String(3, 0, "Freq:", COLOR_TEXT, COLOR_BG);
