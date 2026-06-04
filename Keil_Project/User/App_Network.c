@@ -22,26 +22,35 @@
 #define APP_NETWORK_MAX_RETRIES           3
 #define APP_NETWORK_TELEMETRY_PERIOD_MS  500
 
+#define PROTO_STATUS_ONLINE   "STATUS:ONLINE"
+#define PROTO_CMD_ON          "CMD:ON"
+#define PROTO_CMD_OFF         "CMD:OFF"
+#define PROTO_CMD_SETFREQ     "CMD:SETFREQ:"
+#define PROTO_CMD_SETFREQ_LEN (sizeof(PROTO_CMD_SETFREQ) - 1)
+
 static App_Network_Conn_State s_conn_state    = APP_NETWORK_CONN_IDLE;
 static uint8_t                s_retry_count   = 0;
 static uint32_t               s_connect_start = 0;
 
-uint8_t App_Network_Start_Connect(void)
+/* Reset_Connect_State — 消除 3 处连接重置样板代码重复 */
+static void Reset_Connect_State(void)
 {
     s_conn_state    = APP_NETWORK_CONN_WIFI;
     s_retry_count   = 0;
     s_connect_start = Sys_Timer_Get_Tick();
-    Esp8266_Driver_Start_Init();
     Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+}
+
+uint8_t App_Network_Start_Connect(void)
+{
+    Reset_Connect_State();
+    Esp8266_Driver_Start_Init();
     return 0;
 }
 
 uint8_t App_Network_Soft_Reset(void)
 {
-    s_conn_state    = APP_NETWORK_CONN_WIFI;
-    s_retry_count   = 0;
-    s_connect_start = Sys_Timer_Get_Tick();
-    Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+    Reset_Connect_State();
     return 0;
 }
 
@@ -51,6 +60,7 @@ uint8_t App_Network_Get_Connect_Status(void)
 }
 
 uint8_t App_Network_Get_Retry_Count(void)  { return s_retry_count; }
+uint8_t App_Network_Get_Max_Retries(void)  { return APP_NETWORK_MAX_RETRIES; }
 
 uint8_t App_Network_Is_Connected(void)
 {
@@ -69,9 +79,8 @@ static void Check_Retry(void)
     if (Sys_Timer_Get_Tick() - s_connect_start >= APP_NETWORK_CONNECT_TIMEOUT_MS) {
         s_retry_count++;
         if (s_retry_count < APP_NETWORK_MAX_RETRIES) {
-            s_connect_start = Sys_Timer_Get_Tick();
             Esp8266_Driver_Start_Init();
-            Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+            Reset_Connect_State();
         }
     }
 }
@@ -90,20 +99,20 @@ void App_Network_Task(void)
         char local_buf[64];
         Esp8266_Driver_Copy_Rx_Frame(local_buf, sizeof(local_buf));
 
-        if (strstr(local_buf, "STATUS:ONLINE")) {
+        if (strstr(local_buf, PROTO_STATUS_ONLINE)) {
             s_conn_state = APP_NETWORK_CONN_ONLINE;
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
         }
-        else if (strstr(local_buf, "CMD:ON")) {
+        else if (strstr(local_buf, PROTO_CMD_ON)) {
             if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE)
                 Inverter_Control_Soft_Start_Trigger();
         }
-        else if (strstr(local_buf, "CMD:OFF")) {
+        else if (strstr(local_buf, PROTO_CMD_OFF)) {
             Inverter_Control_Soft_Start_Stop();
         }
-        else if (strstr(local_buf, "CMD:SETFREQ:")) {
+        else if (strstr(local_buf, PROTO_CMD_SETFREQ)) {
             if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE) {
-                long f = atol(local_buf + 12);
+                long f = atol(local_buf + PROTO_CMD_SETFREQ_LEN);
                 if (f >= PWM_DRIVER_FREQ_MIN_HZ && f <= PWM_DRIVER_FREQ_MAX_HZ)
                     Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);
             }

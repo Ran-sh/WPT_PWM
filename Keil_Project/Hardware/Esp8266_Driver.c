@@ -17,7 +17,6 @@
 
 typedef enum {
     ESP8266_DRIVER_INIT_STATE_IDLE = 0,     /* 未启动 */
-    ESP8266_DRIVER_INIT_STATE_HW_DONE = 1,  /* GPIO+USART 已配置, 等待 CH_PD 时序 */
     ESP8266_DRIVER_INIT_STATE_RESET_LOW,    /* CH_PD=0, 等待 1000ms */
     ESP8266_DRIVER_INIT_STATE_BOOT_WAIT,   /* CH_PD=1, 等待 2000ms */
     ESP8266_DRIVER_INIT_STATE_READY         /* 就绪 */
@@ -102,9 +101,6 @@ void Esp8266_Driver_Init_Task(void)
         case ESP8266_DRIVER_INIT_STATE_IDLE:
         case ESP8266_DRIVER_INIT_STATE_READY:
             break;
-
-        case ESP8266_DRIVER_INIT_STATE_HW_DONE:
-            break;  /* 不应出现, 由 Start_Init 直接进入 RESET_LOW */
 
         case ESP8266_DRIVER_INIT_STATE_RESET_LOW:
             if (Sys_Timer_Get_Tick() - s_init_timer >= CH_PD_RESET_MS) {

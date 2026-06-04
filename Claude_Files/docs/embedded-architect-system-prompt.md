@@ -10,7 +10,9 @@ description: >
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
   Dual-MCU/双脑/JSON透传, Sys_Timer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师, OneNET, MQTT.
-  V6.0 naming convention: Module_Name_Action_Object — all public functions follow PascalCase+underscore.
+  V6.2 naming convention: Module_Name_Action_Object — all public functions follow PascalCase+underscore.
+  V6.2 code quality: Oled_Driver uses LUT+bit-shift instead of Oled_Int_Pow; App_Network uses PROTO_* constants;
+  ADC assertion changed from typedef char to comment (ARMCC V5 doesn't support variable-length arrays).
   Key modules: Sys_Timer, Oled_Driver, Led_Driver, Pwm_Driver, Inverter_Control, Adc_Driver,
   Key_Driver, Esp8266_Driver, Ui_Controller, App_Network.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —

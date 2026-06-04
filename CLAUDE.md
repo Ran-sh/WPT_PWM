@@ -7,10 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 项目 | 内容 |
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
-| **分支** | `ONENET` |
+| **分支** | `3.0ONENET` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_ONENET_V3.0` |
 | **协议** | OneNET MQTT 物模型 (Dual-MCU 架构) |
-| **版本** | V6.1 |
+| **版本** | V6.2 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云 TCP) → `WPT_PWM_Bemfa_WAN_V2.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
 
@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. 更新 `embedded-architect` skill (`Claude_Files/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
 4. 更新全部文档 (`.md` + `.docx` 配对生成)
 5. 美化 GitHub README.md
-6. `git push` 推送当前分支 (ONENET)
+6. `git push` 推送当前分支 (3.0ONENET)
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
@@ -133,13 +133,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 本地文件夹 | 远程仓库 | 分支 | 说明 |
 |:---|:---|:---|:---|
-| `Keil_Project/`、`Arduino_Project/`、`安卓app/`、`Claude_Files/`、根目录文件 | `Ran-sh/WPT_PWM` | `ONENET` | 主仓库 |
+| `Keil_Project/`、`Arduino_Project/`、`安卓app/`、`Claude_Files/`、根目录文件 | `Ran-sh/WPT_PWM` | `3.0ONENET` | 主仓库 |
 | `ONENETapp/` | `Ran-sh/WPT_Onenet_IoT` | `master` | 网页控制台 (Cloudflare Pages) |
 | `Railway_Deploy/` | `Ran-sh/WPT_Railway` | `main` | Railway 桥接服务器 |
 
 ```bash
 # 主仓库
-git add -A && git commit -m "..." && git push origin ONENET
+git add -A && git commit -m "..." && git push origin 3.0ONENET
 
 # ONENETapp (需同时推到 gh-pages)
 cd ONENETapp && git add -A && git commit -m "..." && git push && git push origin gh-pages:master && cd ..
@@ -224,6 +224,23 @@ All fault handlers (`HardFault_Handler`, `MemManage_Handler`, `BusFault_Handler`
 ### Overcurrent Protection (V6.1)
 `Ui_Controller_Task` 在 SWEEPING/RUNNING 状态每 200ms 检测电流 > `UI_CONTROLLER_OVERCURRENT_THRESHOLD_A` (5.0A), 触发 `Inverter_Control_Soft_Start_Fault()` → MOE 关断 + SS_FAULT 锁存。仅 KEY0/KEY1 可复位。
 
+### V6.2 Code Quality Fixes (2026-06-04)
+
+| 级别 | 文件 | 修复内容 |
+|:---|:---|:---|
+| MEDIUM | `Oled_Driver.c` | 合并 `Oled_Write_Command/Data` → `Oled_Write_Byte` (消除 10 行重复) |
+| MEDIUM | `Oled_Driver.c` | 删除 `Oled_Int_Pow()`, 替代为 LUT + 位位移 + O(n) 除数递减 (消除 O(n²) 循环乘法) |
+| MEDIUM | `Ui_Controller.c` | EMA 3 处 inline 魔法数字 → `Ui_Controller_EMA()` + `UI_DISPLAY_EMA_ALPHA` |
+| MEDIUM | `Ui_Controller.c` | 消除重复状态迁移检测块 (7 行 ×2 → 单处检测, 置于按键处理后) |
+| MEDIUM | `App_Network.c` | 三处连接重置样板 → `Reset_Connect_State()` 静态辅助函数 |
+| MEDIUM | `App_Network.c` | 协议令牌魔法字符串 → `PROTO_*` 命名常量 + `sizeof` 计算偏移 |
+| MEDIUM | `Esp8266_Driver.c` | 删除死代码 `HW_DONE` 枚举值 + switch case |
+| LOW | `Adc_Driver.c` | 删除无效编译期断言 `typedef char[...(`72000000==72000000`)]`, 改为注释 |
+| LOW | `Adc_Driver.c` | `Filter_To_Voltage`: 稳态 (filled==64) 用预计算 `ADC_SCALE_64` 替代每次 float 除法 |
+| LOW | `Adc_Driver.c` | `Filter_Task`: `Sys_Timer_Get_Cycles()` double-read → 单次捕获 |
+| LOW | `Ui_Controller.c` | 硬编码 `3` (max retries) → `App_Network_Get_Max_Retries()` |
+| LOW | `App_Network.h` | 新增 `App_Network_Get_Max_Retries()` 公开接口 |
+
 ### V6.1 Key Fixes
 | 级别 | 文件 | 修复内容 |
 |:---|:---|:---|
@@ -231,7 +248,7 @@ All fault handlers (`HardFault_Handler`, `MemManage_Handler`, `BusFault_Handler`
 | CRITICAL | `Pwm_Driver.c` | 恢复 V0.0 基线: Up 计数 + PartialRemap + PWM1/PWM2 + OCNPolarity_Low + OCNIdleState_Set |
 | HIGH | `Esp8266_Driver.c` | Start_Init 清空 RX 缓冲 (防止 ESP 复位后残留帧) |
 | HIGH | `Esp8266_Driver.c` `Key_Driver.c` | 裸 `__enable_irq()` → PRIMASK 保存/恢复 (3 处) |
-| MEDIUM | `Adc_Driver.c` | 编译期断言 `SystemCoreClock == 72MHz` (DWT 互质依赖) |
+| MEDIUM | `Adc_Driver.c` | 编译期断言 `SystemCoreClock == 72MHz` → V6.2 改为注释 (ARMCC V5 不支持运行时变量数组) |
 | MEDIUM | `Oled_Driver.c/h` | `double` → `float` (Cortex-M3 无硬件 FPU) |
 | MEDIUM | `Ui_Controller.c` | EMA 显示状态模块级 + `Reset_Display_EMA()` (消除重启收敛滞后) |
 | LOW | `App_Network.c` | 遥测门控: 嵌套 `return` → 单 `if(allow_telemetry)` 模式 |

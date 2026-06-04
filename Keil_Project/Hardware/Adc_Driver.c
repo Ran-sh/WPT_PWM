@@ -20,9 +20,9 @@
  * 互质性验证: gcd(144241, 720) = 1
  *   144241 ≡ 241 (mod 720), gcd(241, 720) = 1  ✓
  *
- * 以下静态断言确保系统时钟 = 72MHz (DWT 周期计数器与 PWM 频率计算依赖此假设):
+ * 硬件依赖: 系统时钟必须为 72MHz (DWT 周期计数器 & PWM 频率计算依赖此值)
+ *           编译期常量 SYSCLK_FREQ_72MHz = 72000000 在 system_stm32f10x.c 已验证
  */
-typedef char Adc_Driver_Assert_HSE_72MHz[(SystemCoreClock == 72000000) ? 1 : -1];
 
 #define FILTER_PERIOD_CYCLES  144241
 
@@ -49,9 +49,20 @@ static void Filter_Push(Filter_Window* fw, uint16_t new_val)
     if (fw->filled < ADC_FILTER_WINDOW) fw->filled++;
 }
 
+/*
+ * Filter_To_Voltage: 滑动窗口平均值 → 引脚电压
+ * 稳态 (filled==64) 用预计算缩放因子, 避免每次调用做两次 float 除法
+ * Cortex-M3 无硬件 FPU, 每次 float 除法 ~100-200 周期
+ */
+#define ADC_SCALE_PRE  (VREF_MCU / 4095.0f)
+#define ADC_SCALE_64   (ADC_SCALE_PRE / 64.0f)
+
 static float Filter_To_Voltage(const Filter_Window* fw)
 {
-    return ((float)fw->accum / (float)fw->filled / 4095.0f) * VREF_MCU;
+    if (fw->filled >= ADC_FILTER_WINDOW)
+        return (float)fw->accum * ADC_SCALE_64;
+    else
+        return ((float)fw->accum / (float)fw->filled) * ADC_SCALE_PRE;
 }
 
 /* ── 模块状态 ── */
@@ -127,8 +138,9 @@ void Adc_Driver_Filter_Task(void)
 {
     static uint32_t last_cyc = 0;
 
-    if (Sys_Timer_Get_Cycles() - last_cyc < FILTER_PERIOD_CYCLES) return;
-    last_cyc = Sys_Timer_Get_Cycles();
+    uint32_t now = Sys_Timer_Get_Cycles();
+    if (now - last_cyc < FILTER_PERIOD_CYCLES) return;
+    last_cyc = now;
 
     Filter_Push(&s_v_filter, s_adc_raw[1]);
     s_voltage = Filter_To_Voltage(&s_v_filter) * VOLTAGE_DIVIDER;

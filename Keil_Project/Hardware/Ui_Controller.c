@@ -55,7 +55,15 @@ static float   s_disp_i     = 0.0f;
 static float   s_disp_f_khz = 0.0f;
 static uint8_t s_disp_init  = 0;
 
+#define UI_DISPLAY_EMA_ALPHA  0.25f   /* EMA 平滑系数, τ≈800ms @200ms 刷新 */
+
 static void Reset_Display_EMA(void) { s_disp_init = 0; }
+
+/* Ui_Controller_EMA — 封装 EMA 平滑, 消除 3 处 inline 重复 & magic number */
+static float Ui_Controller_EMA(float current, float sample)
+{
+    return current * (1.0f - UI_DISPLAY_EMA_ALPHA) + sample * UI_DISPLAY_EMA_ALPHA;
+}
 
 static void Clear_Error(void) { s_has_error = 0; }
 
@@ -173,9 +181,9 @@ static void Draw_Running(void)
         s_disp_f_khz = (float)Pwm_Driver_Get_Frequency() / 1000.0f;
         s_disp_init  = 1;
     } else {
-        s_disp_v     = s_disp_v     * 0.75f + Adc_Driver_Get_Voltage()              * 0.25f;
-        s_disp_i     = s_disp_i     * 0.75f + Adc_Driver_Get_Current()              * 0.25f;
-        s_disp_f_khz = s_disp_f_khz * 0.75f + (float)Pwm_Driver_Get_Frequency() / 1000.0f * 0.25f;
+        s_disp_v     = Ui_Controller_EMA(s_disp_v,     Adc_Driver_Get_Voltage());
+        s_disp_i     = Ui_Controller_EMA(s_disp_i,     Adc_Driver_Get_Current());
+        s_disp_f_khz = Ui_Controller_EMA(s_disp_f_khz, (float)Pwm_Driver_Get_Frequency() / 1000.0f);
     }
 
     if (s_page == 0) {
@@ -314,15 +322,6 @@ void Ui_Controller_Task(void)
 
     Ui_Controller_State ui_state = Calc_Ui_State();
 
-    /* 状态/页面迁移 → 全屏清零, 重置 EMA 平滑避免跳变 */
-    if ((uint8_t)ui_state != last_state || s_page != last_page) {
-        last_state = (uint8_t)ui_state;
-        last_page  = s_page;
-        Oled_Driver_Clear();
-        Reset_Display_EMA();
-        need_refresh = 1;
-    }
-
     /* 按键 */
     Key_Driver_Event key0 = Key_Driver_Get_Event(0);
     Key_Driver_Event key1 = Key_Driver_Get_Event(1);
@@ -349,6 +348,7 @@ void Ui_Controller_Task(void)
     /* 按键可能改变逆变器状态, 重新计算 */
     ui_state = Calc_Ui_State();
 
+    /* 状态/页面迁移 → 全屏清零, 重置 EMA 平滑避免跳变 (单处检测, 消除重复) */
     if ((uint8_t)ui_state != last_state || s_page != last_page) {
         last_state = (uint8_t)ui_state;
         last_page  = s_page;
@@ -384,7 +384,7 @@ void Ui_Controller_Task(void)
 
     switch (ui_state) {
         case UI_CONTROLLER_STATE_INIT:       Draw_Init();                      break;
-        case UI_CONTROLLER_STATE_CONNECTING: Draw_Connecting(App_Network_Get_Retry_Count() + 1, 3); break;
+        case UI_CONTROLLER_STATE_CONNECTING: Draw_Connecting(App_Network_Get_Retry_Count() + 1, App_Network_Get_Max_Retries()); break;
         case UI_CONTROLLER_STATE_READY:      Draw_Ready();                     break;
         case UI_CONTROLLER_STATE_SWEEPING:   Draw_Sweeping();                  break;
         case UI_CONTROLLER_STATE_RUNNING:    Draw_Running();                   break;

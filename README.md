@@ -4,12 +4,12 @@
 [![Library](https://img.shields.io/badge/Library-SPL%20V3.5.0-green)]()
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-red)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V6.1-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V6.2-brightgreen)]()
 [![App](https://img.shields.io/badge/App-WeChat%20Mini%20Program-07C160)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V6.1** (2026-06-01) — 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统。采用 **Dual-MCU 双脑架构**：STM32 (SPL V3.5.0) 全桥 PFM 发波与保护，ESP8266 (Arduino) 独立 MQTT 固件连接 **OneNET 物模型**。支持 OLED 7 界面状态机本地控制、Cloudflare Pages 网页控制台、微信小程序远程遥控。应用于植入式医疗设备无线充电。
+> **V6.2** (2026-06-04) — 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统。采用 **Dual-MCU 双脑架构**：STM32 (SPL V3.5.0) 全桥 PFM 发波与保护，ESP8266 (Arduino) 独立 MQTT 固件连接 **OneNET 物模型**。支持 OLED 7 界面状态机本地控制、Cloudflare Pages 网页控制台、微信小程序远程遥控。应用于植入式医疗设备无线充电。
 
 ---
 
@@ -46,7 +46,25 @@
 | V3.0 | 2024 | `LAN` | NetAssist 局域网 UDP 调试 |
 | V5.0 | 2025 | `ONENET` | OneNET MQTT 物模型 + Dual-MCU 架构 |
 | V6.0 | 2025 | `ONENET` | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
-| **V6.1** | **2026-06** | **`ONENET`** | **8 项 Bug 修复 + 过流保护 + 代码质量提升** |
+| **V6.2** | **2026-06** | **`3.0ONENET`** | **12 项代码质量优化 + 协议规范 + 编译修复** |
+| **V6.1** | **2026-06** | **`3.0ONENET`** | **8 项 Bug 修复 + 过流保护 + 代码质量提升** |
+
+### V6.2 代码质量优化 (2026-06-04)
+
+| 级别 | 问题 | 文件 | 优化 |
+|:---|:---|:---|:---|
+| **MEDIUM** | I2C 写函数重复 10 行 | `Oled_Driver.c` | 合并 `Oled_Write_Command/Data` → `Oled_Write_Byte` |
+| **MEDIUM** | `Oled_Int_Pow` O(n²) 循环乘法 | `Oled_Driver.c` | LUT + 位位移 + O(n) 除数递减, 删除该函数 |
+| **MEDIUM** | EMA 魔法数字重复 3 次 | `Ui_Controller.c` | `Ui_Controller_EMA()` + `UI_DISPLAY_EMA_ALPHA` 常量 |
+| **MEDIUM** | 状态迁移检测重复 7 行 | `Ui_Controller.c` | 合并为单处检测, 置于按键处理后 |
+| **MEDIUM** | 连接重置样板代码 ×3 | `App_Network.c` | `Reset_Connect_State()` 静态辅助函数 |
+| **MEDIUM** | 协议令牌魔法字符串 | `App_Network.c` | `PROTO_*` 命名常量 + `sizeof` 计算偏移 |
+| **MEDIUM** | 死代码 `HW_DONE` 枚举 | `Esp8266_Driver.c` | 删除枚举值 + switch case |
+| **LOW** | 无效编译期断言 | `Adc_Driver.c` | `typedef char[...]` → 注释 (ARMCC V5 不支持运行时变量数组) |
+| **LOW** | 稳态每次都做 float 除法 | `Adc_Driver.c` | `Filter_To_Voltage`: filled==64 用预计算缩放因子 |
+| **LOW** | DWT 周期计数器双读 | `Adc_Driver.c` | `Get_Cycles()` double-read → 单次捕获 |
+| **LOW** | 硬编码 retry max | `Ui_Controller.c` | `3` → `App_Network_Get_Max_Retries()` |
+| **LOW** | 公开接口缺失 | `App_Network.h` | 新增 `Get_Max_Retries()` |
 
 ### V6.1 Bug 修复清单
 
@@ -57,7 +75,7 @@
 | **CRITICAL** | 过流保护未接入 | `Ui_Controller.c` | 新增 5A 阈值检测, 触发 `Inverter_Control_Soft_Start_Fault()` |
 | **HIGH** | RX 缓冲区残留帧 | `Esp8266_Driver.c` | `Start_Init()` 时清空缓冲, 防 ESP 复位后误消费 |
 | **HIGH** | 裸 `__enable_irq()` | `Esp8266_Driver.c` `Key_Driver.c` | 3 处改为 PRIMASK 保存/恢复模式 |
-| **MEDIUM** | ADC 时钟假设无保护 | `Adc_Driver.c` | 编译期静态断言 `SystemCoreClock == 72MHz` |
+| **MEDIUM** | ADC 时钟假设无保护 | `Adc_Driver.c` | 编译期静态断言 → V6.2 改为注释 (ARMCC V5 变量数组不支持) |
 | **MEDIUM** | `double` 无硬件 FPU 开销 | `Oled_Driver.c/h` | 全部 `double` → `float` |
 | **MEDIUM** | EMA 显示不复位 | `Ui_Controller.c` | 模块级 EMA + 状态转移时 `Reset_Display_EMA()` |
 | **LOW** | 嵌套 `return` 风格 | `App_Network.c` | 嵌套 `return` 门控 → 单 `if(allow_telemetry)` 模式 |
@@ -637,7 +655,7 @@ void HardFault_Handler(void) {
 | `WPT_PWM_V0.0` | V1.0 | — | 基础功能验证 |
 | `LAN` | V3.3 | NetAssist TCP | 局域网 PC 调试 |
 | `WAN` | V4.0 | 巴法云 MQTT | 历史版本 |
-| **`ONENET`** | **V6.1** | OneNET MQTT | Dual-MCU + 命名规范 + 状态机 + 过流保护 |
+| **`3.0ONENET`** | **V6.1** | OneNET MQTT | Dual-MCU + 命名规范 + 状态机 + 过流保护 |
 
 ---
 

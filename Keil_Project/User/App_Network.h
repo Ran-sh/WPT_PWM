@@ -29,6 +29,7 @@ uint8_t App_Network_Soft_Reset(void);
 /** @brief 获取连接状态 (0=空闲 1=WiFi 2=MQTT 3=在线 4=失败) */
 uint8_t App_Network_Get_Connect_Status(void);
 uint8_t App_Network_Get_Retry_Count(void);
+uint8_t App_Network_Get_Max_Retries(void);   /* 返回 APP_NETWORK_MAX_RETRIES */
 uint8_t App_Network_Is_Connected(void);
 
 /** @brief 主循环周期调用: 驱动 ESP8266 初始化 + 接收指令 + 发送遥测 */

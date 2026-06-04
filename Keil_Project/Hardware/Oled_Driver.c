@@ -85,23 +85,18 @@ static void Oled_I2C_Send_Byte(uint8_t byte)
     OLED_PIN_SCL(0);  /* 第 9 个时钟, 忽略 ACK */
 }
 
-static void Oled_Write_Command(uint8_t cmd)
+/* Oled_Write_Byte — I2C 写单字节 (合并 Cmd/Data 公共逻辑, 消除重复) */
+static void Oled_Write_Byte(uint8_t prefix, uint8_t byte)
 {
     Oled_I2C_Start();
     Oled_I2C_Send_Byte(OLED_I2C_ADDR);
-    Oled_I2C_Send_Byte(OLED_CMD_PREFIX);
-    Oled_I2C_Send_Byte(cmd);
+    Oled_I2C_Send_Byte(prefix);
+    Oled_I2C_Send_Byte(byte);
     Oled_I2C_Stop();
 }
 
-static void Oled_Write_Data(uint8_t data)
-{
-    Oled_I2C_Start();
-    Oled_I2C_Send_Byte(OLED_I2C_ADDR);
-    Oled_I2C_Send_Byte(OLED_DATA_PREFIX);
-    Oled_I2C_Send_Byte(data);
-    Oled_I2C_Stop();
-}
+static void Oled_Write_Command(uint8_t cmd) { Oled_Write_Byte(OLED_CMD_PREFIX, cmd); }
+static void Oled_Write_Data(uint8_t data)   { Oled_Write_Byte(OLED_DATA_PREFIX, data); }
 
 static void Oled_Set_Cursor(uint8_t page, uint8_t column)
 {
@@ -110,12 +105,6 @@ static void Oled_Set_Cursor(uint8_t page, uint8_t column)
     Oled_Write_Command(0x00 | (column & 0x0F));
 }
 
-static uint32_t Oled_Int_Pow(uint32_t base, uint32_t exp)
-{
-    uint32_t result = 1;
-    while (exp--) result *= base;
-    return result;
-}
 
 /* ═══════════════════════════════════════════════════════════════
  *  公开接口
@@ -181,17 +170,25 @@ void Oled_Driver_Show_String(uint8_t line, uint8_t column, const char* str)
         Oled_Driver_Show_Char(line, column + i, str[i]);
 }
 
+/* Oled_Pow10_Lut — 10^n 查找表 (n≤9), 替代 Oled_Int_Pow 循环乘法 */
+static const uint32_t s_pow10_lut[] = {1, 10, 100, 1000, 10000, 100000,
+                                       1000000, 10000000, 100000000, 1000000000};
+
 void Oled_Driver_Show_Num(uint8_t line, uint8_t column, uint32_t num, uint8_t len)
 {
     uint8_t i;
-    for (i = 0; i < len; i++)
-        Oled_Driver_Show_Char(line, column + i, num / Oled_Int_Pow(10, len - i - 1) % 10 + '0');
+    uint32_t div = s_pow10_lut[len - 1];  /* 预取最高位除数, O(n) 整数除法 */
+    for (i = 0; i < len; i++) {
+        Oled_Driver_Show_Char(line, column + i, (num / div) % 10 + '0');
+        div /= 10;
+    }
 }
 
 void Oled_Driver_Show_Signed_Num(uint8_t line, uint8_t column, int32_t num, uint8_t len)
 {
     uint32_t abs_val;
     uint8_t i;
+    uint32_t div;
     if (num >= 0) {
         Oled_Driver_Show_Char(line, column, '+');
         abs_val = (uint32_t)num;
@@ -199,15 +196,18 @@ void Oled_Driver_Show_Signed_Num(uint8_t line, uint8_t column, int32_t num, uint
         Oled_Driver_Show_Char(line, column, '-');
         abs_val = (uint32_t)(-num);
     }
-    for (i = 0; i < len; i++)
-        Oled_Driver_Show_Char(line, column + i + 1, abs_val / Oled_Int_Pow(10, len - i - 1) % 10 + '0');
+    div = s_pow10_lut[len - 1];
+    for (i = 0; i < len; i++) {
+        Oled_Driver_Show_Char(line, column + i + 1, (abs_val / div) % 10 + '0');
+        div /= 10;
+    }
 }
 
 void Oled_Driver_Show_Float(uint8_t line, uint8_t column, float num,
                              uint8_t int_len, uint8_t fract_len)
 {
     uint32_t int_part, fract_part;
-    uint32_t pow10 = Oled_Int_Pow(10, fract_len);
+    uint32_t pow10 = s_pow10_lut[fract_len];  /* LUT 替代 Oled_Int_Pow */
     uint8_t  offset = 0;
 
     if (num < 0.0f) {
@@ -227,9 +227,10 @@ void Oled_Driver_Show_Float(uint8_t line, uint8_t column, float num,
 
 void Oled_Driver_Show_Hex(uint8_t line, uint8_t column, uint32_t num, uint8_t len)
 {
-    uint8_t i, val;
+    uint8_t i, val, shift;
     for (i = 0; i < len; i++) {
-        val = num / Oled_Int_Pow(16, len - i - 1) % 16;
+        shift = 4 * (len - i - 1);   /* 位位移替代 Oled_Int_Pow(16,*) */
+        val = (num >> shift) & 0xF;
         Oled_Driver_Show_Char(line, column + i, val < 10 ? val + '0' : val - 10 + 'A');
     }
 }
@@ -238,5 +239,5 @@ void Oled_Driver_Show_Bin(uint8_t line, uint8_t column, uint32_t num, uint8_t le
 {
     uint8_t i;
     for (i = 0; i < len; i++)
-        Oled_Driver_Show_Char(line, column + i, num / Oled_Int_Pow(2, len - i - 1) % 2 + '0');
+        Oled_Driver_Show_Char(line, column + i, ((num >> (len - i - 1)) & 1) + '0');  /* 位移替代 Oled_Int_Pow */
 }

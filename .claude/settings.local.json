@@ -213,7 +213,13 @@
       "Read(//d/Claude Code Project/WPT_PWM_ONENET_V3.0/**)",
       "Bash(uv run *)",
       "Read(//d/tmp/**)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(python3 *)",
+      "Bash(/e/Anaconda3/python.exe *)",
+      "Bash(where pdftoppm *)",
+      "Bash(sed 's/^$//')",
+      "Bash(iconv -f GBK -t UTF-8)",
+      "Bash(node tools/generate_docx.js \"docs/WPT无线充电系统-从零搭建全指南.md\")"
     ]
   }
 }
