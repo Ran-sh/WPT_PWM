@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    Hardware/Adc_Driver.h
  * @brief   模拟量采集驱动 — 公开接口
- * @note    ADC1 + DMA1 双通道扫描: PA0=电流(CC6920), PA1=电压(分压 20:1)
+ * @note    V6.2: ADC1 + DMA1 双通道扫描: PB0=电流 CH8 (CC6920BSO), PB1=电压 CH9 (分压 20:1)
  *          Adc_Driver_Filter_Task 每 ~2ms 推入样本更新滑动平均
  *          Get_Voltage/Get_Current 直接返回预计算值, O(1)
  *

@@ -1,12 +1,16 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   人机界面控制器 — 实现
+ * @brief   人机界面控制器 — 实现 (V6.2 TFT 彩屏中文版)
+ * @note    TFT 8行×20列 16px, 中文占 2 列宽, 横屏 160×128 RGB565
+ *          4键: KEY0=启停(PB9), KEY1=F+(PB8), KEY2=F-(PB7), KEY3=切页(PB5)
+ *
+ *          配色: 黑底 + 黄标题 + 白正文 + 青数值 + 红报警 + 绿正常
  ******************************************************************************
  */
 
 #include "Ui_Controller.h"
-#include "Oled_Driver.h"
+#include "Tft_Driver.h"
 #include "Key_Driver.h"
 #include "Pwm_Driver.h"
 #include "Inverter_Control.h"
@@ -14,60 +18,34 @@
 #include "Esp8266_Driver.h"
 #include "App_Network.h"
 #include "Led_Driver.h"
+#include "Buzzer_Driver.h"
 #include "Sys_Timer.h"
 #include <stdio.h>
 
-/* ── 显示字符串常量 ── */
-#define STR_CONTROL_MODE    "[Control Mode] "
-#define STR_MONITOR_ONLY    "- Monitor Only -"
-#define STR_WIFI_DISCONN    "WiFi: DISCONNED"
-#define STR_WIFI_CONNECTED  "WiFi: CONNECTED "
-#define STR_PRESS_KEY0_WIFI "Press KEY0 WiFi "
-#define STR_PRESS_KEY0_START "Press KEY0 Start"
-#define STR_FREQ_NONE       "F:  --.- kHz    "
-#define STR_CONNECTING      "[Connecting...] "
-#define STR_ESP_INIT        "ESP WiFi Init.. "
-#define STR_PLEASE_WAIT     "Please wait...  "
-#define STR_SWEEPING        "[Sweeping...]  "
-#define STR_RESONANT_MODE   "[Resonant Mode] "
-#define STR_FAULT           "!!! FAULT !!!   "
-#define STR_OVER_CURRENT    "Over Current    "
-#define STR_PWM_DISABLED    "PWM Disabled    "
-#define STR_RESET_KEYS      "K0/K1: Reset    "
-#define STR_K0_STOP_K1_ADD  "K0:Stop K1:+1k "
-#define STR_STATE_READY     "State: READY    "
-#define STR_AWAIT_START     "Awaiting Start  "
+/* ── 配色 ── */
+#define COLOR_BG          TFT_COLOR_BLACK
+#define COLOR_TITLE       TFT_COLOR_YELLOW
+#define COLOR_TEXT        TFT_COLOR_WHITE
+#define COLOR_VALUE       TFT_COLOR_CYAN
+#define COLOR_ALARM       TFT_COLOR_RED
+#define COLOR_OK          TFT_COLOR_GREEN
 
-#define OLED_REFRESH_MS     200
+#define TFT_REFRESH_MS     200
 
 /* ── 过流保护阈值 ── */
-#define UI_CONTROLLER_OVERCURRENT_THRESHOLD_A  5.0f   /* 5A 触发故障保护 */
+#define UI_CONTROLLER_OVERCURRENT_THRESHOLD_A  5.0f
 
 /* ── 模块状态 ── */
 static uint8_t             s_page       = 0;
 static Ui_Controller_State s_ui_state   = UI_CONTROLLER_STATE_INIT;
-static char                s_error_line[17];
-static uint8_t             s_has_error  = 0;
 
-/* EMA 显示平滑状态 — 提升到模块级, 确保状态转移时正确重置 */
+/* EMA 显示平滑 */
 static float   s_disp_v     = 0.0f;
 static float   s_disp_i     = 0.0f;
 static float   s_disp_f_khz = 0.0f;
 static uint8_t s_disp_init  = 0;
 
 static void Reset_Display_EMA(void) { s_disp_init = 0; }
-
-static void Clear_Error(void) { s_has_error = 0; }
-
-static void Set_Error(const char* msg)
-{
-    uint8_t i;
-    if (!msg) { Clear_Error(); return; }
-    for (i = 0; i < 16 && msg[i]; i++) s_error_line[i] = msg[i];
-    for (; i < 16; i++) s_error_line[i] = ' ';
-    s_error_line[16] = '\0';
-    s_has_error = 1;
-}
 
 /* ── LED 更新 ── */
 static void Update_Leds(Ui_Controller_State ui_state)
@@ -86,47 +64,51 @@ static void Update_Leds(Ui_Controller_State ui_state)
     else
         Led_Driver_Set_Pwm(LED_DRIVER_STATE_OFF);
 
-    Led_Driver_Set_Ready((ui_state == UI_CONTROLLER_STATE_RUNNING || ui_state == UI_CONTROLLER_STATE_FAULT));
+    Led_Driver_Set_Power(LED_DRIVER_STATE_ON);
+
+    if (ui_state == UI_CONTROLLER_STATE_FAULT)
+        Led_Driver_Set_Temp(LED_DRIVER_STATE_ON);
+    else
+        Led_Driver_Set_Temp(LED_DRIVER_STATE_OFF);
+
+    Led_Driver_Set_Com((ui_state >= UI_CONTROLLER_STATE_READY) ? LED_DRIVER_STATE_ON : LED_DRIVER_STATE_OFF);
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  各页面绘制
+ *  各页面绘制 (中文全界面)
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Draw_Init(void)
 {
-    Oled_Driver_Show_String(1, 1, STR_CONTROL_MODE);
-    Oled_Driver_Show_String(2, 1, STR_WIFI_DISCONN);
-    Oled_Driver_Show_String(3, 1, STR_PRESS_KEY0_WIFI);
-    if (s_has_error)
-        Oled_Driver_Show_String(4, 1, s_error_line);
-    else
-        Oled_Driver_Show_String(4, 1, "                ");
+    /* 行1: 控制面板          (黄色标题) */
+    /* 行3: WiFi:未连接       (白色) */
+    /* 行5: 按K0连接          (青色) */
+    Tft_Driver_Show_CN_String(1, 0, "控制面板", COLOR_TITLE, COLOR_BG);
+    Tft_Driver_Show_CN_String(3, 0, "WiFi:未连接", COLOR_TEXT, COLOR_BG);
+    Tft_Driver_Show_CN_String(5, 0, "按K0连接WiFi", COLOR_VALUE, COLOR_BG);
 }
 
 static void Draw_Connecting(uint8_t retry, uint8_t max_retry)
 {
-    char buf[17];
-    Oled_Driver_Show_String(1, 1, STR_CONNECTING);
-    Oled_Driver_Show_String(2, 1, STR_ESP_INIT);
-    snprintf(buf, sizeof(buf), "Retry: %d/%d      ", retry, max_retry);
-    buf[16] = '\0';
-    Oled_Driver_Show_String(3, 1, buf);
-    Oled_Driver_Show_String(4, 1, STR_PLEASE_WAIT);
+    char buf[21];
+    Tft_Driver_Show_CN_String(1, 0, "正在连接...", COLOR_TITLE, COLOR_BG);
+    Tft_Driver_Show_CN_String(3, 0, "ESP初始化中", COLOR_TEXT, COLOR_BG);
+    snprintf(buf, sizeof(buf), "重试:%d/%d", retry, max_retry);
+    Tft_Driver_Show_CN_String(5, 0, buf, COLOR_VALUE, COLOR_BG);
+    Tft_Driver_Show_CN_String(7, 0, "请等待...", COLOR_TEXT, COLOR_BG);
 }
 
 static void Draw_Ready(void)
 {
     if (s_page == 0) {
-        Oled_Driver_Show_String(1, 1, STR_CONTROL_MODE);
-        Oled_Driver_Show_String(2, 1, STR_WIFI_CONNECTED);
-        Oled_Driver_Show_String(3, 1, STR_PRESS_KEY0_START);
-        Oled_Driver_Show_String(4, 1, STR_FREQ_NONE);
+        Tft_Driver_Show_CN_String(1, 0, "控制面板", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "WiFi:已连接", COLOR_OK, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "按K0启动", COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0, "频率: --.-kHz", COLOR_TEXT, COLOR_BG);
     } else {
-        Oled_Driver_Show_String(1, 1, STR_MONITOR_ONLY);
-        Oled_Driver_Show_String(2, 1, STR_STATE_READY);
-        Oled_Driver_Show_String(3, 1, STR_AWAIT_START);
-        Oled_Driver_Show_String(4, 1, "                ");
+        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "状态:就绪", COLOR_OK, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "等待启动", COLOR_TEXT, COLOR_BG);
     }
 }
 
@@ -134,34 +116,31 @@ static void Draw_Sweeping(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
     uint32_t progress;
-    char fline[17], bar[17];
+    char fline[21];
     uint8_t j;
 
+    progress = (SOFTSTART_START_FREQ_HZ - f) * 10
+             / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
+    if (progress > 10) progress = 10;
+
     if (s_page == 0) {
-        progress = (SOFTSTART_START_FREQ_HZ - f) * 10
-                 / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
-        if (progress > 10) progress = 10;
+        Tft_Driver_Show_CN_String(1, 0, "扫频中...", COLOR_TITLE, COLOR_BG);
 
-        Oled_Driver_Show_String(1, 1, STR_SWEEPING);
-        snprintf(fline, sizeof(fline), "Freq:%3lu.%1lukHz ",
+        snprintf(fline, sizeof(fline), "频率:%3lu.%1lukHz",
                  (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
-        fline[16] = '\0';
-        Oled_Driver_Show_String(2, 1, fline);
+        Tft_Driver_Show_CN_String(3, 0, fline, COLOR_VALUE, COLOR_BG);
 
-        bar[0] = '[';
-        for (j = 0; j < 10; j++) bar[1 + j] = (j < (int)progress) ? '#' : ' ';
-        bar[11] = ']';
-        for (j = 12; j < 16; j++) bar[j] = ' ';
-        bar[16] = '\0';
-        Oled_Driver_Show_String(3, 1, bar);
-        Oled_Driver_Show_String(4, 1, "                ");
+        /* 进度条 [#####     ] */
+        fline[0] = '[';
+        for (j = 0; j < 10; j++) fline[1 + j] = (j < (int)progress) ? '#' : ' ';
+        fline[11] = ']';
+        fline[12] = '\0';
+        Tft_Driver_Show_CN_String(5, 0, fline, COLOR_TEXT, COLOR_BG);
     } else {
-        Oled_Driver_Show_String(1, 1, STR_MONITOR_ONLY);
-        Oled_Driver_Show_String(2, 1, "Sweeping...    ");
-        Oled_Driver_Show_String(3, 1, "F:");
-        Oled_Driver_Show_Num(3, 3, f / 1000, 3);
-        Oled_Driver_Show_String(3, 6, "kHz            ");
-        Oled_Driver_Show_String(4, 1, "                ");
+        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "扫频中...", COLOR_VALUE, COLOR_BG);
+        snprintf(fline, sizeof(fline), "频率:%lukHz", (unsigned long)(f / 1000));
+        Tft_Driver_Show_CN_String(5, 0, fline, COLOR_TEXT, COLOR_BG);
     }
 }
 
@@ -179,39 +158,47 @@ static void Draw_Running(void)
     }
 
     if (s_page == 0) {
-        Oled_Driver_Show_String(1, 1, STR_RESONANT_MODE);
-        Oled_Driver_Show_String(2, 1, "F:");
-        Oled_Driver_Show_Num(2, 3, (uint32_t)(s_disp_f_khz + 0.5f), 3);
-        Oled_Driver_Show_String(2, 6, "kHz  ");
-        Oled_Driver_Show_String(3, 1, "V:");
-        Oled_Driver_Show_Float(3, 3, s_disp_v, 2, 2);
-        Oled_Driver_Show_String(3, 9, "I:");
-        Oled_Driver_Show_Float(3, 11, s_disp_i, 1, 2);
-        Oled_Driver_Show_String(4, 1, STR_K0_STOP_K1_ADD);
+        char buf[21];
+        Tft_Driver_Show_CN_String(1, 0, "谐振模式", COLOR_TITLE, COLOR_BG);
+
+        snprintf(buf, sizeof(buf), "F:%3lukHz", (unsigned long)(s_disp_f_khz + 0.5f));
+        Tft_Driver_Show_CN_String(3, 0, buf, COLOR_VALUE, COLOR_BG);
+
+        Tft_Driver_Show_CN_String(5, 0, "V:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_Float(5, 2, s_disp_v, 2, 2, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 9, "V", COLOR_TEXT, COLOR_BG);
+
+        Tft_Driver_Show_CN_String(5, 11, "I:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_Float(5, 13, s_disp_i, 1, 2, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 18, "A", COLOR_TEXT, COLOR_BG);
+
+        Tft_Driver_Show_CN_String(7, 0, "K0:停K1/2:f+/-", COLOR_TEXT, COLOR_BG);
     } else {
-        Oled_Driver_Show_String(1, 1, STR_MONITOR_ONLY);
-        Oled_Driver_Show_String(2, 1, "Freq: ");
-        Oled_Driver_Show_Num(2, 7, (uint32_t)(s_disp_f_khz + 0.5f), 3);
-        Oled_Driver_Show_String(2, 10, "kHz");
-        Oled_Driver_Show_String(3, 1, "Volt: ");
-        Oled_Driver_Show_Float(3, 7, s_disp_v, 2, 2);
-        Oled_Driver_Show_String(4, 1, "Curr: ");
-        Oled_Driver_Show_Float(4, 7, s_disp_i, 2, 2);
+        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "频率:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_Num(3, 6, (uint32_t)(s_disp_f_khz + 0.5f), 3, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 9, "kHz", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "电压:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_Float(5, 6, s_disp_v, 2, 2, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 12, "V", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0, "电流:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_Float(7, 6, s_disp_i, 2, 2, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 12, "A", COLOR_TEXT, COLOR_BG);
     }
 }
 
 static void Draw_Fault(void)
 {
     if (s_page == 0) {
-        Oled_Driver_Show_String(1, 1, STR_FAULT);
-        Oled_Driver_Show_String(2, 1, STR_OVER_CURRENT);
-        Oled_Driver_Show_String(3, 1, STR_PWM_DISABLED);
-        Oled_Driver_Show_String(4, 1, STR_RESET_KEYS);
+        Tft_Driver_Show_CN_String(1, 0, "!!!故障!!!", COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "过流保护", COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "PWM已关断", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0, "K0/K1:复位", COLOR_VALUE, COLOR_BG);
     } else {
-        Oled_Driver_Show_String(1, 1, STR_MONITOR_ONLY);
-        Oled_Driver_Show_String(2, 1, STR_FAULT);
-        Oled_Driver_Show_String(3, 1, STR_OVER_CURRENT);
-        Oled_Driver_Show_String(4, 1, "Reset: K0/K1    ");
+        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 0, "!!!故障!!!", COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, "过流保护", COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0, "按K0/K1复位", COLOR_TEXT, COLOR_BG);
     }
 }
 
@@ -219,25 +206,25 @@ static void Draw_Fault(void)
  *  按键分发
  * ═══════════════════════════════════════════════════════════════ */
 
-static void Handle_Keys(Ui_Controller_State ui_state, Key_Driver_Event key0, Key_Driver_Event key1)
+static void Handle_Keys(Ui_Controller_State ui_state,
+                        Key_Driver_Event k0, Key_Driver_Event k1,
+                        Key_Driver_Event k2, Key_Driver_Event k3)
 {
-    /* 双击切页 — 所有界面通用, 监测模式下唯一有效操作 */
-    if (key0 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
+    /* PAGE 双击切页 */
+    if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
         s_page = !s_page;
-        Oled_Driver_Clear();
-        Clear_Error();
+        Tft_Driver_Clear(COLOR_BG);
         return;
     }
 
-    /* 监测模式: 仅双击有效 */
+    /* 监测模式: 仅 PAGE 双击有效 */
     if (s_page == 1) return;
 
     switch (ui_state) {
         case UI_CONTROLLER_STATE_INIT:
-            if (key0 == KEY_DRIVER_EVENT_CLICK) {
+            if (k0 == KEY_DRIVER_EVENT_CLICK) {
                 App_Network_Start_Connect();
-                Clear_Error();
-                Oled_Driver_Clear();
+                Tft_Driver_Clear(COLOR_BG);
             }
             break;
 
@@ -245,26 +232,30 @@ static void Handle_Keys(Ui_Controller_State ui_state, Key_Driver_Event key0, Key
             break;
 
         case UI_CONTROLLER_STATE_READY:
-            if (key0 == KEY_DRIVER_EVENT_CLICK)
+            if (k0 == KEY_DRIVER_EVENT_CLICK)
                 Inverter_Control_Soft_Start_Trigger();
             break;
 
         case UI_CONTROLLER_STATE_SWEEPING:
-            if (key0 == KEY_DRIVER_EVENT_CLICK || key1 == KEY_DRIVER_EVENT_CLICK)
+            if (k0 == KEY_DRIVER_EVENT_CLICK || k1 == KEY_DRIVER_EVENT_CLICK)
                 Inverter_Control_Soft_Start_Stop();
             break;
 
         case UI_CONTROLLER_STATE_RUNNING:
-            if (key0 == KEY_DRIVER_EVENT_CLICK)
+            if (k0 == KEY_DRIVER_EVENT_CLICK)
                 Inverter_Control_Soft_Start_Stop();
-            if (key1 == KEY_DRIVER_EVENT_CLICK) {
+            if (k1 == KEY_DRIVER_EVENT_CLICK) {
                 uint32_t f = Pwm_Driver_Get_Frequency() + 1000;
                 if (f <= PWM_DRIVER_FREQ_MAX_HZ) Pwm_Driver_Set_Frequency(f);
+            }
+            if (k2 == KEY_DRIVER_EVENT_CLICK) {
+                uint32_t f = Pwm_Driver_Get_Frequency();
+                if (f >= PWM_DRIVER_FREQ_MIN_HZ + 1000) Pwm_Driver_Set_Frequency(f - 1000);
             }
             break;
 
         case UI_CONTROLLER_STATE_FAULT:
-            if (key0 == KEY_DRIVER_EVENT_CLICK || key1 == KEY_DRIVER_EVENT_CLICK)
+            if (k0 == KEY_DRIVER_EVENT_CLICK || k1 == KEY_DRIVER_EVENT_CLICK)
                 Inverter_Control_Soft_Start_Stop();
             break;
     }
@@ -274,9 +265,6 @@ static void Handle_Keys(Ui_Controller_State ui_state, Key_Driver_Event key0, Key
  *  UI 主调度
  * ═══════════════════════════════════════════════════════════════ */
 
-/*
- * UI 状态计算 — 独立纯函数, 消除原始代码中的双重计算
- */
 static Ui_Controller_State Calc_Ui_State(void)
 {
     Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
@@ -289,9 +277,7 @@ static Ui_Controller_State Calc_Ui_State(void)
     switch (cs) {
         case APP_NETWORK_CONN_IDLE:   return UI_CONTROLLER_STATE_INIT;
         case APP_NETWORK_CONN_WIFI:   return UI_CONTROLLER_STATE_CONNECTING;
-        case APP_NETWORK_CONN_FAILED:
-            if (!s_has_error) Set_Error("WiFi Failed x3  ");
-            return UI_CONTROLLER_STATE_INIT;
+        case APP_NETWORK_CONN_FAILED: return UI_CONTROLLER_STATE_INIT;
         case APP_NETWORK_CONN_ONLINE:
             if (ss == INVERTER_CONTROL_SS_STATE_IDLE)  return UI_CONTROLLER_STATE_READY;
             if (ss == INVERTER_CONTROL_SS_STATE_SWEEP) return UI_CONTROLLER_STATE_SWEEPING;
@@ -302,41 +288,40 @@ static Ui_Controller_State Calc_Ui_State(void)
 
 void Ui_Controller_Task(void)
 {
-    static uint32_t last_oled    = 0;
+    static uint32_t last_refresh = 0;
     static uint8_t  last_state   = 0xFF;
     static uint8_t  last_page    = 0xFF;
     uint8_t         need_refresh = 0;
 
-    if (Sys_Timer_Get_Tick() - last_oled >= OLED_REFRESH_MS) {
-        last_oled = Sys_Timer_Get_Tick();
+    if (Sys_Timer_Get_Tick() - last_refresh >= TFT_REFRESH_MS) {
+        last_refresh = Sys_Timer_Get_Tick();
         need_refresh = 1;
     }
 
     Ui_Controller_State ui_state = Calc_Ui_State();
 
-    /* 状态/页面迁移 → 全屏清零, 重置 EMA 平滑避免跳变 */
     if ((uint8_t)ui_state != last_state || s_page != last_page) {
         last_state = (uint8_t)ui_state;
         last_page  = s_page;
-        Oled_Driver_Clear();
+        Tft_Driver_Clear(COLOR_BG);
         Reset_Display_EMA();
         need_refresh = 1;
     }
 
-    /* 按键 */
-    Key_Driver_Event key0 = Key_Driver_Get_Event(0);
-    Key_Driver_Event key1 = Key_Driver_Get_Event(1);
+    Key_Driver_Event k0 = Key_Driver_Get_Event(KEY_ID_ONOFF);
+    Key_Driver_Event k1 = Key_Driver_Get_Event(KEY_ID_F_UP);
+    Key_Driver_Event k2 = Key_Driver_Get_Event(KEY_ID_F_DOWN);
+    Key_Driver_Event k3 = Key_Driver_Get_Event(KEY_ID_PAGE);
 
     /* KEY0 长按 → 清除 WiFi */
-    if (key0 == KEY_DRIVER_EVENT_LONG_PRESS) {
+    if (k0 == KEY_DRIVER_EVENT_LONG_PRESS) {
         if (Esp8266_Driver_Is_Ready()) {
             Esp8266_Driver_Send_String("CMD:CLEAR\n");
             App_Network_Soft_Reset();
-            Oled_Driver_Clear();
-            Oled_Driver_Show_String(1, 1, STR_CONTROL_MODE);
-            Oled_Driver_Show_String(2, 1, "WiFi Cleared... ");
-            Oled_Driver_Show_String(3, 1, "Please reconfi-");
-            Oled_Driver_Show_String(4, 1, "gure WiFi      ");
+            Tft_Driver_Clear(COLOR_BG);
+            Tft_Driver_Show_CN_String(1, 0, "控制面板", COLOR_TITLE, COLOR_BG);
+            Tft_Driver_Show_CN_String(3, 0, "WiFi已清除", COLOR_VALUE, COLOR_BG);
+            Tft_Driver_Show_CN_String(5, 0, "请重新配网", COLOR_TEXT, COLOR_BG);
             last_state = (uint8_t)UI_CONTROLLER_STATE_CONNECTING;
             s_ui_state = UI_CONTROLLER_STATE_CONNECTING;
             Led_Driver_Task();
@@ -344,34 +329,36 @@ void Ui_Controller_Task(void)
         return;
     }
 
-    Handle_Keys(ui_state, key0, key1);
+    Handle_Keys(ui_state, k0, k1, k2, k3);
 
-    /* 按键可能改变逆变器状态, 重新计算 */
     ui_state = Calc_Ui_State();
 
     if ((uint8_t)ui_state != last_state || s_page != last_page) {
         last_state = (uint8_t)ui_state;
         last_page  = s_page;
-        Oled_Driver_Clear();
+        Tft_Driver_Clear(COLOR_BG);
         Reset_Display_EMA();
         need_refresh = 1;
     }
 
     s_ui_state = ui_state;
 
-    /* ── 过流保护: 逆变器工作时持续监测电流, 超出阈值立即关断 ── */
+    /* ── 过流保护 ── */
     if (ui_state == UI_CONTROLLER_STATE_SWEEPING || ui_state == UI_CONTROLLER_STATE_RUNNING) {
         if (Adc_Driver_Get_Current() > UI_CONTROLLER_OVERCURRENT_THRESHOLD_A) {
             Inverter_Control_Soft_Start_Fault();
+            Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
             ui_state = UI_CONTROLLER_STATE_FAULT;
             last_state = (uint8_t)UI_CONTROLLER_STATE_FAULT;
             s_ui_state = UI_CONTROLLER_STATE_FAULT;
-            Oled_Driver_Clear();
+            Tft_Driver_Clear(COLOR_BG);
             need_refresh = 1;
         }
     }
 
-    /* READY 状态持续追踪电流零点 */
+    if (ui_state != UI_CONTROLLER_STATE_FAULT)
+        Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
+
     if (ui_state == UI_CONTROLLER_STATE_READY &&
         Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE) {
         Adc_Driver_Calibrate_Offset();
@@ -379,6 +366,7 @@ void Ui_Controller_Task(void)
 
     if (need_refresh) Update_Leds(ui_state);
     Led_Driver_Task();
+    Buzzer_Driver_Task();
 
     if (!need_refresh) return;
 

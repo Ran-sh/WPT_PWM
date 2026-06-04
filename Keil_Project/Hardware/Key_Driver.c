@@ -1,22 +1,21 @@
 /**
  ******************************************************************************
  * @file    Hardware/Key_Driver.c
- * @brief   按键驱动 — 实现
- * @note    每键独立状态机: IDLE → DEBOUNCE → PRESS → WAIT_DOUBLE → LONG_PRESS
- *          Key_Driver_Task 按 10ms 节拍轮询, Key_Driver_Get_Event 消费事件
+ * @brief   按键驱动 — 实现 (V6.2 4 键版)
+ * @note    PB9=ON/OFF, PB8=F_UP, PB7=F_DOWN, PB5=PAGE
+ *          每键独立状态机: IDLE → DEBOUNCE → PRESS → WAIT_DOUBLE → LONG_HOLD
  ******************************************************************************
  */
 
 #include "Key_Driver.h"
 #include "Sys_Timer.h"
 
-#define KEY_COUNT           2
+#define KEY_COUNT           4
 #define KEY_DEBOUNCE_MS     10
 #define KEY_LONG_PRESS_MS   3000
 #define KEY_DOUBLE_WINDOW_MS 200
 #define KEY_TASK_PERIOD_MS  10
 
-/* ── 按键状态机 ── */
 typedef enum {
     KEY_DRIVER_FSM_IDLE = 0,
     KEY_DRIVER_FSM_DEBOUNCE,
@@ -30,13 +29,16 @@ typedef struct {
     uint16_t         pin;
     Key_Fsm_State    state;
     uint32_t         timer;
-    uint8_t          event;        /* 待消费事件: Key_Driver_Event */
+    uint8_t          event;
     uint8_t          click_count;
 } Key_Instance;
 
+/* V6.2: PB9=ON/OFF, PB8=F_UP, PB7=F_DOWN, PB5=PAGE */
 static Key_Instance s_keys[KEY_COUNT] = {
-    { GPIOB, GPIO_Pin_12, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 },
-    { GPIOB, GPIO_Pin_13, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 }
+    { GPIOB, GPIO_Pin_9,  KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 },
+    { GPIOB, GPIO_Pin_8,  KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 },
+    { GPIOB, GPIO_Pin_7,  KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 },
+    { GPIOB, GPIO_Pin_5,  KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 }
 };
 
 void Key_Driver_Init(void)
@@ -44,7 +46,7 @@ void Key_Driver_Init(void)
     GPIO_InitTypeDef cfg;
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
 
-    cfg.GPIO_Pin  = GPIO_Pin_12 | GPIO_Pin_13;
+    cfg.GPIO_Pin  = GPIO_Pin_5 | GPIO_Pin_7 | GPIO_Pin_8 | GPIO_Pin_9;
     cfg.GPIO_Mode = GPIO_Mode_IPU;
     GPIO_Init(GPIOB, &cfg);
 }
@@ -73,7 +75,7 @@ static void Key_Fsm_Update(Key_Instance* key)
             break;
 
         case KEY_DRIVER_FSM_PRESS:
-            if (!pressed) {  /* 释放 */
+            if (!pressed) {
                 key->click_count++;
                 key->state = KEY_DRIVER_FSM_WAIT_DOUBLE;
                 key->timer = Sys_Timer_Get_Tick();

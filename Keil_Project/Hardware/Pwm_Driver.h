@@ -2,12 +2,12 @@
  ******************************************************************************
  * @file    Hardware/Pwm_Driver.h
  * @brief   全桥 PWM 驱动 — 公开接口 (纯硬件抽象)
- * @note    TIM1 全桥: CH1+CH1N / CH2+CH2N, 50% 固定占空比
- *          频率范围 95kHz~150kHz, 死区 1000ns
+ * @note    V6.2: TIM1 默认映射 (无 PartialRemap)
+ *          PA8=CH1, PA9=CH2, PB13=CH1N, PB14=CH2N
+ *          50% 固定占空比, 频率范围 95kHz~150kHz, 死区 1000ns
  *
  *          安全设计:
  *          - 上电 MOE 关断 (Pwm_Driver_Init 后无输出)
- *          - Pwm_Driver_Enable/Disable 控制 MOE
  *          - ARR+CCR 预载使能, Set_Frequency 原子更新 (UDIS 批量加载)
  ******************************************************************************
  */
