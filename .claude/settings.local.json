@@ -265,7 +265,14 @@
       "Bash(HTTPS_PROXY=http://127.0.0.1:9679 git log --format=\"%ai %s\" origin/1.0LAN --diff-filter=A --name-only)",
       "Bash(HTTPS_PROXY=http://127.0.0.1:9679 git fetch origin 1.0LAN 2.0WAN 4.0TFT)",
       "Bash(HTTPS_PROXY=http://127.0.0.1:9679 git log --format=\"%ai\" origin/master --reverse)",
+<<<<<<< HEAD
       "Bash(HTTPS_PROXY=http://127.0.0.1:9679 git log --format=\"%ai\" origin/3.0ONENET --reverse)"
+=======
+      "Bash(HTTPS_PROXY=http://127.0.0.1:9679 git log --format=\"%ai\" origin/3.0ONENET --reverse)",
+      "Bash(HTTPS_PROXY=http://127.0.0.1:9679 git ls-remote --heads origin)",
+      "Bash(git stash *)",
+      "Bash(HTTPS_PROXY=http://127.0.0.1:9679 git push origin ONENET:3.0ONENET)"
+>>>>>>> 145d8b6 (docs: fix README — correct version dates 2024→2026, remove duplicate entries)
     ]
   }
 }

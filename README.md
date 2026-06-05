@@ -9,7 +9,7 @@
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V6.2** (2026-06-04) — 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统。采用 **Dual-MCU 双脑架构**：STM32 (SPL V3.5.0) 全桥 PFM 发波与保护，ESP8266 (Arduino) 独立 MQTT 固件连接 **OneNET 物模型**。支持 OLED 7 界面状态机本地控制、Cloudflare Pages 网页控制台、微信小程序远程遥控。应用于植入式医疗设备无线充电。
+> **V6.2** (2026-06-05) — 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统。采用 **Dual-MCU 双脑架构**：STM32 (SPL V3.5.0) 全桥 PFM 发波与保护，ESP8266 (Arduino) 独立 MQTT 固件连接 **OneNET 物模型**。支持 OLED 7 界面状态机本地控制、Cloudflare Pages 网页控制台、微信小程序远程遥控。应用于植入式医疗设备无线充电。
 
 ---
 
@@ -47,10 +47,8 @@
 | V3.0 | 2026 | `LAN` | NetAssist 局域网 TCP 调试 |
 | V2.0 | 2026 | `WAN` | 巴法云 MQTT TCP 协议 |
 | V1.0 | 2026 | `master` | 纯本地裸机基版, 全桥 PWM + OLED + 按键 |
-| V1.0 | 2024 | `WPT_PWM_V0.0` | 基础功能验证 |
-| V0.0 | 2024 | `master` | 裸机基版, 全桥 PWM + OLED + 按键 |
 
-### V6.2 代码质量优化 (2026-06-04)
+### V6.2 代码质量优化 (2026-06-05)
 
 | 级别 | 问题 | 文件 | 优化 |
 |:---|:---|:---|:---|
