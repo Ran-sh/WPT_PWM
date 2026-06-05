@@ -35,7 +35,6 @@ static void Oled_I2C_Send_Byte(uint8_t byte);
 static void Oled_Write_Command(uint8_t cmd);
 static void Oled_Write_Data(uint8_t data);
 static void Oled_Set_Cursor(uint8_t page, uint8_t column);
-static uint32_t Oled_Int_Pow(uint32_t base, uint32_t exp);
 
 /* ═══════════════════════════════════════════════════════════════
  *  I2C 底层

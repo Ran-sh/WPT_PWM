@@ -40,14 +40,15 @@
 
 | 版本 | 日期 | 分支 | 主要变更 |
 |:---|:---|:---|:---|
-| V0.0 | 2024 | `master` | 裸机基版, 全桥 PWM + OLED + 按键 |
+| **V6.2** | **2026-06-05** | **`3.0ONENET`** | **12 项代码质量优化 + 协议规范 + 编译修复** |
+| V6.1 | 2026-06-01 | `3.0ONENET` | 8 项 Bug 修复 + 过流保护 + 代码质量提升 |
+| V6.0 | 2026 | `ONENET` | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
+| V5.0 | 2026 | `ONENET` | OneNET MQTT 物模型 + Dual-MCU 架构 |
+| V3.0 | 2026 | `LAN` | NetAssist 局域网 TCP 调试 |
+| V2.0 | 2026 | `WAN` | 巴法云 MQTT TCP 协议 |
+| V1.0 | 2026 | `master` | 纯本地裸机基版, 全桥 PWM + OLED + 按键 |
 | V1.0 | 2024 | `WPT_PWM_V0.0` | 基础功能验证 |
-| V2.0 | 2024 | `WAN` | 巴法云 MQTT TCP 协议 |
-| V3.0 | 2024 | `LAN` | NetAssist 局域网 UDP 调试 |
-| V5.0 | 2025 | `ONENET` | OneNET MQTT 物模型 + Dual-MCU 架构 |
-| V6.0 | 2025 | `ONENET` | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
-| **V6.2** | **2026-06** | **`3.0ONENET`** | **12 项代码质量优化 + 协议规范 + 编译修复** |
-| **V6.1** | **2026-06** | **`3.0ONENET`** | **8 项 Bug 修复 + 过流保护 + 代码质量提升** |
+| V0.0 | 2024 | `master` | 裸机基版, 全桥 PWM + OLED + 按键 |
 
 ### V6.2 代码质量优化 (2026-06-04)
 
@@ -649,13 +650,17 @@ void HardFault_Handler(void) {
 
 ## 分支说明
 
-| 分支 | 版本 | 协议 | 说明 |
-|:---|:---:|:---|:---|
-| `master` | V0.0 | — | 裸机基版, 全桥 PWM + OLED + 按键 |
-| `WPT_PWM_V0.0` | V1.0 | — | 基础功能验证 |
-| `LAN` | V3.3 | NetAssist TCP | 局域网 PC 调试 |
-| `WAN` | V4.0 | 巴法云 MQTT | 历史版本 |
-| **`3.0ONENET`** | **V6.1** | OneNET MQTT | Dual-MCU + 命名规范 + 状态机 + 过流保护 |
+> **仓库**: [github.com/Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM)
+
+| 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | 说明 |
+|:---|:---|:---:|:---|:---|:---|
+| **`3.0ONENET`** ⬅ | `WPT_PWM_ONENET_V3.0` | **V6.2** | OneNET MQTT | 物模型 Dual-MCU | 当前活跃开发分支 |
+| `master` | `WPT_PWM_V0.0` | V1.0 | 无 (纯本地) | 无 | 裸机固件基版 |
+| `1.0LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V3.3 | NetAssist TCP | PC 局域网 :8080 | 内网调试 |
+| `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V4.0 | 巴法云 TCP | tcp.bemfa.com :8344 | 远程控制 (历史) |
+| `4.0TFT` | `WPT_PWM_TFT_V4.0` | — | — | — | 待开发 (TFT 显示升级) |
+
+**分支间演进关系**: `master` (基版) → `1.0LAN` (局域网) → `2.0WAN` (巴法云) → `3.0ONENET` (OneNET MQTT 当前版)
 
 ---
 
