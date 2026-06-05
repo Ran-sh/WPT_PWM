@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **协议** | NetAssist TCP 局域网 |
 | **版本** | V3.4 |
 
-其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `2.0WAN` (巴法云 TCP V3.5) → `WPT_PWM_Bemfa_WAN_V2.0`, `3.0ONENET` (OneNET MQTT V6.1 OLED) → `WPT_PWM_ONENET_V3.0`, `4.0TFT` (OneNET MQTT V6.2 TFT彩屏) → `WPT_PWM_V4.0_ONENET_TFT`
+其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `2.0WAN` (巴法云 TCP V3.5) → `WPT_PWM_Bemfa_WAN_V2.0`, `3.0ONENET` (OneNET MQTT V6.2 OLED) → `WPT_PWM_ONENET_V3.0`, `4.0TFT` (OneNET MQTT V6.2 TFT彩屏) → `WPT_PWM_V4.0_ONENET_TFT`
 
 ### 复合指令触发规则
 
