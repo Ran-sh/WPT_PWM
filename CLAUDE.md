@@ -7,12 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 项目 | 内容 |
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
-| **分支** | `3.0ONENET` |
-| **本地目录** | `D:\Claude Code Project\WPT_PWM_ONENET_V3.0` |
-| **协议** | OneNET MQTT 物模型 (Dual-MCU 架构) |
-| **版本** | V6.1 |
+| **分支** | `4.0TFT` |
+| **本地目录** | `D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT` |
+| **协议** | OneNET MQTT 物模型 (Dual-MCU 架构 + TFT 彩屏) |
+| **版本** | V6.2 |
 
-其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `1.0LAN` (NetAssist 局域网 V3.4) → `WPT_PWM_NetAssistant_LAN_V1.0`, `2.0WAN` (巴法云 TCP V3.5) → `WPT_PWM_Bemfa_WAN_V2.0`, `4.0TFT` (OneNET MQTT V6.2 TFT彩屏) → `WPT_PWM_V4.0_ONENET_TFT`
+其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `1.0LAN` (NetAssist 局域网 V3.4) → `WPT_PWM_NetAssistant_LAN_V1.0`, `2.0WAN` (巴法云 TCP V3.5) → `WPT_PWM_Bemfa_WAN_V2.0`, `3.0ONENET` (OneNET MQTT V6.2 OLED) → `WPT_PWM_ONENET_V3.0`
 
 ### 复合指令触发规则
 
@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. 更新 `embedded-architect` skill (`Claude_Files/docs/embedded-architect-system-prompt.md` + `~/.claude/skills/embedded-architect/SKILL.md`)
 4. 更新全部文档 (`.md` + `.docx` 配对生成)
 5. 美化 GitHub README.md
-6. `git push` 推送当前分支 (3.0ONENET)
+6. `git push` 推送当前分支 (4.0TFT)
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
@@ -133,13 +133,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 本地文件夹 | 远程仓库 | 分支 | 说明 |
 |:---|:---|:---|:---|
-| `Keil_Project/`、`Arduino_Project/`、`安卓app/`、`Claude_Files/`、根目录文件 | `Ran-sh/WPT_PWM` | `3.0ONENET` | 主仓库 |
+| `Keil_Project/`、`Arduino_Project/`、`安卓app/`、`Claude_Files/`、根目录文件 | `Ran-sh/WPT_PWM` | `4.0TFT` | 主仓库 |
 | `ONENETapp/` | `Ran-sh/WPT_Onenet_IoT` | `master` | 网页控制台 (Cloudflare Pages) |
 | `Railway_Deploy/` | `Ran-sh/WPT_Railway` | `main` | Railway 桥接服务器 |
 
 ```bash
 # 主仓库
-git add -A && git commit -m "..." && git push origin 3.0ONENET
+git add -A && git commit -m "..." && git push origin 4.0TFT
 
 # ONENETapp (需同时推到 gh-pages)
 cd ONENETapp && git add -A && git commit -m "..." && git push && git push origin gh-pages:master && cd ..

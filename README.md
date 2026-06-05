@@ -45,6 +45,7 @@
 | V3.5 | 2024 | `2.0WAN` | 巴法云 MQTT TCP 协议 |
 | V5.0 | 2025 | `3.0ONENET` | OneNET MQTT 物模型 + Dual-MCU 架构 |
 | V6.0 | 2025 | `3.0ONENET` | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
+| **V6.2** | **2026-06** | **`4.0TFT`** | **TFT 彩屏升级 + 4键 + 6 LED + 蜂鸣器** |
 | **V6.1** | **2026-06** | **`3.0ONENET`** | **8 项 Bug 修复 + 过流保护 + 代码质量提升** |
 | **V6.2** | **2026-06** | **`4.0TFT`** | **OLED→TFT 彩屏 + 4键 + 6 LED + 蜂鸣器 + PWM默认映射** |
 
@@ -631,12 +632,12 @@ void HardFault_Handler(void) {
 
 ## 分支说明
 
-| 分支 | 版本 | 协议 | 说明 |
-|:---|:---:|:---|:---|
+| 分支 | 版本 | 协议 | 显示 | 说明 |
+|:---|:---:|:---|:---:|:---|
 | `master` | V0.0 | — | OLED | 裸机基版, 全桥 PWM + OLED + 按键 |
 | `1.0LAN` | V3.4 | NetAssist TCP | OLED | 局域网 PC 调试 |
 | `2.0WAN` | V3.5 | 巴法云 MQTT | OLED | 巴法云创客云版本 |
-| **`3.0ONENET`** | **V6.1** | **OneNET MQTT** | **OLED** | **Dual-MCU + 命名规范 + 状态机 + 过流保护** |
+| `3.0ONENET` | V6.2 | OneNET MQTT | OLED | Dual-MCU + 命名规范 + 状态机 + 过流保护 |
 | **`4.0TFT`** | **V6.2** | **OneNET MQTT** | **TFT 彩屏** | **OLED→TFT + 4键 + 6 LED + 蜂鸣器 + PWM默认映射** |
 
 ---
