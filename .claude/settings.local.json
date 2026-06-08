@@ -115,7 +115,10 @@
       "Bash(chmod +x ~/.claude/statusline.sh)",
       "Bash(ccusage blocks *)",
       "Bash(stty size *)",
-      "Bash(echo '{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":35,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":50000,\"cache_read_input_tokens\":20000}},\"effort\":\"max\",\"todoTotal\":5,\"todoDone\":2,\"cwd\":\"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V4.0_ONENET_TFT\",\"transcript_path\":\"/tmp/test.jsonl\"}')"
+      "Bash(echo '{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":35,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":50000,\"cache_read_input_tokens\":20000}},\"effort\":\"max\",\"todoTotal\":5,\"todoDone\":2,\"cwd\":\"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V4.0_ONENET_TFT\",\"transcript_path\":\"/tmp/test.jsonl\"}')",
+      "Bash(git rebase *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(git -c core.editor=true rebase --continue)"
     ]
   }
 }
