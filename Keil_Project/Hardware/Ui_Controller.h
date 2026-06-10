@@ -1,9 +1,9 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.h
- * @brief   人机界面控制器 — 公开接口 (V6.2 TFT 版)
+ * @brief   人机界面控制器 — 公开接口 (V7 多页仪表盘版)
  * @note    TFT 8行20列彩屏, 4键操作
- *          6 态状态机: INIT → CONNECTING → READY → SWEEPING → RUNNING → FAULT
+ *          7 态: INIT → CONNECTING → FAILED → READY → SWEEPING → RUNNING → FAULT
  ******************************************************************************
  */
 
@@ -15,10 +15,11 @@
 typedef enum {
     UI_CONTROLLER_STATE_INIT       = 0,
     UI_CONTROLLER_STATE_CONNECTING = 1,
-    UI_CONTROLLER_STATE_READY      = 2,
-    UI_CONTROLLER_STATE_SWEEPING   = 3,
-    UI_CONTROLLER_STATE_RUNNING    = 4,
-    UI_CONTROLLER_STATE_FAULT      = 5
+    UI_CONTROLLER_STATE_FAILED     = 2,
+    UI_CONTROLLER_STATE_READY      = 3,
+    UI_CONTROLLER_STATE_SWEEPING   = 4,
+    UI_CONTROLLER_STATE_RUNNING    = 5,
+    UI_CONTROLLER_STATE_FAULT      = 6
 } Ui_Controller_State;
 
 void                Ui_Controller_Task(void);
