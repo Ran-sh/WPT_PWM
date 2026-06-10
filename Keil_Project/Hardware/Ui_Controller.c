@@ -64,7 +64,7 @@
 #define S_LONG_CLEAR "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI      /* 长按ON:清除WIFI */
 
 /* ── 模块状态 ── */
-static uint8_t s_page          = 0;  /* 子页: 0=扫频进度/综合 1=频率表 2=电压表 3=电流表 */
+static uint8_t s_page          = 0;  /* 子页: 0=综合 1=频率 2=电压 3=电流 */
 static uint8_t s_no_wifi_mode  = 0;  /* 无WIFI模式标志 */
 static Ui_Controller_State s_ui_state = UI_CONTROLLER_STATE_INIT;
 
@@ -282,17 +282,29 @@ static void Draw_Run_Main(void)
 {
     Update_EMA();
     switch (s_page) {
-    case 0: /* 频率表 */
+    case 0: /* 综合监测 */
+        Tft_Driver_Show_CN_String(0, Center(S_MONITOR), S_MONITOR, UI_COLOR_TITLE, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(1, Center(Get_WiFi_Str()), Get_WiFi_Str(), Get_WiFi_Color(), UI_COLOR_BG);
+        {
+            char buf[21];
+            Fmt_F(buf, s_ema_f);
+            Tft_Driver_Show_CN_String(2, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+            Fmt_V(buf, s_ema_v);
+            Tft_Driver_Show_CN_String(3, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+            Fmt_I(buf, s_ema_i);
+            Tft_Driver_Show_CN_String(4, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+        }
+        Tft_Driver_Show_CN_String(6, Right("OFF:" S_STOP), "OFF:" S_STOP, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbbBack",     UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right(SKIP_F), SKIP_F, UI_COLOR_TEXT, UI_COLOR_BG);
+        break;
+    case 1: /* 频率表 */
         Tft_Driver_Show_CN_String(0, Center(S_MON_FREQ), S_MON_FREQ, UI_COLOR_TITLE, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(1, Center(Get_WiFi_Str()), Get_WiFi_Str(), Get_WiFi_Color(), UI_COLOR_BG);
         {
             char buf[21];
             Fmt_F(buf, s_ema_f);
             Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
-            Fmt_V(buf, s_ema_v);
-            Tft_Driver_Show_CN_String(3, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
-            Fmt_I(buf, s_ema_i);
-            Tft_Driver_Show_CN_String(4, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
         }
         {
             char bar[12]; uint8_t j;
@@ -300,12 +312,12 @@ static void Draw_Run_Main(void)
             if (bar_w > 10) bar_w = 10;
             for (j = 0; j < 11; j++) bar[j] = (j < bar_w) ? '#' : ' ';
             bar[11] = '\0';
-            Tft_Driver_Show_String(5, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
+            Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
-        Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,   UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(SKIP_F), SKIP_F, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbbBack",     UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right(SKIP_V), SKIP_V, UI_COLOR_TEXT, UI_COLOR_BG);
         break;
-    case 1: /* 电压表 */
+    case 2: /* 电压表 */
         Tft_Driver_Show_CN_String(0, Center(S_MON_VOLT), S_MON_VOLT, UI_COLOR_TITLE, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(1, Center(Get_WiFi_Str()), Get_WiFi_Str(), Get_WiFi_Color(), UI_COLOR_BG);
         {
@@ -319,10 +331,10 @@ static void Draw_Run_Main(void)
             bar[11] = '\0';
             Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
-        Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,   UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(SKIP_V), SKIP_V, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbbBack",     UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right(SKIP_I), SKIP_I, UI_COLOR_TEXT, UI_COLOR_BG);
         break;
-    case 2: /* 电流表 */
+    case 3: /* 电流表 */
         Tft_Driver_Show_CN_String(0, Center(S_MON_CURR), S_MON_CURR, UI_COLOR_TITLE, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(1, Center(Get_WiFi_Str()), Get_WiFi_Str(), Get_WiFi_Color(), UI_COLOR_BG);
         {
@@ -336,24 +348,8 @@ static void Draw_Run_Main(void)
             bar[11] = '\0';
             Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
-        Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,   UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(SKIP_I), SKIP_I, UI_COLOR_TEXT, UI_COLOR_BG);
-        break;
-    case 3: /* 综合监测 */
-        Tft_Driver_Show_CN_String(0, Center(S_MONITOR), S_MONITOR, UI_COLOR_TITLE, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(1, Center(Get_WiFi_Str()), Get_WiFi_Str(), Get_WiFi_Color(), UI_COLOR_BG);
-        {
-            char buf[21];
-            Fmt_F(buf, s_ema_f);
-            Tft_Driver_Show_CN_String(2, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
-            Fmt_V(buf, s_ema_v);
-            Tft_Driver_Show_CN_String(3, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
-            Fmt_I(buf, s_ema_i);
-            Tft_Driver_Show_CN_String(4, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
-        }
-        Tft_Driver_Show_CN_String(6, Right("OFF:" S_STOP), "OFF:" S_STOP, UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,     UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(SKIP "V"), SKIP "V",    UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbbBack",     UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right(SKIP), SKIP, UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     }
 }
@@ -396,7 +392,7 @@ static void Handle_Keys(Ui_Controller_State ui_state,
                         Key_Driver_Event k2, Key_Driver_Event k3)
 {
     if (k0 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
-        /* K0双击 = Back返回综合监测 */
+        /* K0双击 → 直接回到综合监测 */
         s_page = 0;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
