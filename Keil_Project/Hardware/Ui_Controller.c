@@ -154,13 +154,14 @@ static void Fmt_V(char* buf, float v)
 {
     int32_t x = (int32_t)(v * 100.0f + 0.5f);
     if (x < 0) x = -x;
-    snprintf(buf, 21, S_VOLTAGE "V:%d.%02dV", (int)(x/100), (int)(x%100));
+    snprintf(buf, 21, S_VOLTAGE "V:%2d.%02dV", (int)(x/100), (int)(x%100));
 }
 static void Fmt_I(char* buf, float c)
 {
     int32_t x = (int32_t)(c * 100.0f + 0.5f);
-    if (x < 0) x = -x;
-    snprintf(buf, 21, S_CURRENT "I:%d.%02dA", (int)(x/100), (int)(x%100));
+    char sign = '+';
+    if (x < 0) { x = -x; sign = '-'; }
+    snprintf(buf, 21, S_CURRENT "I:%c%1d.%02dA", sign, (int)(x/100), (int)(x%100));
 }
 static void Fmt_F(char* buf, float f)
 {
