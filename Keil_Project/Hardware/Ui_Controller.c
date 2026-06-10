@@ -143,7 +143,7 @@ static void Draw_Init(void)
         /* 行6: 空 */
         /* 行7: 按K0连WiFi + [PAGE]切页 (左下+右下) */
         Tft_Driver_Show_CN_String(7, 0,  UI_STR_PRESS_K0_WIFI,          UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, 11, "[PAGE]" "\xe5\x88\x87\xe9\xa1\xb5", UI_CONTROLLER_COLOR_TEXT,  UI_CONTROLLER_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 11, "PAGE:" "\xe5\x88\x87\xe9\xa1\xb5", UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_TITLE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(2, 0, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
