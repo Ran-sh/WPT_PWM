@@ -250,8 +250,8 @@ static void Handle_Keys(Ui_Controller_State ui_state,
                         Key_Driver_Event k0, Key_Driver_Event k1,
                         Key_Driver_Event k2, Key_Driver_Event k3)
 {
-    /* K0 双击切页 — 切换 主面板 / 监测模式 */
-    if (k0 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
+    /* PAGE 按键单击切页 — 所有界面通用 */
+    if (k3 == KEY_DRIVER_EVENT_CLICK) {
         s_page = !s_page;
         Tft_Driver_Clear(UI_CONTROLLER_COLOR_BG);
         return;
