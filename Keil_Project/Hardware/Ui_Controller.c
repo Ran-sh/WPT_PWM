@@ -440,18 +440,14 @@ static void Handle_Keys(Ui_Controller_State ui_state,
         return;
     }
 
-    /* K1 单击 */
-    if (k1 == KEY_DRIVER_EVENT_CLICK) {
-        if (ui_state == UI_CONTROLLER_STATE_SWEEPING)
-            Inverter_Control_Soft_Start_Stop();
-        else if (ui_state == UI_CONTROLLER_STATE_RUNNING) {
-            uint32_t f = Pwm_Driver_Get_Frequency() + 1000;
-            if (f <= PWM_DRIVER_FREQ_MAX_HZ) Pwm_Driver_Set_Frequency(f);
-        }
+    /* K1 单击 — 仅运行状态有效，扫频状态由 K0 统一处理 */
+    if (k1 == KEY_DRIVER_EVENT_CLICK && ui_state == UI_CONTROLLER_STATE_RUNNING) {
+        uint32_t f = Pwm_Driver_Get_Frequency() + 1000;
+        if (f <= PWM_DRIVER_FREQ_MAX_HZ) Pwm_Driver_Set_Frequency(f);
         return;
     }
 
-    /* K2 单击 */
+    /* K2 单击 — 频率递减 */
     if (k2 == KEY_DRIVER_EVENT_CLICK && ui_state == UI_CONTROLLER_STATE_RUNNING) {
         uint32_t f = Pwm_Driver_Get_Frequency();
         if (f >= PWM_DRIVER_FREQ_MIN_HZ + 1000) Pwm_Driver_Set_Frequency(f - 1000);
