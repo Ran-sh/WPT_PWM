@@ -615,13 +615,6 @@ void Ui_Controller_Task(void)
 }
 
 Ui_Controller_State Ui_Controller_Get_State(void) { return s_ui_state; }
-uint8_t Ui_Controller_Get_Bridge_State(void)
-{
-    Inverter_Control_Soft_Start_State s = Inverter_Control_Soft_Start_Get_State();
-    return (s == INVERTER_CONTROL_SS_STATE_SWEEP || s == INVERTER_CONTROL_SS_STATE_DONE);
-}
-
-Ui_Controller_State Ui_Controller_Get_State(void) { return s_ui_state; }
 
 uint8_t Ui_Controller_Get_Bridge_State(void)
 {
