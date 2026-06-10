@@ -421,11 +421,10 @@ static void Handle_Keys(Ui_Controller_State ui_state,
         switch (ui_state) {
             case UI_CONTROLLER_STATE_INIT:
             case UI_CONTROLLER_STATE_FAILED:
-                if (!s_no_wifi_mode) { App_Network_Start_Connect(); }
                 Tft_Driver_Clear(UI_COLOR_BG);
                 return;
             case UI_CONTROLLER_STATE_CONNECTING:
-                /* 连接中也可以启动扫频 (无WIFI模式下) */
+                /* 无WIFI模式连接中也能启动扫频 */
                 if (s_no_wifi_mode) { Inverter_Control_Soft_Start_Trigger(); }
                 return;
             case UI_CONTROLLER_STATE_READY:
