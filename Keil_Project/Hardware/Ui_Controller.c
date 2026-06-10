@@ -53,9 +53,12 @@
 #define UI_STR_STATE_READY  "\xe5\xb0\xb1\xe7\xbb\xaa"                                     /* 就绪 — 22=就49=绪 */
 #define UI_STR_WIFI_LINKED   "WiFi:" "\xe5\xb7\xb2\xe8\xbf\x9e"                             /* WiFi:已连 — 52=已25=连 */
 #define UI_STR_WIFI_UNLINK   "WiFi:" "\xe6\x9c\xaa\xe8\xbf\x9e"                             /* WiFi:未连 — 44=未25=连 */
-#define UI_STR_PRESS_K0      "\xe6\x8c\x89" "K0"                                     /* 按K0 — 0=按 */
-#define UI_STR_PRESS_K0_ON    "\xe6\x8c\x89" "K0" "\xe5\x90\xaf\xe5\x8a\xa8"          /* 按K0启动 */
-#define UI_STR_PRESS_K0_WIFI  "\xe6\x8c\x89" "K0" "\xe8\xbf\x9e" "WiFi"               /* 按K0连WiFi */
+#define UI_STR_PRESS_K0_ON    "ON/OFF:" "\xe5\x90\xaf\xe5\x8a\xa8"            /* ON/OFF:启动 */
+#define UI_STR_PRESS_K0_WIFI  "ON/OFF:" "\xe8\xbf\x9e\xe6\x8e\xa5WiFi"        /* ON/OFF:连接WiFi */
+
+#define UI_STR_PRESS_K0_RESET "\xe6\x8c\x89" "K0/K1" UI_STR_RESET             /* 按K0/K1复位 */
+#define UI_STR_K0_STOP        "K0" UI_STR_STOP " K1/2:+/-\xe9\xa2\x91\xe7\x8e\x87" /* K0停 K1/2:+/-频率 */
+#define UI_STR_SWEEP_STOP     "K0/K1" UI_STR_STOP                                /* K0/K1停止 */
 #define UI_STR_START_PAGE  "\xe5\x90\xaf\xe5\x8a\xa8\xe9\xa1\xb5"     /* 启动页 — 32=启10=动51=页 ✓ */
 #define UI_STR_FREQ         "\xe9\xa2\x91\xe7\x8e\x87"                               /* 频率 */
 #define UI_STR_VOLTAGE      "\xe7\x94\xb5\xe5\x8e\x8b"                               /* 电压 */
@@ -199,7 +202,7 @@ static void Draw_Sweeping(void)
         fline[12] = '\0';
         Tft_Driver_Show_CN_String(4, 0, fline, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
 
-        Tft_Driver_Show_CN_String(6, 0, "K0/K1" UI_STR_STOP, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+        Tft_Driver_Show_CN_String(6, 0, UI_STR_SWEEP_STOP, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_MONITOR, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(2, 0, UI_STR_SWEEPING, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
@@ -237,7 +240,7 @@ static void Draw_Running(void)
         Tft_Driver_Show_Float(5, 5, s_disp_i, 1, 2, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(5, 12, "A", UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
 
-        Tft_Driver_Show_CN_String(7, 0, "K0" UI_STR_STOP " K1/2:+/-\xe9\xa2\x91\xe7\x8e\x87",
+        Tft_Driver_Show_CN_String(7, 0, UI_STR_K0_STOP,
             UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_MONITOR, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
@@ -263,13 +266,13 @@ static void Draw_Fault(void)
         Tft_Driver_Show_CN_String(0, 0, UI_STR_FAULT_BANNER, UI_CONTROLLER_COLOR_ALARM, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(2, 0, UI_STR_OVERFLOW, UI_CONTROLLER_COLOR_ALARM, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(4, 0, UI_STR_PWM_OFF, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
-        Tft_Driver_Show_CN_String(6, 0, "\xe6\x8c\x89" "K0/K1" UI_STR_RESET,
+        Tft_Driver_Show_CN_String(6, 0, UI_STR_PRESS_K0_RESET,
             UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_MONITOR, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(2, 0, UI_STR_FAULT_BANNER, UI_CONTROLLER_COLOR_ALARM, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(4, 0, UI_STR_OVERFLOW, UI_CONTROLLER_COLOR_ALARM, UI_CONTROLLER_COLOR_BG);
-        Tft_Driver_Show_CN_String(6, 0, "\xe6\x8c\x89" "K0/K1" UI_STR_RESET,
+        Tft_Driver_Show_CN_String(6, 0, UI_STR_PRESS_K0_RESET,
             UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
     }
 }
