@@ -410,7 +410,7 @@ static void Handle_Keys(Ui_Controller_State ui_state,
     }
 
     /* PAGE 双击 = 无WIFI模式 (所有界面通用) */
-    } else if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
+    if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
         s_no_wifi_mode = !s_no_wifi_mode;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
