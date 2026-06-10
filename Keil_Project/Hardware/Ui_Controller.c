@@ -63,7 +63,7 @@
 #define S_LONG_CLEAR "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI      /* 长按ON:清除WIFI */
 
 /* ── 模块状态 ── */
-static uint8_t s_page          = 0;  /* 监测子页: 0=频率 1=电压 2=电流 */
+static uint8_t s_page          = 0;  /* 子页: 0=扫频进度/综合 1=频率表 2=电压表 3=电流表 */
 static uint8_t s_no_wifi_mode  = 0;  /* 无WIFI模式标志 */
 static Ui_Controller_State s_ui_state = UI_CONTROLLER_STATE_INIT;
 
