@@ -570,7 +570,6 @@ void Ui_Controller_Task(void)
 
     switch (ui_state) {
         case UI_CONTROLLER_STATE_INIT: {
-            /* Page 0: 未连接/启动页 */
             char buf[21];
             Tft_Driver_Show_CN_String(0, Center(S_LAUNCH), S_LAUNCH, UI_COLOR_TITLE, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(2, Center(S_WIFI_NO), S_WIFI_NO, UI_COLOR_TEXT, UI_COLOR_BG);
@@ -584,8 +583,7 @@ void Ui_Controller_Task(void)
                 S_NO_WIFI_MODE, UI_COLOR_TEXT, UI_COLOR_BG);
             break;
         }
-        case UI_CONTROLLER_STATE_CONNECTING: {
-            /* 连接中 */
+        case UI_CONTROLLER_STATE_CONNECTING:
             Show_Fill(3, 0, "WIFI" S_CONN_DOTS, UI_COLOR_TITLE, UI_COLOR_BG);
             {
                 char buf[21];
@@ -594,9 +592,7 @@ void Ui_Controller_Task(void)
                 Tft_Driver_Show_CN_String(4, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
             }
             break;
-        }
         case UI_CONTROLLER_STATE_FAILED: {
-            /* 连接失败 */
             char buf[21];
             Tft_Driver_Show_CN_String(0, Center(S_LAUNCH), S_LAUNCH, UI_COLOR_TITLE, UI_COLOR_BG);
             snprintf(buf, sizeof(buf), "FAILED[x%d]", App_Network_Get_Retry_Count());
@@ -610,31 +606,28 @@ void Ui_Controller_Task(void)
             Tft_Driver_Show_CN_String(6, Right("ON:" S_RECONN), "ON:" S_RECONN, UI_COLOR_TEXT, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(7, Right(S_NO_WIFI_MODE), S_NO_WIFI_MODE, UI_COLOR_TEXT, UI_COLOR_BG);
             break;
+            break;
         }
-        case UI_CONTROLLER_STATE_READY: {
-            /* 就绪 */
+        case UI_CONTROLLER_STATE_READY:
             Show_Fill(3, 0, "WIFI" S_CONN_OK, UI_COLOR_OK, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(6, Right("ON:" S_SWEEP_START),
                 "ON:" S_SWEEP_START, UI_COLOR_TEXT, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(7, Right(S_NO_WIFI_MODE),
                 S_NO_WIFI_MODE, UI_COLOR_TEXT, UI_COLOR_BG);
             break;
-        }
         case UI_CONTROLLER_STATE_SWEEPING:
             Draw_Sweep_Main();
             break;
         case UI_CONTROLLER_STATE_RUNNING:
             Draw_Run_Main();
             break;
-        case UI_CONTROLLER_STATE_FAULT: {
-            char buf[21];
+        case UI_CONTROLLER_STATE_FAULT:
             Tft_Driver_Show_CN_String(0, Center("!!!\xe6\x95\x85\xe9\x9a\x9c!!!"), "!!!\xe6\x95\x85\xe9\x9a\x9c!!!", UI_COLOR_ALARM, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(2, Center("\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4"), "\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4", UI_COLOR_ALARM, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(4, Center("PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad"), "PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad", UI_COLOR_TEXT, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(6, Right("\xe6\x8c\x89K0/K1\xe5\xa4\x8d\xe4\xbd\x8d"), "\xe6\x8c\x89K0/K1\xe5\xa4\x8d\xe4\xbd\x8d", UI_COLOR_TEXT, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(7, Right(S_NO_WIFI_MODE), S_NO_WIFI_MODE, UI_COLOR_TEXT, UI_COLOR_BG);
             break;
-        }
     }
 }
 
