@@ -394,60 +394,42 @@ static void Handle_Keys(Ui_Controller_State ui_state,
                         Key_Driver_Event k0, Key_Driver_Event k1,
                         Key_Driver_Event k2, Key_Driver_Event k3)
 {
-    /* K0 双击 = 无WIFI模式 (所有界面通用) */
     if (k0 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
         s_no_wifi_mode = !s_no_wifi_mode;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
-
-    /* PAGE 单击 = 子页切换 (扫频/运行状态) */
     if (k3 == KEY_DRIVER_EVENT_CLICK && (ui_state == UI_CONTROLLER_STATE_SWEEPING || ui_state == UI_CONTROLLER_STATE_RUNNING)) {
         s_page = (s_page + 1) % 4;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
-
-    /* PAGE 双击 = 无WIFI模式 (所有界面通用) */
     if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
         s_no_wifi_mode = !s_no_wifi_mode;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
-
-    /* K0 单击 */
     if (k0 == KEY_DRIVER_EVENT_CLICK) {
         switch (ui_state) {
             case UI_CONTROLLER_STATE_INIT:
-                if (!s_no_wifi_mode) { App_Network_Start_Connect(); }
-                Tft_Driver_Clear(UI_COLOR_BG);
-                break;
             case UI_CONTROLLER_STATE_FAILED:
                 if (!s_no_wifi_mode) { App_Network_Start_Connect(); }
                 Tft_Driver_Clear(UI_COLOR_BG);
-                break;
+                return;
             case UI_CONTROLLER_STATE_READY:
                 Inverter_Control_Soft_Start_Trigger();
-                break;
+                return;
             case UI_CONTROLLER_STATE_SWEEPING:
-                Inverter_Control_Soft_Start_Stop();
-                break;
             case UI_CONTROLLER_STATE_RUNNING:
                 Inverter_Control_Soft_Start_Stop();
-                break;
-            default: break;
+                return;
+            default: return;
         }
-        return;
     }
-
-    /* K1 单击 — 仅运行状态有效，扫频状态由 K0 统一处理 */
     if (k1 == KEY_DRIVER_EVENT_CLICK && ui_state == UI_CONTROLLER_STATE_RUNNING) {
         uint32_t f = Pwm_Driver_Get_Frequency() + 1000;
         if (f <= PWM_DRIVER_FREQ_MAX_HZ) Pwm_Driver_Set_Frequency(f);
-        return;
     }
-
-    /* K2 单击 — 频率递减 */
     if (k2 == KEY_DRIVER_EVENT_CLICK && ui_state == UI_CONTROLLER_STATE_RUNNING) {
         uint32_t f = Pwm_Driver_Get_Frequency();
         if (f >= PWM_DRIVER_FREQ_MIN_HZ + 1000) Pwm_Driver_Set_Frequency(f - 1000);
