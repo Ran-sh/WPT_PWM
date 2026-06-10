@@ -59,7 +59,8 @@
 #define S_PAGE_I     "\xe5\x88\x87\xe9\xa1\xb5I"                     /* 切页I */
 #define S_PAGE       "\xe5\x88\x87\xe9\xa1\xb5"                       /* 切页 */
 #define S_BACK_DBL   "\xe5\x8f\x8c\xe5\x87\xbbBack"                  /* 双击Back */
-#define S_NO_WIFI_MODE "\xe5\x88\x87\xe6\x8d\xa2\xe6\x97\xa0WIFI"    /* 切换无WIFI */
+#define S_NO_WIFI_MODE "\xe5\x88\x87\xe9\xa1\xb5" ":" "\xe6\x97\xa0WIFI"  /* 切页:无WIFI (PAGE双击同时指切页/无WIFI) */
+
 #define S_LONG_CLEAR "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI      /* 长按ON:清除WIFI */
 
 /* ── 模块状态 ── */
@@ -610,6 +611,9 @@ void Ui_Controller_Task(void)
             break;
     }
 }
+
+Ui_Controller_State Ui_Controller_Get_State(void) { return s_ui_state; }
+uint8_t Ui_Controller_Get_Bridge_State(void) { Inverter_Control_Soft_Start_State s=Inverter_Control_Soft_Start_Get_State(); return (s==INVERTER_CONTROL_SS_STATE_SWEEP||s==INVERTER_CONTROL_SS_STATE_DONE); }
 
 Ui_Controller_State Ui_Controller_Get_State(void) { return s_ui_state; }
 
