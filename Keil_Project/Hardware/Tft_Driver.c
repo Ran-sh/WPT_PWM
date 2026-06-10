@@ -3,7 +3,7 @@
  * @file    Hardware/Tft_Driver.c
  * @brief   ST7735 1.8寸 128x160 TFT — 已验证初始化 (Green Tab)
  *          PA5=SCK PA7=MOSI PA4=CS PA6=DC PA0=RST PB6=BL
- *          SPI1 Mode0, 横屏 160x128
+ *          SPI1 Mode3 (CPOL=High, CPHA=2Edge), 横屏 160x128, MADCTL=0xA0
  ******************************************************************************
  */
 
@@ -11,15 +11,15 @@
 #include "TFT_Font.h"
 #include "TFT_CN_Font.h"
 
-#define CS_PIN   GPIO_Pin_4
-#define DC_PIN   GPIO_Pin_6
-#define RST_PIN  GPIO_Pin_0
-#define BL_PIN   GPIO_Pin_6
+#define TFT_DRIVER_CS_PIN   GPIO_Pin_4
+#define TFT_DRIVER_DC_PIN   GPIO_Pin_6
+#define TFT_DRIVER_RST_PIN  GPIO_Pin_0
+#define TFT_DRIVER_BL_PIN   GPIO_Pin_6
 
-#define CSL()  GPIO_ResetBits(GPIOA, CS_PIN)
-#define CSH()  GPIO_SetBits(GPIOA, CS_PIN)
-#define DCC()  GPIO_ResetBits(GPIOA, DC_PIN)
-#define DCD()  GPIO_SetBits(GPIOA, DC_PIN)
+#define TFT_CS_LOW()   GPIO_ResetBits(GPIOA, TFT_DRIVER_CS_PIN)
+#define TFT_CS_HIGH()  GPIO_SetBits(GPIOA, TFT_DRIVER_CS_PIN)
+#define TFT_DC_CMD()   GPIO_ResetBits(GPIOA, TFT_DRIVER_DC_PIN)
+#define TFT_DC_DATA()  GPIO_SetBits(GPIOA, TFT_DRIVER_DC_PIN)
 
 static void dly(uint32_t us)
 {
@@ -29,35 +29,35 @@ static void dly(uint32_t us)
 
 static void WrCmd(uint8_t c)
 {
-    DCC(); CSL();
+    TFT_DC_CMD(); TFT_CS_LOW();
     SPI_I2S_SendData(SPI1, c);
     while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));
-    CSH();
+    TFT_CS_HIGH();
 }
 
 static void WrDat(uint8_t d)
 {
-    DCD(); CSL();
+    TFT_DC_DATA(); TFT_CS_LOW();
     SPI_I2S_SendData(SPI1, d);
     while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));
-    CSH();
+    TFT_CS_HIGH();
 }
 
 static void WrD16(uint16_t d)
 {
-    DCD(); CSL();
+    TFT_DC_DATA(); TFT_CS_LOW();
     SPI_I2S_SendData(SPI1, (uint8_t)(d >> 8));
     while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));
     SPI_I2S_SendData(SPI1, (uint8_t)d);
     while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));
-    CSH();
+    TFT_CS_HIGH();
 }
 
-/* 不设偏移, ST7735 Green Tab 标准窗口 */
+/* 横屏偏移: X+1/Y+2 (竖屏用 X+2/Y+1) */
 static void SetWin(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
 {
-    xs += 2; xe += 2;  /* X偏移=2 */
-    ys += 1; ye += 1;  /* Y偏移=1 */
+    xs += 1; xe += 1;  /* 横屏 X偏移=1 */
+    ys += 2; ye += 2;  /* 横屏 Y偏移=2 */
     WrCmd(0x2A);
     WrDat((uint8_t)(xs >> 8)); WrDat((uint8_t)xs);
     WrDat((uint8_t)(xe >> 8)); WrDat((uint8_t)xe);
@@ -89,16 +89,16 @@ void Tft_Driver_Init(void)
     GPIO_Init(GPIOA, &gpio);
 
     /* CS=PA4, DC=PA6, RST=PA0 */
-    gpio.GPIO_Pin  = CS_PIN | DC_PIN | RST_PIN;
+    gpio.GPIO_Pin  = TFT_DRIVER_CS_PIN | TFT_DRIVER_DC_PIN | TFT_DRIVER_RST_PIN;
     gpio.GPIO_Mode = GPIO_Mode_Out_PP;
     GPIO_Init(GPIOA, &gpio);
 
     /* BL=PB6, TIM4_CH1 */
-    gpio.GPIO_Pin  = BL_PIN;
+    gpio.GPIO_Pin  = TFT_DRIVER_BL_PIN;
     gpio.GPIO_Mode = GPIO_Mode_AF_PP;
     GPIO_Init(GPIOB, &gpio);
 
-    CSH();
+    TFT_CS_HIGH();
 
     /* SPI1: Mode 3 (CPOL=High, CPHA=2Edge), 18MHz (72M/4) — 中景园 ST7735 */
     SPI_StructInit(&spi);
@@ -126,9 +126,9 @@ void Tft_Driver_Init(void)
     TIM_Cmd(TIM4, ENABLE);
 
     /* ── 硬件复位 ── */
-    GPIO_ResetBits(GPIOA, RST_PIN);
+    GPIO_ResetBits(GPIOA, TFT_DRIVER_RST_PIN);
     dly(100000);   /* 100ms */
-    GPIO_SetBits(GPIOA, RST_PIN);
+    GPIO_SetBits(GPIOA, TFT_DRIVER_RST_PIN);
     dly(120000);   /* 120ms */
 
     /* ═══════════════════════════════════════════
@@ -169,10 +169,15 @@ void Tft_Driver_Init(void)
     WrCmd(0xC5);   /* VMCTR1 */
     WrDat(0x1A);
 
-    /* MADCTL: 横屏 0xC0 (中景园 USE_HORIZONTAL==1) */
+    /* ═══════════════════════════════════════════════════════════════
+     *  MADCTL (0x36): 横屏 160x128, (0,0)=左上角
+     *
+     *  当前: 0xA0 (MY=1,MX=0,MV=1) — 方向3 反向横屏
+     *  备选: 0x70 (MY=0,MX=1,MV=1) — 方向1 横屏 (若上下颠倒可用)
+     *  BGR注意: 设0x08后红蓝颠倒, 保持bit3=0, 不用BGR
+     *  ═══════════════════════════════════════════════════════════════ */
     WrCmd(0x36);
-    WrDat(0x00);   /* 竖屏 128x160 */
-    /* 注: 若需横屏改为 0xC0 */
+    WrDat(0xA0);
 
     /* Gamma (+) */
     WrCmd(0xE0);
@@ -314,7 +319,7 @@ static void CnDr(uint8_t ln, uint8_t col, uint8_t idx, uint16_t fg, uint16_t bg)
     for (row = 0; row < 16; row++)
         for (bi = 0; bi < 2; bi++)
             for (bit = 0; bit < 8; bit++)
-                WrD16((CN_FONT_16X16[idx][row * 2 + bi] & (0x80 >> bit)) ? fg : bg);
+                WrD16((CN_FONT_16X16[idx][row * 2 + bi] & (0x01 << bit)) ? fg : bg);
 }
 
 static uint8_t IsCN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }

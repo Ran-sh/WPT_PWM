@@ -20,9 +20,8 @@ typedef enum {
 } Led_Driver_State;
 
 void Led_Driver_Init(void);
-void Led_Driver_Task(void);                      /* 心跳 + 闪烁调度, 主循环周期性调用 */
+void Led_Driver_Task(void);
 
-/* V6.2 各 LED 独立控制 */
 void Led_Driver_Set_WiFi(Led_Driver_State state);
 void Led_Driver_Set_Pwm(Led_Driver_State state);
 void Led_Driver_Set_Com(Led_Driver_State state);

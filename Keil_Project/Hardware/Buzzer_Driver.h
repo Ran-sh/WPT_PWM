@@ -13,13 +13,13 @@
 #include "stm32f10x.h"
 
 typedef enum {
-    BUZZER_DRIVER_STATE_OFF = 0,
-    BUZZER_DRIVER_STATE_ON  = 1,
-    BUZZER_DRIVER_STATE_BEEP = 2  /* 间歇鸣响 */
+    BUZZER_DRIVER_STATE_OFF  = 0,
+    BUZZER_DRIVER_STATE_ON   = 1,
+    BUZZER_DRIVER_STATE_BEEP = 2
 } Buzzer_Driver_State;
 
 void Buzzer_Driver_Init(void);
-void Buzzer_Driver_Task(void);                   /* 主循环周期性调用 (间歇模式调度) */
+void Buzzer_Driver_Task(void);
 void Buzzer_Driver_Set_State(Buzzer_Driver_State state);
 
 #endif /* BUZZER_DRIVER_H */

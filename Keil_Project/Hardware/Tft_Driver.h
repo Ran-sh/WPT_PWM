@@ -1,11 +1,11 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.h
- * @brief   ST7735S 128×160 TFT 彩色显示驱动 — 公开接口
+ * @brief   ST7735 128×160 TFT 彩色显示驱动 — 公开接口
  * @note    V6.2: SPI1 硬件驱动 (PA5=SCK, PA7=MOSI)
  *          PA4=CS (软件NSS), PA6=DC, PA0=RST, PB6=BL (TIM4_CH1 PWM 背光)
- *          SPI Mode 0 (CPOL=0, CPHA=0), 只写不读
- *          横屏显示 160×128, RGB565 色彩
+ *          SPI Mode 3 (CPOL=High, CPHA=2Edge), 只写不读
+ *          横屏显示 160×128, RGB565 色彩, MADCTL=0xA0 (方向3)
  ******************************************************************************
  */
 
@@ -29,10 +29,10 @@
 #define TFT_COLOR_DARK_BLUE   0x0018
 
 /* ── 显示参数 ── */
-#define TFT_WIDTH             128   /* 物理宽 */
-#define TFT_HEIGHT            160   /* 物理高 */
-#define TFT_CHAR_PER_LINE     16    /* 128/8 = 16 */
-#define TFT_LINE_COUNT        10    /* 160/16 = 10 */
+#define TFT_WIDTH             160   /* 横屏宽 (物理160) */
+#define TFT_HEIGHT            128   /* 横屏高 (物理128) */
+#define TFT_CHAR_PER_LINE     20    /* 160/8 = 20 */
+#define TFT_LINE_COUNT        8     /* 128/16 = 8 */
 #define TFT_FONT_WIDTH        8
 #define TFT_FONT_HEIGHT       16
 
