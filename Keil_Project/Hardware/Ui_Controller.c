@@ -229,7 +229,7 @@ static void Draw_Sweep_Main(void)
             Tft_Driver_Show_String(4, 0, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
         Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,   UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(S_PAGE_F), S_PAGE_F, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("\xe5\x88\x87\xe9\xa1\xb5" "F"), "\xe5\x88\x87\xe9\xa1\xb5" "F", UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     case 2: /* 电压仪表盘 */
         Update_EMA();
@@ -251,7 +251,7 @@ static void Draw_Sweep_Main(void)
             Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
         Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,   UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(S_PAGE_V), S_PAGE_V, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("\xe5\x88\x87\xe9\xa1\xb5" "V"), "\xe5\x88\x87\xe9\xa1\xb5" "V", UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     case 3: /* 电流仪表盘 */
         Update_EMA();
@@ -273,7 +273,7 @@ static void Draw_Sweep_Main(void)
             Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
         Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,   UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(S_PAGE_I), S_PAGE_I, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("\xe5\x88\x87\xe9\xa1\xb5" "I"), "\xe5\x88\x87\xe9\xa1\xb5" "I", UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     }
 }
@@ -303,7 +303,7 @@ static void Draw_Run_Main(void)
             Tft_Driver_Show_String(5, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
         Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,   UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(S_PAGE_F), S_PAGE_F, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("\xe5\x88\x87\xe9\xa1\xb5" "F"), "\xe5\x88\x87\xe9\xa1\xb5" "F", UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     case 1: /* 电压表 */
         Tft_Driver_Show_CN_String(0, Center(S_MON_VOLT), S_MON_VOLT, UI_COLOR_TITLE, UI_COLOR_BG);
@@ -320,7 +320,7 @@ static void Draw_Run_Main(void)
             Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
         Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,   UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(S_PAGE_V), S_PAGE_V, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("\xe5\x88\x87\xe9\xa1\xb5" "V"), "\xe5\x88\x87\xe9\xa1\xb5" "V", UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     case 2: /* 电流表 */
         Tft_Driver_Show_CN_String(0, Center(S_MON_CURR), S_MON_CURR, UI_COLOR_TITLE, UI_COLOR_BG);
@@ -337,7 +337,7 @@ static void Draw_Run_Main(void)
             Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
         Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,   UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(S_PAGE_I), S_PAGE_I, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("\xe5\x88\x87\xe9\xa1\xb5" "I"), "\xe5\x88\x87\xe9\xa1\xb5" "I", UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     case 3: /* 综合监测 */
         Tft_Driver_Show_CN_String(0, Center(S_MONITOR), S_MONITOR, UI_COLOR_TITLE, UI_COLOR_BG);
