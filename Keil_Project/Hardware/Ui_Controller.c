@@ -141,9 +141,9 @@ static void Draw_Init(void)
             Tft_Driver_Show_String(5, 6, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
         /* 行6: 空 */
-        /* 行7: 按K0连WiFi + [PAGE]切页 (左下+右下) */
-        Tft_Driver_Show_CN_String(7, 0,  UI_STR_PRESS_K0_WIFI,          UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, 11, "PAGE:" "\xe5\x88\x87\xe9\xa1\xb5", UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+        /* 行7: ON/OFF:连接WiFi + PAGE:换页 (左下+右下) */
+        Tft_Driver_Show_CN_String(7, 0,  "ON/OFF:" "\xe8\xbf\x9e\xe6\x8e\xa5WiFi",     UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 12, "PAGE:" "\xe6\x8d\xa2\xe9\xa1\xb5",            UI_CONTROLLER_COLOR_TEXT,  UI_CONTROLLER_COLOR_BG);
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_TITLE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(2, 0, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
