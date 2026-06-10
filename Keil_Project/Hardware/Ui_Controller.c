@@ -127,16 +127,16 @@ static void Draw_Init(void)
             char buf[21];
             float v = Adc_Driver_Get_Voltage();
             int32_t vi = (int32_t)(v * 10.0f + 0.5f);
-            snprintf(buf, sizeof(buf), "Vin: %2d.%1dV", vi/10, vi%10);
-            Tft_Driver_Show_String(4, 5, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+            snprintf(buf, sizeof(buf), "Vin:%2d.%1dV", vi/10, abs(vi)%10);
+            Tft_Driver_Show_String(4, 6, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
         /* 行5: Iin: x.xxA (居中, ~12chars, col=4) */
         {
             char buf[21];
             float c = Adc_Driver_Get_Current();
             int32_t ci = (int32_t)(c * 100.0f + 0.5f);
-            snprintf(buf, sizeof(buf), "Iin: %1d.%2dA", ci/100, ci%100);
-            Tft_Driver_Show_String(5, 5, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+            snprintf(buf, sizeof(buf), "Iin:%1d.%2dA", ci/100, abs(ci)%100);
+            Tft_Driver_Show_String(5, 6, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
         /* 行6: 空 */
         /* 行7: 按K0连WiFi + [PAGE]切页 (左下+右下) */
