@@ -138,8 +138,8 @@ static void Draw_Init(void)
                 (unsigned long)i, (unsigned long)((i-(unsigned long)i)*100+0.5f)%100);
             Tft_Driver_Show_String(6, 4, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
-        /* 行7: [PAGE]切页 (右下) */
-        Tft_Driver_Show_CN_String(7, 9, "[PAGE]" "\xe5\x88\x87\xe9\xa1\xb5", UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+        /* 行7: [PAGE]切页 (右下, 9ASCII→9col, col=20-9=11) */
+        Tft_Driver_Show_CN_String(7, 8, "[PAGE]" "\xe5\x88\x87\xe9\xa1\xb5", UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_TITLE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(2, 0, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
