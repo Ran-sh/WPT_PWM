@@ -124,7 +124,8 @@
       "Bash(wc *)",
       "WebFetch(domain:blog.csdn.net)",
       "WebFetch(domain:kazulog.fun)",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(xxd)"
     ]
   }
 }

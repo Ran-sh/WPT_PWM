@@ -116,28 +116,30 @@ static void Update_Leds(Ui_Controller_State ui_state)
 static void Draw_Init(void)
 {
     if (s_page == 0) {
-        /* 行0: 启动页 (居中 col=6 → 3字占6列, 居中于20列=col(20-6)/2=7) */
+        /* 行0: 启动页 (居中, 3字→6列宽, col(20-6)/2=7) */
         Tft_Driver_Show_CN_String(0, 7, UI_STR_START_PAGE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
-        /* 行2: WIFI:未连 (居中) */
-        Tft_Driver_Show_CN_String(2, 4, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
-        /* 行3: 按K0连WIFI (居中) */
-        Tft_Driver_Show_CN_String(3, 4, UI_STR_PRESS_K0_WIFI, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
-        /* 行6: ⚡Vin:xx.xV — 左对齐标签+数值 */
+        /* 行2: WIFI:未连 (居中: "WiFi:未连"=ASCII4+CN2=8列, col=(20-8)/2=6 → ASCII列) */
+        Tft_Driver_Show_CN_String(2, 3, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+        /* 行3: 按K0连WIFI */
+        Tft_Driver_Show_CN_String(3, 3, UI_STR_PRESS_K0_WIFI, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+        /* 行5: Vin:xx.xV (左双空格缩进) */
         {
             char buf[21];
             float v = Adc_Driver_Get_Voltage();
-            snprintf(buf, sizeof(buf), "\xe2\x9a\xa1Vin:%3lu.%1luV",
+            snprintf(buf, sizeof(buf), "Vin:%3lu.%1luV",
                 (unsigned long)v, (unsigned long)((v-(unsigned long)v)*10+0.5f)%10);
-            Tft_Driver_Show_CN_String(6, 2, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+            Tft_Driver_Show_String(5, 4, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
-        /* 行7: ⚡Iin :x.xxA — 左对齐标签+数值 */
+        /* 行6: Iin:x.xxA */
         {
             char buf[21];
             float i = Adc_Driver_Get_Current();
-            snprintf(buf, sizeof(buf), "\xe2\x9a\xa1Iin :%1lu.%2luA",
+            snprintf(buf, sizeof(buf), "Iin:%1lu.%2luA",
                 (unsigned long)i, (unsigned long)((i-(unsigned long)i)*100+0.5f)%100);
-            Tft_Driver_Show_CN_String(7, 2, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+            Tft_Driver_Show_String(6, 4, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
+        /* 行7: [PAGE]切页 (右下角) */
+        Tft_Driver_Show_CN_String(7, 11, "[PAGE]" "\xe5\x88\x87\xe9\xa1\xb5", UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_TITLE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(2, 0, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
