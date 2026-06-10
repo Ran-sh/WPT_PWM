@@ -21,6 +21,8 @@
 #include "Sys_Timer.h"
 #include <stdio.h>
 
+#include <stdlib.h>
+
 #define UI_CONTROLLER_COLOR_BG          TFT_COLOR_BLACK
 #define UI_CONTROLLER_COLOR_TITLE       TFT_COLOR_YELLOW
 #define UI_CONTROLLER_COLOR_TEXT        TFT_COLOR_WHITE
