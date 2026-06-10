@@ -293,7 +293,7 @@ static void Draw_Run_Main(void)
             Tft_Driver_Show_CN_String(4, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
         }
         Tft_Driver_Show_CN_String(6, Right("OFF:" S_STOP), "OFF:" S_STOP, UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbbBack",     UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbb" "Back",     UI_COLOR_TEXT, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(7, Right(SKIP_F), SKIP_F, UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     case 1: /* 频率表 */
@@ -312,7 +312,7 @@ static void Draw_Run_Main(void)
             bar[11] = '\0';
             Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
-        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbbBack",     UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbb" "Back",     UI_COLOR_TEXT, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(7, Right(SKIP_V), SKIP_V, UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     case 2: /* 电压表 */
@@ -329,7 +329,7 @@ static void Draw_Run_Main(void)
             bar[11] = '\0';
             Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
-        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbbBack",     UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbb" "Back",     UI_COLOR_TEXT, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(7, Right(SKIP_I), SKIP_I, UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     case 3: /* 电流表 */
@@ -346,7 +346,7 @@ static void Draw_Run_Main(void)
             bar[11] = '\0';
             Tft_Driver_Show_String(4, 4, bar, UI_COLOR_VALUE, UI_COLOR_BG);
         }
-        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbbBack",     UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbb" "Back",     UI_COLOR_TEXT, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(7, Right(SKIP), SKIP, UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     }
