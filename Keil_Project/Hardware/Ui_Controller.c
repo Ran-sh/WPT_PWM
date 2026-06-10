@@ -424,6 +424,10 @@ static void Handle_Keys(Ui_Controller_State ui_state,
                 if (!s_no_wifi_mode) { App_Network_Start_Connect(); }
                 Tft_Driver_Clear(UI_COLOR_BG);
                 return;
+            case UI_CONTROLLER_STATE_CONNECTING:
+                /* 连接中也可以启动扫频 (无WIFI模式下) */
+                if (s_no_wifi_mode) { Inverter_Control_Soft_Start_Trigger(); }
+                return;
             case UI_CONTROLLER_STATE_READY:
                 Inverter_Control_Soft_Start_Trigger();
                 return;
