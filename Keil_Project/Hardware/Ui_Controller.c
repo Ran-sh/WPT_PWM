@@ -423,6 +423,10 @@ static void Handle_Keys(Ui_Controller_State ui_state,
                 if (!s_no_wifi_mode) { App_Network_Start_Connect(); }
                 Tft_Driver_Clear(UI_COLOR_BG);
                 break;
+            case UI_CONTROLLER_STATE_FAILED:
+                if (!s_no_wifi_mode) { App_Network_Start_Connect(); }
+                Tft_Driver_Clear(UI_COLOR_BG);
+                break;
             case UI_CONTROLLER_STATE_READY:
                 Inverter_Control_Soft_Start_Trigger();
                 break;
