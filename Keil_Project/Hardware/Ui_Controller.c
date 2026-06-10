@@ -353,7 +353,7 @@ static void Draw_Run_Main(void)
         }
         Tft_Driver_Show_CN_String(6, Right("OFF:" S_STOP), "OFF:" S_STOP, UI_COLOR_TEXT, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(7, 0,  S_BACK_DBL,     UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(S_PAGE),      S_PAGE,        UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right(S_PAGE),      "\xe5\x88\x87\xe9\xa1\xb5V",    UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     }
 }
@@ -395,22 +395,22 @@ static void Handle_Keys(Ui_Controller_State ui_state,
                         Key_Driver_Event k0, Key_Driver_Event k1,
                         Key_Driver_Event k2, Key_Driver_Event k3)
 {
-    /* K0 双击 = Back 返回 */
+    /* K0 双击 = 无WIFI模式 (所有界面通用) */
     if (k0 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
-        s_page = 3;
+        s_no_wifi_mode = !s_no_wifi_mode;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
 
-    /* PAGE 单击 = 切子页 */
+    /* PAGE 单击 = 子页切换 (扫频/运行状态) */
     if (k3 == KEY_DRIVER_EVENT_CLICK && (ui_state == UI_CONTROLLER_STATE_SWEEPING || ui_state == UI_CONTROLLER_STATE_RUNNING)) {
         s_page = (s_page + 1) % 4;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
 
-    /* PAGE 双击 = 切换无WIFI模式 */
-    if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
+    /* PAGE 双击 = 无WIFI模式 (所有界面通用) */
+    } else if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
         s_no_wifi_mode = !s_no_wifi_mode;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
