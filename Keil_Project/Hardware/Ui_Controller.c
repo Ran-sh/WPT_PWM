@@ -392,6 +392,10 @@ static void Handle_Keys(Ui_Controller_State ui_state,
     /* K0双击 = 无WIFI切换 (所有界面通用) */
     if (k0 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
         s_no_wifi_mode = !s_no_wifi_mode;
+        if (s_no_wifi_mode) {
+            /* 进入无WIFI模式: 断开ESP8266连接 */
+            App_Network_Soft_Reset();
+        }
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
