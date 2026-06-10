@@ -54,10 +54,10 @@
 #define S_RECONN     "\xe9\x87\x8d\xe8\xbf\x9eWIFI"                  /* 重连WIFI */
 #define S_SWEEP_STOP "\xe5\x81\x9c\xe6\xad\xa2\xe6\x89\xab\xe9\xa2\x91" /* 停止扫频 */
 #define S_SWEEP_START "\xe5\x90\xaf\xe5\x8a\xa8\xe6\x89\xab\xe9\xa2\x91" /* 启动扫频 */
-#define S_PAGE_F     "\xe5\x88\x87\xe9\xa1\xb5F"                     /* 切页F */
-#define S_PAGE_V     "\xe5\x88\x87\xe9\xa1\xb5V"                     /* 切页V */
-#define S_PAGE_I     "\xe5\x88\x87\xe9\xa1\xb5I"                     /* 切页I */
-#define S_PAGE       "\xe5\x88\x87\xe9\xa1\xb5"                       /* 切页 */
+#define S_VAL "F"  /* 切页F */
+#define S_VAL "V"  /* 切页V */
+#define S_VAL "I"  /* 切页I */
+#define S_VAL "\xe5\x88\x87\xe9\xa1\xb5"  /* 切页 */
 #define S_PAGE_NO_WIFI "\xe5\x88\x87\xe9\xa1\xb5" "\xe6\x97\xa0WIFI"    /* 切页无WIFI */
 #define S_NO_WIFI_MODE "\xe5\x88\x87\xe9\xa1\xb5:\xe6\x97\xa0WIFI"    /* 切页:无WIFI */
 
