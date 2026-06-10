@@ -56,11 +56,12 @@
 #define UI_STR_PRESS_K0      "\xe6\x8c\x89" "K0"                                     /* 按K0 — 0=按 */
 #define UI_STR_PRESS_K0_ON    "\xe6\x8c\x89" "K0" "\xe5\x90\xaf\xe5\x8a\xa8"          /* 按K0启动 */
 #define UI_STR_PRESS_K0_WIFI  "\xe6\x8c\x89" "K0" "\xe8\xbf\x9e" "WiFi"               /* 按K0连WiFi */
-#define UI_STR_FREQ           "\xe9\xa2\x91\xe7\x8e\x87"                               /* 频率 */
-#define UI_STR_VOLTAGE        "\xe7\x94\xb5\xe5\x8e\x8b"                               /* 电压 */
-#define UI_STR_CURRENT        "\xe7\x94\xb5\xe6\xb5\x81"                               /* 电流 */
-#define UI_STR_STOP           "\xe5\x81\x9c\xe6\xad\xa2"                               /* 停止 */
-#define UI_STR_RESET          "\xe5\xa4\x8d\xe4\xbd\x8d"                               /* 复位 */
+#define UI_STR_START_PAGE  "\xe5\x90\xaf\xe5\x8a\xa8\xe9\xa1\xb5"     /* 启动页 — 32=启10=动51=页 ✓ */
+#define UI_STR_FREQ         "\xe9\xa2\x91\xe7\x8e\x87"                               /* 频率 */
+#define UI_STR_VOLTAGE      "\xe7\x94\xb5\xe5\x8e\x8b"                               /* 电压 */
+#define UI_STR_CURRENT      "\xe7\x94\xb5\xe6\xb5\x81"                               /* 电流 */
+#define UI_STR_STOP         "\xe5\x81\x9c\xe6\xad\xa2"                               /* 停止 */
+#define UI_STR_RESET        "\xe5\xa4\x8d\xe4\xbd\x8d"                               /* 复位 */
 #define UI_STR_WAIT_START     "\xe7\xad\x89\xe5\xbe\x85\xe5\x90\xaf\xe5\x8a\xa8"       /* 等待启动 */
 #define UI_STR_RETRY_PREFIX   "\xe9\x87\x8d\xe8\xaf\x95:"                              /* 重试: */
 
@@ -114,9 +115,34 @@ static void Update_Leds(Ui_Controller_State ui_state)
 
 static void Draw_Init(void)
 {
-    Tft_Driver_Show_CN_String(0, 0, UI_STR_TITLE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
-    Tft_Driver_Show_CN_String(2, 0, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
-    Tft_Driver_Show_CN_String(4, 0, UI_STR_PRESS_K0_WIFI, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+    if (s_page == 0) {
+        /* 行0: 启动页 (居中 col=6 → 3字占6列, 居中于20列=col(20-6)/2=7) */
+        Tft_Driver_Show_CN_String(0, 7, UI_STR_START_PAGE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
+        /* 行2: WIFI:未连 (居中) */
+        Tft_Driver_Show_CN_String(2, 4, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+        /* 行3: 按K0连WIFI (居中) */
+        Tft_Driver_Show_CN_String(3, 4, UI_STR_PRESS_K0_WIFI, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+        /* 行6: 电压: xx.xV */
+        {
+            char buf[21];
+            float v = Adc_Driver_Get_Voltage();
+            Tft_Driver_Show_CN_String(6, 0, UI_STR_VOLTAGE, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+            snprintf(buf, sizeof(buf), ": %3lu.%1luV", (unsigned long)v, (unsigned long)((v-(unsigned long)v)*10+0.5f)%10);
+            Tft_Driver_Show_String(6, 7, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+        }
+        /* 行7: 电流: x.xxA */
+        {
+            char buf[21];
+            float i = Adc_Driver_Get_Current();
+            Tft_Driver_Show_CN_String(7, 0, UI_STR_CURRENT, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+            snprintf(buf, sizeof(buf), ": %1lu.%2luA", (unsigned long)i, (unsigned long)((i-(unsigned long)i)*100+0.5f)%100);
+            Tft_Driver_Show_String(7, 7, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+        }
+    } else {
+        Tft_Driver_Show_CN_String(0, 0, UI_STR_TITLE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 0, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+        Tft_Driver_Show_CN_String(4, 0, UI_STR_PRESS_K0_WIFI, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+    }
 }
 
 static void Draw_Connecting(uint8_t retry, uint8_t max_retry)
