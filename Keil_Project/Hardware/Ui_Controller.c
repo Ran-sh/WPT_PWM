@@ -395,31 +395,24 @@ static void Handle_Keys(Ui_Controller_State ui_state,
                         Key_Driver_Event k0, Key_Driver_Event k1,
                         Key_Driver_Event k2, Key_Driver_Event k3)
 {
-    /* PAGE 单击 = 切换无WIFI模式 */
-    if (k3 == KEY_DRIVER_EVENT_CLICK) {
-        s_no_wifi_mode = !s_no_wifi_mode;
-        Tft_Driver_Clear(UI_COLOR_BG);
-        return;
-    }
-
-    /* 监测子页切页: k0双击=Back返回, PAGE双击=切子页 */
+    /* K0 双击 = Back 返回 */
     if (k0 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
-        /* Back: 从子页回到综合监测 */
         s_page = 3;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
 
-    /* 在扫频/RUNNING状态下切子页 */
+    /* PAGE 单击 = 切子页 */
+    if (k3 == KEY_DRIVER_EVENT_CLICK && (ui_state == UI_CONTROLLER_STATE_SWEEPING || ui_state == UI_CONTROLLER_STATE_RUNNING)) {
+        s_page = (s_page + 1) % 4;
+        Tft_Driver_Clear(UI_COLOR_BG);
+        return;
+    }
+
+    /* PAGE 双击 = 切换无WIFI模式 */
     if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
-        uint8_t is_sweep = (ui_state == UI_CONTROLLER_STATE_SWEEPING ||
-                            ui_state == UI_CONTROLLER_STATE_FAULT_SWEEP);
-        uint8_t is_run   = (ui_state == UI_CONTROLLER_STATE_RUNNING ||
-                            ui_state == UI_CONTROLLER_STATE_FAULT);
-        if (is_sweep || is_run) {
-            s_page = (s_page + 1) % 4;
-            Tft_Driver_Clear(UI_COLOR_BG);
-        }
+        s_no_wifi_mode = !s_no_wifi_mode;
+        Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
 
@@ -471,7 +464,11 @@ static Ui_Controller_State Calc_Ui_State(void)
     if (ss == INVERTER_CONTROL_SS_STATE_FAULT) {
         return UI_CONTROLLER_STATE_FAULT;
     }
+
+    /* ESP 未就绪: INIT 或 FAILED */
     if (!Esp8266_Driver_Is_Ready() && !s_no_wifi_mode) {
+        uint8_t cs = App_Network_Get_Connect_Status();
+        if (cs == APP_NETWORK_CONN_FAILED) return UI_CONTROLLER_STATE_FAILED;
         return UI_CONTROLLER_STATE_INIT;
     }
     uint8_t cs = App_Network_Get_Connect_Status();
