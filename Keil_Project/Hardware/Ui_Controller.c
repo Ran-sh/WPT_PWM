@@ -147,7 +147,7 @@ static void Draw_Init(void)
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_TITLE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(2, 0, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
-        Tft_Driver_Show_CN_String(4, 0, UI_STR_PRESS_K0_WIFI, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+        Tft_Driver_Show_CN_String(4, 0, "ON/OFF:" "\xe8\xbf\x9e\xe6\x8e\xa5WiFi", UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
     }
 }
 
