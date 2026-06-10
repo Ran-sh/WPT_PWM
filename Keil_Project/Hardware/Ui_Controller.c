@@ -116,30 +116,32 @@ static void Update_Leds(Ui_Controller_State ui_state)
 static void Draw_Init(void)
 {
     if (s_page == 0) {
-        /* 行0: 启动页 (居中, 3字→6列, col=(20-6)/2=7) */
+        /* 行0: 启动页 (3CN=6col, col=(20-6)/2=7) */
         Tft_Driver_Show_CN_String(0, 7, UI_STR_START_PAGE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
-        /* 行2: WIFI:未连 (居中: "WiFi:未连"=4ASCII+2CN=8列, col=(20-8)/2=6, 但ASCII=1col CN=2col → col=4) */
-        Tft_Driver_Show_CN_String(2, 3, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
-        /* 行3: 按K0连WIFI (居中: "按K0连WiFi"=2CN+4ASCII+4ASCII=2*2+8=12col, col=(20-12)/2=4) */
-        Tft_Driver_Show_CN_String(3, 2, UI_STR_PRESS_K0_WIFI, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
-        /* 行5: Vin:xx.xV */
+        /* 行1: 空 */
+        /* 行2: 空 */
+        /* 行3: WiFi:未连 (WiFi:=5+未连=2CN→4+4=9col, col=(20-9)/2=5) */
+        Tft_Driver_Show_CN_String(3, 5, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+        /* 行4: Vin: xx.xV (居中, ~12chars, col=4) */
         {
             char buf[21];
             float v = Adc_Driver_Get_Voltage();
-            snprintf(buf, sizeof(buf), "Vin: %3lu.%1luV",
-                (unsigned long)v, (unsigned long)((v-(unsigned long)v)*10+0.5f)%10);
-            Tft_Driver_Show_String(5, 4, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+            int32_t vi = (int32_t)(v * 10.0f + 0.5f);
+            snprintf(buf, sizeof(buf), "Vin: %2d.%1dV", vi/10, vi%10);
+            Tft_Driver_Show_String(4, 5, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
-        /* 行6: Iin:x.xxA */
+        /* 行5: Iin: x.xxA (居中, ~12chars, col=4) */
         {
             char buf[21];
-            float i = Adc_Driver_Get_Current();
-            snprintf(buf, sizeof(buf), "Iin: %1lu.%2luA",
-                (unsigned long)i, (unsigned long)((i-(unsigned long)i)*100+0.5f)%100);
-            Tft_Driver_Show_String(6, 4, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+            float c = Adc_Driver_Get_Current();
+            int32_t ci = (int32_t)(c * 100.0f + 0.5f);
+            snprintf(buf, sizeof(buf), "Iin: %1d.%2dA", ci/100, ci%100);
+            Tft_Driver_Show_String(5, 5, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
-        /* 行7: [PAGE]切页 (右下, 9ASCII→9col, col=20-9=11) */
-        Tft_Driver_Show_CN_String(7, 8, "[PAGE]" "\xe5\x88\x87\xe9\xa1\xb5", UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
+        /* 行6: 空 */
+        /* 行7: 按K0连WiFi + [PAGE]切页 (左下+右下) */
+        Tft_Driver_Show_CN_String(7, 0,  UI_STR_PRESS_K0_WIFI,          UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, 11, "[PAGE]" "\xe5\x88\x87\xe9\xa1\xb5", UI_CONTROLLER_COLOR_TEXT,  UI_CONTROLLER_COLOR_BG);
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_TITLE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
         Tft_Driver_Show_CN_String(2, 0, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
