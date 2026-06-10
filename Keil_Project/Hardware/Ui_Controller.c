@@ -353,7 +353,7 @@ static void Draw_Run_Main(void)
         }
         Tft_Driver_Show_CN_String(6, Right("OFF:" S_STOP), "OFF:" S_STOP, UI_COLOR_TEXT, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(7, 0,  S_PAGE_NO_WIFI,     UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(7, Right(S_PAGE),      "\xe5\x88\x87\xe9\xa1\xb5V",    UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("\xe5\x88\x87\xe9\xa1\xb5" "V"), "\xe5\x88\x87\xe9\xa1\xb5" "V",    UI_COLOR_TEXT, UI_COLOR_BG);
         break;
     }
 }
