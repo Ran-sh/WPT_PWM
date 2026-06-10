@@ -606,7 +606,6 @@ void Ui_Controller_Task(void)
             Tft_Driver_Show_CN_String(6, Right("ON:" S_RECONN), "ON:" S_RECONN, UI_COLOR_TEXT, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(7, Right(S_NO_WIFI_MODE), S_NO_WIFI_MODE, UI_COLOR_TEXT, UI_COLOR_BG);
             break;
-            break;
         }
         case UI_CONTROLLER_STATE_READY:
             Show_Fill(3, 0, "WIFI" S_CONN_OK, UI_COLOR_OK, UI_COLOR_BG);
