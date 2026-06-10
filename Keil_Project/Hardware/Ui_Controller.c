@@ -396,13 +396,11 @@ static void Handle_Keys(Ui_Controller_State ui_state,
         return;
     }
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
-        /* PAGE单击 = 切子页 (扫频/运行状态) 或 INIT/FAILED→切无WIFI */
+        /* PAGE单击 = 切子页 (扫频/运行状态) */
         if (ui_state == UI_CONTROLLER_STATE_SWEEPING || ui_state == UI_CONTROLLER_STATE_RUNNING) {
             s_page = (s_page + 1) % 4;
-        } else {
-            s_no_wifi_mode = !s_no_wifi_mode;
+            Tft_Driver_Clear(UI_COLOR_BG);
         }
-        Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
     if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
