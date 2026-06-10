@@ -172,8 +172,7 @@ static void Fmt_F(char* buf, float f)
  *  绘制函数
  * ═══════════════════════════════════════════════════════════════ */
 
-/* 发射: 扫描各子页面 (扫频/监测频率/电压/电流) */
-static uint8_t s_run_subpage = 0;  /* 0=扫频 1=频率表 2=电压表 3=电流表 */
+/* 扫频/运行子页面: 0=扫频进度/综合 1=频率表 2=电压表 3=电流表 */
 
 static void Draw_Sweep_Main(void)
 {
@@ -186,7 +185,7 @@ static void Draw_Sweep_Main(void)
              / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
     if (progress > 10) progress = 10;
 
-    switch (s_run_subpage) {
+    switch (s_page) {
     case 0: /* 扫频进度页 */
         Tft_Driver_Show_CN_String(0, Center(S_SWEEP), S_SWEEP, UI_COLOR_TITLE, UI_COLOR_BG);
         snprintf(buf, sizeof(buf), S_FREQ "F:%3lu.%1lukHz %d/100",
@@ -281,7 +280,7 @@ static void Draw_Sweep_Main(void)
 static void Draw_Run_Main(void)
 {
     Update_EMA();
-    switch (s_run_subpage) {
+    switch (s_page) {
     case 0: /* 频率表 */
         Tft_Driver_Show_CN_String(0, Center(S_MON_FREQ), S_MON_FREQ, UI_COLOR_TITLE, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(1, Center(Get_WiFi_Str()), Get_WiFi_Str(), Get_WiFi_Color(), UI_COLOR_BG);
