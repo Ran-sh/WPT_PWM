@@ -41,6 +41,7 @@ uint8_t App_Network_Soft_Reset(void)
     s_conn_state    = APP_NETWORK_CONN_WIFI;
     s_retry_count   = 0;
     s_connect_start = Sys_Timer_Get_Tick();
+    Esp8266_Driver_Start_Init();
     Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     return 0;
 }
