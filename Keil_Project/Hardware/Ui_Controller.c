@@ -558,10 +558,8 @@ void Ui_Controller_Task(void)
             Tft_Driver_Show_CN_String(3, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
             Fmt_I(buf, Adc_Driver_Get_Current());
             Tft_Driver_Show_CN_String(4, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
-            Tft_Driver_Show_CN_String(6, Right("ON:" "\xe8\xbf\x9e\xe6\x8e\xa5WIFI"),
-                "ON:" "\xe8\xbf\x9e\xe6\x8e\xa5WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
-            Tft_Driver_Show_CN_String(7, Right("\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI"),
-                "\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(7, Right("\xe5\x88\x87\xe9\xa1\xb5" "\xe6\x97\xa0WIFI"),
+                "\xe5\x88\x87\xe9\xa1\xb5" "\xe6\x97\xa0WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
             break;
         }
         case UI_CONTROLLER_STATE_CONNECTING:
