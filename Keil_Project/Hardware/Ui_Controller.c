@@ -126,7 +126,7 @@ static void Draw_Init(void)
         {
             char buf[21];
             float v = Adc_Driver_Get_Voltage();
-            snprintf(buf, sizeof(buf), "Vin:%3lu.%1luV",
+            snprintf(buf, sizeof(buf), "Vin: %3lu.%1luV",
                 (unsigned long)v, (unsigned long)((v-(unsigned long)v)*10+0.5f)%10);
             Tft_Driver_Show_String(5, 4, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
@@ -134,7 +134,7 @@ static void Draw_Init(void)
         {
             char buf[21];
             float i = Adc_Driver_Get_Current();
-            snprintf(buf, sizeof(buf), "Iin:%1lu.%2luA",
+            snprintf(buf, sizeof(buf), "Iin: %1lu.%2luA",
                 (unsigned long)i, (unsigned long)((i-(unsigned long)i)*100+0.5f)%100);
             Tft_Driver_Show_String(6, 4, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
