@@ -22,7 +22,7 @@
 #include "Sys_Timer.h"
 #include <stdio.h>
 
-/* ── 配色 ── */
+/* ── 配色方案 ── */
 #define COLOR_BG          TFT_COLOR_BLACK
 #define COLOR_TITLE       TFT_COLOR_YELLOW
 #define COLOR_TEXT        TFT_COLOR_WHITE
@@ -34,6 +34,22 @@
 
 /* ── 过流保护阈值 ── */
 #define UI_CONTROLLER_OVERCURRENT_THRESHOLD_A  5.0f
+
+/* ── 中文串宏 (UTF-8 hex escapes) ── */
+#define STR_INIT_TITLE          "\xe6\x8e\xa7\xe5\x88\xb6\xe9\x9d\xa2\xe6\x9d\xbf"           /* 控制面板 */
+#define STR_CN_MODE             "\xe7\x9b\x91\xe6\xb5\x8b\xe6\xa8\xa1\xe5\xbc\x8f"           /* 监测模式 */
+#define STR_CONNECTING          "\xe6\xad\xa3\xe5\x9c\xa8\xe8\xbf\x9e\xe6\x8e\xa5..."       /* 正在连接... */
+#define STR_ESP_INIT            "ESP\xe5\x88\x9d\xe5\xa7\x8b\xe5\x8c\x96\xe4\xb8\xad"       /* ESP初始化中 */
+#define STR_PLEASE_WAIT         "\xe8\xaf\xb7\xe7\xad\x89\xe5\xbe\x85..."                   /* 请等待... */
+#define STR_SWEEPING            "\xe6\x89\xab\xe9\xa2\x91\xe4\xb8\xad..."                   /* 扫频中... */
+#define STR_RESONANT            "\xe8\xb0\x90\xe6\x8c\xaf\xe6\xa8\xa1\xe5\xbc\x8f"          /* 谐振模式 */
+#define STR_OVERFLOW            "\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4"          /* 过流保护 */
+#define STR_PWM_OFF             "PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad"                    /* PWM已关断 */
+#define STR_FAULT_BANNER        "!!!\xe6\x95\x85\xe9\x9a\x9c!!!"                              /* !!!故障!!! */
+#define STR_WELD_CLR            "WiFi\xe5\xb7\xb2\xe6\xb8\x85\xe9\x99\xa4"                    /* WiFi已清除 */
+#define STR_REPAIR              "\xe8\xaf\xb7\xe9\x87\x8d\xe6\x96\xb0\xe9\x85\x8d\xe7\xbd\x91"  /* 请重新配网 */
+#define STR_WIRELESS_CHG        "\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5"          /* 无线充电 */
+#define STR_BOOTING             "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad..."                   /* 启动中... */
 
 /* ── 模块状态 ── */
 static uint8_t             s_page       = 0;
@@ -75,40 +91,38 @@ static void Update_Leds(Ui_Controller_State ui_state)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  各页面绘制 (中文全界面)
+ *  各页面绘制 (160x128 宽松排版)
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Draw_Init(void)
 {
-    /* 行1: 控制面板          (黄色标题) */
-    /* 行3: WiFi:未连接       (白色) */
-    /* 行5: 按K0连接          (青色) */
-    Tft_Driver_Show_CN_String(1, 0, "控制面板", COLOR_TITLE, COLOR_BG);
-    Tft_Driver_Show_CN_String(3, 0, "WiFi:未连接", COLOR_TEXT, COLOR_BG);
-    Tft_Driver_Show_CN_String(5, 0, "按K0连接WiFi", COLOR_VALUE, COLOR_BG);
+    Tft_Driver_Show_CN_String(0, 0, STR_INIT_TITLE, COLOR_TITLE, COLOR_BG);
+    Tft_Driver_Show_CN_String(2, 0, "WiFi:\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5", COLOR_TEXT, COLOR_BG);       /* WiFi:未连接 */
+    Tft_Driver_Show_CN_String(4, 0, "\xe6\x8c\x89" "K0" "\xe8\xbf\x9e\xe6\x8e\xa5" "WiFi", COLOR_VALUE, COLOR_BG); /* 按K0连接WiFi */
+    Tft_Driver_Show_CN_String(6, 0, "[K3]\xe5\x88\x87\xe6\x8d\xa2\xe9\xa1\xb5\xe9\x9d\xa2", COLOR_TEXT, COLOR_BG);  /* [K3]切换页面 */
 }
 
 static void Draw_Connecting(uint8_t retry, uint8_t max_retry)
 {
     char buf[21];
-    Tft_Driver_Show_CN_String(1, 0, "正在连接...", COLOR_TITLE, COLOR_BG);
-    Tft_Driver_Show_CN_String(3, 0, "ESP初始化中", COLOR_TEXT, COLOR_BG);
-    snprintf(buf, sizeof(buf), "重试:%d/%d", retry, max_retry);
-    Tft_Driver_Show_CN_String(5, 0, buf, COLOR_VALUE, COLOR_BG);
-    Tft_Driver_Show_CN_String(7, 0, "请等待...", COLOR_TEXT, COLOR_BG);
+    Tft_Driver_Show_CN_String(0, 0, STR_CONNECTING, COLOR_TITLE, COLOR_BG);
+    Tft_Driver_Show_CN_String(2, 0, STR_ESP_INIT, COLOR_TEXT, COLOR_BG);
+    snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95:%d/%d", retry, max_retry);          /* 重试: */
+    Tft_Driver_Show_CN_String(4, 0, buf, COLOR_VALUE, COLOR_BG);
+    Tft_Driver_Show_CN_String(6, 0, STR_PLEASE_WAIT, COLOR_TEXT, COLOR_BG);
 }
 
 static void Draw_Ready(void)
 {
     if (s_page == 0) {
-        Tft_Driver_Show_CN_String(1, 0, "控制面板", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_CN_String(3, 0, "WiFi:已连接", COLOR_OK, COLOR_BG);
-        Tft_Driver_Show_CN_String(5, 0, "按K0启动", COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_CN_String(7, 0, "频率: --.-kHz", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(0, 0, STR_INIT_TITLE, COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 0, "WiFi:\xe5\xb7\xb2\xe8\xbf\x9e\xe6\x8e\xa5", COLOR_OK, COLOR_BG);       /* WiFi:已连接 */
+        Tft_Driver_Show_CN_String(3, 0, "\xe7\x8a\xb6\xe6\x80\x81:\xe5\xb0\xb1\xe7\xbb\xaa", COLOR_OK, COLOR_BG); /* 状态:就绪 */
+        Tft_Driver_Show_CN_String(5, 0, "\xe6\x8c\x89" "K0" "\xe5\x90\xaf\xe5\x8a\xa8", COLOR_VALUE, COLOR_BG);   /* 按K0启动 */
     } else {
-        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_CN_String(3, 0, "状态:就绪", COLOR_OK, COLOR_BG);
-        Tft_Driver_Show_CN_String(5, 0, "等待启动", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(0, 0, STR_CN_MODE, COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 0, "\xe7\x8a\xb6\xe6\x80\x81:\xe5\xb0\xb1\xe7\xbb\xaa", COLOR_OK, COLOR_BG); /* 状态:就绪 */
+        Tft_Driver_Show_CN_String(4, 0, "\xe7\xad\x89\xe5\xbe\x85\xe5\x90\xaf\xe5\x8a\xa8", COLOR_TEXT, COLOR_BG); /* 等待启动 */
     }
 }
 
@@ -124,28 +138,32 @@ static void Draw_Sweeping(void)
     if (progress > 10) progress = 10;
 
     if (s_page == 0) {
-        Tft_Driver_Show_CN_String(1, 0, "扫频中...", COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(0, 0, STR_SWEEPING, COLOR_TITLE, COLOR_BG);
 
-        snprintf(fline, sizeof(fline), "频率:%3lu.%1lukHz",
+        snprintf(fline, sizeof(fline), "\xe9\xa2\x91\xe7\x8e\x87: %3lu.%1lukHz",              /* 频率: */
                  (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
-        Tft_Driver_Show_CN_String(3, 0, fline, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 0, fline, COLOR_VALUE, COLOR_BG);
 
-        /* 进度条 [#####     ] */
+        /* 进度条 */
         fline[0] = '[';
         for (j = 0; j < 10; j++) fline[1 + j] = (j < (int)progress) ? '#' : ' ';
         fline[11] = ']';
         fline[12] = '\0';
-        Tft_Driver_Show_CN_String(5, 0, fline, COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(4, 0, fline, COLOR_TEXT, COLOR_BG);
+
+        Tft_Driver_Show_CN_String(6, 0, "K0/K1\xe5\x81\x9c\xe6\xad\xa2", COLOR_TEXT, COLOR_BG); /* K0/K1停止 */
     } else {
-        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_CN_String(3, 0, "扫频中...", COLOR_VALUE, COLOR_BG);
-        snprintf(fline, sizeof(fline), "频率:%lukHz", (unsigned long)(f / 1000));
-        Tft_Driver_Show_CN_String(5, 0, fline, COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(0, 0, STR_CN_MODE, COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 0, STR_SWEEPING, COLOR_VALUE, COLOR_BG);
+        snprintf(fline, sizeof(fline), "\xe9\xa2\x91\xe7\x8e\x87: %lukHz", (unsigned long)(f / 1000)); /* 频率: */
+        Tft_Driver_Show_CN_String(4, 0, fline, COLOR_TEXT, COLOR_BG);
     }
 }
 
 static void Draw_Running(void)
 {
+    char buf[21];
+
     if (!s_disp_init) {
         s_disp_v     = Adc_Driver_Get_Voltage();
         s_disp_i     = Adc_Driver_Get_Current();
@@ -158,47 +176,55 @@ static void Draw_Running(void)
     }
 
     if (s_page == 0) {
-        char buf[21];
-        Tft_Driver_Show_CN_String(1, 0, "谐振模式", COLOR_TITLE, COLOR_BG);
+        /* 主面板: 宽松排版 */
+        Tft_Driver_Show_CN_String(0, 0, STR_RESONANT, COLOR_TITLE, COLOR_BG);
 
-        snprintf(buf, sizeof(buf), "F:%3lukHz", (unsigned long)(s_disp_f_khz + 0.5f));
-        Tft_Driver_Show_CN_String(3, 0, buf, COLOR_VALUE, COLOR_BG);
+        /* 行2: F=xxxkHz   */
+        snprintf(buf, sizeof(buf), "F = %3lukHz", (unsigned long)(s_disp_f_khz + 0.5f));
+        Tft_Driver_Show_CN_String(2, 0, buf, COLOR_VALUE, COLOR_BG);
 
-        Tft_Driver_Show_CN_String(5, 0, "V:", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_Float(5, 2, s_disp_v, 2, 2, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_CN_String(5, 9, "V", COLOR_TEXT, COLOR_BG);
+        /* 行4: Vin=xx.xV   */
+        Tft_Driver_Show_CN_String(4, 0, "Vin:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_Float(4, 5, s_disp_v, 2, 1, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(4, 12, "V", COLOR_TEXT, COLOR_BG);
 
-        Tft_Driver_Show_CN_String(5, 11, "I:", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_Float(5, 13, s_disp_i, 1, 2, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_CN_String(5, 18, "A", COLOR_TEXT, COLOR_BG);
+        /* 行5: Iin=x.xA    */
+        Tft_Driver_Show_CN_String(5, 0, "Iin:", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_Float(5, 5, s_disp_i, 1, 2, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 12, "A", COLOR_TEXT, COLOR_BG);
 
-        Tft_Driver_Show_CN_String(7, 0, "K0:停K1/2:f+/-", COLOR_TEXT, COLOR_BG);
+        /* 行7: 操作提示 */
+        Tft_Driver_Show_CN_String(7, 0, "K0\xe5\x81\x9c K1/2:+/-\xe9\xa2\x91\xe7\x8e\x87", COLOR_TEXT, COLOR_BG);  /* K0停 K1/2:+/-频率 */
     } else {
-        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_CN_String(3, 0, "频率:", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_Num(3, 6, (uint32_t)(s_disp_f_khz + 0.5f), 3, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_CN_String(3, 9, "kHz", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_CN_String(5, 0, "电压:", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_Float(5, 6, s_disp_v, 2, 2, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_CN_String(5, 12, "V", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_CN_String(7, 0, "电流:", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_Float(7, 6, s_disp_i, 2, 2, COLOR_VALUE, COLOR_BG);
-        Tft_Driver_Show_CN_String(7, 12, "A", COLOR_TEXT, COLOR_BG);
+        /* 监测模式: 上下两列 */
+        Tft_Driver_Show_CN_String(0, 0, STR_CN_MODE, COLOR_TITLE, COLOR_BG);
+
+        Tft_Driver_Show_CN_String(2, 0, "\xe7\x94\xb5\xe5\x8e\x8b:", COLOR_TEXT, COLOR_BG);    /* 电压: */
+        Tft_Driver_Show_Float(2, 7, s_disp_v, 2, 1, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 14, "V", COLOR_TEXT, COLOR_BG);
+
+        Tft_Driver_Show_CN_String(3, 0, "\xe7\x94\xb5\xe6\xb5\x81:", COLOR_TEXT, COLOR_BG);    /* 电流: */
+        Tft_Driver_Show_Float(3, 7, s_disp_i, 1, 2, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 14, "A", COLOR_TEXT, COLOR_BG);
+
+        Tft_Driver_Show_CN_String(5, 0, "\xe9\xa2\x91\xe7\x8e\x87:", COLOR_TEXT, COLOR_BG);    /* 频率: */
+        Tft_Driver_Show_Num(5, 7, (uint32_t)(s_disp_f_khz + 0.5f), 3, COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 10, "kHz", COLOR_TEXT, COLOR_BG);
     }
 }
 
 static void Draw_Fault(void)
 {
     if (s_page == 0) {
-        Tft_Driver_Show_CN_String(1, 0, "!!!故障!!!", COLOR_ALARM, COLOR_BG);
-        Tft_Driver_Show_CN_String(3, 0, "过流保护", COLOR_ALARM, COLOR_BG);
-        Tft_Driver_Show_CN_String(5, 0, "PWM已关断", COLOR_TEXT, COLOR_BG);
-        Tft_Driver_Show_CN_String(7, 0, "K0/K1:复位", COLOR_VALUE, COLOR_BG);
+        Tft_Driver_Show_CN_String(0, 0, STR_FAULT_BANNER, COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 0, STR_OVERFLOW, COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(4, 0, STR_PWM_OFF, COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(6, 0, "\xe6\x8c\x89" "K0/K1" "\xe5\xa4\x8d\xe4\xbd\x8d", COLOR_VALUE, COLOR_BG); /* 按K0/K1复位 */
     } else {
-        Tft_Driver_Show_CN_String(1, 0, "监测模式", COLOR_TITLE, COLOR_BG);
-        Tft_Driver_Show_CN_String(3, 0, "!!!故障!!!", COLOR_ALARM, COLOR_BG);
-        Tft_Driver_Show_CN_String(5, 0, "过流保护", COLOR_ALARM, COLOR_BG);
-        Tft_Driver_Show_CN_String(7, 0, "按K0/K1复位", COLOR_TEXT, COLOR_BG);
+        Tft_Driver_Show_CN_String(0, 0, STR_CN_MODE, COLOR_TITLE, COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 0, STR_FAULT_BANNER, COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(4, 0, STR_OVERFLOW, COLOR_ALARM, COLOR_BG);
+        Tft_Driver_Show_CN_String(6, 0, "\xe6\x8c\x89" "K0/K1" "\xe5\xa4\x8d\xe4\xbd\x8d", COLOR_TEXT, COLOR_BG);   /* 按K0/K1复位 */
     }
 }
 
@@ -319,9 +345,9 @@ void Ui_Controller_Task(void)
             Esp8266_Driver_Send_String("CMD:CLEAR\n");
             App_Network_Soft_Reset();
             Tft_Driver_Clear(COLOR_BG);
-            Tft_Driver_Show_CN_String(1, 0, "控制面板", COLOR_TITLE, COLOR_BG);
-            Tft_Driver_Show_CN_String(3, 0, "WiFi已清除", COLOR_VALUE, COLOR_BG);
-            Tft_Driver_Show_CN_String(5, 0, "请重新配网", COLOR_TEXT, COLOR_BG);
+            Tft_Driver_Show_CN_String(0, 0, STR_INIT_TITLE, COLOR_TITLE, COLOR_BG);
+            Tft_Driver_Show_CN_String(2, 0, STR_WELD_CLR, COLOR_VALUE, COLOR_BG);
+            Tft_Driver_Show_CN_String(4, 0, STR_REPAIR, COLOR_TEXT, COLOR_BG);
             last_state = (uint8_t)UI_CONTROLLER_STATE_CONNECTING;
             s_ui_state = UI_CONTROLLER_STATE_CONNECTING;
             Led_Driver_Task();

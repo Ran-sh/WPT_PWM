@@ -72,7 +72,7 @@ static const char CN_INDEX[] =
     "\xe6\xb5\x8b"  /* 49 测 */
     "\xe7\x9b\x91"  /* 50 监 */
     "\xe8\xbf\x9e"  /* 51 连 */
-    "\xe6\x95\x85"  /* 52 障 */
+    "\xe9\x9a\x9c"  /* 52 障 */
     "\xe9\x94\x99"  /* 53 误 */
     "\xe6\x8a\xa5"  /* 54 警 */
     "\xe6\x81\xa2"  /* 55 复 */

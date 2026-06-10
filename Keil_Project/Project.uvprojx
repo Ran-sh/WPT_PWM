@@ -686,19 +686,34 @@
               <FilePath>.\Hardware\Key_Driver.h</FilePath>
             </File>
             <File>
-              <FileName>Oled_Driver.c</FileName>
+              <FileName>Tft_Driver.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\Hardware\Oled_Driver.c</FilePath>
+              <FilePath>.\Hardware\Tft_Driver.c</FilePath>
             </File>
             <File>
-              <FileName>Oled_Driver.h</FileName>
+              <FileName>Tft_Driver.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\Hardware\Oled_Driver.h</FilePath>
+              <FilePath>.\Hardware\Tft_Driver.h</FilePath>
             </File>
             <File>
-              <FileName>OLED_Font.h</FileName>
+              <FileName>TFT_Font.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\Hardware\OLED_Font.h</FilePath>
+              <FilePath>.\Hardware\TFT_Font.h</FilePath>
+            </File>
+            <File>
+              <FileName>TFT_CN_Font.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\TFT_CN_Font.h</FilePath>
+            </File>
+            <File>
+              <FileName>Buzzer_Driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\Buzzer_Driver.c</FilePath>
+            </File>
+            <File>
+              <FileName>Buzzer_Driver.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\Buzzer_Driver.h</FilePath>
             </File>
             <File>
               <FileName>Pwm_Driver.c</FileName>

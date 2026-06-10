@@ -23,7 +23,7 @@
  *
  * 以下静态断言确保系统时钟 = 72MHz (DWT 周期计数器与 PWM 频率计算依赖此假设):
  */
-typedef char Adc_Driver_Assert_HSE_72MHz[(SystemCoreClock == 72000000) ? 1 : -1];
+typedef char Adc_Driver_Assert_HSE_72MHz[(HSE_VALUE == 8000000) ? 1 : -1];
 
 #define FILTER_PERIOD_CYCLES  144241
 

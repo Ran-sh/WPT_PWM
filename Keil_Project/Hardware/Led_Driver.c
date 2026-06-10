@@ -34,14 +34,13 @@ static Led_Driver_State s_pwm_state   = LED_DRIVER_STATE_OFF;
 static Led_Driver_State s_com_state   = LED_DRIVER_STATE_OFF;
 static Led_Driver_State s_power_state = LED_DRIVER_STATE_ON;   /* 电源正常默认亮 */
 static Led_Driver_State s_temp_state  = LED_DRIVER_STATE_OFF;
-static uint8_t          s_system_on   = 0;
+static uint8_t          s_system_on   = 0;  /* Set_System 传入的值, 心跳当前输出状态 */
 
 static uint32_t s_wifi_last  = 0;
 static uint32_t s_pwm_last   = 0;
 static uint32_t s_com_last   = 0;
 static uint32_t s_power_last = 0;
 static uint32_t s_temp_last  = 0;
-static uint32_t s_system_last = 0;
 
 static void Drive_Pin(GPIO_TypeDef* port, uint16_t pin, Led_Driver_State state, uint32_t* p_last)
 {
@@ -113,7 +112,7 @@ void Led_Driver_Task(void)
     {
         static uint32_t s_heartbeat_last = 0;
         uint32_t now = Sys_Timer_Get_Tick();
-        if (now - s_heartbeat_last >= 500) {
+        if (s_system_on && (now - s_heartbeat_last >= 500)) {
             s_heartbeat_last = now;
             GPIO_WriteBit(LED_PORT_A, LED_SYSTEM_PIN,
                           (BitAction)!GPIO_ReadOutputDataBit(LED_PORT_A, LED_SYSTEM_PIN));

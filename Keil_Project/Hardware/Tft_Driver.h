@@ -29,10 +29,10 @@
 #define TFT_COLOR_DARK_BLUE   0x0018
 
 /* ── 显示参数 ── */
-#define TFT_WIDTH             160   /* 横屏: 160 列 */
-#define TFT_HEIGHT            128   /* 横屏: 128 行 */
-#define TFT_CHAR_PER_LINE     20    /* 8px 字宽 → 160/8=20 字符/行 */
-#define TFT_LINE_COUNT        8     /* 16px 字高 → 128/16=8 行 */
+#define TFT_WIDTH             128   /* 物理宽 */
+#define TFT_HEIGHT            160   /* 物理高 */
+#define TFT_CHAR_PER_LINE     16    /* 128/8 = 16 */
+#define TFT_LINE_COUNT        10    /* 160/16 = 10 */
 #define TFT_FONT_WIDTH        8
 #define TFT_FONT_HEIGHT       16
 
