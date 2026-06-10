@@ -58,8 +58,6 @@
 #define SKIP_V       "\xe5\x88\x87\xe9\xa1\xb5" "V"   /* 切页V */
 #define SKIP_I       "\xe5\x88\x87\xe9\xa1\xb5" "I"   /* 切页I */
 #define SKIP         "\xe5\x88\x87\xe9\xa1\xb5"     /* 切页 */
-#define S_PAGE_NO_WIFI "\xe5\x88\x87\xe9\xa1\xb5" "\xe6\x97\xa0WIFI"    /* 切页无WIFI */
-#define S_NO_WIFI_MODE "\xe5\x88\x87\xe9\xa1\xb5:\xe6\x97\xa0WIFI"    /* 切页:无WIFI */
 
 #define S_LONG_CLEAR "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI      /* 长按ON:清除WIFI */
 
