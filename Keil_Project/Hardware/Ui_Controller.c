@@ -122,21 +122,21 @@ static void Draw_Init(void)
         Tft_Driver_Show_CN_String(2, 4, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
         /* 行3: 按K0连WIFI (居中) */
         Tft_Driver_Show_CN_String(3, 4, UI_STR_PRESS_K0_WIFI, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
-        /* 行6: 电压: xx.xV */
+        /* 行6: ⚡Vin:xx.xV — 左对齐标签+数值 */
         {
             char buf[21];
             float v = Adc_Driver_Get_Voltage();
-            Tft_Driver_Show_CN_String(6, 0, UI_STR_VOLTAGE, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
-            snprintf(buf, sizeof(buf), ": %3lu.%1luV", (unsigned long)v, (unsigned long)((v-(unsigned long)v)*10+0.5f)%10);
-            Tft_Driver_Show_String(6, 7, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+            snprintf(buf, sizeof(buf), "\xe2\x9a\xa1Vin:%3lu.%1luV",
+                (unsigned long)v, (unsigned long)((v-(unsigned long)v)*10+0.5f)%10);
+            Tft_Driver_Show_CN_String(6, 2, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
-        /* 行7: 电流: x.xxA */
+        /* 行7: ⚡Iin :x.xxA — 左对齐标签+数值 */
         {
             char buf[21];
             float i = Adc_Driver_Get_Current();
-            Tft_Driver_Show_CN_String(7, 0, UI_STR_CURRENT, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
-            snprintf(buf, sizeof(buf), ": %1lu.%2luA", (unsigned long)i, (unsigned long)((i-(unsigned long)i)*100+0.5f)%100);
-            Tft_Driver_Show_String(7, 7, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
+            snprintf(buf, sizeof(buf), "\xe2\x9a\xa1Iin :%1lu.%2luA",
+                (unsigned long)i, (unsigned long)((i-(unsigned long)i)*100+0.5f)%100);
+            Tft_Driver_Show_CN_String(7, 2, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
     } else {
         Tft_Driver_Show_CN_String(0, 0, UI_STR_TITLE, UI_CONTROLLER_COLOR_TITLE, UI_CONTROLLER_COLOR_BG);
