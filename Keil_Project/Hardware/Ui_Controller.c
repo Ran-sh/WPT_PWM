@@ -390,8 +390,8 @@ static void Handle_Keys(Ui_Controller_State ui_state,
                         Key_Driver_Event k0, Key_Driver_Event k1,
                         Key_Driver_Event k2, Key_Driver_Event k3)
 {
+    /* K0双击 = 无WIFI切换 (所有界面通用) */
     if (k0 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
-        /* K0双击 = 切换无WIFI模式 (所有界面通用) */
         s_no_wifi_mode = !s_no_wifi_mode;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
@@ -404,8 +404,8 @@ static void Handle_Keys(Ui_Controller_State ui_state,
         }
         return;
     }
+    /* PAGE双击 → 综合监测 */
     if (k3 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
-        /* PAGE双击 → 直接回到综合监测 */
         s_page = 0;
         Tft_Driver_Clear(UI_COLOR_BG);
         return;
