@@ -122,22 +122,22 @@ static void Draw_Init(void)
         /* 行2: 空 */
         /* 行3: WiFi:未连 (WiFi:=5+未连=2CN→4+4=9col, col=(20-9)/2=5) */
         Tft_Driver_Show_CN_String(3, 5, UI_STR_WIFI_UNLINK, UI_CONTROLLER_COLOR_TEXT, UI_CONTROLLER_COLOR_BG);
-        /* 行4: Vin: xx.xV (居中, ~12chars, col=4) */
+        /* 行4: Vin:xx.xV (居中) */
         {
             char buf[21];
             float v = Adc_Driver_Get_Voltage();
             int32_t vi = (int32_t)(v * 10.0f + 0.5f);
-            int32_t vi_abs = (vi < 0) ? -vi : vi;
-            snprintf(buf, sizeof(buf), "Vin:%2d.%1dV", (int)(vi_abs/10), (int)(vi_abs%10));
+            if (vi < 0) vi = -vi;
+            snprintf(buf, sizeof(buf), "Vin:%d.%dV", (int)(vi/10), (int)(vi%10));
             Tft_Driver_Show_String(4, 6, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
-        /* 行5: Iin: x.xxA (居中, ~12chars, col=4) */
+        /* 行5: Iin:x.xxA (居中) */
         {
             char buf[21];
             float c = Adc_Driver_Get_Current();
             int32_t ci = (int32_t)(c * 100.0f + 0.5f);
-            int32_t ci_abs = (ci < 0) ? -ci : ci;
-            snprintf(buf, sizeof(buf), "Iin:%1d.%2dA", (int)(ci_abs/100), (int)(ci_abs%100));
+            if (ci < 0) ci = -ci;
+            snprintf(buf, sizeof(buf), "Iin:%d.%02dA", (int)(ci/100), (int)(ci%100));
             Tft_Driver_Show_String(5, 6, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
         /* 行6: 空 */
