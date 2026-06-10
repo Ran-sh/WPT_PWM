@@ -128,7 +128,7 @@ static void Draw_Init(void)
             float v = Adc_Driver_Get_Voltage();
             int32_t vi = (int32_t)(v * 10.0f + 0.5f);
             if (vi < 0) vi = -vi;
-            snprintf(buf, sizeof(buf), "Vin:%d.%dV", (int)(vi/10), (int)(vi%10));
+            snprintf(buf, sizeof(buf), "Vin:%d.%01dV", (int)(vi/10), (int)(vi%10));
             Tft_Driver_Show_String(4, 6, buf, UI_CONTROLLER_COLOR_VALUE, UI_CONTROLLER_COLOR_BG);
         }
         /* 行5: Iin:x.xxA (居中) */
