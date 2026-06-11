@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    Hardware/Tft_Driver.h
  * @brief   ST7735 128×160 TFT 彩色显示驱动 — 公开接口
- * @note    V6.2: SPI1 硬件驱动 (PA5=SCK, PA7=MOSI)
+ * @note    V9: SPI1 硬件驱动 (PA5=SCK, PA7=MOSI)
  *          PA4=CS (软件NSS), PA6=DC, PA0=RST, PB6=BL (TIM4_CH1 PWM 背光)
  *          SPI Mode 3 (CPOL=High, CPHA=2Edge), 只写不读
  *          横屏显示 160×128, RGB565 色彩, MADCTL=0xA0 (方向3)

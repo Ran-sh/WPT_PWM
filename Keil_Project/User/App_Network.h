@@ -17,13 +17,13 @@ typedef enum {
     APP_NETWORK_CONN_IDLE      = 0,  /* 未启动 */
     APP_NETWORK_CONN_WIFI      = 1,  /* WiFi 连接中 */
     APP_NETWORK_CONN_MQTT      = 2,  /* MQTT 连接中 */
-    APP_NETWORK_CONN_ONLINE    = 3,  /* 双 MQTT 均在线, 可收发 */
+    APP_NETWORK_CONN_ONLINE    = 3,  /* 设备在线, 可收发 */
     APP_NETWORK_CONN_FAILED    = 4   /* 重试耗尽 */
 } App_Network_Conn_State;
 
 /** @brief 启动联网 (非阻塞, 立即返回) */
 uint8_t App_Network_Start_Connect(void);
-/** @brief 软复位状态机 (CMD:CLEAR 后) */
+/** @brief 软复位状态机 (进入无WIFI模式时调用, 仅复位网络状态) */
 uint8_t App_Network_Soft_Reset(void);
 
 /** @brief 获取连接状态 (0=空闲 1=WiFi 2=MQTT 3=在线 4=失败) */

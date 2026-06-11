@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.c
- * @brief   LED 指示灯驱动 — 实现 (V6.2 6 LED 版)
+ * @brief   LED 指示灯驱动 — 实现 (V9 6 LED 版)
  * @note    PA15=LED_SYSTEM (黄色系统心跳), PB4=LED_WIFI (蓝色WiFi),
  *          PB3=LED_PWM (绿色PWM), PA10=LED_COM (蓝色通信),
  *          PA11=LED_POWER (绿色电源), PA12=LED_TEMP (红色温度)

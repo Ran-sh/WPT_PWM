@@ -246,7 +246,7 @@ void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
 
     x0 = col  * TFT_FONT_WIDTH;
     y0 = line * TFT_FONT_HEIGHT;
-    /* 竖屏坐标直接写入 */
+    /* 像素坐标直接写入 */
     SetWin(x0, y0, x0 + TFT_FONT_WIDTH - 1, y0 + TFT_FONT_HEIGHT - 1);
 
     for (r = 0; r < 16; r++) {

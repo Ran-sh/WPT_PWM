@@ -47,7 +47,7 @@ void Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t h,
         if (ratio > 1.0f) ratio = 1.0f;
         total_w = (uint16_t)(ratio * (float)max_w);
     }
-    if (total_w == 0) total_w = 0;   /* 值为零 → 只擦除不画 */
+    /* total_w == 0 → 只擦除不画 (下方 erase 后 return) */
 
     /* ── 2. 擦除整个条形区域 ── */
     Tft_Driver_Fill_Rect(x, y, max_w, h, bg_color);

@@ -6,9 +6,9 @@
   *
   *          【重构要点】
   *          - 删除所有外部调度标志位 (Flag_Task_Key1/Key2/OLED/LED)
-  *          - 删除 g_MsTick 全局计数器 (由 System/SysTimer 模块替代)
+  *          - 删除 g_MsTick 全局计数器 (由 System/Sys_Timer 模块替代)
   *          - USART2_IRQHandler 由 ESP8266 驱动使用, 保留声明
-  *          - 所有定时调度迁移至 System/SysTimer 时间戳差值法
+  *          - 所有定时调度迁移至 System/Sys_Timer 时间戳差值法
   ******************************************************************************
   */
 
