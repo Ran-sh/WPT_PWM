@@ -435,14 +435,17 @@ while (1) {
 
 ## 编码规范
 
-### 命名
+### 命名规范 (V6.0+)
+
+全部模块统一采用 `Module_Name_Action_Object()` 帕斯卡+下划线命名:
+
 - 公开函数: `Module_Name_Verb_Noun()` — 如 `Tft_Driver_Show_CN_String()`, `Adc_Driver_Get_Voltage()`
-- 静态变量: `s_module_description` — 如 `s_ui_state`, `s_wifi_anim_idx`
+- 静态变量: `s_module_description` — 如 `s_ui_state`, `s_rx_frame_flag`
 - 类型/枚举: `Module_Name_Type` — 如 `Ui_Controller_State`, `Inverter_Control_Soft_Start_State`
-- 枚举值: `MODULE_NAME_ENUM_VALUE` — 全大写, 如 `LED_DRIVER_STATE_ON`, `INVERTER_CONTROL_SS_STATE_DONE`
-- 宏常量: `MODULE_NAME_VALUE` — 全大写+模块前缀, 如 `ADC_DRIVER_VREF_MCU`
-- 静态函数: `static`, 建议加模块前缀避免与 SPL 库函数冲突
-- 头文件保护: `MODULE_NAME_H` (无前导下划线)
+- 枚举值: `MODULE_NAME_ENUM_VALUE` — 全大写+下划线+模块前缀, 如 `LED_DRIVER_STATE_ON`, `INVERTER_CONTROL_SS_STATE_DONE`, `UI_CONTROLLER_STATE_READY`
+- 宏常量: `MODULE_NAME_VALUE` — 全大写+下划线+模块前缀, 如 `ADC_DRIVER_VREF_MCU`, `APP_NETWORK_MAX_RETRIES`
+- 静态函数: 建议加模块前缀, 如 `Ui_Controller_Draw_Running()`
+- 头文件保护: `MODULE_NAME_H` (无前导下划线, 避免 C 保留标识符)
 
 ### 状态机
 - 禁止隐式 bool/int 拼凑 → 必须用 `typedef enum` + 单一状态变量
@@ -474,8 +477,34 @@ __set_PRIMASK(primask);
 typedef char assertion[(condition) ? 1 : -1];
 ```
 
+### OOP 在 C 中的实践
+- 相关变量封装到 struct 中, 避免多个分散的 static 变量
+- 状态机用 struct 打包 (状态 + 定时器 + 上下文)
+- 一个 `.c` 只管理自己定义的结构体, 外部通过函数接口访问
+
+### 注释
+- 公开函数: `@brief` 一行说明功能, `@param`/`@retval` 标注参数和返回值
+- 模块 `.h` 顶部: `@brief` 一句话 + `@note` 关键设计约束
+- 不写 HOW (代码本身说明), 只写 WHY (为什么这样做, 踩过什么坑)
+
 ### 文件大小
 ≤800行/文件, ≤50行/函数
+
+### 全桥 PWM 基线 (重构不改, 关系到全桥是否输出波形)
+- `TIM_CounterMode_Up` — 不可改为 CenterAligned (频率公式不同, 两路 CH1=PWM1+CH2=PWM2 配合 Up 计数实现对角线交替导通)
+- CH1=`TIM_OCMode_PWM1`, CH2=`TIM_OCMode_PWM2` — 两路不同模式, 桥间产生差分电压; 同模式则桥间电压为零
+- `TIM_OCNPolarity_Low` — IR2103S LIN 为低有效, 不可改为 High
+- `TIM_OCNIdleState_Reset` — MOE 关断时上下管全关
+- 死区 1000ns, 由 `PWM_DRIVER_DEADTIME_NS` 宏统一定义
+- 频率范围 95kHz~150kHz (`PWM_DRIVER_FREQ_MIN_HZ`/`MAX_HZ`), 软启动从 150k 扫到 100k
+- 以上参数源自 V0.0 已验证硬件, 重构时逐行对照, 不准擅自改动
+
+### 可维护性
+- 魔法数字命名常量, 不准裸值散落代码中
+- 显示字符串集中为 `#define` 宏, 方便多语言替换
+- 频率/电压/电流限制单一定义, 全项目引用同一处
+- 不保留废弃代码和旧文件, 删干净避免维护陷阱
+- 生成的文件放到指定目录, 不准散落在桌面或其他无关位置; 不确定存放路径时先询问
 
 ## Safety
 
@@ -584,9 +613,32 @@ void HardFault_Handler(void) {
 
 ## 文档输出规则
 
-- 代码变更后版本号自增 (逻辑改动 +0.1, 新模块 +1.0)
+- 每个 `.md` 文档建议在 `Claude_Files/docs/` 存放
+- 代码变更后版本号自增 (逻辑改动 +0.1, 新模块 +1.0, 纯格式日期刷新)
+- "更新文档"时先 diff 再决定是否重写; 无变更则输出 "没有任何文件变化，无需更新"
 - 生成的文件放到指定目录, 不准散落在桌面或其他无关位置
 - 不保留废弃代码和旧文件, 删干净避免维护陷阱
+
+## ESP8266 Firmware (参考 3.0 基版)
+
+单文件 `Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`, 注释分段架构:
+
+| 段 | 命名空间 | 职责 |
+|:---|:---|:---|
+| 配置区 | `#define` | 所有可调参数 |
+| 连接状态机 | `MQTT_CONN_STATE_*` 枚举 | IDLE→WIFI→MQTT→ONLINE→FAILED 显式状态 |
+| MQTT 模块 | `Mqtt_Task_*` | 双 Broker 连接 + OneNET 物模型收发 |
+| 串口模块 | `Serial_Parse_*` | 非阻塞行读取 + 前缀匹配防协议误触发 |
+
+关键改进: `Str_Starts_With()` 前缀匹配替代 `strstr()` 子串搜索, 防止 `STATUS:ONLINE` 嵌入 JSON 字符串时误触发。
+
+## 多仓库结构 (参考)
+
+| 本地文件夹 | 远程仓库 | 分支 | 说明 |
+|:---|:---|:---|:---|
+| `Keil_Project/` 等 | `Ran-sh/WPT_PWM` | `4.0TFT` | 主仓库 |
+| `ONENETapp/` | `Ran-sh/WPT_Onenet_IoT` | `master` | 网页控制台 (Cloudflare Pages) |
+| `Railway_Deploy/` | `Ran-sh/WPT_Railway` | `main` | Railway 桥接服务器 (历史) |
 
 ## Git
 
