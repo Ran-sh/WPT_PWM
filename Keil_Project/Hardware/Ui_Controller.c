@@ -406,10 +406,10 @@ static void Handle_Keys(Ui_Controller_State ui_state,
         return;
     }
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
-        /* PAGE单击 = 切子页 (扫频/运行) 或 FAILED→进入无WIFI调试模式 */
+        /* PAGE单击 = 切子页 (扫频/运行) 或 FAILED/CONNECTING→进入无WIFI调试模式 */
         if (ui_state == UI_CONTROLLER_STATE_SWEEPING || ui_state == UI_CONTROLLER_STATE_RUNNING) {
             s_page = (s_page + 1) % 4;
-        } else if (ui_state == UI_CONTROLLER_STATE_FAILED) {
+        } else if (ui_state == UI_CONTROLLER_STATE_FAILED || ui_state == UI_CONTROLLER_STATE_CONNECTING) {
             s_no_wifi_mode = 1;
         }
         Tft_Driver_Clear(UI_COLOR_BG);
@@ -461,11 +461,11 @@ static Ui_Controller_State Calc_Ui_State(void)
         return UI_CONTROLLER_STATE_FAULT;
     }
 
-    /* ESP 未就绪: INIT 或 FAILED */
+    /* ESP 未就绪: 仅在非连接中状态跳回 INIT */
     if (!Esp8266_Driver_Is_Ready() && !s_no_wifi_mode) {
         uint8_t cs = App_Network_Get_Connect_Status();
         if (cs == APP_NETWORK_CONN_FAILED) return UI_CONTROLLER_STATE_FAILED;
-        return UI_CONTROLLER_STATE_INIT;
+        if (cs != APP_NETWORK_CONN_WIFI)  return UI_CONTROLLER_STATE_INIT;   /* 连接中允许重试, 不跳回 */
     }
     uint8_t cs = App_Network_Get_Connect_Status();
     if (s_no_wifi_mode) {
@@ -588,8 +588,8 @@ void Ui_Controller_Task(void)
                     retry > 0 ? retry : 1, 3);
                 Tft_Driver_Show_CN_String(4, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
             }
-            Tft_Driver_Show_CN_String(7, Right("\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI"),
-                "\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(7, Right("PAGE:" "\xe6\x97\xa0WIFI" "\xe8\xb0\x83\xe8\xaf\x95"),   /* PAGE:无WIFI调试 */
+                "PAGE:" "\xe6\x97\xa0WIFI" "\xe8\xb0\x83\xe8\xaf\x95", UI_COLOR_TEXT, UI_COLOR_BG);
             break;
         case UI_CONTROLLER_STATE_FAILED: {
             char buf[21];
