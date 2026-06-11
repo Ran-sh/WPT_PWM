@@ -46,6 +46,7 @@ static void Filter_Push(Adc_Driver_Filter_Window* fw, uint16_t new_val)
 
 static float Filter_To_Voltage(const Adc_Driver_Filter_Window* fw)
 {
+    if (fw->filled == 0) return 0.0f;
     return ((float)fw->accum / (float)fw->filled / 4095.0f) * ADC_DRIVER_VREF_MCU;
 }
 
@@ -121,8 +122,11 @@ void Adc_Driver_Filter_Task(void)
 {
     static uint32_t last_cyc = 0;
 
-    if (Sys_Timer_Get_Cycles() - last_cyc < ADC_DRIVER_FILTER_PERIOD_CYCLES) return;
-    last_cyc = Sys_Timer_Get_Cycles();
+    {
+        uint32_t now = Sys_Timer_Get_Cycles();
+        if (now - last_cyc < ADC_DRIVER_FILTER_PERIOD_CYCLES) return;
+        last_cyc = now;
+    }
 
     Filter_Push(&s_v_filter, s_adc_raw[1]);
     s_voltage = Filter_To_Voltage(&s_v_filter) * ADC_DRIVER_VOLTAGE_DIVIDER;

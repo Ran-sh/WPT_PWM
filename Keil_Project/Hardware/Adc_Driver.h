@@ -12,6 +12,7 @@
 
 void  Adc_Driver_Init(void);
 void  Adc_Driver_Filter_Task(void);
+/* 电流零点校准 (当前未调用, 偏移固定 1.65V = CC6920BSO 零电流中点) */
 void  Adc_Driver_Calibrate_Offset(void);
 float Adc_Driver_Get_Voltage(void);
 float Adc_Driver_Get_Current(void);

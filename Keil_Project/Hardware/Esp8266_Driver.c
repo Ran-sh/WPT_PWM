@@ -1,9 +1,9 @@
 /**
  ******************************************************************************
  * @file    Hardware/Esp8266_Driver.c
- * @brief   ESP8266 串口通信驱动 — 实现 (V6.2)
+ * @brief   ESP8266 串口通信驱动 — 实现 (V6.4 冷启动强化版)
  * @note    CH_PD=PB11 (EN), RST=PA1 (独立复位)
- *          非阻塞初始化: RST_LOW(1s) → RST_HIGH+EN → BOOT_WAIT(2s) → READY
+ *          简化时序: GPIO仅配一次 → 拉高CH_PD供电 → RST复位脉冲 → 等待启动
  ******************************************************************************
  */
 
@@ -16,15 +16,15 @@
 #define ESP8266_DRIVER_RST_PIN          GPIO_Pin_1
 #define ESP8266_DRIVER_RST_PORT         GPIOA
 
-#define ESP8266_DRIVER_RST_LOW_MS       1000
-#define ESP8266_DRIVER_BOOT_WAIT_MS     2000
+#define ESP8266_DRIVER_RST_PULSE_MS     100    /* RST拉低脉冲宽度 */
+#define ESP8266_DRIVER_BOOT_WAIT_MS     4000   /* 释放RST后等待固件启动 */
 
 typedef enum {
-    ESP8266_DRIVER_INIT_IDLE = 0,
-    ESP8266_DRIVER_INIT_HW_DONE,
-    ESP8266_DRIVER_INIT_RST_LOW,
-    ESP8266_DRIVER_INIT_BOOT_WAIT,
-    ESP8266_DRIVER_INIT_READY
+    ESP8266_DRIVER_INIT_IDLE = 0,       /* 未初始化 */
+    ESP8266_DRIVER_INIT_HW_READY,       /* 硬件已配, 等待Start_Init触发 */
+    ESP8266_DRIVER_INIT_RST_PULSE,      /* RST拉低脉冲中 */
+    ESP8266_DRIVER_INIT_BOOT_WAIT,      /* RST释放, 等待固件加载 */
+    ESP8266_DRIVER_INIT_READY           /* 就绪 */
 } Esp8266_Driver_Init_State;
 
 static char    s_rx_buf[ESP8266_DRIVER_RX_BUF_SIZE];
@@ -33,31 +33,42 @@ static volatile uint8_t  s_rx_frame_flag = 0;
 
 static Esp8266_Driver_Init_State s_init_state = ESP8266_DRIVER_INIT_IDLE;
 static uint32_t                  s_init_timer = 0;
+static uint8_t                   s_hw_configured = 0;  /* 硬件仅配一次 */
 
-static void Config_Hardware(void)
+/* ── 内部: 仅配置 GPIO (只执行一次) ── */
+static void Config_GPIO_Once(void)
 {
-    GPIO_InitTypeDef  gpio;
-    USART_InitTypeDef usart;
-    NVIC_InitTypeDef  nvic;
+    GPIO_InitTypeDef gpio;
+
+    if (s_hw_configured) return;
+    s_hw_configured = 1;
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_GPIOA, ENABLE);
 
-    /* RST: PA1, 初始高电平 */
+    /* RST: PA1, 初始高 — 不用复位时保持高 */
     gpio.GPIO_Pin   = ESP8266_DRIVER_RST_PIN;
     gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(ESP8266_DRIVER_RST_PORT, &gpio);
     GPIO_SetBits(ESP8266_DRIVER_RST_PORT, ESP8266_DRIVER_RST_PIN);
 
-    /* CH_PD/EN: PB11, 初始低电平 */
+    /* CH_PD/EN: PB11, 初始低 — 默认断电 */
     gpio.GPIO_Pin   = ESP8266_DRIVER_CH_PD_PIN;
     GPIO_Init(ESP8266_DRIVER_CH_PD_PORT, &gpio);
     GPIO_ResetBits(ESP8266_DRIVER_CH_PD_PORT, ESP8266_DRIVER_CH_PD_PIN);
+}
 
-    /* USART2: 115200 8N1 */
+/* ── 内部: 配置 USART2 (只执行一次) ── */
+static void Config_USART_Once(void)
+{
+    GPIO_InitTypeDef  gpio;
+    USART_InitTypeDef usart;
+    NVIC_InitTypeDef  nvic;
+
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
+    /* PA2=TX(AF_PP), PA3=RX(IN_FLOATING) */
     gpio.GPIO_Pin   = GPIO_Pin_2;
     gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
@@ -85,8 +96,17 @@ static void Config_Hardware(void)
     NVIC_Init(&nvic);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+ *  公开接口
+ * ═══════════════════════════════════════════════════════════════ */
+
 void Esp8266_Driver_Start_Init(void)
 {
+    /* 硬件只配一次, 避免反复 USART_Init 干扰正在接收的数据 */
+    Config_GPIO_Once();
+    Config_USART_Once();
+
+    /* 清空接收缓冲 */
     {
         uint32_t primask = __get_PRIMASK();
         __disable_irq();
@@ -96,27 +116,27 @@ void Esp8266_Driver_Start_Init(void)
         __set_PRIMASK(primask);
     }
 
-    Config_Hardware();
+    /* 先给 CH_PD 供电, 让模块上电 (此时 RST 已经是高, 模块会开始启动但马上会被拉低复位) */
+    GPIO_SetBits(ESP8266_DRIVER_CH_PD_PORT, ESP8266_DRIVER_CH_PD_PIN);
 
+    /* 给一个干净的硬件复位脉冲: 拉低 RST */
     GPIO_ResetBits(ESP8266_DRIVER_RST_PORT, ESP8266_DRIVER_RST_PIN);
     s_init_timer = Sys_Timer_Get_Tick();
-    s_init_state = ESP8266_DRIVER_INIT_RST_LOW;
+    s_init_state = ESP8266_DRIVER_INIT_RST_PULSE;
 }
 
 void Esp8266_Driver_Init_Task(void)
 {
     switch (s_init_state) {
         case ESP8266_DRIVER_INIT_IDLE:
+        case ESP8266_DRIVER_INIT_HW_READY:
         case ESP8266_DRIVER_INIT_READY:
             break;
 
-        case ESP8266_DRIVER_INIT_HW_DONE:
-            break;
-
-        case ESP8266_DRIVER_INIT_RST_LOW:
-            if (Sys_Timer_Get_Tick() - s_init_timer >= ESP8266_DRIVER_RST_LOW_MS) {
+        case ESP8266_DRIVER_INIT_RST_PULSE:
+            if (Sys_Timer_Get_Tick() - s_init_timer >= ESP8266_DRIVER_RST_PULSE_MS) {
+                /* 释放 RST, 模块启动 */
                 GPIO_SetBits(ESP8266_DRIVER_RST_PORT, ESP8266_DRIVER_RST_PIN);
-                GPIO_SetBits(ESP8266_DRIVER_CH_PD_PORT, ESP8266_DRIVER_CH_PD_PIN);
                 s_init_timer = Sys_Timer_Get_Tick();
                 s_init_state = ESP8266_DRIVER_INIT_BOOT_WAIT;
             }

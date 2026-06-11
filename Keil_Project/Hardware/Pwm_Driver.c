@@ -55,8 +55,8 @@ void Pwm_Driver_Init(void)
     oc.TIM_Pulse        = 240;  /* 50% @ 150kHz */
     oc.TIM_OCPolarity   = TIM_OCPolarity_High;
     oc.TIM_OCNPolarity  = TIM_OCNPolarity_Low;    /* IR2103S LIN 低有效 */
-    oc.TIM_OCIdleState  = TIM_OCIdleState_Reset;
-    oc.TIM_OCNIdleState = TIM_OCNIdleState_Set;   /* MOE=0 时下管关断 */
+    oc.TIM_OCIdleState  = TIM_OCIdleState_Reset;   /* MOE=0 CH=低 → 上管关 */
+    oc.TIM_OCNIdleState = TIM_OCNIdleState_Reset;  /* MOE=0 CHN=低 → LIN反相后高 → 下管关 */
     TIM_OC1Init(TIM1, &oc);
 
     oc.TIM_OCMode = TIM_OCMode_PWM2;
@@ -76,12 +76,14 @@ void Pwm_Driver_Init(void)
     TIM_OC1PreloadConfig(TIM1, TIM_OCPreload_Enable);
     TIM_OC2PreloadConfig(TIM1, TIM_OCPreload_Enable);
 
-    TIM_Cmd(TIM1, ENABLE);
-    TIM_CtrlPWMOutputs(TIM1, DISABLE);  /* MOE 关 → 安全态, 无输出 */
+    /* 仅配置定时器但不启动, 按ON后再由 Soft_Start_Trigger 统一启动 */
+    TIM_Cmd(TIM1, DISABLE);
+    TIM_CtrlPWMOutputs(TIM1, DISABLE);
+    (void)s_current_freq;  /* 抑制未用警告 */
 }
 
-void Pwm_Driver_Enable(void)  { TIM_CtrlPWMOutputs(TIM1, ENABLE); }
-void Pwm_Driver_Disable(void) { TIM_CtrlPWMOutputs(TIM1, DISABLE); }
+void Pwm_Driver_Enable(void)  { TIM_Cmd(TIM1, ENABLE); TIM_CtrlPWMOutputs(TIM1, ENABLE); }
+void Pwm_Driver_Disable(void) { TIM_CtrlPWMOutputs(TIM1, DISABLE); TIM_Cmd(TIM1, DISABLE); }
 
 uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz)
 {

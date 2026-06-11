@@ -35,6 +35,20 @@ int main(void)
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 
+    /* ── 阶段0: 最早钳位 ESP8266 — RST=0, CH_PD=0, 防止上电浮空误启动 ── */
+    {
+        GPIO_InitTypeDef gpio;
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_GPIOA, ENABLE);
+        gpio.GPIO_Pin   = GPIO_Pin_1;
+        gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
+        gpio.GPIO_Speed = GPIO_Speed_50MHz;
+        GPIO_Init(GPIOA, &gpio);
+        GPIO_ResetBits(GPIOA, GPIO_Pin_1);   /* RST=0 */
+        gpio.GPIO_Pin   = GPIO_Pin_11;
+        GPIO_Init(GPIOB, &gpio);
+        GPIO_ResetBits(GPIOB, GPIO_Pin_11);  /* CH_PD=0 */
+    }
+
     /* ── 阶段1: 硬件层初始化 (MOE 关断, PowerContrl=OFF, 全桥零输出) ── */
     Pwm_Driver_Init();
 
@@ -45,7 +59,7 @@ int main(void)
         gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
         gpio.GPIO_Speed = GPIO_Speed_50MHz;
         GPIO_Init(GPIOB, &gpio);
-        GPIO_ResetBits(GPIOB, GPIO_Pin_10);  /* OFF: 12V 动力电源断开 */
+        GPIO_SetBits(GPIOB, GPIO_Pin_10);     /* 初始拉高=关断, 低电平使能 12V 动力电源 */
     }
 
     Tft_Driver_Init();
@@ -73,8 +87,7 @@ int main(void)
     IWDG_Enable();
     DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;
 
-    /* ── 阶段4: 自动启动联网 (ESP 非阻塞初始化) ── */
-    App_Network_Start_Connect();
+    /* ── 阶段4: 开机默认无WIFI模式, 用户双击ON手动联网 ── */
 
     /* ══════════════════════════════════════════
      *  主循环 — 全非阻塞调度 + __WFI 休眠

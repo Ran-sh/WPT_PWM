@@ -126,7 +126,10 @@
       "WebFetch(domain:kazulog.fun)",
       "Bash(grep *)",
       "Bash(xxd)",
-      "Bash(claude update *)"
+      "Bash(claude update *)",
+      "Bash(cd \"D:\\\\\\\\Claude Code Project\\\\\\\\WPT_PWM_V4.0_ONENET_TFT\\\\\\\\Keil_Project\\\\\\\\Hardware\")",
+      "Bash(sed -i '103,116d' Ui_Controller.c)",
+      "Bash(/c/Users/48376/AppData/Local/Microsoft/WindowsApps/python3 *)"
     ]
   }
 }

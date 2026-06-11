@@ -765,6 +765,16 @@
               <FileType>5</FileType>
               <FilePath>.\Hardware\Esp8266_Driver.h</FilePath>
             </File>
+            <File>
+              <FileName>Energy_Bar.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\Energy_Bar.c</FilePath>
+            </File>
+            <File>
+              <FileName>Energy_Bar.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\Energy_Bar.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

@@ -16,12 +16,14 @@
 static Inverter_Control_Soft_Start_State s_ss_state        = INVERTER_CONTROL_SS_STATE_IDLE;
 static uint32_t s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
 static uint32_t s_ss_last_ms      = 0;
+static Inverter_Control_Ramp_State s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
 
 static void Set_State_Atomic(Inverter_Control_Soft_Start_State new_state)
 {
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
     s_ss_state = new_state;
+    /* 注: s_ss_state 为 uint32_t 对齐枚举, Cortex-M3 单指令原子读写, Get_State 无需禁用 IRQ */
     __set_PRIMASK(primask);
 }
 
@@ -30,6 +32,7 @@ void Inverter_Control_Soft_Start_Trigger(void)
     if (s_ss_state != INVERTER_CONTROL_SS_STATE_IDLE) return;
 
     s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
+    s_ramp_state       = INVERTER_CONTROL_RAMP_IDLE;
     Pwm_Driver_Set_Frequency(s_ss_current_freq);
     Pwm_Driver_Enable();
     s_ss_last_ms = Sys_Timer_Get_Tick();
@@ -66,7 +69,16 @@ void Inverter_Control_Soft_Start_Stop(void)
 void Inverter_Control_Soft_Start_Fault(void)
 {
     Pwm_Driver_Disable();
+    s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
     Set_State_Atomic(INVERTER_CONTROL_SS_STATE_FAULT);
+}
+
+void Inverter_Control_Soft_Start_Reset(void)
+{
+    Pwm_Driver_Disable();
+    s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
+    s_ramp_state       = INVERTER_CONTROL_RAMP_IDLE;
+    Set_State_Atomic(INVERTER_CONTROL_SS_STATE_IDLE);
 }
 
 Inverter_Control_Soft_Start_State Inverter_Control_Soft_Start_Get_State(void)
@@ -84,7 +96,6 @@ uint32_t Inverter_Control_Soft_Start_Get_Current_Freq(void)
  * ═══════════════════════════════════════════════════════════════ */
 
 static uint32_t                    s_ramp_target  = 0;
-static Inverter_Control_Ramp_State s_ramp_state   = INVERTER_CONTROL_RAMP_IDLE;
 static uint32_t s_ramp_last_ms  = 0;
 
 void Inverter_Control_Freq_Ramp_Trigger(uint32_t target_hz)

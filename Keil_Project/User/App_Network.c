@@ -18,10 +18,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define APP_NETWORK_CONNECT_TIMEOUT_MS  15000
+#define APP_NETWORK_CONNECT_TIMEOUT_MS   8000
 #define APP_NETWORK_MAX_RETRIES           3
 #define APP_NETWORK_TELEMETRY_PERIOD_MS  500
-#define APP_NETWORK_HEARTBEAT_TIMEOUT_MS 30000   /* 30s 无串口帧则判定离线 */
 
 static App_Network_Conn_State s_conn_state    = APP_NETWORK_CONN_IDLE;
 static uint8_t                s_retry_count   = 0;
@@ -39,10 +38,9 @@ uint8_t App_Network_Start_Connect(void)
 
 uint8_t App_Network_Soft_Reset(void)
 {
-    s_conn_state    = APP_NETWORK_CONN_WIFI;
+    /* 仅重置网络状态为 IDLE, 不重启硬件 — 用于进入无WIFI模式 */
+    s_conn_state    = APP_NETWORK_CONN_IDLE;
     s_retry_count   = 0;
-    s_connect_start = Sys_Timer_Get_Tick();
-    Esp8266_Driver_Start_Init();
     Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     return 0;
 }
@@ -74,6 +72,8 @@ static void Check_Retry(void)
             s_connect_start = Sys_Timer_Get_Tick();
             Esp8266_Driver_Start_Init();
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+        } else {
+            s_conn_state = APP_NETWORK_CONN_FAILED;
         }
     }
 }
@@ -87,45 +87,36 @@ void App_Network_Task(void)
 
     Check_Retry();
 
-    /* ── ESP离线检测: ONLINE状态下超过30s无帧→回退为WIFI状态重新初始化 ── */
-    {
-        static uint32_t last_frame_ms = 0;
-        if (s_conn_state == APP_NETWORK_CONN_ONLINE) {
-            if (Esp8266_Driver_Get_Rx_Flag()) {
-                last_frame_ms = Sys_Timer_Get_Tick();
-            } else if (Sys_Timer_Get_Tick() - last_frame_ms >= APP_NETWORK_HEARTBEAT_TIMEOUT_MS) {
-                s_conn_state = APP_NETWORK_CONN_WIFI;
-                s_retry_count = 0;
-                s_connect_start = Sys_Timer_Get_Tick();
-                Esp8266_Driver_Start_Init();
-                Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
-            }
-        } else {
-            last_frame_ms = Sys_Timer_Get_Tick();
-        }
-    }
-
     /* ── 指令接收 ── */
     if (Esp8266_Driver_Get_Rx_Flag()) {
-        char local_buf[64];
+        char local_buf[128];
+        const char* p;
         Esp8266_Driver_Copy_Rx_Frame(local_buf, sizeof(local_buf));
 
         if (strstr(local_buf, "STATUS:ONLINE")) {
             s_conn_state = APP_NETWORK_CONN_ONLINE;
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
         }
-        else if (strstr(local_buf, "CMD:ON")) {
-            if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE)
-                Inverter_Control_Soft_Start_Trigger();
+        else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')) {
+            if (!Ui_Controller_Is_No_WiFi_Mode()) {
+                Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
+                if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE)
+                    Inverter_Control_Soft_Start_Stop();
+            }
         }
-        else if (strstr(local_buf, "CMD:OFF")) {
-            Inverter_Control_Soft_Start_Stop();
+        else if ((p = strstr(local_buf, "CMD:ON")) != 0   && (p[6] == '\0' || p[6] == '\r' || p[6] == '\n')) {
+            if (!Ui_Controller_Is_No_WiFi_Mode()) {
+                if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE)
+                    Inverter_Control_Soft_Start_Trigger();
+            }
         }
-        else if (strstr(local_buf, "CMD:SETFREQ:")) {
-            if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE) {
-                long f = atol(local_buf + 12);
-                if (f >= PWM_DRIVER_FREQ_MIN_HZ && f <= PWM_DRIVER_FREQ_MAX_HZ)
-                    Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);
+        else if ((p = strstr(local_buf, "CMD:SETFREQ:")) != 0) {
+            if (!Ui_Controller_Is_No_WiFi_Mode()) {
+                if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE) {
+                    long f = atol(p + 12);
+                    if (f >= PWM_DRIVER_FREQ_MIN_HZ && f <= PWM_DRIVER_FREQ_MAX_HZ)
+                        Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);
+                }
             }
         }
     }

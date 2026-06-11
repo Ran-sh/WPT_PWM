@@ -42,6 +42,7 @@ void     Inverter_Control_Soft_Start_Trigger(void);
 void     Inverter_Control_Soft_Start_Task(void);
 void     Inverter_Control_Soft_Start_Stop(void);
 void     Inverter_Control_Soft_Start_Fault(void);
+void     Inverter_Control_Soft_Start_Reset(void);
 Inverter_Control_Soft_Start_State Inverter_Control_Soft_Start_Get_State(void);
 uint32_t Inverter_Control_Soft_Start_Get_Current_Freq(void);
 
