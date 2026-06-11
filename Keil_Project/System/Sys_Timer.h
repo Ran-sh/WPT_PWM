@@ -20,10 +20,17 @@
 
 #include "stm32f10x.h"
 
+/** @brief 初始化 SysTick 1ms + DWT 72MHz 周期计数器 (全局时基) */
 void     Sys_Timer_Init(void);
-void     Sys_Timer_Inc_Tick(void);          /* ISR 内调用, 禁止用户代码直接调用 */
-uint32_t Sys_Timer_Get_Tick(void);          /* 毫秒时间戳, 32 位无符号, 约 49.7 天回绕 */
-uint32_t Sys_Timer_Get_Cycles(void);        /* DWT CPU 周期计数, 亚毫秒定时专用 */
-void     Sys_Timer_Delay_Ms(uint32_t ms);   /* [已弃用] 阻塞延时, 仅允许在初始化阶段使用 */
+/** @brief SysTick ISR 内部递增 tick (禁止用户代码调用) */
+void     Sys_Timer_Inc_Tick(void);
+/** @brief 获取毫秒时间戳 (32位无符号, ~49.7天回绕) */
+uint32_t Sys_Timer_Get_Tick(void);
+/** @brief 获取 DWT CPU 周期计数 (亚毫秒精确定时) */
+uint32_t Sys_Timer_Get_Cycles(void);
+/** @brief [已弃用] 阻塞毫秒延时 (仅允许初始化阶段)
+ *  @param ms 延时毫秒数 (阻塞期间不喂狗, >1600ms 将触发 IWDG 复位)
+ */
+void     Sys_Timer_Delay_Ms(uint32_t ms);
 
 #endif /* SYS_TIMER_H */

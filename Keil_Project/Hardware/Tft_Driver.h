@@ -36,21 +36,30 @@
 #define TFT_FONT_WIDTH        8
 #define TFT_FONT_HEIGHT       16
 
+/** @brief 初始化 ST7735 TFT (硬件复位+寄存器序列+背光 PWM) */
 void Tft_Driver_Init(void);
+/** @brief 全屏填充单色 */
 void Tft_Driver_Clear(uint16_t color);
-void Tft_Driver_Set_Backlight(uint8_t brightness);   /* 0~255 */
+/** @brief 设置背光亮度 (0=灭, 255=最亮, TIM4_CH1 PWM) */
+void Tft_Driver_Set_Backlight(uint8_t brightness);
 
+/** @brief 在指定行列绘制一个 ASCII 字符 (8x16) */
 void Tft_Driver_Show_Char(uint8_t line, uint8_t column, char ch,
                           uint16_t fg_color, uint16_t bg_color);
+/** @brief 绘制 ASCII 字符串 (自动换行截断) */
 void Tft_Driver_Show_String(uint8_t line, uint8_t column, const char* str,
                             uint16_t fg_color, uint16_t bg_color);
+/** @brief 绘制无符号整数 (右对齐, 前导空格) */
 void Tft_Driver_Show_Num(uint8_t line, uint8_t column, uint32_t num,
                          uint8_t len, uint16_t fg_color, uint16_t bg_color);
+/** @brief 绘制浮点数 (右对齐, 指定整数和小数位数) */
 void Tft_Driver_Show_Float(uint8_t line, uint8_t column, float num,
                            uint8_t int_len, uint8_t fract_len,
                            uint16_t fg_color, uint16_t bg_color);
+/** @brief 绘制中英文混合字符串 (自动识别 UTF-8 + ASCII) */
 void Tft_Driver_Show_CN_String(uint8_t line, uint8_t column, const char* str,
                               uint16_t fg_color, uint16_t bg_color);
+/** @brief 像素级填充矩形 (坐标+宽高, 含边界裁剪) */
 void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
 
 #endif /* TFT_DRIVER_H */
