@@ -575,8 +575,8 @@ void Ui_Controller_Task(void)
             Tft_Driver_Show_CN_String(4, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(6, Right("\xe5\x8f\x8c\xe5\x87\xbbON" "\xe8\xbf\x9e\xe6\x8e\xa5WIFI"),
                 "\xe5\x8f\x8c\xe5\x87\xbbON" "\xe8\xbf\x9e\xe6\x8e\xa5WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
-            Tft_Driver_Show_CN_String(7, Right("\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI"),
-                "\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(7, Right("PAGE:" "\xe6\x97\xa0WIFI" "\xe8\xb0\x83\xe8\xaf\x95"),   /* PAGE:无WIFI调试 */
+                "PAGE:" "\xe6\x97\xa0WIFI" "\xe8\xb0\x83\xe8\xaf\x95", UI_COLOR_TEXT, UI_COLOR_BG);
             break;
         }
         case UI_CONTROLLER_STATE_CONNECTING:
@@ -588,6 +588,8 @@ void Ui_Controller_Task(void)
                     retry > 0 ? retry : 1, 3);
                 Tft_Driver_Show_CN_String(4, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
             }
+            Tft_Driver_Show_CN_String(7, Right("\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI"),
+                "\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
             break;
         case UI_CONTROLLER_STATE_FAILED: {
             char buf[21];
@@ -601,7 +603,8 @@ void Ui_Controller_Task(void)
             Tft_Driver_Show_CN_String(4, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(5, Right(S_LONG_CLEAR), S_LONG_CLEAR, UI_COLOR_OK, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(6, Right("\xe5\x8f\x8c\xe5\x87\xbbON" S_RECONN), "\xe5\x8f\x8c\xe5\x87\xbbON" S_RECONN, UI_COLOR_TEXT, UI_COLOR_BG);
-            Tft_Driver_Show_CN_String(7, Right("\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI"), "\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(7, Right("PAGE:" "\xe6\x97\xa0WIFI" "\xe8\xb0\x83\xe8\xaf\x95"),   /* PAGE:无WIFI调试 */
+                "PAGE:" "\xe6\x97\xa0WIFI" "\xe8\xb0\x83\xe8\xaf\x95", UI_COLOR_TEXT, UI_COLOR_BG);
             break;
         }
         case UI_CONTROLLER_STATE_READY:
