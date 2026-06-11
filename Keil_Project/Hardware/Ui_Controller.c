@@ -568,7 +568,7 @@ void Ui_Controller_Task(void)
         case UI_CONTROLLER_STATE_INIT: {
             char buf[21];
             Tft_Driver_Show_CN_String(0, Center(S_LAUNCH), S_LAUNCH, UI_COLOR_TITLE, UI_COLOR_BG);
-            Tft_Driver_Show_CN_String(2, Center(S_WIFI_NO), S_WIFI_NO, UI_COLOR_TEXT, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(2, Center(Get_WiFi_Str()), Get_WiFi_Str(), Get_WiFi_Color(), UI_COLOR_BG);
             Fmt_V(buf, Adc_Driver_Get_Voltage());
             Tft_Driver_Show_CN_String(3, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
             Fmt_I(buf, Adc_Driver_Get_Current());
@@ -598,7 +598,7 @@ void Ui_Controller_Task(void)
             Tft_Driver_Show_CN_String(0, Center(S_LAUNCH), S_LAUNCH, UI_COLOR_TITLE, UI_COLOR_BG);
             snprintf(buf, sizeof(buf), "FAILED[x%d]", App_Network_Get_Retry_Count());
             Tft_Driver_Show_CN_String(1, Center(buf), buf, UI_COLOR_ALARM, UI_COLOR_BG);
-            Tft_Driver_Show_CN_String(2, Center(S_WIFI_NO), S_WIFI_NO, UI_COLOR_ALARM, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(2, Center(Get_WiFi_Str()), Get_WiFi_Str(), Get_WiFi_Color(), UI_COLOR_BG);
             Fmt_V(buf, Adc_Driver_Get_Voltage());
             Tft_Driver_Show_CN_String(3, 1, buf, UI_COLOR_TEXT, UI_COLOR_BG);
             Fmt_I(buf, Adc_Driver_Get_Current());
