@@ -140,14 +140,14 @@ void App_Network_Task(void)
                 char json_buf[80];
                 if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
                     snprintf(json_buf, sizeof(json_buf),
-                             "{\"V\":%.2f,\"I\":%.2f,\"F\":%lu,\"S\":%d}\n",
+                             "{\"V\":%.2f,\"I\":%.3f,\"F\":%lu,\"S\":%d}\n",
                              Adc_Driver_Get_Voltage(),
                              Adc_Driver_Get_Current(),
                              (unsigned long)Pwm_Driver_Get_Frequency(),
                              (int)ss);
                 } else {
                     snprintf(json_buf, sizeof(json_buf),
-                             "{\"V\":0.00,\"I\":0.00,\"F\":%lu,\"S\":%d}\n",
+                             "{\"V\":0.00,\"I\":0.000,\"F\":%lu,\"S\":%d}\n",
                              (unsigned long)Pwm_Driver_Get_Frequency(),
                              (int)ss);
                 }

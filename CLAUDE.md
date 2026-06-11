@@ -86,7 +86,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | PA6 | TFT_DC | PB7 | F_DOWN 按键 (IPU, 低有效) |
 | PA7 | SPI1_MOSI | PB8 | F_UP 按键 (IPU, 低有效) |
 | PA8 | TIM1_CH1 | PB9 | ON/OFF 按键 (IPU, 低有效) |
-| PA9 | TIM1_CH2 | PB10 | PowerContrl (低=使能12V, 高=关断) |
+| PA9 | TIM1_CH2 | PB10 | PowerContrl (高=使能12V, 低=关断) |
 | PA10 | LED_COM | PB11 | ESP8266 CH_PD (EN) |
 | PA11 | LED_POWER | PB13 | TIM1_CH1N |
 | PA12 | LED_TEMP | PB14 | TIM1_CH2N |
@@ -279,7 +279,7 @@ while (1) {
   - `Adc_Driver_Get_Voltage() > 12V` → 拉低使能
   - `Adc_Driver_Get_Voltage() ≤ 12V` → 拉高关断
 - **POWER LED**: 与 PB10 同步, >12V 亮
-- **上电初始**: PB10 拉高 (关断 12V, 安全态)
+- **上电初始**: PB10 拉低 (关断 12V, 安全态)
 
 ## UI 状态机 (V9)
 
@@ -520,9 +520,9 @@ typedef char assertion[(condition) ? 1 : -1];
 
 - **故障处理**: Fault → 关 PWM (MOE+计数器) → 锁存 FAULT 状态 → 停止扫频任务
 - **FAULT 恢复**: 单击 ON/OFF → `Soft_Start_Reset()` → 回到 READY
-- **PB10**: 高关断/低使能 12V。仅受电压阈值(>12V)控制, 与PWM独立
+- **PB10**: 高使能/低关断 12V。仅受电压阈值(>12V)控制, 与PWM独立
 - **过流保护**: 每 200ms 用 EMA 平滑值检查 > 5.0A → Fault + Buzzer BEEP
-- **上电安全**: 开机默认无WIFI, TIM1 全关(CEN+MOE), PB10 拉高关12V
+- **上电安全**: 开机默认无WIFI, TIM1 全关(CEN+MOE), PB10 拉低关12V
 - **看门狗**: IWDG, LSI 40kHz/64, reload=1000 → 1.6s, `DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP` 调试时暂停
 - **HardFault**: 所有故障 ISR 先关 PWM 再死循环
 - **启动流程**: 上电→阶段0 钳位 ESP → PWM/TFT/LED/Buzzer/ADC/Key 初始化 → SysTick → IWDG → 主循环
@@ -618,7 +618,7 @@ void HardFault_Handler(void) {
 | **MEDIUM** | 心跳超时离线检测误判 | `App_Network.c` | 完全移除 (ESP 无心跳帧) |
 | **LOW** | `PWM_DRIVER_OCNIdleState` = Set 导致开机下管导通 | `Pwm_Driver.c` | 改为 Reset (下管也关断) |
 | **LOW** | TIM1 开机计数器+MOE 全关 | `Pwm_Driver.c` | `TIM_Cmd(DISABLE)`, Enable 时同时开 |
-| **LOW** | PB10 初始拉低=误开 12V | `main.c` | 初始拉高关断 |
+| **LOW** | PB10 初始拉高=误开 12V | `main.c` | 初始拉低关断 |
 | **LOW** | "模"不在字库 | `TFT_CN_Font.h` | 保留索引29已有字模 |
 | **LOW** | `Adc_Driver_Calibrate_Offset` 死代码 | `Adc_Driver.h` | 加注释说明固定 1.65V 零点 |
 | **LOW** | `s_last_page` 未随 `s_last_state` 重置 | `Ui_Controller.c` | 统一设为 0xFF |

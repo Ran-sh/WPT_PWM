@@ -179,20 +179,21 @@ static void Update_EMA(void)
     }
 }
 
-/* 格式化电压: "电压V:xx.xxV", 自动取绝对值 */
+/* 格式化电压: "电压V:000.00V", 定宽5位 (前导零) */
 static void Fmt_V(char* buf, float v)
 {
-    int32_t x = (int32_t)(v * 100.0f + 0.5f);
-    if (x < 0) x = -x;
-    snprintf(buf, 21, S_VOLTAGE "V:%2d.%02dV", (int)(x/100), (int)(x%100));
+    int x = (int)(v * 100.0f + 0.5f);
+    if (x < 0) x = 0;
+    if (x > 99999) x = 99999;
+    snprintf(buf, 21, S_VOLTAGE "V:%03d.%02dV", x/100, x%100);
 }
-/* 格式化电流: "电流I:+x.xxA", 自动判定正负号 */
+/* 格式化电流: "电流I:+0.000A", 3位小数, 自动判定正负号 */
 static void Fmt_I(char* buf, float c)
 {
-    int32_t x = (int32_t)(c * 100.0f + 0.5f);
     char sign = (c < 0) ? '-' : '+';
-    x = (x < 0) ? -x : x;
-    snprintf(buf, 21, S_CURRENT "I:%c%1d.%02dA", sign, (int)(x/100), (int)(x%100));
+    float v = (c < 0) ? -c : c;
+    int x = (int)(v * 1000.0f + 0.5f);
+    snprintf(buf, 21, S_CURRENT "I:%c%d.%03dA", sign, (int)(x/1000), (int)(x%1000));
 }
 /* 格式化频率: "频率F:xxx.xkHz" */
 static void Fmt_F(char* buf, float f)
@@ -284,9 +285,7 @@ static void Draw_Sweep_Main(void)
         Draw_Header(S_MON_CURR);
         {
             char ibuf[21];
-            int i_int = (int)s_ema_i;
-            int i_dec = (int)((s_ema_i - i_int + 0.5f) * 100);
-            snprintf(ibuf, sizeof(ibuf), S_CURRENT "I:%1d.%02dA", i_int, i_dec);
+            Fmt_I(ibuf, s_ema_i);
             Tft_Driver_Show_CN_String(2, Center(ibuf), ibuf, UI_COLOR_VALUE, UI_COLOR_BG);
         }
         {
@@ -605,14 +604,14 @@ void Ui_Controller_Task(void)
 
     s_ui_state = ui_state;
 
-    /* PB10 PowerContrl: 仅受电压控制, 低=使能12V, 高=关断. 与PWM开关独立 */
+    /* PB10 PowerContrl: 仅受电压控制, 高=使能12V, 低=关断. 与PWM开关独立 */
     {
         static uint8_t s_last_pwr = 0xFF;
         uint8_t pwr_on = (Adc_Driver_Get_Voltage() > UI_POWER_V_THRESHOLD_V);
         if (pwr_on != s_last_pwr) {
             s_last_pwr = pwr_on;
-            if (pwr_on) GPIO_ResetBits(GPIOB, GPIO_Pin_10);  /* 电压>12V, 拉低=开12V */
-            else        GPIO_SetBits(GPIOB, GPIO_Pin_10);     /* 电压≤12V, 拉高=关12V */
+            if (pwr_on) GPIO_SetBits(GPIOB, GPIO_Pin_10);     /* 电压>12V, 拉高=开12V */
+            else        GPIO_ResetBits(GPIOB, GPIO_Pin_10);   /* 电压≤12V, 拉低=关12V */
         }
     }
 

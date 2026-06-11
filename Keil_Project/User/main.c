@@ -49,7 +49,7 @@ int main(void)
         GPIO_ResetBits(GPIOB, GPIO_Pin_11);  /* CH_PD=0 */
     }
 
-    /* ── 阶段1: 硬件层初始化 — TIM1 全关(MOE+CEN), PB10 拉高关 12V, 全桥零输出, TFT 显示启动页 ── */
+    /* ── 阶段1: 硬件层初始化 — TIM1 全关(MOE+CEN), PB10 拉低关 12V, 全桥零输出, TFT 显示启动页 ── */
     Pwm_Driver_Init();
 
     {
@@ -59,7 +59,7 @@ int main(void)
         gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
         gpio.GPIO_Speed = GPIO_Speed_50MHz;
         GPIO_Init(GPIOB, &gpio);
-        GPIO_SetBits(GPIOB, GPIO_Pin_10);     /* 初始拉高=关断, 低电平使能 12V 动力电源 */
+        GPIO_ResetBits(GPIOB, GPIO_Pin_10);   /* 初始拉低=关断, 高电平使能 12V 动力电源 */
     }
 
     Tft_Driver_Init();

@@ -1,9 +1,10 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 1.8寸 128x160 TFT — 已验证初始化 (Green Tab)
+ * @brief   ST7735 1.8寸 128x160 TFT — SPI1+DMA 硬件加速版
  *          PA5=SCK PA7=MOSI PA4=CS PA6=DC PA0=RST PB6=BL
  *          SPI1 Mode3 (CPOL=High, CPHA=2Edge), 横屏 160x128, MADCTL=0xA0
+ *          DMA1_Channel3 用于 16位大块填充, WrCmd/WrDat 保持 8位轮询
  ******************************************************************************
  */
 
@@ -21,11 +22,21 @@
 #define TFT_DC_CMD()   GPIO_ResetBits(GPIOA, TFT_DRIVER_DC_PIN)
 #define TFT_DC_DATA()  GPIO_SetBits(GPIOA, TFT_DRIVER_DC_PIN)
 
+/* DMA 传输上限: 单次最多 65535 个 16位像素 (约 128KB), ST7735 160x128=20480 足够 */
+#define TFT_DMA_MAX_PIXELS  65535
+
+/* ── DMA 填充状态机 ── */
+static uint8_t s_dma_configured = 0;
+
 static void dly(uint32_t us)
 {
     volatile uint32_t i;
     for (i = 0; i < us * 9; i++) __NOP();
 }
+
+/* ═══════════════════════════════════════════════════════════════
+ *  8位基础通信 (保持轮询, 用于指令和少量数据)
+ * ═══════════════════════════════════════════════════════════════ */
 
 /* 写 SPI 命令字节 (DC=0) */
 static void WrCmd(uint8_t c)
@@ -45,7 +56,7 @@ static void WrDat(uint8_t d)
     TFT_CS_HIGH();
 }
 
-/* 写 RGB565 16 位像素 (DC=1, MSB first) */
+/* 写 RGB565 16 位像素 (DC=1, MSB first) — 小批量逐个发送仍用轮询 */
 static void WrD16(uint16_t d)
 {
     TFT_DC_DATA(); TFT_CS_LOW();
@@ -54,6 +65,82 @@ static void WrD16(uint16_t d)
     SPI_I2S_SendData(SPI1, (uint8_t)d);
     while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));
     TFT_CS_HIGH();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  DMA 初始化 — 一次性配置, 仅配通道参数, 不启动
+ * ═══════════════════════════════════════════════════════════════ */
+
+static void Tft_DMA_Init(void)
+{
+    DMA_InitTypeDef dma;
+
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+
+    DMA_DeInit(DMA1_Channel3);
+    dma.DMA_PeripheralBaseAddr = (uint32_t)&SPI1->DR;
+    dma.DMA_MemoryBaseAddr     = 0;               /* 运行时动态设置 */
+    dma.DMA_DIR                = DMA_DIR_PeripheralDST;
+    dma.DMA_BufferSize         = 0;               /* 运行时动态设置 */
+    dma.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
+    dma.DMA_MemoryInc          = DMA_MemoryInc_Disable;  /* 关键: 同一颜色值反复发送 */
+    dma.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+    dma.DMA_MemoryDataSize     = DMA_MemoryDataSize_HalfWord;
+    dma.DMA_Mode               = DMA_Mode_Normal;
+    dma.DMA_Priority           = DMA_Priority_High;
+    dma.DMA_M2M                = DMA_M2M_Disable;
+    DMA_Init(DMA1_Channel3, &dma);
+
+    s_dma_configured = 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  DMA 16位单色连续填充 — 零显存, 同一颜色值泵入 SPI1
+ *
+ *  流程: 停 SPI → 切 16bit → 重开 SPI → 配 DMA 地址/长度
+ *        → 使能 DMA → DC=DATA + CS=LOW → SPI TX DMA 使能
+ *        → 阻塞等 TC3 → 关 SPI TX DMA → CS=HIGH
+ *        → 停 SPI → 恢复 8bit → 重开 SPI
+ * ═══════════════════════════════════════════════════════════════ */
+
+static void Tft_DMA_Fill(uint32_t pixel_count, uint16_t color)
+{
+    if (pixel_count == 0) return;
+    if (pixel_count > TFT_DMA_MAX_PIXELS) pixel_count = TFT_DMA_MAX_PIXELS;
+
+    if (!s_dma_configured) Tft_DMA_Init();
+
+    /* 1. 停 SPI1, 切换为 16 位数据帧 */
+    SPI_Cmd(SPI1, DISABLE);
+    SPI1->CR1 &= ~SPI_CR1_DFF;           /* 清 DFF → 8bit (先清再写) */
+    SPI1->CR1 |= SPI_CR1_DFF;            /* DFF=1 → 16bit */
+    SPI_Cmd(SPI1, ENABLE);
+
+    /* 2. 配置 DMA 通道: 内存地址=颜色变量地址, 不自增 */
+    DMA_Cmd(DMA1_Channel3, DISABLE);
+    DMA1_Channel3->CMAR  = (uint32_t)&color;
+    DMA1_Channel3->CNDTR = (uint16_t)pixel_count;
+    DMA_Cmd(DMA1_Channel3, ENABLE);
+
+    /* 3. 拉低 CS, DC=DATA, 使能 SPI TX DMA */
+    TFT_DC_DATA();
+    TFT_CS_LOW();
+    SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, ENABLE);
+
+    /* 4. 阻塞等待 DMA 传输完成 */
+    while (DMA_GetFlagStatus(DMA1_FLAG_TC3) == RESET);
+    DMA_ClearFlag(DMA1_FLAG_TC3);
+
+    /* 5. 关闭 SPI TX DMA, 拉高 CS */
+    SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
+    DMA_Cmd(DMA1_Channel3, DISABLE);
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));  /* 等最后一帧发完 */
+    TFT_CS_HIGH();
+
+    /* 6. 恢复 SPI1 为 8 位模式 */
+    SPI_Cmd(SPI1, DISABLE);
+    SPI1->CR1 &= ~SPI_CR1_DFF;
+    SPI_Cmd(SPI1, ENABLE);
 }
 
 /* 设置 ST7735 绘图窗口 (CASET+RASET+RAMWR), 含横屏面板物理偏移 X+1/Y+2 */
@@ -213,9 +300,8 @@ void Tft_Driver_Init(void)
 
 void Tft_Driver_Clear(uint16_t color)
 {
-    uint32_t n, total = (uint32_t)TFT_WIDTH * TFT_HEIGHT;
     SetWin(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
-    for (n = 0; n < total; n++) WrD16(color);
+    Tft_DMA_Fill((uint32_t)TFT_WIDTH * TFT_HEIGHT, color);
 }
 
 void Tft_Driver_Set_Backlight(uint8_t v)
@@ -225,13 +311,14 @@ void Tft_Driver_Set_Backlight(uint8_t v)
 
 void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
 {
-    uint32_t n, total;
+    uint32_t total;
     if (x >= TFT_WIDTH || y >= TFT_HEIGHT) return;
     if (x + w > TFT_WIDTH)  w = TFT_WIDTH  - x;
     if (y + h > TFT_HEIGHT) h = TFT_HEIGHT - y;
     total = (uint32_t)w * h;
+    if (total == 0) return;
     SetWin(x, y, x + w - 1, y + h - 1);
-    for (n = 0; n < total; n++) WrD16(color);
+    Tft_DMA_Fill(total, color);
 }
 
 /* ═══════════════════════════════════
