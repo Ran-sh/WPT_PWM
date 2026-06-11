@@ -121,16 +121,18 @@ static void Show_Fill(uint8_t line, uint8_t col, const char* s, uint16_t fg, uin
 static const char* Get_WiFi_Str(void)
 {
     if (s_no_wifi_mode) return S_NO_WIFI;
+    if (!Esp8266_Driver_Is_Ready()) return S_WIFI_NO;
     uint8_t cs = App_Network_Get_Connect_Status();
-    if (cs == APP_NETWORK_CONN_ONLINE && App_Network_Is_Connected()) return S_WIFI_OK;
+    if (cs == APP_NETWORK_CONN_ONLINE) return S_WIFI_OK;
     return S_WIFI_NO;
 }
 
 static uint16_t Get_WiFi_Color(void)
 {
     if (s_no_wifi_mode) return UI_COLOR_ALARM;
+    if (!Esp8266_Driver_Is_Ready()) return UI_COLOR_ALARM;
     uint8_t cs = App_Network_Get_Connect_Status();
-    if (cs == APP_NETWORK_CONN_ONLINE && App_Network_Is_Connected()) return UI_COLOR_OK;
+    if (cs == APP_NETWORK_CONN_ONLINE) return UI_COLOR_OK;
     return UI_COLOR_ALARM;
 }
 
