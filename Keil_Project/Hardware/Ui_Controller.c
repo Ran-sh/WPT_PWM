@@ -406,11 +406,13 @@ static void Handle_Keys(Ui_Controller_State ui_state,
         return;
     }
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
-        /* PAGE单击 = 切子页 (扫频/运行状态) */
+        /* PAGE单击 = 切子页 (扫频/运行) 或 FAILED→进入无WIFI调试模式 */
         if (ui_state == UI_CONTROLLER_STATE_SWEEPING || ui_state == UI_CONTROLLER_STATE_RUNNING) {
             s_page = (s_page + 1) % 4;
-            Tft_Driver_Clear(UI_COLOR_BG);
+        } else if (ui_state == UI_CONTROLLER_STATE_FAILED) {
+            s_no_wifi_mode = 1;
         }
+        Tft_Driver_Clear(UI_COLOR_BG);
         return;
     }
     /* PAGE双击 → 综合监测 */
