@@ -125,7 +125,8 @@
       "WebFetch(domain:blog.csdn.net)",
       "WebFetch(domain:kazulog.fun)",
       "Bash(grep *)",
-      "Bash(xxd)"
+      "Bash(xxd)",
+      "Bash(claude update *)"
     ]
   }
 }
