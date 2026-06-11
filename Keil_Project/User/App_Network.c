@@ -87,6 +87,24 @@ void App_Network_Task(void)
 
     Check_Retry();
 
+    /* ── ESP离线检测: ONLINE状态下超过30s无帧→回退为WIFI状态重新初始化 ── */
+    {
+        static uint32_t last_frame_ms = 0;
+        if (s_conn_state == APP_NETWORK_CONN_ONLINE) {
+            if (Esp8266_Driver_Get_Rx_Flag()) {
+                last_frame_ms = Sys_Timer_Get_Tick();
+            } else if (Sys_Timer_Get_Tick() - last_frame_ms >= APP_NETWORK_HEARTBEAT_TIMEOUT_MS) {
+                s_conn_state = APP_NETWORK_CONN_WIFI;
+                s_retry_count = 0;
+                s_connect_start = Sys_Timer_Get_Tick();
+                Esp8266_Driver_Start_Init();
+                Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+            }
+        } else {
+            last_frame_ms = Sys_Timer_Get_Tick();
+        }
+    }
+
     /* ── 指令接收 ── */
     if (Esp8266_Driver_Get_Rx_Flag()) {
         char local_buf[64];
