@@ -18,7 +18,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. 全面代码审查，修复发现的问题
 2. `/init` — 重新生成 CLAUDE.md（包含完整画面布局 + 编码规范 + 架构 + 安全基线）
-3. `git push` 推送当前分支 (4.0TFT)
+3. 更新 README.md（同步最新版本信息）
+4. `git push` 推送当前分支 (4.0TFT)
+
+**执行期间**: 全部权限自动通过，不中断等待用户确认。
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
@@ -483,6 +486,107 @@ typedef char assertion[(condition) ? 1 : -1];
 - **上电安全**: 开机默认无WIFI, TIM1 全关(CEN+MOE), PB10 拉高关12V
 - **看门狗**: IWDG, LSI 40kHz/64, reload=1000 → 1.6s, `DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP` 调试时暂停
 - **HardFault**: 所有故障 ISR 先关 PWM 再死循环
+- **启动流程**: 上电→阶段0 钳位 ESP → PWM/TFT/LED/Buzzer/ADC/Key 初始化 → SysTick → IWDG → 主循环
+- **低功耗**: 主循环末尾 `__WFI()` 休眠, SysTick 唤醒
+
+## PWM 频率量化表
+
+TIM1_CLK = 72MHz。Up 计数模式: `f_actual = 72MHz / ticks`, ticks 强制偶数 (防 DC 偏磁)。
+
+| 目标 kHz | ticks | 实际 Hz | 实际 kHz | 误差 |
+|:---|:---|:---|:---|---:|
+| 95 | 758 | 94,987 | 94.99 | -0.01% |
+| 100 | 720 | 100,000 | 100.00 | 0.00% |
+| 105 | 684 | 105,263 | 105.26 | +0.25% |
+| 110 | 654 | 110,092 | 110.09 | +0.08% |
+| 115 | 626 | 115,016 | 115.02 | +0.01% |
+| 120 | 600 | 120,000 | 120.00 | 0.00% |
+| 125 | 576 | 125,000 | 125.00 | 0.00% |
+| 130 | 554 | 129,963 | 129.96 | -0.03% |
+| 135 | 534 | 134,831 | 134.83 | -0.13% |
+| 140 | 514 | 140,078 | 140.08 | +0.06% |
+| 145 | 496 | 145,161 | 145.16 | +0.11% |
+| 150 | 480 | 150,000 | 150.00 | 0.00% |
+
+**要点**: 硬件整数分频 → 并非所有 kHz 值可达 → 频率斜坡使用容差收敛 (`|diff| ≤ 1000Hz`)。
+
+## ADC 互质相位采样 (Anti-Aliasing)
+
+```
+DWT 采样周期 = 144241 CPU 周期
+PWM 周期 = 720 CPU 周期 (72MHz / 100kHz)
+
+互质性: gcd(144241, 720) → ... → gcd = 1 ✓
+
+采样在 720 个不同 PWM 相位均匀分布
+→ 64 样本滑动窗口 (128ms) 收敛至 DC 分量
+→ 有效抑制 100kHz 开关纹波
+```
+
+**编译期保护**: `typedef char Adc_Driver_Assert_HSE_72MHz[(SystemCoreClock == 72000000) ? 1 : -1]`
+
+## 中断服务
+
+### NVIC 配置
+- **优先级分组**: `NVIC_PriorityGroup_2` (2 位抢占 + 2 位子优先级)
+- **USART2**: 抢占 1, 子 0
+
+### SysTick_Handler (每 1ms)
+```c
+void SysTick_Handler(void) {
+    Sys_Timer_Inc_Tick();  // 仅递增 s_sys_tick, 无任何业务逻辑
+}
+```
+
+### USART2_IRQHandler
+```
+USART2_IRQHandler → ORE溢出检查 (读DR清标志, 防ISR死锁)
+                  → RXNE → Esp8266_Driver_Rx_Char(ch)
+                  → 拼接行缓冲, \r/\n 触发帧标志
+```
+
+### HardFault 保护
+所有故障 Handler (`HardFault/MemManage/BusFault/UsageFault`) 先关 PWM 再死循环:
+```c
+void HardFault_Handler(void) {
+    TIM_CtrlPWMOutputs(TIM1, DISABLE);  // ← 先关桥臂!
+    while(1);  // 等 IWDG 复位
+}
+```
+
+## V8→V9 代码审查修复清单
+
+| 级别 | 问题 | 文件 | 修复 |
+|:---|:---|:---|:---|
+| **CRITICAL** | `CMD:SETFREQ:` 硬编码偏移 `+12` | `App_Network.c` | 用 `strstr` 返回值计算偏移 |
+| **CRITICAL** | `CMD:ON`/`CMD:OFF` 模糊匹配 | `App_Network.c` | 加分隔符 `\0`/`\r`/`\n` 检查 |
+| **HIGH** | FAULT 状态无恢复路径 | `Inverter_Control.c` | 新增 `Soft_Start_Reset()` + FAULT 按键复位 |
+| **HIGH** | 频率斜坡状态未清理 | `Inverter_Control.c` | Stop/Fault/Trigger 均重置 `s_ramp_state` |
+| **HIGH** | `App_Network_Start_Connect`/`Soft_Reset` 功能相同 | `App_Network.c` | `Soft_Reset` 改为仅重置状态, 不启动硬件 |
+| **HIGH** | `CMD:OFF` 无状态前置, 可远程清除 FAULT | `App_Network.c` | 仅允许 SWEEP/DONE 状态执行 |
+| **HIGH** | 远程指令无视 `no_wifi_mode` | `App_Network.c` | 加 `Ui_Controller_Is_No_WiFi_Mode()` 门控 |
+| **HIGH** | `Led_Driver_Task`/`Buzzer_Driver_Task` 重复调用 | `Ui_Controller.c` | 从 UI 任务中移除, 仅 main 循环调用 |
+| **HIGH** | 过流保护用 ADC 原始值 | `Ui_Controller.c` | 改用 EMA 平滑 `s_ema_i` |
+| **HIGH** | `s_ramp_state` 声明在引用之后 | `Inverter_Control.c` | 变量声明移到文件顶部 |
+| **MEDIUM** | `APP_NETWORK_CONN_MQTT` 无 case | `Ui_Controller.c` | 添加 MQTT case 归入 INIT |
+| **MEDIUM** | "模"字重复定义 (索引29+73) | `TFT_CN_Font.h` | 删除索引73重复 |
+| **MEDIUM** | `Energy_Bar` range≤0 无声掩盖错误 | `Energy_Bar.c` | 擦除后直接 return |
+| **MEDIUM** | `Filter_To_Voltage` filled==0 除零风险 | `Adc_Driver.c` | 加 `if (filled==0) return 0.0f` |
+| **MEDIUM** | `Adc_Driver_Filter_Task` 锚点双读 | `Adc_Driver.c` | 单次读取 now, 同值用于比较和赋值 |
+| **MEDIUM** | `local_buf[64]` 可能截断长帧 | `App_Network.c` | 扩容到 128 |
+| **MEDIUM** | 心跳超时离线检测误判 | `App_Network.c` | 完全移除 (ESP 无心跳帧) |
+| **LOW** | `PWM_DRIVER_OCNIdleState` = Set 导致开机下管导通 | `Pwm_Driver.c` | 改为 Reset (下管也关断) |
+| **LOW** | TIM1 开机计数器+MOE 全关 | `Pwm_Driver.c` | `TIM_Cmd(DISABLE)`, Enable 时同时开 |
+| **LOW** | PB10 初始拉低=误开 12V | `main.c` | 初始拉高关断 |
+| **LOW** | "模"不在字库 | `TFT_CN_Font.h` | 保留索引29已有字模 |
+| **LOW** | `Adc_Driver_Calibrate_Offset` 死代码 | `Adc_Driver.h` | 加注释说明固定 1.65V 零点 |
+| **LOW** | `s_last_page` 未随 `s_last_state` 重置 | `Ui_Controller.c` | 统一设为 0xFF |
+
+## 文档输出规则
+
+- 代码变更后版本号自增 (逻辑改动 +0.1, 新模块 +1.0)
+- 生成的文件放到指定目录, 不准散落在桌面或其他无关位置
+- 不保留废弃代码和旧文件, 删干净避免维护陷阱
 
 ## Git
 
