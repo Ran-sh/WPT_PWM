@@ -17,10 +17,10 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V6.1 |
-| **最后更新** | 2026-06-01 |
-| **对应固件版本** | V6.1 |
-| **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) (分支 `ONENET`) |
+| **文档版本** | V9 |
+| **最后更新** | 2026-06-11 |
+| **对应固件版本** | V9 |
+| **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) (分支 `4.0TFT`) |
 | **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages 部署源) |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接) |
 | **作者** | Rssss |
@@ -30,7 +30,8 @@
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
 | V5.0 | 2026-05-24 | 全篇重构：新增调试避坑模块、配图标注、双主题小程序、频率渐变斜坡、网页端Cloudflare部署、1.6万字扩写 |
-| V6.1 | 2026-06-01 | 8项Bug修复: CRITICAL-PWM基线恢复V0.0(Up计数+PartialRemap+PWM1/PWM2), 频率斜坡容差收敛(|diff|≤1000Hz), 过流保护5A接入(Soft_Start_Fault调用); HIGH-RX缓冲清除+PRIMASK规范; MEDIUM-Adc静态断言HSE72MHz, double→float, EMA状态重置; LOW-遥测门控重构 |
+| V9 | 2026-06-11 | 4.0TFT 重大升级: OLED→TFT彩屏 + 6态UI + 动态能量条 + 4键6LED蜂鸣器 + PWM默认映射 + 37项代码审查修复 + 开机安全强化(TIM1全关+无WIFI默认+PB10独立) + 远程指令安全加固 |
+| V6.1 | 2026-06-01 | 8项Bug修复: CRITICAL-PWM基线恢复V0.0, 频率斜坡容差收敛, 过流保护5A接入; HIGH-RX缓冲清除+PRIMASK规范; MEDIUM-ADC静态断言HSE72MHz, double→float, EMA状态重置; LOW-遥测门控重构 |
 | V5.1 | 2026-05-25 | STM32: 7界面状态机(INIT→CONNECTING→READY→SWEEPING→RUNNING→FAULT), 上电自动连WiFi+3次重试, OneNET遥测门控(仅>=READY发送), 新LED逻辑。ESP8266: SetFreq防覆盖, Switch命令后跳变次遥测, DEBUG关。小程序: fetchAll合并轮询2s, 在线检测(10s超时), Swiper首次同步后锁定。网页: 修复SetFreq下发崩溃 |
 
 ---

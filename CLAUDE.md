@@ -16,10 +16,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **当用户说"更新全部内容"时，按顺序自动执行：**
 
-1. 全面代码审查，修复发现的问题
+1. 全面代码审查，修复发现的问题 (CRITICAL/HIGH 必须修)
 2. `/init` — 重新生成 CLAUDE.md（包含完整画面布局 + 编码规范 + 架构 + 安全基线）
-3. 更新 README.md（同步最新版本信息）
-4. `git push` 推送当前分支 (4.0TFT)
+3. 更新 `embedded-architect` skill (`Claude_Files/docs/embedded-architect-system-prompt.md` → `~/.claude/skills/embedded-architect/SKILL.md`)
+4. 更新全部文档 (`Claude_Files/docs/` 下 `.md` + `.docx` 配对生成)
+5. 美化 GitHub README.md
+6. `git push` 推送当前分支 (4.0TFT)
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
