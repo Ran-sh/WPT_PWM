@@ -21,10 +21,10 @@
 
 void NMI_Handler(void)          { }
 /* 故障处理器: 进入死循环前强制关断 PWM 输出, 防止桥臂直通烧毁 MOSFET */
-void HardFault_Handler(void)    { TIM_CtrlPWMOutputs(TIM1, DISABLE); while (1); }
-void MemManage_Handler(void)    { TIM_CtrlPWMOutputs(TIM1, DISABLE); while (1); }
-void BusFault_Handler(void)     { TIM_CtrlPWMOutputs(TIM1, DISABLE); while (1); }
-void UsageFault_Handler(void)   { TIM_CtrlPWMOutputs(TIM1, DISABLE); while (1); }
+void HardFault_Handler(void)    { TIM_CtrlPWMOutputs(TIM1, DISABLE); GPIO_SetBits(GPIOB, GPIO_Pin_10); while (1); }
+void MemManage_Handler(void)    { TIM_CtrlPWMOutputs(TIM1, DISABLE); GPIO_SetBits(GPIOB, GPIO_Pin_10); while (1); }
+void BusFault_Handler(void)     { TIM_CtrlPWMOutputs(TIM1, DISABLE); GPIO_SetBits(GPIOB, GPIO_Pin_10); while (1); }
+void UsageFault_Handler(void)   { TIM_CtrlPWMOutputs(TIM1, DISABLE); GPIO_SetBits(GPIOB, GPIO_Pin_10); while (1); }
 void SVC_Handler(void)          { }
 void DebugMon_Handler(void)     { }
 void PendSV_Handler(void)       { }

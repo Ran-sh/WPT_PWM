@@ -85,7 +85,7 @@ static uint8_t Center(const char* s)
     uint8_t w = 0;
     while (*s) {
         uint8_t c = (uint8_t)*s;
-        if (c >= 0xE0 && c <= 0xEF) { w += 2; s += 3; }
+        if (c >= 0xE0 && c <= 0xEF) { w += 2; s += 3; if (!*s) break; }  /* 防截断UTF-8 */
         else { w++; s++; }
     }
     return (w >= 20) ? 0 : (20 - w) / 2;
@@ -97,7 +97,7 @@ static uint8_t Right(const char* s)
     uint8_t w = 0;
     while (*s) {
         uint8_t c = (uint8_t)*s;
-        if (c >= 0xE0 && c <= 0xEF) { w += 2; s += 3; }
+        if (c >= 0xE0 && c <= 0xEF) { w += 2; s += 3; if (!*s) break; }  /* 防截断UTF-8 */
         else { w++; s++; }
     }
     return (w >= 20) ? 0 : 20 - w;
