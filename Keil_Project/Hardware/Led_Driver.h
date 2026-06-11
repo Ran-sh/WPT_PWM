@@ -19,14 +19,24 @@ typedef enum {
     LED_DRIVER_STATE_FAST = 3    /* 200ms 周期快闪 */
 } Led_Driver_State;
 
+/** @brief 初始化 6 LED GPIO + 禁用 JTAG 释放 PB3/PB4 */
 void Led_Driver_Init(void);
+/** @brief 周期驱动所有 LED (根据状态自动快闪/慢闪/常亮/灭) */
 void Led_Driver_Task(void);
 
+/** @brief 设置 WiFi 状态 LED (PB4) */
 void Led_Driver_Set_WiFi(Led_Driver_State state);
+/** @brief 设置 PWM 运行 LED (PB3) */
 void Led_Driver_Set_Pwm(Led_Driver_State state);
+/** @brief 设置通信 LED (PA10, MQTT 在线) */
 void Led_Driver_Set_Com(Led_Driver_State state);
+/** @brief 设置电源 LED (PA11, 电压>12V 亮) */
 void Led_Driver_Set_Power(Led_Driver_State state);
+/** @brief 设置温度 LED (PA12, 暂未启用) */
 void Led_Driver_Set_Temp(Led_Driver_State state);
+/** @brief 设置系统心跳 LED (PA15, 500ms 翻转)
+ *  @param on_off 1=启用心跳, 0=关闭
+ */
 void Led_Driver_Set_System(uint8_t on_off);
 
 #endif /* LED_DRIVER_H */
