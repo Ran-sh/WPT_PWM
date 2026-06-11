@@ -38,16 +38,28 @@ typedef enum {
     INVERTER_CONTROL_RAMP_ACTIVE = 1
 } Inverter_Control_Ramp_State;
 
+/** @brief 触发软启动扫频 (IDLE → SWEEP, 150k→100kHz) */
 void     Inverter_Control_Soft_Start_Trigger(void);
+/** @brief 周期驱动软启动状态机 (每10ms降200Hz) */
 void     Inverter_Control_Soft_Start_Task(void);
+/** @brief 停止逆变器 (任意状态 → IDLE, 关PWM+MOE) */
 void     Inverter_Control_Soft_Start_Stop(void);
+/** @brief 故障保护 (关PWM+MOE → FAULT 锁存) */
 void     Inverter_Control_Soft_Start_Fault(void);
+/** @brief 从 FAULT 恢复 (关PWM+重置频率+清斜坡 → IDLE) */
 void     Inverter_Control_Soft_Start_Reset(void);
+/** @brief 获取软启动当前状态 (Cortex-M3 单指令原子读, 无需 IRQ 保护) */
 Inverter_Control_Soft_Start_State Inverter_Control_Soft_Start_Get_State(void);
+/** @brief 获取软启动当前频率 (Hz) */
 uint32_t Inverter_Control_Soft_Start_Get_Current_Freq(void);
 
+/** @brief 触发频率渐变斜坡 (仅 DONE 状态有效)
+ *  @param target_hz 目标频率 (Hz), 范围 95k~150k, 自动钳位
+ */
 void     Inverter_Control_Freq_Ramp_Trigger(uint32_t target_hz);
+/** @brief 周期驱动频率斜坡状态机 (每10ms步进1kHz) */
 void     Inverter_Control_Freq_Ramp_Task(void);
+/** @brief 获取频率斜坡目标值 (Hz) */
 uint32_t Inverter_Control_Freq_Ramp_Get_Target(void);
 
 #endif /* INVERTER_CONTROL_H */

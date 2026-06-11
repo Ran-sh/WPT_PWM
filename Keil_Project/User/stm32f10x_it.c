@@ -6,10 +6,7 @@
   *
   *          【重构要点】
   *          - SysTick_Handler 极简化: 仅调用 Sys_Timer_Inc_Tick()
-  *          - 删除所有软件定时器变量 (time_key/time_oled/time_led)
   *          - 删除所有外部调度标志位 (Flag_Task_xxx)
-  *          - 删除 g_MsTick 全局计数器
-  *          - 删除 KEY_Scan_All() 调用 (迁移至 KEY_Task 时间戳调度)
   *          - USART2_IRQHandler 保留 ORE 溢出防锁死机制
   ******************************************************************************
   */

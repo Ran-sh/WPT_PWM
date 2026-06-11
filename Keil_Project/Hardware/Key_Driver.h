@@ -25,8 +25,14 @@ typedef enum {
 #define KEY_DRIVER_ID_FREQ_DOWN 2
 #define KEY_DRIVER_ID_PAGE      3
 
+/** @brief 初始化 4 键 GPIO (全 IPU) */
 void             Key_Driver_Init(void);
+/** @brief 周期驱动 4 键 FSM (每10ms调用) */
 void             Key_Driver_Task(void);
+/** @brief 获取按键事件并清空 (临界区保护, 阅后即焚)
+ *  @param  key_id 按键编号 (0=ON/OFF 1=F+ 2=F- 3=PAGE)
+ *  @return 事件类型 (NONE/CLICK/DOUBLE_CLICK/LONG_PRESS)
+ */
 Key_Driver_Event Key_Driver_Get_Event(uint8_t key_id);
 
 #endif /* KEY_DRIVER_H */

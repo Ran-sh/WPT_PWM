@@ -23,17 +23,17 @@
 #include "Energy_Bar.h"
 #include <stdio.h>
 
-#define UI_COLOR_BG      TFT_COLOR_BLACK
-#define UI_COLOR_TITLE   TFT_COLOR_YELLOW
-#define UI_COLOR_TEXT    TFT_COLOR_WHITE
-#define UI_COLOR_VALUE   TFT_COLOR_CYAN
-#define UI_COLOR_DATA    TFT_COLOR_BLUE
-#define UI_COLOR_ALARM   TFT_COLOR_RED
-#define UI_COLOR_OK      TFT_COLOR_GREEN
+#define UI_COLOR_BG      TFT_COLOR_BLACK   /* 背景色: 黑 */
+#define UI_COLOR_TITLE   TFT_COLOR_YELLOW  /* 标题: 黄 */
+#define UI_COLOR_TEXT    TFT_COLOR_WHITE   /* 正文: 白 */
+#define UI_COLOR_VALUE   TFT_COLOR_CYAN    /* 数值(仪表): 青 */
+#define UI_COLOR_DATA    TFT_COLOR_BLUE    /* 数据(电压/电流): 蓝 */
+#define UI_COLOR_ALARM   TFT_COLOR_RED     /* 报警/故障: 红 */
+#define UI_COLOR_OK      TFT_COLOR_GREEN   /* 正常/在线: 绿 */
 
-#define UI_REFRESH_MS              200
-#define UI_OVERCURRENT_THRESHOLD_A 5.0f
-#define UI_POWER_V_THRESHOLD_V     12.0f
+#define UI_REFRESH_MS              200   /* UI 刷新周期 (ms) */
+#define UI_OVERCURRENT_THRESHOLD_A 5.0f  /* 过流保护阈值 (A) */
+#define UI_POWER_V_THRESHOLD_V     12.0f /* 12V 动力电源开启阈值 (V) */
 
 /* ── 中文串 (UTF-8 hex, 字库73字) ── */
 #define S_LAUNCH    "\xe5\x90\xaf\xe5\x8a\xa8\xe9\xa1\xb5"           /* 启动页 */
@@ -72,13 +72,14 @@ static Ui_Controller_State s_ui_state = UI_CONTROLLER_STATE_INIT;
 static float   s_ema_v = 0.0f, s_ema_i = 0.0f, s_ema_f = 0.0f;
 static uint8_t s_ema_ok = 0;
 
+/* 重置 EMA, 下次 Update_EMA 将以当前 ADC 值重新初始化 */
 static void Reset_EMA(void) { s_ema_ok = 0; }
 
 /* ═══════════════════════════════════════════════════════════════
  *  辅助函数
  * ═══════════════════════════════════════════════════════════════ */
 
-/* 居中 col: 串宽 = ASCII长度 + CN长度*2 */
+/* 计算中英文混合字符串居中起始列号: 串宽=ASCII长度+CN长度×2 */
 static uint8_t Center(const char* s)
 {
     uint8_t w = 0;
@@ -90,7 +91,7 @@ static uint8_t Center(const char* s)
     return (w >= 20) ? 0 : (20 - w) / 2;
 }
 
-/* 右对齐 col */
+/* 计算中英文混合字符串右对齐起始列号 */
 static uint8_t Right(const char* s)
 {
     uint8_t w = 0;
@@ -163,7 +164,7 @@ static uint8_t Is_WiFi_Online(void)
     return (App_Network_Get_Connect_Status() == APP_NETWORK_CONN_ONLINE);
 }
 
-/* EMA 更新 */
+/* EMA 指数移动平均: 首次直接赋值, 后续 α=0.25 (τ≈800ms) */
 static void Update_EMA(void)
 {
     if (!s_ema_ok) {
@@ -178,13 +179,14 @@ static void Update_EMA(void)
     }
 }
 
-/* 电压/电流/频率 格式化 (避免负数取模) */
+/* 格式化电压: "电压V:xx.xxV", 自动取绝对值 */
 static void Fmt_V(char* buf, float v)
 {
     int32_t x = (int32_t)(v * 100.0f + 0.5f);
     if (x < 0) x = -x;
     snprintf(buf, 21, S_VOLTAGE "V:%2d.%02dV", (int)(x/100), (int)(x%100));
 }
+/* 格式化电流: "电流I:+x.xxA", 自动判定正负号 */
 static void Fmt_I(char* buf, float c)
 {
     int32_t x = (int32_t)(c * 100.0f + 0.5f);
@@ -192,6 +194,7 @@ static void Fmt_I(char* buf, float c)
     x = (x < 0) ? -x : x;
     snprintf(buf, 21, S_CURRENT "I:%c%1d.%02dA", sign, (int)(x/100), (int)(x%100));
 }
+/* 格式化频率: "频率F:xxx.xkHz" */
 static void Fmt_F(char* buf, float f)
 {
     snprintf(buf, 21, S_FREQ "F:%3d.%01dkHz", (int)f, (int)((f-(int)f)*10+0.5f)%10);
@@ -201,6 +204,7 @@ static void Fmt_F(char* buf, float f)
  *  绘制函数 — 所有界面顶部统一调用 Draw_Header
  * ═══════════════════════════════════════════════════════════════ */
 
+/* 扫频态4子页绘制: 0=进度 1=频率仪表盘 2=电压仪表盘 3=电流仪表盘 */
 static void Draw_Sweep_Main(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
@@ -299,6 +303,7 @@ static void Draw_Sweep_Main(void)
     }
 }
 
+/* 运行态4子页绘制: 0=综合监测 1=频率表 2=电压表 3=电流表 */
 static void Draw_Run_Main(void)
 {
     Update_EMA();
@@ -374,7 +379,7 @@ static void Draw_Run_Main(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  LED 更新
+ *  LED 更新 — 根据 UI 状态 + 网络状态同步 6 路 LED
  * ═══════════════════════════════════════════════════════════════ */
 static void Update_Leds(Ui_Controller_State ui_state)
 {
@@ -405,7 +410,7 @@ static void Update_Leds(Ui_Controller_State ui_state)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  按键分发
+ *  按键分发 — k0=ON/OFF, k1=F+, k2=F-, k3=PAGE
  * ═══════════════════════════════════════════════════════════════ */
 static void Handle_Keys(Ui_Controller_State ui_state,
                         Key_Driver_Event k0, Key_Driver_Event k1,
@@ -472,7 +477,7 @@ static void Handle_Keys(Ui_Controller_State ui_state,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  状态机
+ *  状态机 — 由逆变器软启状态 + ESP 状态 + s_no_wifi_mode 计算当前 UI 状态
  * ═══════════════════════════════════════════════════════════════ */
 static Ui_Controller_State Calc_Ui_State(void)
 {
@@ -508,7 +513,7 @@ static Ui_Controller_State Calc_Ui_State(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  主调度
+ *  主调度 — 200ms 周期: 状态计算 → 按键分发 → PB10 控制 → 过流检测 → 绘制
  * ═══════════════════════════════════════════════════════════════ */
 void Ui_Controller_Task(void)
 {
