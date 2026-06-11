@@ -588,7 +588,9 @@ void Ui_Controller_Task(void)
                     retry > 0 ? retry : 1, 3);
                 Tft_Driver_Show_CN_String(4, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
             }
-            Tft_Driver_Show_CN_String(7, Right("PAGE:" "\xe6\x97\xa0WIFI" "\xe8\xb0\x83\xe8\xaf\x95"),   /* PAGE:无WIFI调试 */
+            Tft_Driver_Show_CN_String(6, Right("\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x96\xad\xe5\xbc\x80WIFI"),   /* 双击ON断开WIFI */
+                "\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x96\xad\xe5\xbc\x80WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(7, Right("PAGE:" "\xe6\x97\xa0WIFI" "\xe8\xb0\x83\xe8\xaf\x95"),
                 "PAGE:" "\xe6\x97\xa0WIFI" "\xe8\xb0\x83\xe8\xaf\x95", UI_COLOR_TEXT, UI_COLOR_BG);
             break;
         case UI_CONTROLLER_STATE_FAILED: {
@@ -611,8 +613,8 @@ void Ui_Controller_Task(void)
             Show_Fill(3, 0, "WIFI" S_CONN_OK, UI_COLOR_OK, UI_COLOR_BG);
             Tft_Driver_Show_CN_String(6, Right("ON:" S_SWEEP_START),
                 "ON:" S_SWEEP_START, UI_COLOR_TEXT, UI_COLOR_BG);
-            Tft_Driver_Show_CN_String(7, Right("\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI"),
-                "\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x97\xa0WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(7, Right("\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x96\xad\xe5\xbc\x80WIFI"),
+                "\xe5\x8f\x8c\xe5\x87\xbbON" "\xe6\x96\xad\xe5\xbc\x80WIFI", UI_COLOR_TEXT, UI_COLOR_BG);
             break;
         case UI_CONTROLLER_STATE_SWEEPING:
             Draw_Sweep_Main();
