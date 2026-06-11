@@ -37,6 +37,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 字符串拼接如 `"\xe5\x8f\x8c\xe5\x87\xbb" "Back"` 可避免 ARMCC #27-D 警告
 - ARMCC #1293-D: `if ((p = strstr(...))` 赋值在条件中会触发警告，改用 `if ((p = strstr(...)) != 0`
 
+### ESP8266 (Arduino IDE)
+
+- **Board**: Generic ESP8266 Module, Flash 1M, 80MHz CPU
+- **File**: `Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`
+- **Libraries**: ESP8266WiFi, PubSubClient, ArduinoJson v7, WiFiManager
+- **烧录**: GPIO0 接 GND → 上电 → Arduino IDE 上传 → 断开 GPIO0-GND → 重新上电
+- **配网**: 首次上电开热点 `STM32_WPT_Config` → 手机连上输 WiFi 密码 → ESP 重启 → 自动连 OneNET
+
 ## Architecture: Dual-MCU
 
 ```
@@ -516,7 +524,9 @@ typedef char assertion[(condition) ? 1 : -1];
 - **看门狗**: IWDG, LSI 40kHz/64, reload=1000 → 1.6s, `DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP` 调试时暂停
 - **HardFault**: 所有故障 ISR 先关 PWM 再死循环
 - **启动流程**: 上电→阶段0 钳位 ESP → PWM/TFT/LED/Buzzer/ADC/Key 初始化 → SysTick → IWDG → 主循环
-- **低功耗**: 主循环末尾 `__WFI()` 休眠, SysTick 唤醒
+- **低功耗**: 主循环末尾 `__WFI()` 休眠, SysTick 唤醒, 空闲电流 ~5mA
+- **Library Doctrine**: SPL V3.5.0 ONLY. No HAL/LL functions. 内部函数加模块前缀避免命名冲突
+- **显示平滑 (EMA)**: V/I/F 显示使用指数移动平均 (α=0.25, τ≈800ms)。`Ui_Controller.c` 中 `Update_EMA()` 实现, 状态转移时 `Reset_EMA()` 重置消除收敛滞后
 
 ## PWM 频率量化表
 
@@ -631,6 +641,14 @@ void HardFault_Handler(void) {
 | 串口模块 | `Serial_Parse_*` | 非阻塞行读取 + 前缀匹配防协议误触发 |
 
 关键改进: `Str_Starts_With()` 前缀匹配替代 `strstr()` 子串搜索, 防止 `STATUS:ONLINE` 嵌入 JSON 字符串时误触发。
+
+## Docs Directory (参考)
+
+| Document | Purpose |
+|:---|:---|
+| `CLAUDE.md` | AI 辅助开发规范 (架构/编码/安全/画面布局) |
+| `README.md` | GitHub 项目主页 (特性/架构/快速开始) |
+| `Claude_Files/docs/` | 可选: 详细开发指南 MD+DOCX 配对 |
 
 ## 多仓库结构 (参考)
 
