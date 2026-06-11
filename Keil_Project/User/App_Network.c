@@ -57,7 +57,7 @@ uint8_t App_Network_Is_Connected(void)
     return Esp8266_Driver_Is_Ready() && (s_conn_state == APP_NETWORK_CONN_ONLINE);
 }
 
-/* ── 内部: 重试超时检查 ── */
+/* ── 重试超时检查: 等待 CONNECT_TIMEOUT_MS(8s) 内收到 STATUS:ONLINE, 超时→重新 Start_Init → 最多 MAX_RETRIES(3) 次 → FAILED ── */
 static void Check_Retry(void)
 {
     if (s_conn_state != APP_NETWORK_CONN_WIFI) return;
@@ -97,7 +97,7 @@ void App_Network_Task(void)
             s_conn_state = APP_NETWORK_CONN_ONLINE;
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
         }
-        else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')) {
+        else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')  /* 精确匹配: 确保 "CMD:OFF" 后跟结束符, 非更长字符串如 "CMD:OFFSET" */) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
                 if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE)

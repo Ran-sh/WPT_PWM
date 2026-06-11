@@ -15,7 +15,7 @@
  */
 #define PWM_DRIVER_DEADTIME_CYCLES \
     ((PWM_DRIVER_DEADTIME_NS) * 72 + 500) / 1000
-typedef char Pwm_Driver_Deadtime_Check[(PWM_DRIVER_DEADTIME_CYCLES <= 127) ? 1 : -1];
+typedef char Pwm_Driver_Deadtime_Check[(PWM_DRIVER_DEADTIME_CYCLES <= 127) ? 1 : -1];  /* 编译期断言: DTG 必须 ≤ 127 (7位线性段) */
 
 static uint32_t s_current_freq = 150000;
 
@@ -93,11 +93,11 @@ uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz)
     if (freq_hz > PWM_DRIVER_FREQ_MAX_HZ) freq_hz = PWM_DRIVER_FREQ_MAX_HZ;
 
     ticks = SystemCoreClock / freq_hz;
-    if (ticks % 2 != 0) ticks += 1;   /* 强制偶数, 防偏磁 */
+    if (ticks % 2 != 0) ticks += 1;   /* 强制偶数: 全桥拓扑需要对称驱动, 奇数分频导致两半周不对称→变压器偏磁饱和 */
     if (ticks < 2)  ticks = 2;
     if (ticks > 65536) ticks = 65536;
 
-    /* 原子更新: UDIS 禁止更新 → 写 ARR+CCR → UG → 清 UDIS */
+    /* 原子更新: UDIS 禁止影子寄存器刷新 → 写 ARR+CCR → UG 软件触发一次性加载 → 清 UDIS 恢复。确保新频率的 ARR 和 CCR 同步生效, 防止周期中裁剪导致输出毛刺 */
     TIM1->CR1 |= TIM_CR1_UDIS;
     TIM1->ARR = (uint16_t)(ticks - 1);
     TIM1->CCR1 = (uint16_t)(ticks / 2);

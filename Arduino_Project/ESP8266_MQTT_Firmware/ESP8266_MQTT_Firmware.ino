@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    ESP8266_MQTT_Firmware.ino
  * @brief   ESP8266 Dual-MCU MQTT 固件 (Arduino)
- * @note    V5.1: 面向对象架构 — 命名空间前缀 + 显式连接状态机 + 防误触协议解析
+ * @note    V5.2: 双 Broker MQTT (OneNET + 公共) + 防误触前缀匹配 + 休眠优化 — 命名空间前缀 + 显式连接状态机 + 防误触协议解析
  *
  *          Dual-MCU 通信协议 (115200 8N1):
  *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx,"S":x}\n
@@ -97,8 +97,8 @@ static PubSubClient  s_mqtt_client(s_mqtt_esp_client);
 static WiFiClient    s_mqtt_public_client;
 static PubSubClient  s_mqtt_public(s_mqtt_public_client);
 
-static uint32_t s_mqtt_last_set_freq = 100000;
-static uint8_t  s_mqtt_skip_switch   = 0;
+static uint32_t s_mqtt_last_set_freq = 100000;  /* 最后一次 SetFreq 目标值 (Hz) */
+static uint8_t  s_mqtt_skip_switch   = 0;  /* 收到 Switch 命令后跳变一次遥测, 防止 OneNET 属性覆盖 */
 
 /* ── 防误触: 前缀匹配替代 strstr 子串搜索 ── */
 static int Str_Starts_With(const char* str, const char* prefix)

@@ -27,6 +27,7 @@ static void dly(uint32_t us)
     for (i = 0; i < us * 9; i++) __NOP();
 }
 
+/* 写 SPI 命令字节 (DC=0) */
 static void WrCmd(uint8_t c)
 {
     TFT_DC_CMD(); TFT_CS_LOW();
@@ -35,6 +36,7 @@ static void WrCmd(uint8_t c)
     TFT_CS_HIGH();
 }
 
+/* 写 SPI 数据字节 (DC=1) */
 static void WrDat(uint8_t d)
 {
     TFT_DC_DATA(); TFT_CS_LOW();
@@ -43,6 +45,7 @@ static void WrDat(uint8_t d)
     TFT_CS_HIGH();
 }
 
+/* 写 RGB565 16 位像素 (DC=1, MSB first) */
 static void WrD16(uint16_t d)
 {
     TFT_DC_DATA(); TFT_CS_LOW();
@@ -53,7 +56,7 @@ static void WrD16(uint16_t d)
     TFT_CS_HIGH();
 }
 
-/* 横屏偏移: X+1/Y+2 (竖屏用 X+2/Y+1) */
+/* 设置 ST7735 绘图窗口 (CASET+RASET+RAMWR), 含横屏面板物理偏移 X+1/Y+2 */
 static void SetWin(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
 {
     xs += 1; xe += 1;  /* 横屏 X偏移=1 */
@@ -269,6 +272,7 @@ void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
  *  数字
  * ═══════════════════════════════════ */
 
+/* 计算 10^e (用于十进制数字取位) */
 static uint32_t pw(uint32_t e) { uint32_t r = 1; while (e--) r *= 10; return r; }
 
 void Tft_Driver_Show_Num(uint8_t ln, uint8_t col, uint32_t v,
@@ -302,6 +306,7 @@ void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
  *  中英文混合
  * ═══════════════════════════════════ */
 
+/* 在 CN_INDEX 中查找 UTF-8 三字节中文, 返回索引 0..72 或 0xFF(未找到) */
 static uint8_t Cnlk(const char* u8)
 {
     uint8_t i;
@@ -322,6 +327,7 @@ static void CnDr(uint8_t ln, uint8_t col, uint8_t idx, uint16_t fg, uint16_t bg)
                 WrD16((CN_FONT_16X16[idx][row * 2 + bi] & (0x01 << bit)) ? fg : bg);
 }
 
+/* 判定字节是否为 UTF-8 中文首字节 (0xE0~0xEF) */
 static uint8_t IsCN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
 
 void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,

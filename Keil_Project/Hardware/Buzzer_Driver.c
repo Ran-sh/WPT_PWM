@@ -47,7 +47,7 @@ void Buzzer_Driver_Task(void)
         return;
     }
 
-    /* BEEP 间歇模式 */
+    /* BEEP 间歇模式: 200ms 响 + 800ms 停 = 占空比 20% (足够引起注意, 避免持续刺耳) */
     {
         uint32_t now    = Sys_Timer_Get_Tick();
         uint32_t period = s_beep_on ? BUZZER_DRIVER_BEEP_ON_MS

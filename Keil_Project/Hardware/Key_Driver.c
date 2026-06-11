@@ -51,6 +51,7 @@ void Key_Driver_Init(void)
     GPIO_Init(GPIOB, &cfg);
 }
 
+/* 单键去抖 FSM: IDLE→DEBOUNCE(10ms)→PRESS(释放→WAIT_DOUBLE(200ms)判定单击/双击; 按住→LONG(3s)) */
 static void Update_Fsm(Key_Driver_Instance* key)
 {
     uint8_t pressed = (GPIO_ReadInputDataBit(key->port, key->pin) == Bit_RESET);
@@ -80,7 +81,7 @@ static void Update_Fsm(Key_Driver_Instance* key)
                 key->state = KEY_DRIVER_FSM_WAIT_DOUBLE;
                 key->timer = Sys_Timer_Get_Tick();
             } else if (Sys_Timer_Get_Tick() - key->timer >= KEY_DRIVER_LONG_PRESS_MS) {
-                key->event = KEY_DRIVER_EVENT_LONG_PRESS;
+                key->event = KEY_DRIVER_EVENT_LONG_PRESS;  /* 长按 3s 触发 */
                 key->click_count = 0;
                 key->state = KEY_DRIVER_FSM_LONG;
             }

@@ -35,7 +35,7 @@ int main(void)
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 
-    /* ── 阶段0: 最早钳位 ESP8266 — RST=0, CH_PD=0, 防止上电浮空误启动 ── */
+    /* ── 阶段0: 最早钳位 ESP8266 (RST=0+CH_PD=0) — 在所有外设初始化前执行, 防止 STM32 上电时 GPIO 默认高阻态导致 ESP 内部上拉误启动 ── */
     {
         GPIO_InitTypeDef gpio;
         RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_GPIOA, ENABLE);
@@ -49,7 +49,7 @@ int main(void)
         GPIO_ResetBits(GPIOB, GPIO_Pin_11);  /* CH_PD=0 */
     }
 
-    /* ── 阶段1: 硬件层初始化 (MOE 关断, PowerContrl=OFF, 全桥零输出) ── */
+    /* ── 阶段1: 硬件层初始化 — TIM1 全关(MOE+CEN), PB10 拉高关 12V, 全桥零输出, TFT 显示启动页 ── */
     Pwm_Driver_Init();
 
     {

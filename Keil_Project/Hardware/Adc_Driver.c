@@ -18,7 +18,7 @@
  * 采样周期: 144241 CPU 周期, 与 100kHz PWM 互质 → 覆盖 720 个相位
  * gcd(144241, 720) = 1  ✓
  */
-typedef char Adc_Driver_Assert_HSE_72MHz[(HSE_VALUE == 8000000) ? 1 : -1];
+typedef char Adc_Driver_Assert_HSE_72MHz[(HSE_VALUE == 8000000) ? 1 : -1];  /* 编译期断言: 必须是 8MHz HSE → PLL → 72MHz, 否则互质采样假设失效 */
 
 #define ADC_DRIVER_FILTER_PERIOD_CYCLES 144241
 
@@ -33,6 +33,7 @@ typedef struct {
     uint32_t accum;
 } Adc_Driver_Filter_Window;
 
+/* 推入新 ADC 样本到滑动窗口: 窗口未满时仅累加, 满后减去最老值 → 维持 64 样本滚动平均 */
 static void Filter_Push(Adc_Driver_Filter_Window* fw, uint16_t new_val)
 {
     uint16_t old = fw->buf[fw->idx];
