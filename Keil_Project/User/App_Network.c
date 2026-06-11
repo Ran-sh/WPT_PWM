@@ -21,6 +21,7 @@
 #define APP_NETWORK_CONNECT_TIMEOUT_MS  15000
 #define APP_NETWORK_MAX_RETRIES           3
 #define APP_NETWORK_TELEMETRY_PERIOD_MS  500
+#define APP_NETWORK_HEARTBEAT_TIMEOUT_MS 30000   /* 30s 无串口帧则判定离线 */
 
 static App_Network_Conn_State s_conn_state    = APP_NETWORK_CONN_IDLE;
 static uint8_t                s_retry_count   = 0;
