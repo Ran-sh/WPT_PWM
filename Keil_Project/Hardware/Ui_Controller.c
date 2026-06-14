@@ -197,18 +197,26 @@ static void Draw_Header(const char* title)
 static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char* text, uint8_t enabled)
 {
     uint16_t color = UI_COLOR_TEXT;
-    if (!enabled)
+    uint8_t col_start = 0;  /* text start column after prefix */
+
+    if (!enabled) {
         color = UI_COLOR_DIM;
-    else if (cursor == idx)
-        color = UI_COLOR_VALUE;
+    }
 
     if (cursor == idx) {
-        Tft_Driver_Show_CN_String(line, 0, "\xe2\x96\xb6", color, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(line, 1, text, color, UI_COLOR_BG);
+        /* Selected: fill entire row with cyan, draw black text over it */
+        Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
+                            TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_VALUE);
+        Tft_Driver_Show_CN_String(line, 0, "\xe2\x96\xb6", UI_COLOR_BG, UI_COLOR_VALUE);
+        col_start = 1;
+        color = UI_COLOR_BG;
     } else {
         Tft_Driver_Show_String(line, 0, "  ", UI_COLOR_TEXT, UI_COLOR_BG);
-        Tft_Driver_Show_CN_String(line, 1, text, color, UI_COLOR_BG);
+        col_start = 1;
     }
+
+    Tft_Driver_Show_CN_String(line, col_start, text, color,
+        (cursor == idx) ? UI_COLOR_VALUE : UI_COLOR_BG);
 }
 
 /* -------- Divider line at given row -------- */
@@ -670,7 +678,30 @@ static void Handle_Keys_by_Page(Ui_Page page,
 void Ui_Controller_Task(void)
 {
     static uint32_t s_last_ui_ms = 0;
+    static uint8_t  s_last_wifi_frame = 0xFF;
     uint8_t need_draw = 0;
+
+    /* -- 0. WIFI/MQTT icon animation: per-frame partial refresh of line 0 -- */
+    {
+        uint8_t wifi_frame = (App_Network_Is_Connecting() || !Esp8266_Driver_Is_Ready())
+            ? (uint8_t)(Sys_Timer_Get_Tick() / 150) % 6
+            : 0xFF;
+        if (wifi_frame != s_last_wifi_frame) {
+            s_last_wifi_frame = wifi_frame;
+            /* Redraw only the header row */
+            switch (s_page) {
+                case UI_PAGE_MAIN_MENU:        Draw_Header(S_WPT_PWM);                      break;
+                case UI_PAGE_MONITOR_SUB_MENU: Draw_Header(S_MONITOR);                      break;
+                case UI_PAGE_SWEEP:            Draw_Header(S_SWEEP);                        break;
+                case UI_PAGE_MONITOR_SUMMARY:  Draw_Header(S_SUMMARY);                      break;
+                case UI_PAGE_MONITOR_FREQ:     Draw_Header(S_MON_FREQ);                     break;
+                case UI_PAGE_MONITOR_VOLT:     Draw_Header(S_MON_VOLT);                     break;
+                case UI_PAGE_MONITOR_CURR:     Draw_Header(S_MON_CURR);                     break;
+                case UI_PAGE_WIFI_SETUP:       Draw_Header(S_LAUNCH);                       break;
+                case UI_PAGE_FAULT:            Draw_Header("!!!\xe6\x95\x85\xe9\x9a\x9c!!!"); break;
+            }
+        }
+    }
 
     /* -- 1. Fault edge detection (every frame) -- */
     {
