@@ -655,7 +655,17 @@ static void Handle_Keys_by_Page(Ui_Page page,
                 break;
 
             case UI_PAGE_SWEEP:
-                Inverter_Control_Soft_Start_Stop();
+                /* ON during sweep: toggle stop/restart */
+                {
+                    Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
+                    if (ss == INVERTER_CONTROL_SS_STATE_SWEEP) {
+                        Inverter_Control_Soft_Start_Stop();
+                    } else if (ss == INVERTER_CONTROL_SS_STATE_IDLE) {
+                        /* Was stopped mid-sweep, restart from current frequency */
+                        Inverter_Control_Soft_Start_Trigger();
+                        Reset_EMA();
+                    }
+                }
                 break;
 
             case UI_PAGE_WIFI_SETUP: {
