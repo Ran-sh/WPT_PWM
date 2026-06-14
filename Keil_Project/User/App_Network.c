@@ -158,7 +158,13 @@ void App_Network_Task(void)
             uint8_t allow_telemetry = 1;
 
             if (s_conn_state != APP_NETWORK_CONN_ONLINE) allow_telemetry = 0;
-            if (Ui_Controller_Get_State() < UI_CONTROLLER_STATE_READY) allow_telemetry = 0;
+            {
+                Ui_Page page = Ui_Controller_Get_Page();
+                if (page == UI_PAGE_MAIN_MENU || page == UI_PAGE_MONITOR_SUB_MENU
+                    || page == UI_PAGE_WIFI_SETUP || page == UI_PAGE_SWEEP
+                    || page == UI_PAGE_FAULT)
+                    allow_telemetry = 0;
+            }
 
             Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
             if (ss == INVERTER_CONTROL_SS_STATE_SWEEP)       allow_telemetry = 0;

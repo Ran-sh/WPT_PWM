@@ -70,7 +70,7 @@ int main(void)
 
     /* 启动页 */
     Tft_Driver_Clear(TFT_COLOR_BLACK);
-    Tft_Driver_Show_CN_String(3, 2, "\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
+    Tft_Driver_Show_CN_String(3, 3, "WPT-PWM", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
     Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...", TFT_COLOR_WHITE, TFT_COLOR_BLACK);
     Tft_Driver_Set_Backlight(255);
 

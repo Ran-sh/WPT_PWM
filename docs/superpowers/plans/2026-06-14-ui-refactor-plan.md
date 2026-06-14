@@ -1,3 +1,96 @@
+# UI 重构 — 两级菜单架构 实现计划
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 将 `Ui_Controller` 从 6 态线性状态机重构为 2 级栈式菜单架构 (9 页: 主菜单→4子模式+监测子菜单4项+故障页)
+
+**Architecture:** 页面枚举 `Ui_Page` 替代旧 `Ui_Controller_State`，页面跳转由按键直接控制 (非状态推导)，故障检测用边沿触发防无限重入。保留 Draw_Header/WIFI+Mqtt 图标/EMA/能量条/格式化等渲染图元。
+
+**Tech Stack:** C (ARMCC V5), STM32F103 SPL V3.5.0, ST7735 TFT 160×128, Keil MDK-ARM V5
+
+---
+
+## 文件结构
+
+| 文件 | 动作 | 职责 |
+|:---|:---|:---|
+| `Keil_Project/Hardware/Ui_Controller.h` | **修改** | 枚举+API 替换 |
+| `Keil_Project/Hardware/Ui_Controller.c` | **重写** | 菜单渲染+按键分发+主调度 |
+| `Keil_Project/User/App_Network.c` | **微改** | `Get_State()`→`Get_Page()` |
+| `Keil_Project/User/main.c` | **微改** | 启动页文字+开机自动联网 |
+
+---
+
+### Task 1: 更新 Ui_Controller.h — 枚举和 API
+
+**Files:**
+- Modify: `Keil_Project/Hardware/Ui_Controller.h`
+
+- [ ] **Step 1: 替换枚举和接口**
+
+将 `Keil_Project/Hardware/Ui_Controller.h` 完整替换为:
+
+```c
+/**
+ ******************************************************************************
+ * @file    Hardware/Ui_Controller.h
+ * @brief   人机界面控制器 — 公开接口 (V10 两级菜单架构)
+ * @note    TFT 8行20列彩屏, 4键操作
+ *          9 页: MAIN_MENU→MONITOR_SUB_MENU→SWEEP/MONITOR_*/WIFI_SETUP/FAULT
+ ******************************************************************************
+ */
+
+#ifndef UI_CONTROLLER_H
+#define UI_CONTROLLER_H
+
+#include "stm32f10x.h"
+
+/** @brief UI 页面枚举 (9 页两级栈式导航) */
+typedef enum {
+    UI_PAGE_MAIN_MENU          = 0,   /* 主菜单 — 4项 */
+    UI_PAGE_MONITOR_SUB_MENU   = 1,   /* 监测子菜单 — 5项 */
+    UI_PAGE_SWEEP              = 2,   /* 扫频页 — 频率进度 */
+    UI_PAGE_MONITOR_SUMMARY    = 3,   /* 综合监测 — F/V/I 同屏 */
+    UI_PAGE_MONITOR_FREQ       = 4,   /* 监测频率 — 仪表盘 */
+    UI_PAGE_MONITOR_VOLT       = 5,   /* 监测电压 — 仪表盘 */
+    UI_PAGE_MONITOR_CURR       = 6,   /* 监测电流 — 仪表盘 */
+    UI_PAGE_WIFI_SETUP         = 7,   /* 无线配网 — 状态+清除 */
+    UI_PAGE_FAULT              = 8    /* 故障清除 — 过流锁存 */
+} Ui_Page;
+
+/** @brief 主循环周期调用 — 200ms: 渲染+按键分发+边沿检测 */
+void    Ui_Controller_Task(void);
+/** @brief 获取当前所在页面 */
+Ui_Page Ui_Controller_Get_Page(void);
+/** @brief 是否处于无WiFi模式 (远程指令门控用) */
+uint8_t Ui_Controller_Is_No_WiFi_Mode(void);
+
+#endif /* UI_CONTROLLER_H */
+```
+
+- [ ] **Step 2: 验证编译通过**
+
+在 Keil IDE 中 F7 编译，预期：
+- `Ui_Controller.c` 引用了被删除的 `Ui_Controller_State`/`Ui_Controller_Get_Bridge_State` → 编译错误
+- `App_Network.c:161` 引用了 `Ui_Controller_Get_State`/`UI_CONTROLLER_STATE_READY` → 编译错误
+- 其他文件无编译错误
+
+这些错误是预期的——将在后续 Task 中修复。
+
+---
+
+### Task 2: 重写 Ui_Controller.c — 静态变量 + 辅助函数 (保留部分)
+
+**Files:**
+- Modify: `Keil_Project/Hardware/Ui_Controller.c`
+
+- [ ] **Step 1: 写入新版文件头部和保留函数**
+
+这是整个文件的重写。下面分步给出完整的 `Ui_Controller.c`。
+
+**第一部分：头部 + 宏定义 + 静态变量:**
+
+```c
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
@@ -57,6 +150,7 @@
 /* ── 页面状态变量 ── */
 static Ui_Page  s_page            = UI_PAGE_MAIN_MENU;
 static uint8_t  s_menu_cursor     = 0;
+static uint8_t  s_last_pwm_state  = 0;
 static uint8_t  s_was_fault_state = 0;
 static uint8_t  s_no_wifi_mode    = 0;    /* 开机默认联网=0, 用户清除WiFi后=1 */
 static uint8_t  s_last_page       = 0xFF;
@@ -67,7 +161,11 @@ static float   s_ema_v = 0.0f, s_ema_i = 0.0f, s_ema_f = 0.0f;
 static uint8_t s_ema_ok = 0;
 
 static void Reset_EMA(void) { s_ema_ok = 0; }
+```
 
+- [ ] **Step 2: 写入辅助函数 (保留原实现)**
+
+```c
 /* ═══════════════════════════════════════════════════════════════
  *  辅助函数 — Center/Right/Fmt_V/Fmt_I/Fmt_F (保留原实现)
  * ═══════════════════════════════════════════════════════════════ */
@@ -135,7 +233,11 @@ static uint8_t Is_WiFi_Online(void)
     if (!Esp8266_Driver_Is_Ready()) return 0;
     return (App_Network_Get_Connect_Status() == APP_NETWORK_CONN_ONLINE);
 }
+```
 
+- [ ] **Step 3: 写入 Draw_Header (保留原实现，微调)**
+
+```c
 /* ═══════════════════════════════════════════════════════════════
  *  Draw_Header — 第0行: 左侧标题 + MQTT云(x=128) + WIFI(x=144)
  *  保留原实现，所有界面统一调用
@@ -201,7 +303,11 @@ static void Draw_Header(const char* title)
     #undef MQTT_ICON_X
     #undef WIFI_ICON_X
 }
+```
 
+- [ ] **Step 4: 写入菜单通用渲染函数**
+
+```c
 /* ── 菜单项通用渲染: line=行, cursor=当前光标位置, idx=此项索引, text=菜单文字, enabled=1可选项 ── */
 static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char* text, uint8_t enabled)
 {
@@ -227,12 +333,18 @@ static void Draw_Divider(uint8_t line)
 {
     Tft_Driver_Show_String(line, 0, S_DIV, UI_COLOR_DIM, UI_COLOR_BG);
 }
+```
 
-/* ═══════════════════════════════════════════════════════════════
- *  画面绘制函数 — 9 页全量覆盖
- * ═══════════════════════════════════════════════════════════════ */
+---
 
-/* ── 主菜单 4 项 ── */
+### Task 3: 写入 7 个 Draw 函数
+
+**Files:**
+- Modify: `Keil_Project/Hardware/Ui_Controller.c` (续写)
+
+- [ ] **Step 1: Draw_Main_Menu — 主菜单 4 项**
+
+```c
 static void Draw_Main_Menu(void)
 {
     uint8_t is_running = 0;
@@ -259,15 +371,23 @@ static void Draw_Main_Menu(void)
     Draw_Menu_Item(4, s_menu_cursor, 2, "3. \xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91", 1);
 
     /* Item 4: 故障清除 (仅故障时可进入) */
-    Draw_Menu_Item(5, s_menu_cursor, 3, "4. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4", is_fault ? 1 : 0);
+    Draw_Menu_Item(5, s_menu_cursor, 3, "4. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4", !is_fault ? 0 : 1);
 
     Draw_Divider(6);
 
+    /* 底栏操作指南 (仅在光标不在故障项且故障不可选时使用) */
+    {
+        uint8_t max_cursor = is_fault ? 3 : 2;
+        if (s_menu_cursor > max_cursor) s_menu_cursor = max_cursor;
+    }
     Tft_Driver_Show_CN_String(7, Center("[F+/F-:\xe4\xb8\x8a\xe4\xb8\x8b KEY0:\xe7\xa1\xae\xe5\xae\x9a]"),
         "[F+/F-:\xe4\xb8\x8a\xe4\xb8\x8b KEY0:\xe7\xa1\xae\xe5\xae\x9a]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
+```
 
-/* ── 监测子菜单 5 项 ── */
+- [ ] **Step 2: Draw_Monitor_Sub_Menu — 监测子菜单 5 项**
+
+```c
 static void Draw_Monitor_Sub_Menu(void)
 {
     Draw_Header(S_MONITOR);
@@ -282,8 +402,11 @@ static void Draw_Monitor_Sub_Menu(void)
 
     Draw_Menu_Item(7, s_menu_cursor, 4, "5. " S_BACK, 1);
 }
+```
 
-/* ── 扫频页 ── */
+- [ ] **Step 3: Draw_Sweep_Page — 扫频页**
+
+```c
 static void Draw_Sweep_Page(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
@@ -303,15 +426,12 @@ static void Draw_Sweep_Page(void)
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
     /* 能量条 + 百分比 */
-    {
-        uint16_t x = 3 * TFT_FONT_WIDTH;
-        uint16_t y = 3 * TFT_FONT_HEIGHT + 4;
-        uint16_t w = 14 * TFT_FONT_WIDTH;
-        Energy_Bar_Draw(x, y, w, 8, (float)progress, 0.0f, 10.0f,
-                       ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
-        snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
-        if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
-    }
+    Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+                   14 * TFT_FONT_WIDTH, 8,
+                   (float)progress, 0.0f, 10.0f,
+                   ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
+    snprintf(buf, sizeof(buf), "%d%%", progress * 10);
+    if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
 
     /* V/I */
     Fmt_V(buf, Adc_Driver_Get_Voltage());
@@ -323,8 +443,11 @@ static void Draw_Sweep_Page(void)
     Tft_Driver_Show_CN_String(7, Right("[KEY0:" S_STOP " PAGE:" S_BACK "]"),
         "[KEY0:" S_STOP " PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
+```
 
-/* ── 综合监测 (双模式: 未发波/发波中) ── */
+- [ ] **Step 4: Draw_Monitor_Summary — 综合监测 (双模式)**
+
+```c
 static void Draw_Monitor_Summary(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
@@ -368,8 +491,11 @@ static void Draw_Monitor_Summary(void)
             "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
     }
 }
+```
 
-/* ── 监测频率 (仪表盘) ── */
+- [ ] **Step 5: Draw_Monitor_Freq / Volt / Curr — 单个仪表盘**
+
+```c
 static void Draw_Monitor_Freq(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
@@ -386,14 +512,10 @@ static void Draw_Monitor_Freq(void)
     }
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    {
-        uint16_t x = 4 * TFT_FONT_WIDTH;
-        uint16_t y = 4 * TFT_FONT_HEIGHT + 2;
-        uint16_t w = 12 * TFT_FONT_WIDTH;
-        float val = is_running ? s_ema_f : 0.0f;
-        Energy_Bar_Draw(x, y, w, 12, val, 95.0f, 150.0f,
-                       ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
-    }
+    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
+                   12 * TFT_FONT_WIDTH, 12,
+                   is_running ? s_ema_f : 0.0f, 95.0f, 150.0f,
+                   ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 4, "95", UI_COLOR_TITLE, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 17, "150", UI_COLOR_TITLE, UI_COLOR_BG);
 
@@ -407,7 +529,6 @@ static void Draw_Monitor_Freq(void)
     }
 }
 
-/* ── 监测电压 (仪表盘) ── */
 static void Draw_Monitor_Volt(void)
 {
     char buf[21];
@@ -419,13 +540,10 @@ static void Draw_Monitor_Volt(void)
     Fmt_V(buf, s_ema_v);
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    {
-        uint16_t x = 4 * TFT_FONT_WIDTH;
-        uint16_t y = 4 * TFT_FONT_HEIGHT + 2;
-        uint16_t w = 12 * TFT_FONT_WIDTH;
-        Energy_Bar_Draw(x, y, w, 12, s_ema_v, 0.0f, 48.0f,
-                       ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
-    }
+    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
+                   12 * TFT_FONT_WIDTH, 12,
+                   s_ema_v, 0.0f, 48.0f,
+                   ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 17, "48", UI_COLOR_TITLE, UI_COLOR_BG);
 
@@ -434,7 +552,6 @@ static void Draw_Monitor_Volt(void)
         "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
-/* ── 监测电流 (仪表盘) ── */
 static void Draw_Monitor_Curr(void)
 {
     char buf[21];
@@ -446,13 +563,10 @@ static void Draw_Monitor_Curr(void)
     Fmt_I(buf, s_ema_i);
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    {
-        uint16_t x = 4 * TFT_FONT_WIDTH;
-        uint16_t y = 4 * TFT_FONT_HEIGHT + 2;
-        uint16_t w = 12 * TFT_FONT_WIDTH;
-        Energy_Bar_Draw(x, y, w, 12, s_ema_i, 0.0f, 3.0f,
-                       ENERGY_BAR_METRIC_CURR, UI_COLOR_BG);
-    }
+    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
+                   12 * TFT_FONT_WIDTH, 12,
+                   s_ema_i, 0.0f, 3.0f,
+                   ENERGY_BAR_METRIC_CURR, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 18, "3", UI_COLOR_TITLE, UI_COLOR_BG);
 
@@ -460,8 +574,11 @@ static void Draw_Monitor_Curr(void)
     Tft_Driver_Show_CN_String(7, Right("[PAGE:" S_BACK "]"),
         "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
+```
 
-/* ── 无线配网 ── */
+- [ ] **Step 6: Draw_WiFi_Setup — 无线配网**
+
+```c
 static void Draw_WiFi_Setup(void)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
@@ -495,8 +612,11 @@ static void Draw_WiFi_Setup(void)
     Tft_Driver_Show_CN_String(7, Right("[PAGE:" S_BACK "]"),
         "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
+```
 
-/* ── 故障页 ── */
+- [ ] **Step 7: Draw_Fault_Page — 故障页**
+
+```c
 static void Draw_Fault_Page(void)
 {
     Draw_Header("!!!\xe6\x95\x85\xe9\x9a\x9c!!!");  /* !!!故障!!! */
@@ -514,7 +634,18 @@ static void Draw_Fault_Page(void)
     Tft_Driver_Show_CN_String(7, Right("[PAGE:" S_BACK "]"),
         "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
+```
 
+---
+
+### Task 4: 写入按键分发 + LED + 主调度
+
+**Files:**
+- Modify: `Keil_Project/Hardware/Ui_Controller.c` (续写)
+
+- [ ] **Step 1: Update_Leds — 修正类型签名**
+
+```c
 /* ═══════════════════════════════════════════════════════════════
  *  LED 更新 — 根据当前页面 + 网络状态同步 6 路 LED
  * ═══════════════════════════════════════════════════════════════ */
@@ -544,7 +675,11 @@ static void Update_Leds(Ui_Page page)
         cs == APP_NETWORK_CONN_ONLINE
         ? LED_DRIVER_STATE_ON : LED_DRIVER_STATE_OFF);
 }
+```
 
+- [ ] **Step 2: Handle_Keys_by_Page — 按键分发**
+
+```c
 /* ═══════════════════════════════════════════════════════════════
  *  按键分发 — 按键总线映射终版
  * ═══════════════════════════════════════════════════════════════ */
@@ -672,6 +807,9 @@ static void Handle_Keys_by_Page(Ui_Page page,
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MONITOR_SUB_MENU:
+                s_page = UI_PAGE_MAIN_MENU;
+                s_menu_cursor = 0;
+                break;
             case UI_PAGE_SWEEP:
             case UI_PAGE_WIFI_SETUP:
             case UI_PAGE_FAULT:
@@ -689,9 +827,13 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 }
+```
 
+- [ ] **Step 3: Ui_Controller_Task — 主调度**
+
+```c
 /* ═══════════════════════════════════════════════════════════════
- *  主调度 — 200ms 周期: 边沿检测 → 按键 → 页面变更检测 → 绘制
+ *  主调度 — 200ms 周期: 边沿检测 → 按键 → 页面绘制 → LED
  * ═══════════════════════════════════════════════════════════════ */
 void Ui_Controller_Task(void)
 {
@@ -706,6 +848,7 @@ void Ui_Controller_Task(void)
             /* 边沿 0→1: 强制跳入故障页 */
             s_page = UI_PAGE_FAULT;
             s_was_fault_state = 1;
+            Tft_Driver_Clear(UI_COLOR_BG);
         }
         if (!current_fault) {
             s_was_fault_state = 0;
@@ -721,7 +864,25 @@ void Ui_Controller_Task(void)
         }
     }
 
-    /* ── 3. 按键采集 (每帧) ── */
+    /* ── 3. 页面变更 → 清屏 ── */
+    if ((uint8_t)s_page != s_last_page || s_menu_cursor != s_last_cursor) {
+        s_last_page   = (uint8_t)s_page;
+        s_last_cursor = s_menu_cursor;
+        /* Tft_Driver_Clear 不在菜单光标移动时清屏 — 菜单光标变化用局部重绘 */
+        if (s_page != UI_PAGE_MAIN_MENU && s_page != UI_PAGE_MONITOR_SUB_MENU) {
+            /* 非菜单页: 页面变更时清屏 */
+        }
+        Tft_Driver_Clear(UI_COLOR_BG);
+        need_draw = 1;
+    }
+
+    /* ── 4. 200ms 周期刷新 ── */
+    if (Sys_Timer_Get_Tick() - s_last_ui_ms >= UI_REFRESH_MS) {
+        s_last_ui_ms = Sys_Timer_Get_Tick();
+        need_draw = 1;
+    }
+
+    /* ── 5. 按键采集 (每帧) ── */
     Key_Driver_Event k0 = Key_Driver_Get_Event(KEY_DRIVER_ID_ON_OFF);
     Key_Driver_Event k1 = Key_Driver_Get_Event(KEY_DRIVER_ID_FREQ_UP);
     Key_Driver_Event k2 = Key_Driver_Get_Event(KEY_DRIVER_ID_FREQ_DOWN);
@@ -729,29 +890,7 @@ void Ui_Controller_Task(void)
 
     Handle_Keys_by_Page(s_page, k0, k1, k2, k3);
 
-    /* ── 4. 页面/光标变更检测 (在按键处理之后) ── */
-    if ((uint8_t)s_page != s_last_page || s_menu_cursor != s_last_cursor) {
-        s_last_page   = (uint8_t)s_page;
-        s_last_cursor = s_menu_cursor;
-        Tft_Driver_Clear(UI_COLOR_BG);
-        Reset_EMA();
-        need_draw = 1;
-    }
-
-    /* ── 5. 200ms 周期强制刷新 ── */
-    if (Sys_Timer_Get_Tick() - s_last_ui_ms >= UI_REFRESH_MS) {
-        s_last_ui_ms = Sys_Timer_Get_Tick();
-        need_draw = 1;
-    }
-
-    /* ── 6. 菜单光标边界钳位 (绘制前, 防止cursor越界) ── */
-    if (s_page == UI_PAGE_MAIN_MENU) {
-        uint8_t is_fault = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_FAULT);
-        uint8_t max_cursor = is_fault ? 3 : 2;
-        if (s_menu_cursor > max_cursor) s_menu_cursor = max_cursor;
-    }
-
-    /* ── 7. PB10 PowerContrl ── */
+    /* ── 6. PB10 PowerContrl ── */
     {
         static uint8_t s_last_pwr = 0xFF;
         uint8_t pwr_on = (Adc_Driver_Get_Voltage() > UI_POWER_V_THRESHOLD_V);
@@ -762,7 +901,7 @@ void Ui_Controller_Task(void)
         }
     }
 
-    /* ── 8. 过流保护 (边沿触发故障) ── */
+    /* ── 7. 过流保护 (边沿触发故障) ── */
     if (s_page == UI_PAGE_SWEEP ||
         s_page == UI_PAGE_MONITOR_SUMMARY ||
         s_page == UI_PAGE_MONITOR_FREQ) {
@@ -770,13 +909,14 @@ void Ui_Controller_Task(void)
         if (s_ema_i > UI_OVERCURRENT_THRESHOLD_A) {
             Inverter_Control_Soft_Start_Fault();
             Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
+            /* s_was_fault_state=0 → 下一帧边沿检测触发跳转 */
         }
     }
 
     if (s_page != UI_PAGE_FAULT)
         Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
 
-    /* ── 9. 绘制 ── */
+    /* ── 8. 绘制 ── */
     if (need_draw) {
         switch (s_page) {
             case UI_PAGE_MAIN_MENU:        Draw_Main_Menu();        break;
@@ -792,9 +932,156 @@ void Ui_Controller_Task(void)
         Update_Leds(s_page);
     }
 }
+```
 
+- [ ] **Step 4: 写入公开接口函数**
+
+```c
 /* ═══════════════════════════════════════════════════════════════
  *  公开接口
  * ═══════════════════════════════════════════════════════════════ */
 Ui_Page Ui_Controller_Get_Page(void)      { return s_page; }
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void) { return s_no_wifi_mode; }
+```
+
+---
+
+### Task 5: 更新 App_Network.c + main.c
+
+**Files:**
+- Modify: `Keil_Project/User/App_Network.c:161`
+- Modify: `Keil_Project/User/main.c`
+
+- [ ] **Step 1: 修复 App_Network.c 引用**
+
+在 `App_Network.c:161`，将:
+
+```c
+if (Ui_Controller_Get_State() < UI_CONTROLLER_STATE_READY) allow_telemetry = 0;
+```
+
+改为:
+
+```c
+{
+    Ui_Page page = Ui_Controller_Get_Page();
+    if (page == UI_PAGE_MAIN_MENU || page == UI_PAGE_MONITOR_SUB_MENU
+        || page == UI_PAGE_WIFI_SETUP || page == UI_PAGE_SWEEP
+        || page == UI_PAGE_FAULT)
+        allow_telemetry = 0;
+}
+```
+
+- [ ] **Step 2: 更新 main.c 启动阶段4**
+
+将第 90 行注释:
+
+```c
+/* ── 阶段4: 开机默认无WIFI模式, 用户双击ON手动联网 ── */
+```
+
+改为:
+
+```c
+/* ── 阶段4: 开机自动联网 (ESP8266 WiFiManager 记忆上次配网) ── */
+App_Network_Start_Connect();
+```
+
+- [ ] **Step 3: 更新 main.c 启动页**
+
+将第 73-74 行启动页文字:
+
+```c
+Tft_Driver_Show_CN_String(3, 2, "\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
+Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...", TFT_COLOR_WHITE, TFT_COLOR_BLACK);
+```
+
+改为:
+
+```c
+Tft_Driver_Show_CN_String(3, 3, "WPT-PWM", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
+Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...", TFT_COLOR_WHITE, TFT_COLOR_BLACK);
+```
+
+---
+
+### Task 6: 编译验证 + 手动审查
+
+**Files:** 无新文件
+
+- [ ] **Step 1: 编译**
+
+在 Keil IDE 中 F7 编译。预期输出:
+
+```
+Build target 'Project'
+compiling Ui_Controller.c...
+compiling App_Network.c...
+compiling main.c...
+linking...
+Program Size: Code=xxxxx RO-data=xxxx RW-data=xxxx ZI-data=xxxx
+FromELF: creating hex file...
+".\Objects\Project.hex" - 0 Error(s), 0 Warning(s).
+Build Time Elapsed: 00:00:xx
+```
+
+- [ ] **Step 2: 检查 ARMCC 常见警告**
+
+确认无以下警告:
+- `#1293-D`: `if ((p = ...)` 赋值在条件中 (已在 Draw_Header 中处理)
+- `#27-D`: UTF-8 字符串拼接 (已在宏中处理)
+- `#68-D`: 整数转换为指针
+
+- [ ] **Step 3: 静态审查 — 变量引用完整性**
+
+验证以下旧变量/函数已完全移除:
+```bash
+rg "Ui_Controller_State" Keil_Project/  # 应仅在 .h(新枚举) 中出现
+rg "Calc_Ui_State" Keil_Project/        # 应无匹配
+rg "Ui_Controller_Get_State" Keil_Project/  # 应仅在 .h 出现
+rg "Ui_Controller_Get_Bridge_State" Keil_Project/  # 应无匹配
+rg "s_ui_state" Keil_Project/           # 应无匹配
+```
+
+---
+
+### Task 7: 代码审查
+
+- [ ] **Step 1: 使用 code-reviewer 审查**
+
+```bash
+git diff HEAD -- Keil_Project/Hardware/Ui_Controller.c \
+                 Keil_Project/Hardware/Ui_Controller.h \
+                 Keil_Project/User/App_Network.c \
+                 Keil_Project/User/main.c
+```
+
+关注点:
+- 菜单光标边界检查 (s_menu_cursor 不越界)
+- 故障边沿触发逻辑正确
+- 扫频完成自动跳转逻辑
+- PAGE 返回栈正确性
+- EMA 重置时机
+- 长按 WiFi 清除全局可用
+- 文件总行数 ≤ 900
+
+- [ ] **Step 2: 修复审查发现的问题**
+
+- [ ] **Step 3: 提交**
+
+```bash
+git add Keil_Project/Hardware/Ui_Controller.h \
+        Keil_Project/Hardware/Ui_Controller.c \
+        Keil_Project/User/App_Network.c \
+        Keil_Project/User/main.c \
+        docs/superpowers/specs/2026-06-14-ui-refactor-design.md \
+        docs/superpowers/plans/
+git commit -m "feat: UI重构 — V10两级菜单架构
+
+主菜单4项+监测子菜单5项+扫频/综合/频率/电压/电流/配网/故障页
+替换6态线性状态机为9页枚举
+按键总线: F+/F-导航+调频, KEY0确定/动作, PAGE返回
+故障边沿触发防无限重入
+
+详见 docs/superpowers/specs/2026-06-14-ui-refactor-design.md"
+```
