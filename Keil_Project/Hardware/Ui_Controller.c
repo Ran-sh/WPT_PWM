@@ -218,6 +218,8 @@ static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char
         col_start = 2;
         color = UI_COLOR_BG;
     } else {
+        Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
+                            TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
         Tft_Driver_Show_String(line, 0, "  ", UI_COLOR_TEXT, UI_COLOR_BG);
         col_start = 2;
     }
@@ -285,43 +287,40 @@ static void Draw_Main_Menu(void)
 /* -------- Monitor Sub-Menu (5 items) -------- */
 static void Draw_Monitor_Sub_Menu(void)
 {
-    /* Items within dividers, 4 visible, scroll window */
     uint8_t visible_top = (s_menu_cursor >= 3) ? (s_menu_cursor - 2) : 0;
-    uint8_t i;
+    uint8_t i, line;
 
     Draw_Header(S_MONITOR);
     Draw_Divider(1);
 
-    /* Render only items that fit in lines 2-5 (visible window of 4 items) */
-    for (i = visible_top; i <= visible_top + 3 && i < 5; i++) {
-        uint8_t line = 2 + (i - visible_top);
-        char item_buf[22];
-        const char* name;
-        switch (i) {
-            case 0: name = S_SUMMARY;  break;
-            case 1: name = S_MON_FREQ; break;
-            case 2: name = S_MON_VOLT; break;
-            case 3: name = S_MON_CURR; break;
-            case 4: name = S_BACK;     break;
-            default: name = ""; break;
+    /* Fill lines 2-5 (4-row window) with items OR fill bg for empty rows */
+    for (line = 2; line <= 5; line++) {
+        i = visible_top + (line - 2);
+        if (i < 5) {
+            char item_buf[22];
+            const char* name;
+            switch (i) {
+                case 0: name = S_SUMMARY;  break;
+                case 1: name = S_MON_FREQ; break;
+                case 2: name = S_MON_VOLT; break;
+                case 3: name = S_MON_CURR; break;
+                case 4: name = S_BACK;     break;
+                default: name = ""; break;
+            }
+            snprintf(item_buf, sizeof(item_buf), "%d. %s", i + 1, name);
+            Draw_Menu_Item(line, s_menu_cursor, i, item_buf, 1);
+        } else {
+            /* Empty row: fill with BG to clear any old content */
+            Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
+                                TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
         }
-        snprintf(item_buf, sizeof(item_buf), "%d. %s", i + 1, name);
-        Draw_Menu_Item(line, s_menu_cursor, i, item_buf, 1);
     }
 
     Draw_Divider(6);
 
-    /* Scroll indicators if more items above/below */
-    {
-        char scroll_hint[21];
-        if (visible_top > 0 && s_menu_cursor < 4)
-            snprintf(scroll_hint, sizeof(scroll_hint), "> " "\xe8\xbf\x94\xe5\x9b\x9e");
-        else if (s_menu_cursor == 4)
-            snprintf(scroll_hint, sizeof(scroll_hint), "> " "\xe8\xbf\x94\xe5\x9b\x9e");
-        else
-            snprintf(scroll_hint, sizeof(scroll_hint), "\xe8\xbf\x94\xe5\x9b\x9e");
-        Tft_Driver_Show_CN_String(7, Right(scroll_hint), scroll_hint, UI_COLOR_TEXT, UI_COLOR_BG);
-    }
+    /* Bottom line: simple back hint */
+    Tft_Driver_Show_CN_String(7, Right("\xe8\xbf\x94\xe5\x9b\x9e"),
+        "\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
 /* -------- Sweep Page -------- */
