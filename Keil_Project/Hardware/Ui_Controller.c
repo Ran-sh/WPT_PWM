@@ -932,6 +932,8 @@ void Ui_Controller_Task(void)
 
     /* -- 9. Draw -- */
     if (need_draw) {
+        uint8_t is_menu = (s_page == UI_PAGE_MAIN_MENU || s_page == UI_PAGE_MONITOR_SUB_MENU);
+        if (!is_menu || need_draw) {
         switch (s_page) {
             case UI_PAGE_MAIN_MENU:        Draw_Main_Menu();        break;
             case UI_PAGE_MONITOR_SUB_MENU: Draw_Monitor_Sub_Menu(); break;
