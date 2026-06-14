@@ -798,6 +798,7 @@ void Ui_Controller_Task(void)
     static uint32_t s_last_ui_ms = 0;
     static uint8_t  s_last_wifi_frame = 0xFF;
     static uint8_t  s_last_mqtt_frame = 0xFF;
+    uint8_t need_draw = 0;
 
     /* -- 0. WIFI + MQTT icon animation: per-frame partial refresh of line 0 -- */
     /*     WIFI: 150ms/6fr, MQTT: 200ms/6fr. Both sampled independently.    */
@@ -870,12 +871,10 @@ void Ui_Controller_Task(void)
         Reset_EMA();
     }
 
-    /* -- 5. 200ms periodic throttle to reduce SPI load -- */
+    /* -- 5. 200ms periodic throttle -- */
     if (Sys_Timer_Get_Tick() - s_last_ui_ms >= UI_REFRESH_MS) {
         s_last_ui_ms = Sys_Timer_Get_Tick();
-    } else {
-        /* Skip full redraw to reduce flicker, but WIFI header may still update above */
-        return;
+        need_draw = 1;
     }
 
     /* -- 6. Menu cursor boundary clamp (before draw, prevent overrun) -- */
@@ -918,16 +917,18 @@ void Ui_Controller_Task(void)
         Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
 
     /* -- 9. Draw -- */
-    {
-        if (s_page == UI_PAGE_MAIN_MENU)        Draw_Main_Menu();
-        else if (s_page == UI_PAGE_MONITOR_SUB_MENU) Draw_Monitor_Sub_Menu();
-        else if (s_page == UI_PAGE_SWEEP)            Draw_Sweep_Page();
-        else if (s_page == UI_PAGE_MONITOR_SUMMARY)  Draw_Monitor_Summary();
-        else if (s_page == UI_PAGE_MONITOR_FREQ)     Draw_Monitor_Freq();
-        else if (s_page == UI_PAGE_MONITOR_VOLT)     Draw_Monitor_Volt();
-        else if (s_page == UI_PAGE_MONITOR_CURR)     Draw_Monitor_Curr();
-        else if (s_page == UI_PAGE_WIFI_SETUP)       Draw_WiFi_Setup();
-        else if (s_page == UI_PAGE_FAULT)            Draw_Fault_Page();
+    if (need_draw) {
+        switch (s_page) {
+            case UI_PAGE_MAIN_MENU:        Draw_Main_Menu();        break;
+            case UI_PAGE_MONITOR_SUB_MENU: Draw_Monitor_Sub_Menu(); break;
+            case UI_PAGE_SWEEP:            Draw_Sweep_Page();       break;
+            case UI_PAGE_MONITOR_SUMMARY:  Draw_Monitor_Summary();  break;
+            case UI_PAGE_MONITOR_FREQ:     Draw_Monitor_Freq();     break;
+            case UI_PAGE_MONITOR_VOLT:     Draw_Monitor_Volt();     break;
+            case UI_PAGE_MONITOR_CURR:     Draw_Monitor_Curr();     break;
+            case UI_PAGE_WIFI_SETUP:       Draw_WiFi_Setup();       break;
+            case UI_PAGE_FAULT:            Draw_Fault_Page();       break;
+        }
         Update_Leds(s_page);
     }
 }
