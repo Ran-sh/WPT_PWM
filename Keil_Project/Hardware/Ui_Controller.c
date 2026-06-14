@@ -633,9 +633,18 @@ static void Handle_Keys_by_Page(Ui_Page page,
                 break;
 
             case UI_PAGE_WIFI_SETUP: {
-                /* ON in WiFi page: trigger ESP8266 reconnect + re-enter config mode */
+                /* ON in WiFi page: if online -> disconnect (no-WiFi mode);
+                 * if not online -> reconnect + clear WiFi for re-config.
+                 * WiFiManager remembers config, so CLEAR forces hotspot mode. */
                 uint8_t cs = App_Network_Get_Connect_Status();
-                if (cs != APP_NETWORK_CONN_ONLINE) {
+                if (cs == APP_NETWORK_CONN_ONLINE) {
+                    /* Connected: disconnect and enter no-WiFi mode */
+                    App_Network_Soft_Reset();
+                    s_no_wifi_mode = 1;
+                    s_page = UI_PAGE_MAIN_MENU;
+                    s_menu_cursor = 0;
+                } else {
+                    /* Not connected: clear old config and reconnect */
                     if (Esp8266_Driver_Is_Ready()) {
                         Esp8266_Driver_Send_String("CMD:CLEAR\n");
                     }
