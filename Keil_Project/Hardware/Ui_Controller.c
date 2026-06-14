@@ -49,6 +49,10 @@
 #define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* current */
 #define S_STOP      "\xe5\x81\x9c\xe6\xad\xa2"                       /* stop */
 #define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* clear WIFI */
+#define S_WIFI_ONLINE "\xe5\xb7\xb2\xe8\xbf\x9e\xe7\xba\xbf\xe4\xb8\x8a\xe7\xba\xbf" /* online */
+#define S_WIFI_FAILED "\xe8\xbf\x9e\xe6\x8e\xa5\xe5\xa4\xb1\xe8\xb4\xa5"  /* failed */
+#define S_WIFI_CONN   "\xe8\xbf\x9e\xe6\x8e\xa5\xe4\xb8\xad"              /* connecting */
+#define S_WIFI_IDLE   "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"              /* disconnected */
 #define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* summary */
 #define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* back to main */
 #define S_DIV       "--------------------"           /* divider */
@@ -457,13 +461,13 @@ static void Draw_WiFi_Setup(void)
     char buf[21];
 
     if (cs == APP_NETWORK_CONN_ONLINE)
-        status_text = "\xe5\xb7\xb2\xe8\xbf\x9e\xe7\xba\xbf\xe4\xb8\x8a\xe7\xba\xbf";  /* online */
+        status_text = S_WIFI_ONLINE;   /* online */
     else if (cs == APP_NETWORK_CONN_FAILED)
-        status_text = "\xe8\xbf\x9e\xe6\x8e\xa5\xe5\xa4\xb1\xe8\xb4\xa5";              /* failed */
+        status_text = S_WIFI_FAILED;   /* failed */
     else if (App_Network_Is_Connecting())
-        status_text = "\xe8\xbf\x9e\xe6\x8e\xa5\xe4\xb8\xad";                          /* connecting */
+        status_text = S_WIFI_CONN;     /* connecting */
     else
-        status_text = "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5";                          /* disconnected */
+        status_text = S_WIFI_IDLE;     /* disconnected */
 
     /* Dynamic hint based on state */
     if (cs == APP_NETWORK_CONN_ONLINE)
