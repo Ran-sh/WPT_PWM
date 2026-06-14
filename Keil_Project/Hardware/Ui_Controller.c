@@ -245,7 +245,10 @@ static void Draw_Main_Menu(void)
 
     /* Item 1: Start PWM / Stop PWM (dynamic text) */
     {
-        const char* t1 = is_running ? "1. " S_STOP "PWM" : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";
+        /* "1. \xe5\x90\xaf\xe5\x8a\xa8PWM" = 1.启动PWM, "1. \xe5\x81\x9c\xe6\xad\xa2PWM" = 1.停止PWM */
+        const char* t1 = is_running
+            ? "1. \xe5\x81\x9c\xe6\xad\xa2PWM"
+            : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";
         Draw_Menu_Item(2, s_menu_cursor, 0, t1, 1);
     }
 
