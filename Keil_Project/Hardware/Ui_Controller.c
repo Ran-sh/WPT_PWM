@@ -412,6 +412,10 @@ static void Draw_Monitor_Summary(void)
                        16 * TFT_FONT_WIDTH, 10,
                        s_ema_v, 0.0f, 48.0f,
                        ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
+    } else {
+        /* Erase energy bar area to prevent stale display */
+        Tft_Driver_Fill_Rect(0, 5 * TFT_FONT_HEIGHT,
+                            TFT_WIDTH, 10, UI_COLOR_BG);
     }
 
     Draw_Divider(6);
@@ -882,6 +886,9 @@ void Ui_Controller_Task(void)
         uint8_t is_fault = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_FAULT);
         uint8_t max_cursor = is_fault ? 3 : 2;
         if (s_menu_cursor > max_cursor) s_menu_cursor = max_cursor;
+    }
+    if (s_page == UI_PAGE_MONITOR_SUB_MENU) {
+        if (s_menu_cursor > 4) s_menu_cursor = 0;
     }
 
     /* -- 7. PB10 PowerContrl -- */
