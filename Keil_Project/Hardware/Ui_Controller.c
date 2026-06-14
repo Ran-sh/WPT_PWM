@@ -202,22 +202,24 @@ static void Draw_Header(const char* title)
 static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char* text, uint8_t enabled)
 {
     uint16_t color = UI_COLOR_TEXT;
-    uint8_t col_start = 0;  /* text start column after prefix */
+    uint8_t col_start = 0;
 
     if (!enabled) {
         color = UI_COLOR_DIM;
     }
 
     if (cursor == idx) {
-        /* Selected: fill entire row with cyan, draw black text over it */
+        /* Selected: fill entire row with cyan, draw star icon + black text */
+        uint8_t star_frame = (uint8_t)(Sys_Timer_Get_Tick() / 100) % 16;
         Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
                             TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_VALUE);
-        Tft_Driver_Show_CN_String(line, 0, "\xe2\x96\xb6", UI_COLOR_BG, UI_COLOR_VALUE);
-        col_start = 1;
+        Tft_Driver_Draw_Single_Icon(0, (uint16_t)line * TFT_FONT_HEIGHT,
+                                    STAR_CURSOR_ANIM[star_frame], UI_COLOR_BG, UI_COLOR_VALUE);
+        col_start = 2;
         color = UI_COLOR_BG;
     } else {
         Tft_Driver_Show_String(line, 0, "  ", UI_COLOR_TEXT, UI_COLOR_BG);
-        col_start = 1;
+        col_start = 2;
     }
 
     Tft_Driver_Show_CN_String(line, col_start, text, color,
