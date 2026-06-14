@@ -470,9 +470,9 @@ static void Draw_WiFi_Setup(void)
 
     /* Dynamic hint based on state */
     if (cs == APP_NETWORK_CONN_ONLINE)
-        hint_text = "ON:" "\xe6\x96\xad\xe5\xbc\x80WIFI";       /* ON:断开WIFI */
+        hint_text = "ON:\xe6\x96\xad\xe5\xbc\x80WIFI";       /* ON:断开WIFI */
     else
-        hint_text = "ON:" "\xe8\xbf\x9e\xe6\x8e\xa5WIFI";       /* ON:连接WIFI */
+        hint_text = "ON:\xe8\xbf\x9e\xe6\x8e\xa5WIFI";       /* ON:连接WIFI */
 
     Draw_Header(S_LAUNCH);
     Draw_Divider(1);
@@ -480,15 +480,23 @@ static void Draw_WiFi_Setup(void)
     snprintf(buf, sizeof(buf), "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81: %s", status_text);
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
 
+    /* Retry count: only when connecting */
     if (App_Network_Is_Connecting()) {
         snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d", App_Network_Get_Retry_Count() + 1, 3);
         Tft_Driver_Show_CN_String(3, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    } else {
+        /* Erase retry line when not connecting */
+        Tft_Driver_Fill_Rect(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
     }
 
-    Tft_Driver_Show_CN_String(5, 0, hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
+    /* ON action hint, right-aligned */
+    Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
 
-    Tft_Driver_Show_CN_String(6, 0,
-        "\xe9\x95\xbf\xe6\x8c\x89" "ON:" S_CLEAR_WIFI, UI_COLOR_ALARM, UI_COLOR_BG);
+    /* Long-press clear WiFi, right-aligned */
+    {
+        const char* clear_text = "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI;
+        Tft_Driver_Show_CN_String(6, Right(clear_text), clear_text, UI_COLOR_ALARM, UI_COLOR_BG);
+    }
 
     Draw_Divider(7);
 }
