@@ -128,13 +128,6 @@ static void Fmt_F(char* buf, float f)
     snprintf(buf, 21, S_FREQ "F:%3d.%01dkHz", (int)f, (int)((f-(int)f)*10+0.5f)%10);
 }
 
-static uint8_t Is_WiFi_Online(void)
-{
-    if (s_no_wifi_mode) return 0;
-    if (!Esp8266_Driver_Is_Ready()) return 0;
-    return (App_Network_Get_Connect_Status() == APP_NETWORK_CONN_ONLINE);
-}
-
 /* ================================================================
  *  Draw_Header: line0 title(left) + MQTTcloud(x=128) + WIFI(x=144)
  *  All pages call this. Preserved from V9.
