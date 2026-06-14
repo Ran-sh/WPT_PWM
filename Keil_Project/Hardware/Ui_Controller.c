@@ -693,10 +693,26 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* -------- PAGE (k3): go back to main menu -------- */
+    /* -------- PAGE (k3): go back one level -------- */
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
-        s_page = UI_PAGE_MAIN_MENU;
-        s_menu_cursor = 0;
+        switch (page) {
+            case UI_PAGE_MAIN_MENU:
+                break;  /* already at top, PAGE does nothing */
+            case UI_PAGE_MONITOR_SUB_MENU:
+            case UI_PAGE_SWEEP:
+            case UI_PAGE_WIFI_SETUP:
+            case UI_PAGE_FAULT:
+                s_page = UI_PAGE_MAIN_MENU;
+                s_menu_cursor = 0;
+                break;
+            case UI_PAGE_MONITOR_SUMMARY:
+            case UI_PAGE_MONITOR_FREQ:
+            case UI_PAGE_MONITOR_VOLT:
+            case UI_PAGE_MONITOR_CURR:
+                s_page = UI_PAGE_MONITOR_SUB_MENU;
+                s_menu_cursor = 0;
+                break;
+        }
     }
 }
 
