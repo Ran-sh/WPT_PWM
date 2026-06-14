@@ -508,7 +508,7 @@ static void Update_Leds(Ui_Page page)
 
     if (cs == APP_NETWORK_CONN_ONLINE)
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
-    else if (cs == APP_NETWORK_CONN_WIFI)
+    else if (cs == APP_NETWORK_CONN_WIFI || cs == APP_NETWORK_CONN_MQTT)
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
     else
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
