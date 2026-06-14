@@ -669,14 +669,17 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* -------- KEY0 long-press: clear WiFi (any page) -------- */
+    /* -------- KEY0 long-press: clear WiFi (any pageable to do so) -------- */
     if (k0 == KEY_DRIVER_EVENT_LONG_PRESS) {
         if (Esp8266_Driver_Is_Ready()) {
             Esp8266_Driver_Send_String("CMD:CLEAR\n");
             App_Network_Soft_Reset();
             s_no_wifi_mode = 1;
-            s_page = UI_PAGE_MAIN_MENU;
-            s_menu_cursor = 0;
+            /* If not already on WiFi page, go there to show status */
+            if (s_page != UI_PAGE_WIFI_SETUP && s_page != UI_PAGE_FAULT) {
+                s_page = UI_PAGE_WIFI_SETUP;
+            }
+            /* Stay on WiFi page to show new state, reset EMA */
             Reset_EMA();
         }
     }
