@@ -869,8 +869,8 @@ void Ui_Controller_Task(void)
     if (Sys_Timer_Get_Tick() - s_last_ui_ms >= UI_REFRESH_MS) {
         s_last_ui_ms = Sys_Timer_Get_Tick();
     } else {
-        /* Skip redraw to reduce flicker from over-drawing */
-        if ((uint8_t)s_page == s_last_page && s_menu_cursor == s_last_cursor) return;
+        /* Skip full redraw to reduce flicker, but WIFI header may still update above */
+        return;
     }
 
     /* -- 6. Menu cursor boundary clamp (before draw, prevent overrun) -- */
