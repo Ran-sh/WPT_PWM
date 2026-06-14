@@ -291,12 +291,18 @@ static void Draw_Monitor_Sub_Menu(void)
 static void Draw_Sweep_Page(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
+    Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
+    uint8_t is_stopped = (ss == INVERTER_CONTROL_SS_STATE_IDLE);
     uint32_t progress;
     char buf[21];
 
-    progress = (SOFTSTART_START_FREQ_HZ - f) * 10
-             / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
-    if (progress > 10) progress = 10;
+    if (is_stopped) {
+        progress = 0;
+    } else {
+        progress = (SOFTSTART_START_FREQ_HZ - f) * 10
+                 / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
+        if (progress > 10) progress = 10;
+    }
 
     Draw_Header(S_SWEEP);
     Draw_Divider(1);
@@ -307,12 +313,19 @@ static void Draw_Sweep_Page(void)
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
     /* Energy bar + percentage */
-    Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
-                   14 * TFT_FONT_WIDTH, 8,
-                   (float)progress, 0.0f, 10.0f,
-                   ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
-    snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
-    if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+    if (!is_stopped) {
+        Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+                       14 * TFT_FONT_WIDTH, 8,
+                       (float)progress, 0.0f, 10.0f,
+                       ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
+        snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
+        if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+    } else {
+        /* Stopped: clear bar + show status text */
+        Tft_Driver_Fill_Rect(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+                            14 * TFT_FONT_WIDTH, 8, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(3, 5, "\xe5\xb7\xb2\xe6\x9a\x82\xe5\x81\x9c", UI_COLOR_ALARM, UI_COLOR_BG); /* 已暂停 */
+    }
 
     /* Voltage / Current */
     Fmt_V(buf, Adc_Driver_Get_Voltage());
@@ -321,8 +334,13 @@ static void Draw_Sweep_Page(void)
     Tft_Driver_Show_CN_String(5, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
 
     Draw_Divider(6);
-    Tft_Driver_Show_CN_String(7, Right("ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
-        "ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
+    if (is_stopped) {
+        Tft_Driver_Show_CN_String(7, Right("ON:\xe7\xbb\xa7\xe7\xbb\xad PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+            "ON:\xe7\xbb\xa7\xe7\xbb\xad PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
+    } else {
+        Tft_Driver_Show_CN_String(7, Right("ON:\xe5\x81\x9c\xe6\xad\xa2 PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+            "ON:\xe5\x81\x9c\xe6\xad\xa2 PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
+    }
 }
 
 /* -------- Monitor Summary (dual mode: idle / running) -------- */
