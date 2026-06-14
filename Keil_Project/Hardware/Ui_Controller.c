@@ -797,7 +797,6 @@ void Ui_Controller_Task(void)
     static uint32_t s_last_ui_ms = 0;
     static uint8_t  s_last_wifi_frame = 0xFF;
     static uint8_t  s_last_mqtt_frame = 0xFF;
-    uint8_t need_draw = 0;
 
     /* -- 0. WIFI + MQTT icon animation: per-frame partial refresh of line 0 -- */
     /*     WIFI: 150ms/6fr, MQTT: 200ms/6fr. Both sampled independently.    */
@@ -858,38 +857,20 @@ void Ui_Controller_Task(void)
 
     Handle_Keys_by_Page(s_page, k0, k1, k2, k3);
 
-    /* -- 4. Page change detection (after key handling) -- */
-    /*     Only full-clear on PAGE CHANGE, not cursor move.            */
-    /*     Cursor moves use incremental redraw (old line + new line).  */
-    if ((uint8_t)s_page != s_last_page) {
+    /* -- 4. Page/cursor change detection -- */
+    if ((uint8_t)s_page != s_last_page || s_menu_cursor != s_last_cursor) {
         s_last_page   = (uint8_t)s_page;
         s_last_cursor = s_menu_cursor;
         Tft_Driver_Clear(UI_COLOR_BG);
         Reset_EMA();
-        need_draw = 1;
-    } else if (s_menu_cursor != s_last_cursor) {
-        /* Cursor moved: erase old row + redraw menu, no full clear */
-        uint8_t old_cursor = s_last_cursor;
-        s_last_cursor = s_menu_cursor;
-        /* Erase old selected row (clear to BG) */
-        if (old_cursor < 8) {
-            /* line offset: main menu items start at line 2, sub-menu at line 2 */
-            uint8_t line_old = (s_page == UI_PAGE_MAIN_MENU) ? (2 + old_cursor)
-                              : (s_page == UI_PAGE_MONITOR_SUB_MENU && old_cursor < 4) ? (2 + old_cursor)
-                              : (s_page == UI_PAGE_MONITOR_SUB_MENU && old_cursor == 4) ? 7
-                              : 0xFF;
-            if (line_old != 0xFF) {
-                Tft_Driver_Fill_Rect(0, (uint16_t)line_old * TFT_FONT_HEIGHT,
-                                    TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
-            }
-        }
-        need_draw = 1;
     }
 
-    /* -- 5. 200ms periodic refresh -- */
+    /* -- 5. 200ms periodic throttle to reduce SPI load -- */
     if (Sys_Timer_Get_Tick() - s_last_ui_ms >= UI_REFRESH_MS) {
         s_last_ui_ms = Sys_Timer_Get_Tick();
-        need_draw = 1;
+    } else {
+        /* Skip redraw to reduce flicker from over-drawing */
+        if ((uint8_t)s_page == s_last_page && s_menu_cursor == s_last_cursor) return;
     }
 
     /* -- 6. Menu cursor boundary clamp (before draw, prevent overrun) -- */
@@ -931,21 +912,16 @@ void Ui_Controller_Task(void)
         Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
 
     /* -- 9. Draw -- */
-    /* Always redraw to prevent flicker from skipped frames */
-    if (1) {
-        uint8_t is_menu = (s_page == UI_PAGE_MAIN_MENU || s_page == UI_PAGE_MONITOR_SUB_MENU);
-        if (!is_menu || need_draw) {
-        switch (s_page) {
-            case UI_PAGE_MAIN_MENU:        Draw_Main_Menu();        break;
-            case UI_PAGE_MONITOR_SUB_MENU: Draw_Monitor_Sub_Menu(); break;
-            case UI_PAGE_SWEEP:            Draw_Sweep_Page();       break;
-            case UI_PAGE_MONITOR_SUMMARY:  Draw_Monitor_Summary();  break;
-            case UI_PAGE_MONITOR_FREQ:     Draw_Monitor_Freq();     break;
-            case UI_PAGE_MONITOR_VOLT:     Draw_Monitor_Volt();     break;
-            case UI_PAGE_MONITOR_CURR:     Draw_Monitor_Curr();     break;
-            case UI_PAGE_WIFI_SETUP:       Draw_WiFi_Setup();       break;
-            case UI_PAGE_FAULT:            Draw_Fault_Page();       break;
-        }
+    {
+        if (s_page == UI_PAGE_MAIN_MENU)        Draw_Main_Menu();
+        else if (s_page == UI_PAGE_MONITOR_SUB_MENU) Draw_Monitor_Sub_Menu();
+        else if (s_page == UI_PAGE_SWEEP)            Draw_Sweep_Page();
+        else if (s_page == UI_PAGE_MONITOR_SUMMARY)  Draw_Monitor_Summary();
+        else if (s_page == UI_PAGE_MONITOR_FREQ)     Draw_Monitor_Freq();
+        else if (s_page == UI_PAGE_MONITOR_VOLT)     Draw_Monitor_Volt();
+        else if (s_page == UI_PAGE_MONITOR_CURR)     Draw_Monitor_Curr();
+        else if (s_page == UI_PAGE_WIFI_SETUP)       Draw_WiFi_Setup();
+        else if (s_page == UI_PAGE_FAULT)            Draw_Fault_Page();
         Update_Leds(s_page);
     }
 }
