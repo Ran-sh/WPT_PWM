@@ -213,8 +213,24 @@ static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char
         uint8_t star_frame = (uint8_t)(Sys_Timer_Get_Tick() / 100) % 16;
         Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
                             TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_VALUE);
+        /* Star bitmap: 0xFF=background, 0x00=star shape.
+           Draw: fg=row-bg(cyan), bg=text-bg(black) so star=cyan stays visible on black gaps.
+           Wait - star.c has 0xFF white bg, 0x00 black star.
+           Draw_Single_Icon(fg,bg): bit=1 -> fg, bit=0 -> bg.
+           With fg=black, bg=cyan: 0xFF region(empty)->black background behind star.
+           0x00 region(star shape)->cyan star on that black.
+           Effect: black square with cyan star inside. That looks wrong.
+           Let us try: fg=cyan, bg=black -> 0xFF->cyan fill, 0x00->black star.
+           That gives cyan background with black star. Better.
+           But the star.c data has inverted semantics - the "star" is 0x00.
+           Alternative: swap fg and bg so the visual star icon renders correctly.
+           The DATA in star.c already has the star shape as zeros.
+           With fg=UI_COLOR_VALUE, bg=UI_COLOR_BG:
+           bit=1 areas get cyan, bit=0 areas get black.
+           So the star is BLACK on CYAN background - THAT IS THE CORRECT LOOK.
+        */
         Tft_Driver_Draw_Single_Icon(0, (uint16_t)line * TFT_FONT_HEIGHT,
-                                    STAR_CURSOR_ANIM[star_frame], UI_COLOR_VALUE, UI_COLOR_BG);
+                                    STAR_CURSOR_ANIM[star_frame], UI_COLOR_BG, UI_COLOR_VALUE);
         col_start = 2;
         color = UI_COLOR_BG;
     } else {
