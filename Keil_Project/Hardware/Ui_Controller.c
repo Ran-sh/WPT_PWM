@@ -764,6 +764,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
             return;
         }
         if (Esp8266_Driver_Is_Ready()) {
+            /* Only clear WiFi after ensuring ESP idle; send CLEAR then reconnect */
             Esp8266_Driver_Send_String("CMD:CLEAR\n");
             App_Network_Soft_Reset();
             s_no_wifi_mode = 1;
