@@ -12,7 +12,7 @@
 #define ADC_DRIVER_VREF_MCU            3.30f
 #define ADC_DRIVER_VOLTAGE_DIVIDER     20.0f
 #define ADC_DRIVER_CURRENT_SENSITIVITY 0.132f   /* CC6920BSO 标称灵敏度 132mV/A */
-#define ADC_DRIVER_CURRENT_CAL_FACTOR  0.6f   /* 灵敏度校准系数: 显示值=原始值*系数, 匹配实际电流 */
+#define ADC_DRIVER_CURRENT_CAL_FACTOR  0.602f   /* 灵敏度校准系数: 显示值=原始值*系数, 匹配实际电流 */
 #define ADC_DRIVER_FILTER_WINDOW       64
 
 /*

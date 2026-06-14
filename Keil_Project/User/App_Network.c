@@ -25,6 +25,7 @@
 static App_Network_Conn_State s_conn_state    = APP_NETWORK_CONN_IDLE;
 static uint8_t                s_retry_count   = 0;
 static uint32_t               s_connect_start = 0;
+static int8_t                 s_rssi          = -100;  /* WIFI 信号强度 dBm, 默认-100 */
 
 uint8_t App_Network_Start_Connect(void)
 {
@@ -60,9 +61,10 @@ uint8_t App_Network_Is_Connected(void)
 /* ── 重试超时检查: 等待 CONNECT_TIMEOUT_MS(8s) 内收到 STATUS:ONLINE, 超时→重新 Start_Init → 最多 MAX_RETRIES(3) 次 → FAILED ── */
 static void Check_Retry(void)
 {
-    if (s_conn_state != APP_NETWORK_CONN_WIFI) return;
+    if (s_conn_state != APP_NETWORK_CONN_WIFI && s_conn_state != APP_NETWORK_CONN_MQTT) return;
     if (s_retry_count >= APP_NETWORK_MAX_RETRIES) {
         s_conn_state = APP_NETWORK_CONN_FAILED;
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
         return;
     }
 
@@ -74,8 +76,14 @@ static void Check_Retry(void)
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
         } else {
             s_conn_state = APP_NETWORK_CONN_FAILED;
+            Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
         }
     }
+}
+
+uint8_t App_Network_Is_Connecting(void)
+{
+    return (s_conn_state == APP_NETWORK_CONN_WIFI || s_conn_state == APP_NETWORK_CONN_MQTT);
 }
 
 void App_Network_Task(void)
@@ -93,9 +101,28 @@ void App_Network_Task(void)
         const char* p;
         Esp8266_Driver_Copy_Rx_Frame(local_buf, sizeof(local_buf));
 
-        if (strstr(local_buf, "STATUS:ONLINE")) {
-            s_conn_state = APP_NETWORK_CONN_ONLINE;
-            Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
+        if (strstr(local_buf, "STATUS:DISCONNECTED")) {
+            /* 断连 → 重置并回到 WIFI 连接状态, 清 RSSI */
+            s_conn_state    = APP_NETWORK_CONN_WIFI;
+            s_retry_count   = 0;
+            s_connect_start = Sys_Timer_Get_Tick();
+            s_rssi          = -100;
+            Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+        }
+        else if (strstr(local_buf, "STATUS:MQTT")) {
+            if (s_conn_state != APP_NETWORK_CONN_ONLINE) {
+                s_conn_state = APP_NETWORK_CONN_MQTT;
+                Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
+            }
+        }
+        else if (strstr(local_buf, "STATUS:ONLINE")) {
+            /* STATUS:ONLINE 可带 RSSI 参数 "STATUS:ONLINE:RSSI=-45" */
+            const char* r = strstr(local_buf, "RSSI=");
+            if (r) s_rssi = (int8_t)strtol(r + 5, NULL, 10);
+            if (s_conn_state != APP_NETWORK_CONN_ONLINE) {
+                s_conn_state = APP_NETWORK_CONN_ONLINE;
+                Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
+            }
         }
         else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')  /* 精确匹配: 确保 "CMD:OFF" 后跟结束符, 非更长字符串如 "CMD:OFFSET" */) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
@@ -130,7 +157,7 @@ void App_Network_Task(void)
 
             uint8_t allow_telemetry = 1;
 
-            if (s_conn_state != APP_NETWORK_CONN_ONLINE)     allow_telemetry = 0;
+            if (s_conn_state != APP_NETWORK_CONN_ONLINE) allow_telemetry = 0;
             if (Ui_Controller_Get_State() < UI_CONTROLLER_STATE_READY) allow_telemetry = 0;
 
             Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
@@ -156,3 +183,5 @@ void App_Network_Task(void)
         }
     }
 }
+
+int8_t App_Network_Get_RSSI(void) { return s_rssi; }

@@ -212,6 +212,7 @@ static void Mqtt_Task_Maintain_Connection(void)
         case MQTT_CONN_STATE_WIFI_CONN:
             if (WiFi.status() == WL_CONNECTED) {
                 s_conn_state = MQTT_CONN_STATE_MQTT_CONN;
+                Serial.print("STATUS:MQTT\n");
             } else if (now - s_conn_retry_ms >= s_conn_timeout_ms) {
                 s_conn_retry_cnt++;
                 if (s_conn_retry_cnt >= s_conn_max_retry) {
@@ -237,7 +238,9 @@ static void Mqtt_Task_Maintain_Connection(void)
 
             if (one_ok && pub_ok) {
                 s_conn_state = MQTT_CONN_STATE_ONLINE;
-                Serial.print("STATUS:ONLINE\n");
+                Serial.print("STATUS:ONLINE:RSSI=");
+                Serial.print(WiFi.RSSI());
+                Serial.print("\n");
 #ifdef DEBUG
                 Serial.println("[Status] >>> Sent STATUS:ONLINE to STM32 <<<");
 #endif
@@ -245,16 +248,27 @@ static void Mqtt_Task_Maintain_Connection(void)
             break;
         }
 
-        case MQTT_CONN_STATE_ONLINE:
+        case MQTT_CONN_STATE_ONLINE: {
             /* 周期性检查: 任一掉线则回退 */
             if (WiFi.status() != WL_CONNECTED) {
                 s_conn_state = MQTT_CONN_STATE_WIFI_CONN;
                 s_conn_retry_ms = now;
+                Serial.print("STATUS:DISCONNECTED\n");
                 WiFi.begin();
-            } else if (!s_mqtt_client.connected() || !s_mqtt_public.connected()) {
+            } else if (!s_mqtt_client.connected() && !s_mqtt_public.connected()) {
                 s_conn_state = MQTT_CONN_STATE_MQTT_CONN;
             }
+            /* 每 2s 上报 RSSI */ {
+                static unsigned long last_rssi = 0;
+                if (now - last_rssi >= 2000) {
+                    last_rssi = now;
+                    Serial.print("STATUS:RSSI=");
+                    Serial.print(WiFi.RSSI());
+                    Serial.print("\n");
+                }
+            }
             break;
+        }
 
         case MQTT_CONN_STATE_FAILED:
             break;  /* 需外部复位 */
@@ -419,6 +433,24 @@ void setup()
 
 void loop()
 {
+    static unsigned long last_check = 0;
+    unsigned long now = millis();
+
     Mqtt_Task_Loop();
     Serial_Parse_Read_Loop();
+
+    /* 全局 WiFi 断连检测: 每 500ms 检查一次 */
+    if (now - last_check >= 500) {
+        last_check = now;
+        if (s_conn_state == MQTT_CONN_STATE_ONLINE ||
+            s_conn_state == MQTT_CONN_STATE_MQTT_CONN) {
+            if (WiFi.status() != WL_CONNECTED) {
+                s_conn_state     = MQTT_CONN_STATE_WIFI_CONN;
+                s_conn_retry_ms  = now;
+                s_conn_retry_cnt = 0;
+                Serial.print("STATUS:DISCONNECTED\n");
+                WiFi.begin();
+            }
+        }
+    }
 }

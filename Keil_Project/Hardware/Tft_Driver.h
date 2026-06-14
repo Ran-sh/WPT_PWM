@@ -61,5 +61,10 @@ void Tft_Driver_Show_CN_String(uint8_t line, uint8_t column, const char* str,
                               uint16_t fg_color, uint16_t bg_color);
 /** @brief 像素级填充矩形 (坐标+宽高, 含边界裁剪) */
 void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
+/** @brief 绘制 16x16 WIFI 信号动画图标 (frame:0-3, 逐帧扩散) */
+void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t fg, uint16_t bg);
+/** @brief 绘制 16x16 单帧图标 (32字节 LSB-first 位图) */
+void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
+                                  uint16_t fg, uint16_t bg);
 
 #endif /* TFT_DRIVER_H */

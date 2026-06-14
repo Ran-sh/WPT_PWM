@@ -11,6 +11,7 @@
 #include "Tft_Driver.h"
 #include "TFT_Font.h"
 #include "TFT_CN_Font.h"
+#include "TFT_Img.h"
 
 #define TFT_DRIVER_CS_PIN   GPIO_Pin_4
 #define TFT_DRIVER_DC_PIN   GPIO_Pin_6
@@ -428,6 +429,60 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
         } else {
             Tft_Driver_Show_Char(ln, col, *s, fg, bg);
             col++; s++;
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  WIFI 信号图标绘制 (字模存放于 TFT_Img.c)
+ * ═══════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief  绘制 16x16 WIFI 信号动画图标
+ * @param  x, y : 像素坐标 (左上角)
+ * @param  frame : 0-3 动画帧索引
+ * @param  fg, bg : 前景色和背景色
+ * @note   位图 LSB-first, 每行2字节共16行, 逐像素 WrD16 写入
+ */
+void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t fg, uint16_t bg)
+{
+    uint8_t row, byte_idx, bit;
+    const uint8_t* data;
+
+    if (frame > 3) frame = 3;
+    data = WIFI_ICON[frame];
+
+    SetWin(x, y, x + 15, y + 15);
+
+    for (row = 0; row < 16; row++) {
+        for (byte_idx = 0; byte_idx < 2; byte_idx++) {
+            uint8_t byte_val = data[row * 2 + byte_idx];
+            for (bit = 0; bit < 8; bit++) {
+                WrD16((byte_val & (0x01 << bit)) ? fg : bg);
+            }
+        }
+    }
+}
+
+/**
+ * @brief  绘制 16x16 单帧图标 (直接传 32 字节数组)
+ * @param  x, y : 像素坐标
+ * @param  data : 32 字节 LSB-first 位图
+ * @param  fg, bg : 前景色/背景色
+ */
+void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
+                                  uint16_t fg, uint16_t bg)
+{
+    uint8_t row, byte_idx, bit;
+
+    SetWin(x, y, x + 15, y + 15);
+
+    for (row = 0; row < 16; row++) {
+        for (byte_idx = 0; byte_idx < 2; byte_idx++) {
+            uint8_t byte_val = data[row * 2 + byte_idx];
+            for (bit = 0; bit < 8; bit++) {
+                WrD16((byte_val & (0x01 << bit)) ? fg : bg);
+            }
         }
     }
 }

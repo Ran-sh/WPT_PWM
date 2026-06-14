@@ -11,6 +11,7 @@
 
 #include "Ui_Controller.h"
 #include "Tft_Driver.h"
+#include "TFT_Img.h"
 #include "Key_Driver.h"
 #include "Pwm_Driver.h"
 #include "Inverter_Control.h"
@@ -58,14 +59,11 @@
 
 #define S_LONG_CLEAR "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI      /* 长按ON:清除WIFI */
 
-/* WIFI 角标动画: W→WI→WIF→WIFI 循环, 周期 600ms/帧 */
-#define WIFI_ANIM_FRAME_MS 600
+/* WIFI 角标动画: 16x16 图标 300ms/帧 4帧循环, 300ms 轮播 */
 
 /* ── 模块状态 ── */
 static uint8_t s_page          = 0;  /* 子页: 0=综合 1=频率 2=电压 3=电流 */
 static uint8_t s_no_wifi_mode  = 1;  /* 开机默认无WIFI模式 */
-static uint8_t s_wifi_anim_idx = 0;  /* WIFI角标动画帧: 0=W,1=WI,2=WIF,3=WIFI */
-static uint32_t s_wifi_anim_last = 0;
 static Ui_Controller_State s_ui_state = UI_CONTROLLER_STATE_INIT;
 
 /* EMA 平滑 */
@@ -104,54 +102,74 @@ static uint8_t Right(const char* s)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  第0行右上角 WIFI 角标: 左侧标题, 右侧WIFI实时状态
- *  绿色=在线 蓝色逐字闪烁=连接中 红色=离线/无WIFI
- *  所有界面统一调用, 不占额外行
+ *  第0行: 左侧标题 + MQTT云(x=128) + WIFI(x=144)
+ *  所有界面统一调用
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Header(const char* title)
 {
+    #define MQTT_ICON_X  128
+    #define WIFI_ICON_X  144
+
     /* 左侧: 标题 */
     Tft_Driver_Show_CN_String(0, 0, title, UI_COLOR_TITLE, UI_COLOR_BG);
 
-    /* 右侧: WIFI 角标 (固定4字符区域, 先用背景色擦除再画) */
+    /* ── MQTT 云图标 (x=128) ── */
     {
-        uint16_t color;
-        const char* text;
-        uint8_t col;
         uint8_t cs = App_Network_Get_Connect_Status();
+        /* 彩虹色表: 红橙黄绿青蓝紫 */
+        static const uint16_t rainbow[6] = {
+            0xF800, 0xFD20, 0xFFE0, 0x07E0, 0x07FF, 0x001F
+        };
 
-        /* 固定位置: 右对齐从 col=16 开始, 宽度4字符=64像素 */
-        #define WIFI_CORNER_COL  16   /* 右对齐: 20-4=16 */
-
-        /* 擦除角标区域 (4字符×16行, 即 64×16 像素) */
-        Tft_Driver_Fill_Rect(WIFI_CORNER_COL * TFT_FONT_WIDTH, 0,
-                             4 * TFT_FONT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
-
-        if (s_no_wifi_mode) {
-            text = S_NO_WIFI; color = UI_COLOR_ALARM;
-            col = Right(text);
-            Tft_Driver_Show_CN_String(0, col, text, color, UI_COLOR_BG);
-        } else if (!Esp8266_Driver_Is_Ready()) {
-            text = "WIFI"; color = UI_COLOR_ALARM;
-            col = Right(text);
-            Tft_Driver_Show_String(0, col, text, color, UI_COLOR_BG);
-        } else if (cs == APP_NETWORK_CONN_ONLINE) {
-            text = "WIFI"; color = UI_COLOR_OK;
-            col = Right(text);
-            Tft_Driver_Show_String(0, col, text, color, UI_COLOR_BG);
-        } else if (cs == APP_NETWORK_CONN_WIFI) {
-            /* 连接中: W→WI→WIF→WIFI 蓝色逐字闪烁, 右对齐确保不跳动 */
-            static const char* const frames[] = { "W", "WI", "WIF", "WIFI" };
-            text = frames[s_wifi_anim_idx & 3];
-            color = UI_COLOR_VALUE;
-            col = Right(text);
-            Tft_Driver_Show_String(0, col, text, color, UI_COLOR_BG);
+        if (cs == APP_NETWORK_CONN_ONLINE) {
+            Tft_Driver_Draw_Single_Icon(MQTT_ICON_X, 0, MQTT_YES_ICON, UI_COLOR_OK, UI_COLOR_BG);
+        } else if (App_Network_Is_Connecting()) {
+            uint8_t mqtt_frame = (uint8_t)(Sys_Timer_Get_Tick() / 200) % 6;
+            Tft_Driver_Draw_Single_Icon(MQTT_ICON_X, 0,
+                MQTT_ANIM[mqtt_frame], rainbow[mqtt_frame], UI_COLOR_BG);
         } else {
-            text = "WIFI"; color = UI_COLOR_ALARM;
-            col = Right(text);
-            Tft_Driver_Show_String(0, col, text, color, UI_COLOR_BG);
+            Tft_Driver_Draw_Single_Icon(MQTT_ICON_X, 0, MQTT_NO_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
         }
     }
+
+    /* ── WIFI 图标 (x=144) ── */
+    {
+        uint8_t  icon_frame;
+        uint8_t  cs = App_Network_Get_Connect_Status();
+        /* 连接中蓝色渐变: 6帧 */
+        static const uint16_t blue_grad[6] = {
+            0x0018, 0x001B, 0x001F, 0x07FF, 0x07BF, 0x07FF
+        };
+
+        if (s_no_wifi_mode) {
+            Tft_Driver_Draw_Single_Icon(WIFI_ICON_X, 0, WIFI_OFF_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
+        } else if (!Esp8266_Driver_Is_Ready()) {
+            /* ESP 初始化中 → 连接中动画 6帧 */
+            icon_frame = (uint8_t)(Sys_Timer_Get_Tick() / 150) % 6;
+            Tft_Driver_Draw_Single_Icon(WIFI_ICON_X, 0,
+                WIFI_CONNECT_ANIM[icon_frame], blue_grad[icon_frame], UI_COLOR_BG);
+        } else if (cs == APP_NETWORK_CONN_ONLINE) {
+            /* 在线 → RSSI 4帧: 3=满格 2=中弧 1=内弧 0=圆心 */
+            int8_t r = App_Network_Get_RSSI();
+            if      (r >= -50) icon_frame = 3;
+            else if (r >= -60) icon_frame = 2;
+            else if (r >= -70) icon_frame = 1;
+            else               icon_frame = 0;
+            Tft_Driver_Draw_WiFi_Icon(WIFI_ICON_X, 0, icon_frame, UI_COLOR_OK, UI_COLOR_BG);
+        } else if (App_Network_Is_Connecting()) {
+            /* 连接中动画 6帧 */
+            icon_frame = (uint8_t)(Sys_Timer_Get_Tick() / 150) % 6;
+            Tft_Driver_Draw_Single_Icon(WIFI_ICON_X, 0,
+                WIFI_CONNECT_ANIM[icon_frame], blue_grad[icon_frame], UI_COLOR_BG);
+        } else if (cs == APP_NETWORK_CONN_FAILED) {
+            Tft_Driver_Draw_Single_Icon(WIFI_ICON_X, 0, WIFI_OFF_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
+        } else {
+            Tft_Driver_Draw_Single_Icon(WIFI_ICON_X, 0, WIFI_REMOVE_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
+        }
+    }
+
+    #undef MQTT_ICON_X
+    #undef WIFI_ICON_X
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -161,6 +179,12 @@ static uint8_t Is_WiFi_Online(void)
 {
     if (s_no_wifi_mode) return 0;
     if (!Esp8266_Driver_Is_Ready()) return 0;
+    return (App_Network_Get_Connect_Status() == APP_NETWORK_CONN_ONLINE);
+}
+
+/* 判断 MQTT 是否在线 */
+static uint8_t Is_Mqtt_Online(void)
+{
     return (App_Network_Get_Connect_Status() == APP_NETWORK_CONN_ONLINE);
 }
 
@@ -369,8 +393,8 @@ static void Draw_Run_Main(void)
                            s_ema_i, 0.0f, 3.0f,
                            ENERGY_BAR_METRIC_CURR, UI_COLOR_BG);
         }
-        Tft_Driver_Show_String(5, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
-        Tft_Driver_Show_String(5, 18, "3", UI_COLOR_TITLE, UI_COLOR_BG);
+        Tft_Driver_Show_String(6, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
+        Tft_Driver_Show_String(6, 18, "3", UI_COLOR_TITLE, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(7, 0,  "\xe5\x8f\x8c\xe5\x87\xbb" "Back",     UI_COLOR_TEXT, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(7, Right(SKIP_I), SKIP_I, UI_COLOR_TEXT, UI_COLOR_BG);
         break;
@@ -519,19 +543,16 @@ void Ui_Controller_Task(void)
     static uint32_t s_last = 0;
     static uint8_t  s_last_state = 0xFF;
     static uint8_t  s_last_page  = 0xFF;
-    static uint8_t  s_last_wifi_anim = 0;     /* 上一帧WIFI动画索引 */
+    static uint8_t  s_last_wifi_frame = 0xFF;  /* 上一帧WIFI动画帧号 */
     uint8_t need = 0;
 
-    /* WIFI 动画计时: 每帧仅刷新第0行角标，不全屏重绘 */
-    if (Sys_Timer_Get_Tick() - s_wifi_anim_last >= WIFI_ANIM_FRAME_MS) {
-        s_wifi_anim_last = Sys_Timer_Get_Tick();
-        s_wifi_anim_idx++;
-    }
-    /* 仅角标变化时刷新第0行，不触发全屏重绘 */
-    if (s_wifi_anim_idx != s_last_wifi_anim) {
-        s_last_wifi_anim = s_wifi_anim_idx;
-        /* 快速刷新角标：根据当前状态绘制第0行标题+WIFI */
-        {
+    /* WIFI 角标变化检测: 仅连接中状态下 150ms 切换帧, 帧号变化时局部刷新第0行 */
+    {
+        uint8_t wifi_frame = (App_Network_Is_Connecting())
+            ? (uint8_t)(Sys_Timer_Get_Tick() / 150) % 6
+            : 0xFF;  /* 非连接中=0xFF, 永远触发刷新 */
+        if (wifi_frame != s_last_wifi_frame) {
+            s_last_wifi_frame = wifi_frame;
             Ui_Controller_State st = Calc_Ui_State();
             switch (st) {
                 case UI_CONTROLLER_STATE_INIT: case UI_CONTROLLER_STATE_FAILED:

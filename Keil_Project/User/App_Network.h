@@ -30,6 +30,10 @@ uint8_t App_Network_Soft_Reset(void);
 uint8_t App_Network_Get_Connect_Status(void);
 uint8_t App_Network_Get_Retry_Count(void);
 uint8_t App_Network_Is_Connected(void);
+/** @brief 获取 WIFI 信号强度 RSSI (dBm), 默认 -100 */
+int8_t  App_Network_Get_RSSI(void);
+/** @brief 判断是否正在连接中 (WIFI 或 MQTT) */
+uint8_t App_Network_Is_Connecting(void);
 
 /** @brief 主循环周期调用: 驱动 ESP8266 初始化 + 接收指令 + 发送遥测 */
 void    App_Network_Task(void);
