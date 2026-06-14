@@ -214,14 +214,12 @@ static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char
                             TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_VALUE);
         color = UI_COLOR_BG;
     } else {
+        /* Erase row to clear stale content from previous scroll position */
         Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
                             TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
     }
 
-    /* Left-pad with 2 spaces for alignment with old icon column */
-    Tft_Driver_Show_String(line, 0, "  ", UI_COLOR_TEXT,
-        (cursor == idx) ? UI_COLOR_VALUE : UI_COLOR_BG);
-    Tft_Driver_Show_CN_String(line, 1, text, color,
+    Tft_Driver_Show_CN_String(line, 0, text, color,
         (cursor == idx) ? UI_COLOR_VALUE : UI_COLOR_BG);
 }
 
