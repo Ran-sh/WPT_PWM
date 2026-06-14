@@ -406,18 +406,6 @@ static void Draw_Monitor_Summary(void)
     Fmt_I(buf, s_ema_i);
     Tft_Driver_Show_CN_String(4, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    /* Energy bar (only when running) */
-    if (is_running) {
-        Energy_Bar_Draw(2 * TFT_FONT_WIDTH, 5 * TFT_FONT_HEIGHT,
-                       16 * TFT_FONT_WIDTH, 10,
-                       s_ema_v, 0.0f, 48.0f,
-                       ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
-    } else {
-        /* Erase energy bar area to prevent stale display */
-        Tft_Driver_Fill_Rect(0, 5 * TFT_FONT_HEIGHT,
-                            TFT_WIDTH, 10, UI_COLOR_BG);
-    }
-
     Draw_Divider(6);
 
     if (is_running) {
