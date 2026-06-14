@@ -239,6 +239,7 @@ static void Draw_Main_Menu(void)
 {
     uint8_t is_running = 0;
     uint8_t is_fault   = 0;
+    uint8_t i;
     {
         Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
         is_running = (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE);
@@ -248,23 +249,30 @@ static void Draw_Main_Menu(void)
     Draw_Header(S_WPT_PWM);
     Draw_Divider(1);
 
-    /* Item 1: Start PWM / Stop PWM (dynamic text) */
-    {
-        /* "1. \xe5\x90\xaf\xe5\x8a\xa8PWM" = 1.启动PWM, "1. \xe5\x81\x9c\xe6\xad\xa2PWM" = 1.停止PWM */
-        const char* t1 = is_running
-            ? "1. \xe5\x81\x9c\xe6\xad\xa2PWM"
-            : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";
-        Draw_Menu_Item(2, s_menu_cursor, 0, t1, 1);
+    /* 4 menu items with dynamic text */
+    for (i = 0; i < 4; i++) {
+        const char* text;
+        uint8_t enabled = 1;
+        switch (i) {
+            case 0: /* StartPWM / StopPWM */
+                text = is_running
+                    ? "1. \xe5\x81\x9c\xe6\xad\xa2PWM"    /* 1.停止PWM */
+                    : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";    /* 1.启动PWM */
+                break;
+            case 1: /* Status Monitor */
+                text = "2. " S_MONITOR;
+                break;
+            case 2: /* WiFi Setup */
+                text = "3. \xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91";  /* 无线配网 */
+                break;
+            case 3: /* Fault Clear */
+                text = "4. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4";  /* 故障清除 */
+                enabled = is_fault ? 1 : 0;
+                break;
+            default: text = ""; break;
+        }
+        Draw_Menu_Item(2 + i, s_menu_cursor, i, text, enabled);
     }
-
-    /* Item 2: Status Monitor */
-    Draw_Menu_Item(3, s_menu_cursor, 1, "2. " S_MONITOR, 1);
-
-    /* Item 3: WiFi Setup */
-    Draw_Menu_Item(4, s_menu_cursor, 2, "3. \xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91", 1);
-
-    /* Item 4: Fault Clear (only when faulted) */
-    Draw_Menu_Item(5, s_menu_cursor, 3, "4. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4", is_fault ? 1 : 0);
 
     Draw_Divider(6);
 
