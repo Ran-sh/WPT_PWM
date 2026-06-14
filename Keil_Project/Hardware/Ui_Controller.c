@@ -53,6 +53,7 @@
 #define S_WIFI_FAILED  "\xe8\xbf\x9e\xe6\x8e\xa5\xe5\xa4\xb1\xe8\xb4\xa5" /* failed */
 #define S_WIFI_CONN    "\xe8\xbf\x9e\xe6\x8e\xa5\xe4\xb8\xad"             /* connecting */
 #define S_WIFI_IDLE    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"             /* idle */
+#define S_WIFI_FORMAT  "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81" /* 无线状态 */
 #define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* summary */
 #define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* back to main */
 #define S_DIV       "--------------------"           /* divider */
@@ -313,6 +314,9 @@ static void Draw_Sweep_Page(void)
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
     /* Energy bar + percentage */
+    /* Always erase the bar area first, then redraw bar or status text */
+    Tft_Driver_Fill_Rect(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+                        14 * TFT_FONT_WIDTH, 8 + TFT_FONT_HEIGHT, UI_COLOR_BG);
     if (!is_stopped) {
         Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                        14 * TFT_FONT_WIDTH, 8,
@@ -321,9 +325,6 @@ static void Draw_Sweep_Page(void)
         snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
         if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
     } else {
-        /* Stopped: clear bar + show status text */
-        Tft_Driver_Fill_Rect(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
-                            14 * TFT_FONT_WIDTH, 8, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(3, 5, "\xe5\xb7\xb2\xe6\x9a\x82\xe5\x81\x9c", UI_COLOR_ALARM, UI_COLOR_BG); /* 已暂停 */
     }
 
