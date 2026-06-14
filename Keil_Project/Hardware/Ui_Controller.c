@@ -565,12 +565,19 @@ static void Handle_Keys_by_Page(Ui_Page page,
         is_running = (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE);
     }
 
-    /* -------- F_UP (k1): cursor up OR freq +1kHz -------- */
+    /* -------- F_UP (k1): cursor up (wrap-around) OR freq +1kHz -------- */
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
-            case UI_PAGE_MAIN_MENU:
+            case UI_PAGE_MAIN_MENU: {
+                uint8_t is_fault = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_FAULT);
+                uint8_t max_cursor = is_fault ? 3 : 2;
+                if (s_menu_cursor == 0) s_menu_cursor = max_cursor;
+                else s_menu_cursor--;
+                break;
+            }
             case UI_PAGE_MONITOR_SUB_MENU:
-                if (s_menu_cursor > 0) { s_menu_cursor--; }
+                if (s_menu_cursor == 0) s_menu_cursor = 4;
+                else s_menu_cursor--;
                 break;
             case UI_PAGE_MONITOR_SUMMARY:
             case UI_PAGE_MONITOR_FREQ:
@@ -583,17 +590,19 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* -------- F_DOWN (k2): cursor down OR freq -1kHz -------- */
+    /* -------- F_DOWN (k2): cursor down (wrap-around) OR freq -1kHz -------- */
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU: {
                 uint8_t is_fault = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_FAULT);
                 uint8_t max_cursor = is_fault ? 3 : 2;
-                if (s_menu_cursor < max_cursor) { s_menu_cursor++; }
+                if (s_menu_cursor >= max_cursor) s_menu_cursor = 0;
+                else s_menu_cursor++;
                 break;
             }
             case UI_PAGE_MONITOR_SUB_MENU:
-                if (s_menu_cursor < 4) { s_menu_cursor++; }
+                if (s_menu_cursor >= 4) s_menu_cursor = 0;
+                else s_menu_cursor++;
                 break;
             case UI_PAGE_MONITOR_SUMMARY:
             case UI_PAGE_MONITOR_FREQ:
