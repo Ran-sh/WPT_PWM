@@ -275,17 +275,43 @@ static void Draw_Main_Menu(void)
 /* -------- Monitor Sub-Menu (5 items) -------- */
 static void Draw_Monitor_Sub_Menu(void)
 {
+    /* Items within dividers, 4 visible, scroll window */
+    uint8_t visible_top = (s_menu_cursor >= 3) ? (s_menu_cursor - 2) : 0;
+    uint8_t i;
+
     Draw_Header(S_MONITOR);
     Draw_Divider(1);
 
-    Draw_Menu_Item(2, s_menu_cursor, 0, "1. " S_SUMMARY, 1);
-    Draw_Menu_Item(3, s_menu_cursor, 1, "2. " S_MON_FREQ, 1);
-    Draw_Menu_Item(4, s_menu_cursor, 2, "3. " S_MON_VOLT, 1);
-    Draw_Menu_Item(5, s_menu_cursor, 3, "4. " S_MON_CURR, 1);
+    /* Render only items that fit in lines 2-5 (visible window of 4 items) */
+    for (i = visible_top; i <= visible_top + 3 && i < 5; i++) {
+        uint8_t line = 2 + (i - visible_top);
+        char item_buf[22];
+        const char* name;
+        switch (i) {
+            case 0: name = S_SUMMARY;  break;
+            case 1: name = S_MON_FREQ; break;
+            case 2: name = S_MON_VOLT; break;
+            case 3: name = S_MON_CURR; break;
+            case 4: name = S_BACK;     break;
+            default: name = ""; break;
+        }
+        snprintf(item_buf, sizeof(item_buf), "%d. %s", i + 1, name);
+        Draw_Menu_Item(line, s_menu_cursor, i, item_buf, 1);
+    }
 
     Draw_Divider(6);
 
-    Draw_Menu_Item(7, s_menu_cursor, 4, "5. " S_BACK, 1);
+    /* Scroll indicators if more items above/below */
+    {
+        char scroll_hint[21];
+        if (visible_top > 0 && s_menu_cursor < 4)
+            snprintf(scroll_hint, sizeof(scroll_hint), "\xe2\x96\xb2 " "\xe8\xbf\x94\xe5\x9b\x9e");  /* ▲ 返回 */
+        else if (s_menu_cursor == 4)
+            snprintf(scroll_hint, sizeof(scroll_hint), "\xe2\x96\xb2 " "\xe8\xbf\x94\xe5\x9b\x9e");  /* ▲ 返回 */
+        else
+            snprintf(scroll_hint, sizeof(scroll_hint), "\xe8\xbf\x94\xe5\x9b\x9e");  /* 返回 */
+        Tft_Driver_Show_CN_String(7, Right(scroll_hint), scroll_hint, UI_COLOR_TEXT, UI_COLOR_BG);
+    }
 }
 
 /* -------- Sweep Page -------- */
