@@ -861,7 +861,10 @@ void Ui_Controller_Task(void)
     if ((uint8_t)s_page != s_last_page || s_menu_cursor != s_last_cursor) {
         s_last_page   = (uint8_t)s_page;
         s_last_cursor = s_menu_cursor;
-        Tft_Driver_Clear(UI_COLOR_BG);
+        /* Only full-clear on page change, not cursor move */
+        if((uint8_t)s_page != s_last_page) {
+            Tft_Driver_Clear(UI_COLOR_BG);
+        }
         Reset_EMA();
     }
 
