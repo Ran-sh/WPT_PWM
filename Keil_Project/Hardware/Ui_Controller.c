@@ -49,10 +49,10 @@
 #define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* current */
 #define S_STOP      "\xe5\x81\x9c\xe6\xad\xa2"                       /* stop */
 #define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* clear WIFI */
-#define S_WIFI_ONLINE  "\xe8\xbf\x9e\xe6\x8e\xa5\xe6\x88\x90\xe5\x8a\x9f" /* success */
-#define S_WIFI_FAILED  "\xe8\xbf\x9e\xe6\x8e\xa5\xe5\xa4\xb1\xe8\xb4\xa5" /* failed */
-#define S_WIFI_CONN    "\xe8\xbf\x9e\xe6\x8e\xa5\xe4\xb8\xad"             /* connecting */
-#define S_WIFI_IDLE    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"             /* idle */
+#define S_WIFI_ONLINE  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe6\x88\x90" "\xe5\x8a\x9f" /* success */
+#define S_WIFI_FAILED  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe5\xa4\xb1" "\xe8\xb4\xa5" /* failed */
+#define S_WIFI_CONN    "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe4\xb8\xad"               /* connecting */
+#define S_WIFI_IDLE    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"                   /* idle */
 #define S_WIFI_FORMAT  "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81" /* 无线状态 */
 #define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* summary */
 #define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* back to main */
@@ -498,7 +498,7 @@ static void Draw_WiFi_Setup(void)
     Draw_Header(S_LAUNCH);
     Draw_Divider(1);
 
-    snprintf(buf, sizeof(buf), "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81: %s", status_text);
+    snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
 
     /* Retry count: only when connecting */
