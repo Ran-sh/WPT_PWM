@@ -336,7 +336,7 @@ static void Draw_Monitor_Summary(void)
     Draw_Header(S_SUMMARY);
     Draw_Divider(1);
 
-    /* Frequency */
+    /* Frequency, Voltage, Current — centered on lines 2/3/4 */
     if (is_running) {
         Fmt_F(buf, s_ema_f);
     } else {
