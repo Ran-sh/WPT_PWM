@@ -209,12 +209,12 @@ static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char
     }
 
     if (cursor == idx) {
-        /* Selected: fill entire row with cyan, draw star icon + black text */
+        /* Selected: fill entire row with cyan BG, star icon on left, black text */
         uint8_t star_frame = (uint8_t)(Sys_Timer_Get_Tick() / 100) % 16;
         Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
                             TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_VALUE);
         Tft_Driver_Draw_Single_Icon(0, (uint16_t)line * TFT_FONT_HEIGHT,
-                                    STAR_CURSOR_ANIM[star_frame], UI_COLOR_BG, UI_COLOR_VALUE);
+                                    STAR_CURSOR_ANIM[star_frame], UI_COLOR_VALUE, UI_COLOR_BG);
         col_start = 2;
         color = UI_COLOR_BG;
     } else {
@@ -349,9 +349,8 @@ static void Draw_Sweep_Page(void)
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
     /* Energy bar + percentage */
-    /* Always erase the bar area first, then redraw bar or status text */
-    Tft_Driver_Fill_Rect(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
-                        14 * TFT_FONT_WIDTH, 8 + TFT_FONT_HEIGHT, UI_COLOR_BG);
+    /* Erase entire bar area (including text row below) before redrawing */
+    Tft_Driver_Fill_Rect(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT + 8, UI_COLOR_BG);
     if (!is_stopped) {
         Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                        14 * TFT_FONT_WIDTH, 8,
