@@ -1,11 +1,10 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   人机界面控制器 V10 — 两级菜单架构
- * @note    TFT 8行×20列, 横屏 160×128, 4键: F+/F-/KEY0/PAGE
- *          配色: 黑底/黄标题/白正文/青数值/红报警/绿正常/灰不可选
- *          9 页: 主菜单→4子模式+监测子菜单→4仪表盘+故障页
- *          WIFI+Mqtt 双图标统一右上角
+ * @brief   Ui Controller V10 - two-level menu architecture (9 pages)
+ * @note    TFT 8x20 cols, 160x128 landscape, 4 keys: F+/F-/KEY0/PAGE
+ *          Colors: BK/YE/WH/CY/RD/GN/GY
+ *          Dual icons (MQTT+WIFI) at top-right, all pages shared
  ******************************************************************************
  */
 
@@ -37,40 +36,40 @@
 #define UI_OVERCURRENT_THRESHOLD_A 5.0f
 #define UI_POWER_V_THRESHOLD_V     12.0f
 
-/* ── 中文串 (UTF-8 hex) ── */
+/* -------- Chinese strings (UTF-8 hex) -------- */
 #define S_WPT_PWM   "WPT-PWM"
-#define S_SWEEP     "\xe6\x89\xab\xe9\xa2\x91\xe9\xa1\xb5"           /* 扫频页 */
-#define S_MONITOR   "\xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b" /* 状态监测 */
-#define S_MON_FREQ  "\xe7\x9b\x91\xe6\xb5\x8b\xe9\xa2\x91\xe7\x8e\x87" /* 监测频率 */
-#define S_MON_VOLT  "\xe7\x9b\x91\xe6\xb5\x8b\xe7\x94\xb5\xe5\x8e\x8b" /* 监测电压 */
-#define S_MON_CURR  "\xe7\x9b\x91\xe6\xb5\x8b\xe7\x94\xb5\xe6\xb5\x81" /* 监测电流 */
-#define S_LAUNCH    "\xe5\x90\xaf\xe5\x8a\xa8\xe9\xa1\xb5"           /* 启动页 */
-#define S_FREQ      "\xe9\xa2\x91\xe7\x8e\x87"                       /* 频率 */
-#define S_VOLTAGE   "\xe7\x94\xb5\xe5\x8e\x8b"                       /* 电压 */
-#define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* 电流 */
-#define S_STOP      "\xe5\x81\x9c\xe6\xad\xa2"                       /* 停止 */
-#define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* 清除WIFI */
-#define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* 综合监测 */
-#define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* 返回主菜单 */
-#define S_DIV       "--------------------"           /* 分割线 */
+#define S_SWEEP     "\xe6\x89\xab\xe9\xa2\x91\xe9\xa1\xb5"           /* sweep page */
+#define S_MONITOR   "\xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b" /* status monitor */
+#define S_MON_FREQ  "\xe7\x9b\x91\xe6\xb5\x8b\xe9\xa2\x91\xe7\x8e\x87" /* monitor freq */
+#define S_MON_VOLT  "\xe7\x9b\x91\xe6\xb5\x8b\xe7\x94\xb5\xe5\x8e\x8b" /* monitor volt */
+#define S_MON_CURR  "\xe7\x9b\x91\xe6\xb5\x8b\xe7\x94\xb5\xe6\xb5\x81" /* monitor curr */
+#define S_LAUNCH    "\xe5\x90\xaf\xe5\x8a\xa8\xe9\xa1\xb5"           /* launch page */
+#define S_FREQ      "\xe9\xa2\x91\xe7\x8e\x87"                       /* freq */
+#define S_VOLTAGE   "\xe7\x94\xb5\xe5\x8e\x8b"                       /* voltage */
+#define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* current */
+#define S_STOP      "\xe5\x81\x9c\xe6\xad\xa2"                       /* stop */
+#define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* clear WIFI */
+#define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* summary */
+#define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* back to main */
+#define S_DIV       "--------------------"           /* divider */
 
-/* ── 页面状态变量 ── */
+/* -------- Page state variables -------- */
 static Ui_Page  s_page            = UI_PAGE_MAIN_MENU;
 static uint8_t  s_menu_cursor     = 0;
 static uint8_t  s_was_fault_state = 0;
-static uint8_t  s_no_wifi_mode    = 0;    /* 开机默认联网=0, 用户清除WiFi后=1 */
+static uint8_t  s_no_wifi_mode    = 0;    /* 0=auto-connect at boot, 1=WiFi cleared by user */
 static uint8_t  s_last_page       = 0xFF;
 static uint8_t  s_last_cursor     = 0xFF;
 
-/* EMA 平滑 */
+/* EMA smoothing */
 static float   s_ema_v = 0.0f, s_ema_i = 0.0f, s_ema_f = 0.0f;
 static uint8_t s_ema_ok = 0;
 
 static void Reset_EMA(void) { s_ema_ok = 0; }
 
-/* ═══════════════════════════════════════════════════════════════
- *  辅助函数 — Center/Right/Fmt_V/Fmt_I/Fmt_F (保留原实现)
- * ═══════════════════════════════════════════════════════════════ */
+/* ================================================================
+ *  Helpers: Center / Right / Fmt_V / Fmt_I / Fmt_F (preserved)
+ * ================================================================ */
 
 static uint8_t Center(const char* s)
 {
@@ -136,19 +135,18 @@ static uint8_t Is_WiFi_Online(void)
     return (App_Network_Get_Connect_Status() == APP_NETWORK_CONN_ONLINE);
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  Draw_Header — 第0行: 左侧标题 + MQTT云(x=128) + WIFI(x=144)
- *  保留原实现，所有界面统一调用
- * ═══════════════════════════════════════════════════════════════ */
+/* ================================================================
+ *  Draw_Header: line0 title(left) + MQTTcloud(x=128) + WIFI(x=144)
+ *  All pages call this. Preserved from V9.
+ * ================================================================ */
 static void Draw_Header(const char* title)
 {
     #define MQTT_ICON_X  128
     #define WIFI_ICON_X  144
 
-    /* 左侧: 标题 */
     Tft_Driver_Show_CN_String(0, 0, title, UI_COLOR_TITLE, UI_COLOR_BG);
 
-    /* ── MQTT 云图标 (x=128) ── */
+    /* -------- MQTT cloud icon (x=128) -------- */
     {
         uint8_t cs = App_Network_Get_Connect_Status();
         static const uint16_t rainbow[6] = {
@@ -166,7 +164,7 @@ static void Draw_Header(const char* title)
         }
     }
 
-    /* ── WIFI 图标 (x=144) ── */
+    /* -------- WIFI icon (x=144) -------- */
     {
         uint8_t  icon_frame;
         uint8_t  cs = App_Network_Get_Connect_Status();
@@ -202,7 +200,7 @@ static void Draw_Header(const char* title)
     #undef WIFI_ICON_X
 }
 
-/* ── 菜单项通用渲染: line=行, cursor=当前光标位置, idx=此项索引, text=菜单文字, enabled=1可选项 ── */
+/* -------- Draw a menu item at given line with cursor highlight -------- */
 static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char* text, uint8_t enabled)
 {
     uint16_t color = UI_COLOR_TEXT;
@@ -212,27 +210,25 @@ static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char
         color = UI_COLOR_VALUE;
 
     if (cursor == idx) {
-        /* 选中项: ▶ 前缀 */
         Tft_Driver_Show_CN_String(line, 0, "\xe2\x96\xb6", color, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(line, 1, text, color, UI_COLOR_BG);
     } else {
-        /* 非选中项: 空格填充 */
         Tft_Driver_Show_String(line, 0, "  ", UI_COLOR_TEXT, UI_COLOR_BG);
         Tft_Driver_Show_CN_String(line, 1, text, color, UI_COLOR_BG);
     }
 }
 
-/* ── 分割线: 画在指定行 ── */
+/* -------- Divider line at given row -------- */
 static void Draw_Divider(uint8_t line)
 {
     Tft_Driver_Show_String(line, 0, S_DIV, UI_COLOR_DIM, UI_COLOR_BG);
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  画面绘制函数 — 9 页全量覆盖
- * ═══════════════════════════════════════════════════════════════ */
+/* ================================================================
+ *  Page draw functions -- 9 pages total
+ * ================================================================ */
 
-/* ── 主菜单 4 项 ── */
+/* -------- Main Menu (4 items) -------- */
 static void Draw_Main_Menu(void)
 {
     uint8_t is_running = 0;
@@ -246,19 +242,19 @@ static void Draw_Main_Menu(void)
     Draw_Header(S_WPT_PWM);
     Draw_Divider(1);
 
-    /* Item 1: 启动PWM / 停止PWM (动态文字) */
+    /* Item 1: Start PWM / Stop PWM (dynamic text) */
     {
         const char* t1 = is_running ? "1. " S_STOP "PWM" : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";
         Draw_Menu_Item(2, s_menu_cursor, 0, t1, 1);
     }
 
-    /* Item 2: 状态监测 */
+    /* Item 2: Status Monitor */
     Draw_Menu_Item(3, s_menu_cursor, 1, "2. " S_MONITOR, 1);
 
-    /* Item 3: 无线配网 */
+    /* Item 3: WiFi Setup */
     Draw_Menu_Item(4, s_menu_cursor, 2, "3. \xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91", 1);
 
-    /* Item 4: 故障清除 (仅故障时可进入) */
+    /* Item 4: Fault Clear (only when faulted) */
     Draw_Menu_Item(5, s_menu_cursor, 3, "4. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4", is_fault ? 1 : 0);
 
     Draw_Divider(6);
@@ -267,7 +263,7 @@ static void Draw_Main_Menu(void)
         "[F+/F-:\xe4\xb8\x8a\xe4\xb8\x8b KEY0:\xe7\xa1\xae\xe5\xae\x9a]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
-/* ── 监测子菜单 5 项 ── */
+/* -------- Monitor Sub-Menu (5 items) -------- */
 static void Draw_Monitor_Sub_Menu(void)
 {
     Draw_Header(S_MONITOR);
@@ -283,7 +279,7 @@ static void Draw_Monitor_Sub_Menu(void)
     Draw_Menu_Item(7, s_menu_cursor, 4, "5. " S_BACK, 1);
 }
 
-/* ── 扫频页 ── */
+/* -------- Sweep Page -------- */
 static void Draw_Sweep_Page(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
@@ -297,23 +293,20 @@ static void Draw_Sweep_Page(void)
     Draw_Header(S_SWEEP);
     Draw_Divider(1);
 
-    /* 频率 */
+    /* Frequency */
     snprintf(buf, sizeof(buf), S_FREQ "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    /* 能量条 + 百分比 */
-    {
-        uint16_t x = 3 * TFT_FONT_WIDTH;
-        uint16_t y = 3 * TFT_FONT_HEIGHT + 4;
-        uint16_t w = 14 * TFT_FONT_WIDTH;
-        Energy_Bar_Draw(x, y, w, 8, (float)progress, 0.0f, 10.0f,
-                       ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
-        snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
-        if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
-    }
+    /* Energy bar + percentage */
+    Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+                   14 * TFT_FONT_WIDTH, 8,
+                   (float)progress, 0.0f, 10.0f,
+                   ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
+    snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
+    if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
 
-    /* V/I */
+    /* Voltage / Current */
     Fmt_V(buf, Adc_Driver_Get_Voltage());
     Tft_Driver_Show_CN_String(4, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
     Fmt_I(buf, Adc_Driver_Get_Current());
@@ -324,7 +317,7 @@ static void Draw_Sweep_Page(void)
         "[KEY0:" S_STOP " PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
-/* ── 综合监测 (双模式: 未发波/发波中) ── */
+/* -------- Monitor Summary (dual mode: idle / running) -------- */
 static void Draw_Monitor_Summary(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
@@ -335,7 +328,7 @@ static void Draw_Monitor_Summary(void)
     Draw_Header(S_SUMMARY);
     Draw_Divider(1);
 
-    /* 频率 */
+    /* Frequency */
     if (is_running) {
         Fmt_F(buf, s_ema_f);
     } else {
@@ -343,15 +336,15 @@ static void Draw_Monitor_Summary(void)
     }
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    /* 电压 */
+    /* Voltage */
     Fmt_V(buf, s_ema_v);
     Tft_Driver_Show_CN_String(3, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    /* 电流 */
+    /* Current */
     Fmt_I(buf, s_ema_i);
     Tft_Driver_Show_CN_String(4, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    /* 能量条 (仅发波时) */
+    /* Energy bar (only when running) */
     if (is_running) {
         Energy_Bar_Draw(0, 5 * TFT_FONT_HEIGHT, TFT_WIDTH, 12,
                        s_ema_v, 0.0f, 48.0f,
@@ -369,7 +362,7 @@ static void Draw_Monitor_Summary(void)
     }
 }
 
-/* ── 监测频率 (仪表盘) ── */
+/* -------- Monitor Freq (gauge page) -------- */
 static void Draw_Monitor_Freq(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
@@ -386,14 +379,10 @@ static void Draw_Monitor_Freq(void)
     }
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    {
-        uint16_t x = 4 * TFT_FONT_WIDTH;
-        uint16_t y = 4 * TFT_FONT_HEIGHT + 2;
-        uint16_t w = 12 * TFT_FONT_WIDTH;
-        float val = is_running ? s_ema_f : 0.0f;
-        Energy_Bar_Draw(x, y, w, 12, val, 95.0f, 150.0f,
-                       ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
-    }
+    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
+                   12 * TFT_FONT_WIDTH, 12,
+                   is_running ? s_ema_f : 0.0f, 95.0f, 150.0f,
+                   ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 4, "95", UI_COLOR_TITLE, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 17, "150", UI_COLOR_TITLE, UI_COLOR_BG);
 
@@ -407,7 +396,7 @@ static void Draw_Monitor_Freq(void)
     }
 }
 
-/* ── 监测电压 (仪表盘) ── */
+/* -------- Monitor Volt (gauge page) -------- */
 static void Draw_Monitor_Volt(void)
 {
     char buf[21];
@@ -419,13 +408,10 @@ static void Draw_Monitor_Volt(void)
     Fmt_V(buf, s_ema_v);
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    {
-        uint16_t x = 4 * TFT_FONT_WIDTH;
-        uint16_t y = 4 * TFT_FONT_HEIGHT + 2;
-        uint16_t w = 12 * TFT_FONT_WIDTH;
-        Energy_Bar_Draw(x, y, w, 12, s_ema_v, 0.0f, 48.0f,
-                       ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
-    }
+    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
+                   12 * TFT_FONT_WIDTH, 12,
+                   s_ema_v, 0.0f, 48.0f,
+                   ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 17, "48", UI_COLOR_TITLE, UI_COLOR_BG);
 
@@ -434,7 +420,7 @@ static void Draw_Monitor_Volt(void)
         "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
-/* ── 监测电流 (仪表盘) ── */
+/* -------- Monitor Curr (gauge page) -------- */
 static void Draw_Monitor_Curr(void)
 {
     char buf[21];
@@ -446,13 +432,10 @@ static void Draw_Monitor_Curr(void)
     Fmt_I(buf, s_ema_i);
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
-    {
-        uint16_t x = 4 * TFT_FONT_WIDTH;
-        uint16_t y = 4 * TFT_FONT_HEIGHT + 2;
-        uint16_t w = 12 * TFT_FONT_WIDTH;
-        Energy_Bar_Draw(x, y, w, 12, s_ema_i, 0.0f, 3.0f,
-                       ENERGY_BAR_METRIC_CURR, UI_COLOR_BG);
-    }
+    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
+                   12 * TFT_FONT_WIDTH, 12,
+                   s_ema_i, 0.0f, 3.0f,
+                   ENERGY_BAR_METRIC_CURR, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 18, "3", UI_COLOR_TITLE, UI_COLOR_BG);
 
@@ -461,7 +444,7 @@ static void Draw_Monitor_Curr(void)
         "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
-/* ── 无线配网 ── */
+/* -------- WiFi Setup Page -------- */
 static void Draw_WiFi_Setup(void)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
@@ -469,13 +452,13 @@ static void Draw_WiFi_Setup(void)
     char buf[21];
 
     if (cs == APP_NETWORK_CONN_ONLINE)
-        status_text = "\xe5\xb7\xb2\xe8\xbf\x9e\xe7\xba\xbf\xe4\xb8\x8a\xe7\xba\xbf";  /* 已连线上线 */
+        status_text = "\xe5\xb7\xb2\xe8\xbf\x9e\xe7\xba\xbf\xe4\xb8\x8a\xe7\xba\xbf";  /* online */
     else if (cs == APP_NETWORK_CONN_FAILED)
-        status_text = "\xe8\xbf\x9e\xe6\x8e\xa5\xe5\xa4\xb1\xe8\xb4\xa5";              /* 连接失败 */
+        status_text = "\xe8\xbf\x9e\xe6\x8e\xa5\xe5\xa4\xb1\xe8\xb4\xa5";              /* failed */
     else if (App_Network_Is_Connecting())
-        status_text = "\xe8\xbf\x9e\xe6\x8e\xa5\xe4\xb8\xad";                          /* 连接中 */
+        status_text = "\xe8\xbf\x9e\xe6\x8e\xa5\xe4\xb8\xad";                          /* connecting */
     else
-        status_text = "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5";                          /* 未连接 */
+        status_text = "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5";                          /* disconnected */
 
     Draw_Header(S_LAUNCH);
     Draw_Divider(1);
@@ -496,10 +479,10 @@ static void Draw_WiFi_Setup(void)
         "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
-/* ── 故障页 ── */
+/* -------- Fault Page -------- */
 static void Draw_Fault_Page(void)
 {
-    Draw_Header("!!!\xe6\x95\x85\xe9\x9a\x9c!!!");  /* !!!故障!!! */
+    Draw_Header("!!!\xe6\x95\x85\xe9\x9a\x9c!!!");  /* !!!FAULT!!! */
     Draw_Divider(1);
 
     Tft_Driver_Show_CN_String(2, Center("\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4"),
@@ -515,9 +498,9 @@ static void Draw_Fault_Page(void)
         "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  LED 更新 — 根据当前页面 + 网络状态同步 6 路 LED
- * ═══════════════════════════════════════════════════════════════ */
+/* ================================================================
+ *  LED Update -- sync 6 LEDs based on current page + network
+ * ================================================================ */
 static void Update_Leds(Ui_Page page)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
@@ -545,9 +528,9 @@ static void Update_Leds(Ui_Page page)
         ? LED_DRIVER_STATE_ON : LED_DRIVER_STATE_OFF);
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  按键分发 — 按键总线映射终版
- * ═══════════════════════════════════════════════════════════════ */
+/* ================================================================
+ *  Key Dispatch -- final key bus mapping
+ * ================================================================ */
 static void Handle_Keys_by_Page(Ui_Page page,
                                 Key_Driver_Event k0, Key_Driver_Event k1,
                                 Key_Driver_Event k2, Key_Driver_Event k3)
@@ -558,7 +541,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         is_running = (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE);
     }
 
-    /* ── F_UP (k1): 光标上移 或 频率+1k ── */
+    /* -------- F_UP (k1): cursor up OR freq +1kHz -------- */
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
@@ -576,7 +559,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* ── F_DOWN (k2): 光标下移 或 频率-1k ── */
+    /* -------- F_DOWN (k2): cursor down OR freq -1kHz -------- */
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU: {
@@ -599,12 +582,12 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* ── KEY0 (k0): 确定/动作 ── */
+    /* -------- KEY0 (k0): confirm / action -------- */
     if (k0 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
                 switch (s_menu_cursor) {
-                    case 0: /* 启动PWM / 停止PWM */
+                    case 0: /* StartPWM / StopPWM */
                         if (is_running) {
                             Inverter_Control_Soft_Start_Stop();
                         } else {
@@ -613,14 +596,14 @@ static void Handle_Keys_by_Page(Ui_Page page,
                             Reset_EMA();
                         }
                         break;
-                    case 1: /* 状态监测 */
+                    case 1: /* Status Monitor */
                         s_page = UI_PAGE_MONITOR_SUB_MENU;
                         s_menu_cursor = 0;
                         break;
-                    case 2: /* 无线配网 */
+                    case 2: /* WiFi Setup */
                         s_page = UI_PAGE_WIFI_SETUP;
                         break;
-                    case 3: /* 故障清除 */
+                    case 3: /* Fault Clear */
                         if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_FAULT) {
                             s_page = UI_PAGE_FAULT;
                         }
@@ -639,12 +622,10 @@ static void Handle_Keys_by_Page(Ui_Page page,
                 break;
 
             case UI_PAGE_SWEEP:
-                /* 停止扫频 */
                 Inverter_Control_Soft_Start_Stop();
                 break;
 
             case UI_PAGE_FAULT:
-                /* 复位重启 → 回主菜单 */
                 Inverter_Control_Soft_Start_Reset();
                 s_page = UI_PAGE_MAIN_MENU;
                 s_menu_cursor = 0;
@@ -656,7 +637,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* ── KEY0 长按清除 WiFi (任意页面可用) ── */
+    /* -------- KEY0 long-press: clear WiFi (any page) -------- */
     if (k0 == KEY_DRIVER_EVENT_LONG_PRESS) {
         if (Esp8266_Driver_Is_Ready()) {
             Esp8266_Driver_Send_String("CMD:CLEAR\n");
@@ -668,7 +649,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* ── PAGE (k3): 返回上一层 ── */
+    /* -------- PAGE (k3): go back one level -------- */
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MONITOR_SUB_MENU:
@@ -690,20 +671,20 @@ static void Handle_Keys_by_Page(Ui_Page page,
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  主调度 — 200ms 周期: 边沿检测 → 按键 → 页面变更检测 → 绘制
- * ═══════════════════════════════════════════════════════════════ */
+/* ================================================================
+ *  Main Scheduler -- 200ms cycle
+ * ================================================================ */
 void Ui_Controller_Task(void)
 {
     static uint32_t s_last_ui_ms = 0;
     uint8_t need_draw = 0;
 
-    /* ── 1. 故障边沿检测 (每帧) ── */
+    /* -- 1. Fault edge detection (every frame) -- */
     {
         uint8_t current_fault = (Inverter_Control_Soft_Start_Get_State()
                                  == INVERTER_CONTROL_SS_STATE_FAULT);
         if (current_fault && !s_was_fault_state) {
-            /* 边沿 0→1: 强制跳入故障页 */
+            /* Rising edge 0->1: force jump to fault page */
             s_page = UI_PAGE_FAULT;
             s_was_fault_state = 1;
         }
@@ -712,7 +693,7 @@ void Ui_Controller_Task(void)
         }
     }
 
-    /* ── 2. 扫频完成检测: SWEEP → 自动跳综合监测 ── */
+    /* -- 2. Sweep complete detection: SWEEP -> auto-jump to SUMMARY -- */
     if (s_page == UI_PAGE_SWEEP) {
         Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
         if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
@@ -721,7 +702,7 @@ void Ui_Controller_Task(void)
         }
     }
 
-    /* ── 3. 按键采集 (每帧) ── */
+    /* -- 3. Key scan (every frame) -- */
     Key_Driver_Event k0 = Key_Driver_Get_Event(KEY_DRIVER_ID_ON_OFF);
     Key_Driver_Event k1 = Key_Driver_Get_Event(KEY_DRIVER_ID_FREQ_UP);
     Key_Driver_Event k2 = Key_Driver_Get_Event(KEY_DRIVER_ID_FREQ_DOWN);
@@ -729,7 +710,7 @@ void Ui_Controller_Task(void)
 
     Handle_Keys_by_Page(s_page, k0, k1, k2, k3);
 
-    /* ── 4. 页面/光标变更检测 (在按键处理之后) ── */
+    /* -- 4. Page/cursor change detection (after key handling) -- */
     if ((uint8_t)s_page != s_last_page || s_menu_cursor != s_last_cursor) {
         s_last_page   = (uint8_t)s_page;
         s_last_cursor = s_menu_cursor;
@@ -738,20 +719,20 @@ void Ui_Controller_Task(void)
         need_draw = 1;
     }
 
-    /* ── 5. 200ms 周期强制刷新 ── */
+    /* -- 5. 200ms periodic refresh -- */
     if (Sys_Timer_Get_Tick() - s_last_ui_ms >= UI_REFRESH_MS) {
         s_last_ui_ms = Sys_Timer_Get_Tick();
         need_draw = 1;
     }
 
-    /* ── 6. 菜单光标边界钳位 (绘制前, 防止cursor越界) ── */
+    /* -- 6. Menu cursor boundary clamp (before draw, prevent overrun) -- */
     if (s_page == UI_PAGE_MAIN_MENU) {
         uint8_t is_fault = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_FAULT);
         uint8_t max_cursor = is_fault ? 3 : 2;
         if (s_menu_cursor > max_cursor) s_menu_cursor = max_cursor;
     }
 
-    /* ── 7. PB10 PowerContrl ── */
+    /* -- 7. PB10 PowerContrl -- */
     {
         static uint8_t s_last_pwr = 0xFF;
         uint8_t pwr_on = (Adc_Driver_Get_Voltage() > UI_POWER_V_THRESHOLD_V);
@@ -762,7 +743,7 @@ void Ui_Controller_Task(void)
         }
     }
 
-    /* ── 8. 过流保护 (边沿触发故障) ── */
+    /* -- 8. Overcurrent protection -- */
     if (s_page == UI_PAGE_SWEEP ||
         s_page == UI_PAGE_MONITOR_SUMMARY ||
         s_page == UI_PAGE_MONITOR_FREQ) {
@@ -776,7 +757,7 @@ void Ui_Controller_Task(void)
     if (s_page != UI_PAGE_FAULT)
         Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
 
-    /* ── 9. 绘制 ── */
+    /* -- 9. Draw -- */
     if (need_draw) {
         switch (s_page) {
             case UI_PAGE_MAIN_MENU:        Draw_Main_Menu();        break;
@@ -793,8 +774,8 @@ void Ui_Controller_Task(void)
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  公开接口
- * ═══════════════════════════════════════════════════════════════ */
+/* ================================================================
+ *  Public Interface
+ * ================================================================ */
 Ui_Page Ui_Controller_Get_Page(void)      { return s_page; }
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void) { return s_no_wifi_mode; }
