@@ -1,5 +1,7 @@
-/** @brief 78-character 16x16 Song font, LSB-first, linear scanned */
-#define CN_CHAR_COUNT 78
+/** @brief 80-character 16x16 Song font, LSB-first, linear scanned */
+#ifndef TFT_CN_FONT_H
+#define TFT_CN_FONT_H
+
 static const char CN_INDEX[] =
     /* 0-8 */
     "\xe6\x8c\x89"  /* 0  按 */
