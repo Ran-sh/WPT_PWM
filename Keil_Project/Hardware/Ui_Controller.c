@@ -51,6 +51,9 @@
 #define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* clear WIFI */
 #define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* summary */
 #define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* back to main */
+#define S_OK        "\xe7\xa1\xae\xe5\xae\x9a"                     /* 确定 */
+#define S_CANCEL    "\xe5\x8f\x96\xe6\xb6\x88"                     /* 取消 */
+#define S_RETURN    "\xe8\xbf\x94\xe5\x9b\x9e"                     /* 返回 */
 #define S_DIV       "--------------------"           /* divider */
 
 /* -------- Page state variables -------- */
@@ -263,8 +266,8 @@ static void Draw_Main_Menu(void)
 
     Draw_Divider(6);
 
-    Tft_Driver_Show_CN_String(7, Right("ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe5\x8f\x96\xe6\xb6\x88"),
-        "ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe5\x8f\x96\xe6\xb6\x88", UI_COLOR_TEXT, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(7, Right("ON:" S_OK " PAGE:" S_CANCEL),
+        "ON:" S_OK " PAGE:" S_CANCEL, UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
 /* -------- Monitor Sub-Menu (5 items) -------- */
@@ -653,25 +656,10 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* -------- PAGE (k3): go back one level -------- */
+    /* -------- PAGE (k3): go back to main menu -------- */
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
-        switch (page) {
-            case UI_PAGE_MONITOR_SUB_MENU:
-            case UI_PAGE_SWEEP:
-            case UI_PAGE_WIFI_SETUP:
-            case UI_PAGE_FAULT:
-                s_page = UI_PAGE_MAIN_MENU;
-                s_menu_cursor = 0;
-                break;
-            case UI_PAGE_MONITOR_SUMMARY:
-            case UI_PAGE_MONITOR_FREQ:
-            case UI_PAGE_MONITOR_VOLT:
-            case UI_PAGE_MONITOR_CURR:
-                s_page = UI_PAGE_MONITOR_SUB_MENU;
-                s_menu_cursor = 0;
-                break;
-            default: break;
-        }
+        s_page = UI_PAGE_MAIN_MENU;
+        s_menu_cursor = 0;
     }
 }
 

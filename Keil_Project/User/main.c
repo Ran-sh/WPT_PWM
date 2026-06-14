@@ -87,7 +87,8 @@ int main(void)
     IWDG_Enable();
     DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;
 
-    /* ── 阶段4: 开机默认无WIFI模式, 用户双击ON手动联网 ── */
+    /* ── 阶段4: 开机自动联网 (ESP8266 WiFiManager 记忆上次配网) ── */
+    App_Network_Start_Connect();
 
     /* ══════════════════════════════════════════
      *  主循环 — 全非阻塞调度 + __WFI 休眠
