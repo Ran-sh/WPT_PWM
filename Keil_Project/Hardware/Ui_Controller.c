@@ -260,8 +260,8 @@ static void Draw_Main_Menu(void)
 
     Draw_Divider(6);
 
-    Tft_Driver_Show_CN_String(7, Center("[F+/F-:\xe4\xb8\x8a\xe4\xb8\x8b KEY0:\xe7\xa1\xae\xe5\xae\x9a]"),
-        "[F+/F-:\xe4\xb8\x8a\xe4\xb8\x8b KEY0:\xe7\xa1\xae\xe5\xae\x9a]", UI_COLOR_TEXT, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(7, Right("ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe5\x8f\x96\xe6\xb6\x88"),
+        "ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe5\x8f\x96\xe6\xb6\x88", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
 /* -------- Monitor Sub-Menu (5 items) -------- */
@@ -314,8 +314,8 @@ static void Draw_Sweep_Page(void)
     Tft_Driver_Show_CN_String(5, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
 
     Draw_Divider(6);
-    Tft_Driver_Show_CN_String(7, Right("[KEY0:" S_STOP " PAGE:" S_BACK "]"),
-        "[KEY0:" S_STOP " PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(7, Right("ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+        "ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
 /* -------- Monitor Summary (dual mode: idle / running) -------- */
@@ -355,11 +355,11 @@ static void Draw_Monitor_Summary(void)
     Draw_Divider(6);
 
     if (is_running) {
-        Tft_Driver_Show_CN_String(7, Right("[F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:" S_BACK "]"),
-            "[F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+            "F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
     } else {
-        Tft_Driver_Show_CN_String(7, Right("[PAGE:" S_BACK "]"),
-            "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+            "ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
     }
 }
 
@@ -389,11 +389,11 @@ static void Draw_Monitor_Freq(void)
 
     Draw_Divider(6);
     if (is_running) {
-        Tft_Driver_Show_CN_String(7, Right("[F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:" S_BACK "]"),
-            "[F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+            "F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
     } else {
-        Tft_Driver_Show_CN_String(7, Right("[PAGE:" S_BACK "]"),
-            "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right("ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+            "ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
     }
 }
 
@@ -417,8 +417,8 @@ static void Draw_Monitor_Volt(void)
     Tft_Driver_Show_String(5, 17, "48", UI_COLOR_TITLE, UI_COLOR_BG);
 
     Draw_Divider(6);
-    Tft_Driver_Show_CN_String(7, Right("[PAGE:" S_BACK "]"),
-        "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(7, Right("PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+        "PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
 /* -------- Monitor Curr (gauge page) -------- */
@@ -441,8 +441,8 @@ static void Draw_Monitor_Curr(void)
     Tft_Driver_Show_String(5, 18, "3", UI_COLOR_TITLE, UI_COLOR_BG);
 
     Draw_Divider(6);
-    Tft_Driver_Show_CN_String(7, Right("[PAGE:" S_BACK "]"),
-        "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(7, Right("PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+        "PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
 /* -------- WiFi Setup Page -------- */
@@ -476,8 +476,8 @@ static void Draw_WiFi_Setup(void)
         "\xe9\x95\xbf\xe6\x8c\x89" "ON:" S_CLEAR_WIFI, UI_COLOR_ALARM, UI_COLOR_BG);
 
     Draw_Divider(6);
-    Tft_Driver_Show_CN_String(7, Right("[PAGE:" S_BACK "]"),
-        "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(7, Right("PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+        "PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
 /* -------- Fault Page -------- */
@@ -495,8 +495,8 @@ static void Draw_Fault_Page(void)
         "\xe6\x8c\x89" "KEY0" "\xe5\xa4\x8d\xe4\xbd\x8d" "\xe9\x87\x8d\xe5\x90\xaf", UI_COLOR_VALUE, UI_COLOR_BG);
 
     Draw_Divider(6);
-    Tft_Driver_Show_CN_String(7, Right("[PAGE:" S_BACK "]"),
-        "[PAGE:" S_BACK "]", UI_COLOR_TEXT, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(7, Right("PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
+        "PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
 }
 
 /* ================================================================
