@@ -456,6 +456,7 @@ static void Draw_WiFi_Setup(void)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
     const char* status_text;
+    const char* hint_text;
     char buf[21];
 
     if (cs == APP_NETWORK_CONN_ONLINE)
@@ -467,6 +468,12 @@ static void Draw_WiFi_Setup(void)
     else
         status_text = "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5";                          /* disconnected */
 
+    /* Dynamic hint based on state */
+    if (cs == APP_NETWORK_CONN_ONLINE)
+        hint_text = "ON:" "\xe6\x96\xad\xe5\xbc\x80WIFI";       /* ON:断开WIFI */
+    else
+        hint_text = "ON:" "\xe8\xbf\x9e\xe6\x8e\xa5WIFI";       /* ON:连接WIFI */
+
     Draw_Header(S_LAUNCH);
     Draw_Divider(1);
 
@@ -474,16 +481,16 @@ static void Draw_WiFi_Setup(void)
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
 
     if (App_Network_Is_Connecting()) {
-        snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d", App_Network_Get_Retry_Count(), 3);
+        snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d", App_Network_Get_Retry_Count() + 1, 3);
         Tft_Driver_Show_CN_String(3, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
     }
 
-    Tft_Driver_Show_CN_String(5, 0,
+    Tft_Driver_Show_CN_String(5, 0, hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
+
+    Tft_Driver_Show_CN_String(6, 0,
         "\xe9\x95\xbf\xe6\x8c\x89" "ON:" S_CLEAR_WIFI, UI_COLOR_ALARM, UI_COLOR_BG);
 
-    Draw_Divider(6);
-    Tft_Driver_Show_CN_String(7, Right("PAGE:\xe8\xbf\x94\xe5\x9b\x9e"),
-        "PAGE:\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
+    Draw_Divider(7);
 }
 
 /* -------- Fault Page -------- */
