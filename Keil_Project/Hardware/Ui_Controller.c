@@ -305,11 +305,11 @@ static void Draw_Monitor_Sub_Menu(void)
     {
         char scroll_hint[21];
         if (visible_top > 0 && s_menu_cursor < 4)
-            snprintf(scroll_hint, sizeof(scroll_hint), "\xe2\x96\xb2 " "\xe8\xbf\x94\xe5\x9b\x9e");  /* ▲ 返回 */
+            snprintf(scroll_hint, sizeof(scroll_hint), "> " "\xe8\xbf\x94\xe5\x9b\x9e");
         else if (s_menu_cursor == 4)
-            snprintf(scroll_hint, sizeof(scroll_hint), "\xe2\x96\xb2 " "\xe8\xbf\x94\xe5\x9b\x9e");  /* ▲ 返回 */
+            snprintf(scroll_hint, sizeof(scroll_hint), "> " "\xe8\xbf\x94\xe5\x9b\x9e");
         else
-            snprintf(scroll_hint, sizeof(scroll_hint), "\xe8\xbf\x94\xe5\x9b\x9e");  /* 返回 */
+            snprintf(scroll_hint, sizeof(scroll_hint), "\xe8\xbf\x94\xe5\x9b\x9e");
         Tft_Driver_Show_CN_String(7, Right(scroll_hint), scroll_hint, UI_COLOR_TEXT, UI_COLOR_BG);
     }
 }
