@@ -756,8 +756,13 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* -------- KEY0 long-press: clear WiFi (any pageable to do so) -------- */
+    /* -------- KEY0 long-press: clear WiFi (any page, gate on PWM inactive) -------- */
     if (k0 == KEY_DRIVER_EVENT_LONG_PRESS) {
+        Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
+        if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE) {
+            /* PWM active: ignore long-press to protect hardware */
+            return;
+        }
         if (Esp8266_Driver_Is_Ready()) {
             Esp8266_Driver_Send_String("CMD:CLEAR\n");
             App_Network_Soft_Reset();
