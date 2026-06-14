@@ -931,7 +931,8 @@ void Ui_Controller_Task(void)
         Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
 
     /* -- 9. Draw -- */
-    if (need_draw) {
+    /* Always redraw to prevent flicker from skipped frames */
+    if (1) {
         uint8_t is_menu = (s_page == UI_PAGE_MAIN_MENU || s_page == UI_PAGE_MONITOR_SUB_MENU);
         if (!is_menu || need_draw) {
         switch (s_page) {
