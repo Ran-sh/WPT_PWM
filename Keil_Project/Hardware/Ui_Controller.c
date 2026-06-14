@@ -342,19 +342,20 @@ static void Draw_Monitor_Summary(void)
     } else {
         snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz");
     }
-    Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
     /* Voltage */
     Fmt_V(buf, s_ema_v);
-    Tft_Driver_Show_CN_String(3, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(3, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
     /* Current */
     Fmt_I(buf, s_ema_i);
-    Tft_Driver_Show_CN_String(4, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(4, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
 
     /* Energy bar (only when running) */
     if (is_running) {
-        Energy_Bar_Draw(0, 5 * TFT_FONT_HEIGHT, TFT_WIDTH, 12,
+        Energy_Bar_Draw(2 * TFT_FONT_WIDTH, 5 * TFT_FONT_HEIGHT,
+                       16 * TFT_FONT_WIDTH, 10,
                        s_ema_v, 0.0f, 48.0f,
                        ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
     }
