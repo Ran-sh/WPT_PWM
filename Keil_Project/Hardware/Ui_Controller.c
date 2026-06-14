@@ -742,8 +742,8 @@ void Ui_Controller_Task(void)
     Handle_Keys_by_Page(s_page, k0, k1, k2, k3);
 
     /* -- 4. Page change detection (after key handling) -- */
-    /*     Only full-clear on PAGE CHANGE, not cursor move.
-    /*     Cursor moves use incremental redraw (old line + new line). */
+    /*     Only full-clear on PAGE CHANGE, not cursor move.            */
+    /*     Cursor moves use incremental redraw (old line + new line).  */
     if ((uint8_t)s_page != s_last_page) {
         s_last_page   = (uint8_t)s_page;
         s_last_cursor = s_menu_cursor;
@@ -756,7 +756,6 @@ void Ui_Controller_Task(void)
         s_last_cursor = s_menu_cursor;
         /* Erase old selected row (clear to BG) */
         if (old_cursor < 8) {
-            uint16_t y_old = (uint16_t)old_cursor * TFT_FONT_HEIGHT;
             /* line offset: main menu items start at line 2, sub-menu at line 2 */
             uint8_t line_old = (s_page == UI_PAGE_MAIN_MENU) ? (2 + old_cursor)
                               : (s_page == UI_PAGE_MONITOR_SUB_MENU && old_cursor < 4) ? (2 + old_cursor)
