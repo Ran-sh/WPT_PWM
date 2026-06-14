@@ -632,6 +632,20 @@ static void Handle_Keys_by_Page(Ui_Page page,
                 Inverter_Control_Soft_Start_Stop();
                 break;
 
+            case UI_PAGE_WIFI_SETUP: {
+                /* ON in WiFi page: trigger ESP8266 reconnect + re-enter config mode */
+                uint8_t cs = App_Network_Get_Connect_Status();
+                if (cs != APP_NETWORK_CONN_ONLINE) {
+                    if (Esp8266_Driver_Is_Ready()) {
+                        Esp8266_Driver_Send_String("CMD:CLEAR\n");
+                    }
+                    App_Network_Soft_Reset();
+                    s_no_wifi_mode = 0;
+                    App_Network_Start_Connect();
+                }
+                break;
+            }
+
             case UI_PAGE_FAULT:
                 Inverter_Control_Soft_Start_Reset();
                 s_page = UI_PAGE_MAIN_MENU;
