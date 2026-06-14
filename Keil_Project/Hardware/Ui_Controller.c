@@ -65,6 +65,7 @@ static uint8_t  s_was_fault_state = 0;
 static uint8_t  s_no_wifi_mode    = 0;    /* 0=auto-connect at boot, 1=WiFi cleared by user */
 static uint8_t  s_last_page       = 0xFF;
 static uint8_t  s_last_cursor     = 0xFF;
+static uint8_t  s_last_page_cleared = 0xFF;
 
 /* EMA smoothing */
 static float   s_ema_v = 0.0f, s_ema_i = 0.0f, s_ema_f = 0.0f;
@@ -862,8 +863,9 @@ void Ui_Controller_Task(void)
         s_last_page   = (uint8_t)s_page;
         s_last_cursor = s_menu_cursor;
         /* Only full-clear on page change, not cursor move */
-        if((uint8_t)s_page != s_last_page) {
+        if ((uint8_t)s_page != s_last_page_cleared) {
             Tft_Driver_Clear(UI_COLOR_BG);
+            s_last_page_cleared = (uint8_t)s_page;
         }
         Reset_EMA();
     }
@@ -907,7 +909,8 @@ void Ui_Controller_Task(void)
             /* Immediate jump: set page + dirty the state tracker so same-frame draw picks it up */
             s_page = UI_PAGE_FAULT;
             s_was_fault_state = 1;
-            s_last_page = 0xFF;   /* force clear+redraw */
+            s_last_page = 0xFF;     /* force clear+redraw */
+            s_last_page_cleared = 0xFF;
         }
     }
 
