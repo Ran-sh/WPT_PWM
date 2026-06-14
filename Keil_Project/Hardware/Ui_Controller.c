@@ -218,7 +218,10 @@ static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char
                             TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
     }
 
-    Tft_Driver_Show_CN_String(line, 0, text, color,
+    /* Left-pad with 2 spaces for alignment with old icon column */
+    Tft_Driver_Show_String(line, 0, "  ", UI_COLOR_TEXT,
+        (cursor == idx) ? UI_COLOR_VALUE : UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(line, 1, text, color,
         (cursor == idx) ? UI_COLOR_VALUE : UI_COLOR_BG);
 }
 
