@@ -679,15 +679,22 @@ void Ui_Controller_Task(void)
 {
     static uint32_t s_last_ui_ms = 0;
     static uint8_t  s_last_wifi_frame = 0xFF;
+    static uint8_t  s_last_mqtt_frame = 0xFF;
     uint8_t need_draw = 0;
 
-    /* -- 0. WIFI/MQTT icon animation: per-frame partial refresh of line 0 -- */
+    /* -- 0. WIFI + MQTT icon animation: per-frame partial refresh of line 0 -- */
+    /*     WIFI: 150ms/6fr, MQTT: 200ms/6fr. Both sampled independently.    */
+    /*     Only refresh header when actually in connecting state.           */
     {
         uint8_t wifi_frame = (App_Network_Is_Connecting() || !Esp8266_Driver_Is_Ready())
             ? (uint8_t)(Sys_Timer_Get_Tick() / 150) % 6
             : 0xFF;
-        if (wifi_frame != s_last_wifi_frame) {
+        uint8_t mqtt_frame = (App_Network_Is_Connecting())
+            ? (uint8_t)(Sys_Timer_Get_Tick() / 200) % 6
+            : 0xFF;
+        if (wifi_frame != s_last_wifi_frame || mqtt_frame != s_last_mqtt_frame) {
             s_last_wifi_frame = wifi_frame;
+            s_last_mqtt_frame = mqtt_frame;
             /* Redraw only the header row */
             switch (s_page) {
                 case UI_PAGE_MAIN_MENU:        Draw_Header(S_WPT_PWM);                      break;
@@ -734,12 +741,32 @@ void Ui_Controller_Task(void)
 
     Handle_Keys_by_Page(s_page, k0, k1, k2, k3);
 
-    /* -- 4. Page/cursor change detection (after key handling) -- */
-    if ((uint8_t)s_page != s_last_page || s_menu_cursor != s_last_cursor) {
+    /* -- 4. Page change detection (after key handling) -- */
+    /*     Only full-clear on PAGE CHANGE, not cursor move.
+    /*     Cursor moves use incremental redraw (old line + new line). */
+    if ((uint8_t)s_page != s_last_page) {
         s_last_page   = (uint8_t)s_page;
         s_last_cursor = s_menu_cursor;
         Tft_Driver_Clear(UI_COLOR_BG);
         Reset_EMA();
+        need_draw = 1;
+    } else if (s_menu_cursor != s_last_cursor) {
+        /* Cursor moved: erase old row + redraw menu, no full clear */
+        uint8_t old_cursor = s_last_cursor;
+        s_last_cursor = s_menu_cursor;
+        /* Erase old selected row (clear to BG) */
+        if (old_cursor < 8) {
+            uint16_t y_old = (uint16_t)old_cursor * TFT_FONT_HEIGHT;
+            /* line offset: main menu items start at line 2, sub-menu at line 2 */
+            uint8_t line_old = (s_page == UI_PAGE_MAIN_MENU) ? (2 + old_cursor)
+                              : (s_page == UI_PAGE_MONITOR_SUB_MENU && old_cursor < 4) ? (2 + old_cursor)
+                              : (s_page == UI_PAGE_MONITOR_SUB_MENU && old_cursor == 4) ? 7
+                              : 0xFF;
+            if (line_old != 0xFF) {
+                Tft_Driver_Fill_Rect(0, (uint16_t)line_old * TFT_FONT_HEIGHT,
+                                    TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
+            }
+        }
         need_draw = 1;
     }
 
@@ -770,11 +797,17 @@ void Ui_Controller_Task(void)
     /* -- 8. Overcurrent protection -- */
     if (s_page == UI_PAGE_SWEEP ||
         s_page == UI_PAGE_MONITOR_SUMMARY ||
-        s_page == UI_PAGE_MONITOR_FREQ) {
+        s_page == UI_PAGE_MONITOR_FREQ ||
+        s_page == UI_PAGE_MONITOR_VOLT ||
+        s_page == UI_PAGE_MONITOR_CURR) {
         Update_EMA();
         if (s_ema_i > UI_OVERCURRENT_THRESHOLD_A) {
             Inverter_Control_Soft_Start_Fault();
             Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
+            /* Immediate jump: set page + dirty the state tracker so same-frame draw picks it up */
+            s_page = UI_PAGE_FAULT;
+            s_was_fault_state = 1;
+            s_last_page = 0xFF;   /* force clear+redraw */
         }
     }
 
