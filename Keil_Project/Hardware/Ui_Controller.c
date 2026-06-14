@@ -209,7 +209,7 @@ static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char
     }
 
     if (cursor == idx) {
-        /* Selected row: cyan BG + star animation (fg=BG black, bg=row cyan) */
+        /* Selected row: cyan BG + star icon (fg=BG black, bg=row cyan) */
         uint8_t star_frame = (uint8_t)(Sys_Timer_Get_Tick() / 100) % 16;
         Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
                             TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_VALUE);
