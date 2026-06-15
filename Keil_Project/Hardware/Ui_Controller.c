@@ -696,31 +696,15 @@ static void Gauge_Polar(uint8_t a, uint16_t r, int16_t *px, int16_t *py)
     *py = (int16_t)(100 - (int32_t)r * s / 10000);
 }
 
-/* ── Multi-line Bresenham: w parallel 1px lines offset perpendicularly ── */
-static void Draw_Thick_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
-                            uint8_t w, uint16_t color)
+/* ── Bresenham 1px line: raw, no clipping needed (coordinates are in-bounds) ── */
+static void Bres_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
 {
     int16_t dx = (x1 > x0) ? (int16_t)(x1 - x0) : (int16_t)(x0 - x1);
     int16_t dy = (y1 > y0) ? (int16_t)(y1 - y0) : (int16_t)(y0 - y1);
     int16_t sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
     int16_t err = (int16_t)(dx - dy);
-    int16_t hw = (int16_t)((w - 1) / 2);
-
     while (1) {
-        int16_t o;
-        if (dx > dy) {
-            for (o = -hw; o <= hw; o++) {
-                int16_t wy = (int16_t)(y0 + o);
-                if (wy >= 0 && wy < TFT_HEIGHT && x0 >= 0 && x0 < TFT_WIDTH)
-                    Tft_Driver_Fill_Rect((uint16_t)x0, (uint16_t)wy, 1, 1, color);
-            }
-        } else {
-            for (o = -hw; o <= hw; o++) {
-                int16_t wx = (int16_t)(x0 + o);
-                if (wx >= 0 && wx < TFT_WIDTH && y0 >= 0 && y0 < TFT_HEIGHT)
-                    Tft_Driver_Fill_Rect((uint16_t)wx, (uint16_t)y0, 1, 1, color);
-            }
-        }
+        Tft_Driver_Fill_Rect((uint16_t)x0, (uint16_t)y0, 1, 1, color);
         if (x0 == x1 && y0 == y1) break;
         { int16_t e2 = (int16_t)(err * 2);
           if (e2 > -dy) { err = (int16_t)(err - dy); x0 = (int16_t)(x0 + sx); }
@@ -728,16 +712,48 @@ static void Draw_Thick_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
     }
 }
 
-/* ── pointer: 3px needle + 2px tail, safe gap from ticks ── */
+/* ── pointer: 5 parallel 1px lines → sword-blade 5px-wide needle ── */
 #define PTR_LEN  46
 static void Draw_Pointer(uint8_t a, uint16_t color)
 {
-    int16_t px, py, tx, ty;
+    int16_t px, py, tx, ty, i;
     Gauge_Polar(a, PTR_LEN, &px, &py);
     tx = (int16_t)(80 + (80 - px) / 3);
     ty = (int16_t)(100 + (100 - py) / 3);
-    Draw_Thick_Line(80, 100, px, py, 3, color);
-    Draw_Thick_Line(80, 100, tx, ty, 2, color);
+
+    /* 5 parallel lines for main pointer (3px for tail) */
+    {
+        int16_t dx = px - 80, dy = py - 100;
+        int16_t ndx = 0, ndy = 0;
+        if (dx > dy) ndy = 1; else ndx = 1;
+
+        for (i = -2; i <= 2; i++) {
+            int16_t ox = (int16_t)(80 + i * ndx);
+            int16_t oy = (int16_t)(100 + i * ndy);
+            int16_t dx2 = (int16_t)(px + i * ndx);
+            int16_t dy2 = (int16_t)(py + i * ndy);
+            if (ox >= 0 && oy >= 0 && ox < TFT_WIDTH && oy < TFT_HEIGHT
+                && dx2 >= 0 && dy2 >= 0 && dx2 < TFT_WIDTH && dy2 < TFT_HEIGHT)
+                Bres_Line(ox, oy, dx2, dy2, color);
+        }
+    }
+
+    /* tail: 3 parallel lines */
+    {
+        int16_t dx = tx - 80, dy = ty - 100;
+        int16_t ndx = 0, ndy = 0;
+        if (dx > dy) ndy = 1; else ndx = 1;
+
+        for (i = -1; i <= 1; i++) {
+            int16_t ox = (int16_t)(80 + i * ndx);
+            int16_t oy = (int16_t)(100 + i * ndy);
+            int16_t dx2 = (int16_t)(tx + i * ndx);
+            int16_t dy2 = (int16_t)(ty + i * ndy);
+            if (ox >= 0 && oy >= 0 && ox < TFT_WIDTH && oy < TFT_HEIGHT
+                && dx2 >= 0 && dy2 >= 0 && dx2 < TFT_WIDTH && dy2 < TFT_HEIGHT)
+                Bres_Line(ox, oy, dx2, dy2, color);
+        }
+    }
 }
 }
 
