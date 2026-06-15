@@ -1,4 +1,7 @@
 SET PATH=D:\Keil5\ARM\ARMCC\Bin;C:\Program Files (x86)\STMicroelectronics\stlink_server;D:\ST\STM32CubeCLT_1.18.0;D:\ST\STM32CubeCLT_1.18.0\CMake\bin;D:\ST\STM32CubeCLT_1.18.0\Ninja\bin;D:\ST\STM32CubeCLT_1.18.0\GNU-tools-for-STM32\bin;D:\ST\STM32CubeCLT_1.18.0\STLink-gdb-server\bin;D:\ST\STM32CubeCLT_1.18.0\STM32CubeProgrammer\bin;C:\Program Files\Common Files\Siemens\Automation\Simatic OAM\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files (x86)\National Instruments\Shared\LabVIEW CLI;C:\Program Files (x86)\dotnet\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;D:\Program Files\Bandizip;D:\Program Files\Git LFS;C:\Program Files (x86)\Microsoft SQL Server\160\Tools\Binn\;C:\Program Files\Microsoft SQL Server\160\Tools\Binn\;C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\;C:\Program Files\Microsoft SQL Server\160\DTS\Binn\;E:\Program Files\Git\cmd;D:\Program Files\nodejs\;D:\Program Files\MATLAB\R2026a\runtime\win64;D:\Program Files\MATLAB\R2026a\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\Users\48376\.local\bin;C:\Users\48376\AppData\Local\Microsoft\WindowsApps;D:\Users\48376\AppData\Local\Programs\Microsoft VS Code\bin;D:\texlive\2025\bin\windows;E:\Program Files\PyCharm 2024.3.6\bin;;E:\Anaconda3;E:\Anaconda3\Scripts;E:\Anaconda3\Library\bin;C:\Users\48376\AppData\Local\GitHubDesktop\bin;D:\Program Files\JetBrains\CLion 2026.1\bin;C:\Users\48376\AppData\Roaming\npm
+SET ARMCC5_ASMOPT=--diag_suppress=9931
+SET ARMCC5_CCOPT=--diag_suppress=9931
+SET ARMCC5_LINKOPT=--diag_suppress=9931
 SET CPU_TYPE=STM32F103C8
 SET CPU_VENDOR=STMicroelectronics
 SET UV2_TARGET=Target 1
@@ -44,4 +47,3 @@ SET CPU_CLOCK=0x00B71B00
 "D:\Keil5\ARM\ARMCC\Bin\ArmCC" --Via ".\objects\stm32f10x_it.__i"
 "D:\Keil5\ARM\ARMCC\Bin\ArmCC" --Via ".\objects\app_network.__i"
 "D:\Keil5\ARM\ARMCC\Bin\ArmLink" --Via ".\Objects\Project.lnp"
-"D:\Keil5\ARM\ARMCC\Bin\fromelf.exe" ".\Objects\Project.axf" --i32combined --output ".\Objects\Project.hex"
