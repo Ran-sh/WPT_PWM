@@ -883,6 +883,20 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
     /* ── top-right badge + WIFI ── */
     Draw_WiFi_Corner();
 
+    /* ── FREQ-only: soft-start state badge (top-right, left of WIFI) ── */
+    if (cfg->label == 'F') {
+        Inverter_Control_Soft_Start_State sw_state = Inverter_Control_Soft_Start_Get_State();
+        const char* badge_text;
+        uint16_t badge_color;
+        if      (sw_state == INVERTER_CONTROL_SS_STATE_SWEEP)
+            { badge_text = "SWP"; badge_color = UI_COLOR_VALUE; }
+        else if (sw_state == INVERTER_CONTROL_SS_STATE_DONE)
+            { badge_text = "DON"; badge_color = UI_COLOR_OK; }
+        else
+            { badge_text = "IDL"; badge_color = UI_COLOR_DIM; }
+        Tft_Driver_Show_String(0, 15, badge_text, badge_color, UI_COLOR_BG);
+    }
+
     #undef R_ARC
     #undef R_TICK
     #undef R_BIG
