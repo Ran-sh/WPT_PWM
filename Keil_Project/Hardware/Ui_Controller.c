@@ -982,9 +982,11 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
     if (oa > 180) oa = 180;
     if (na > 180) na = 180;
 
-    /* erase old pointer + draw new (1px needle, won't touch ticks) */
+    /* erase old pointer (黑线擦除, PTR_LEN=46 < R_BIG=50, 不伤刻度) + draw new */
     if (oa != na) {
         Draw_Pointer((uint8_t)oa, UI_COLOR_BG);
+        /* erasing the pointer destroys the hub center — redraw it */
+        Draw_Hub();
         Draw_Pointer((uint8_t)na, UI_COLOR_ALARM);
     }
 
