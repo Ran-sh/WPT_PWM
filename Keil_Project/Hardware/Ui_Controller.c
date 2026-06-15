@@ -1053,6 +1053,9 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         /* erasing the pointer destroys the hub center — redraw it */
         Draw_Hub();
         Draw_Pointer((uint8_t)na, UI_COLOR_ALARM);
+    } else {
+        /* keep hub appearance fresh even when needle doesn't move */
+        Draw_Hub();
     }
 
     /* top-left value */
