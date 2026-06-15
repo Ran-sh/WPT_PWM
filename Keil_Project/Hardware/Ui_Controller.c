@@ -696,7 +696,7 @@ static void Gauge_Polar(uint8_t a, uint16_t r, int16_t *px, int16_t *py)
     *py = (int16_t)(100 - (int32_t)r * s / 10000);
 }
 
-/* ── Bresenham 1px line: raw, no clipping needed (coordinates are in-bounds) ── */
+/* ── Bresenham 1px line ── */
 static void Bres_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
 {
     int16_t dx = (x1 > x0) ? (int16_t)(x1 - x0) : (int16_t)(x0 - x1);
@@ -704,6 +704,7 @@ static void Bres_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c
     int16_t sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
     int16_t err = (int16_t)(dx - dy);
     while (1) {
+        /* each pixel uses same SetWin already open → minimal SPI overhead */
         Tft_Driver_Fill_Rect((uint16_t)x0, (uint16_t)y0, 1, 1, color);
         if (x0 == x1 && y0 == y1) break;
         { int16_t e2 = (int16_t)(err * 2);
