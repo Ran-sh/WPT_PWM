@@ -1071,7 +1071,8 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
             { badge_text = "DON"; badge_color = UI_COLOR_OK; }
         else
             { badge_text = "IDL"; badge_color = UI_COLOR_DIM; }
-        Tft_Driver_Show_String(0, 15, badge_text, badge_color, UI_COLOR_BG);
+        Tft_Driver_Fill_Rect(108, 0, 20, 16, UI_COLOR_BG);
+        Tft_Driver_Show_String(0, 14, badge_text, badge_color, UI_COLOR_BG);
     }
 }
 
