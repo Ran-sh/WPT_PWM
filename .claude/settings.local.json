@@ -131,7 +131,8 @@
       "Bash(sed -i '103,116d' Ui_Controller.c)",
       "Bash(/c/Users/48376/AppData/Local/Microsoft/WindowsApps/python3 *)",
       "Bash(git -C \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT\" add -A)",
-      "Bash(git -C \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT\" diff --cached --stat)"
+      "Bash(git -C \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT\" diff --cached --stat)",
+      "Bash(git *)"
     ]
   }
 }
