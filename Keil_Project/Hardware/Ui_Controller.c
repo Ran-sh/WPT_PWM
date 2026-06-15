@@ -830,13 +830,13 @@ static void Draw_Hub(void)
 /* ── WIFI icon + MQTT cloud (top-right, for gauge pages) ── */
 static void Draw_TopRight_Icons(void)
 {
-    #define WX 128
-    #define MX 144
+    #define WX 144
+    #define MX 128
     uint8_t  cs = App_Network_Get_Connect_Status(), icon_frame;
     static const uint16_t blue_grad[6] = {0x0018,0x001B,0x001F,0x07FF,0x07BF,0x07FF};
     static const uint16_t rainbow[6] = {0xF800,0xFD20,0xFFE0,0x07E0,0x07FF,0x001F};
 
-    Tft_Driver_Fill_Rect(108, 0, 52, 16, UI_COLOR_BG);
+    Tft_Driver_Fill_Rect(80, 0, 80, 16, UI_COLOR_BG);
 
     /* ── MQTT cloud (x=128) ── */
     if (cs == APP_NETWORK_CONN_ONLINE) {
