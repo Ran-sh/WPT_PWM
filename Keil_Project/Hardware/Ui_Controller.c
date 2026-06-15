@@ -66,11 +66,11 @@
 #define S_PWM_OFF   "PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad"       /* PWM已关断 */
 #define S_FAULT_TITLE "!!!\xe6\x95\x85\xe9\x9a\x9c!!!"               /* !!!故障!!! */
 #define S_RESET_HINT "\xe6\x8c\x89" "KEY0" "\xe5\xa4\x8d\xe4\xbd\x8d" "\xe9\x87\x8d\xe5\x90\xaf"
-#define S_BOTTOM_CONFIRM  "ON:\xe7\xa1\xae\xe5\xae\x9a PAGE:\xe8\xbf\x94\xe5\x9b\x9e"
-#define S_BOTTOM_STOP     "ON:\xe5\x81\x9c\xe6\xad\xa2 PAGE:\xe8\xbf\x94\xe5\x9b\x9e"
-#define S_BOTTOM_CONT     "ON:\xe7\xbb\xa7\xe7\xbb\xad PAGE:\xe8\xbf\x94\xe5\x9b\x9e"
-#define S_BOTTOM_BACK     "PAGE:\xe8\xbf\x94\xe5\x9b\x9e"
-#define S_BOTTOM_TUNE     "F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:\xe8\xbf\x94\xe5\x9b\x9e"
+#define S_BOTTOM_L_CONFIRM "ON:\xe7\xa1\xae\xe5\xae\x9a"           /* ON:确定 */
+#define S_BOTTOM_L_STOP    "ON:\xe5\x81\x9c\xe6\xad\xa2"           /* ON:停止 */
+#define S_BOTTOM_L_CONT    "ON:\xe7\xbb\xa7\xe7\xbb\xad"           /* ON:继续 */
+#define S_BOTTOM_L_TUNE    "F+/F-:\xe8\xb0\x83\xe9\xa2\x91"        /* F+/F-:调频 */
+#define S_BOTTOM_R         "PAGE:\xe8\xbf\x94\xe5\x9b\x9e"         /* PAGE:返回 */
 #define S_ON_DISCONNECT   "ON:\xe6\x96\xad\xe5\xbc\x80WIFI"
 #define S_ON_CONNECT      "ON:\xe8\xbf\x9e\xe6\x8e\xa5WIFI"
 #define S_LONG_CLEAR      "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI
@@ -265,6 +265,15 @@ static void Draw_Divider(uint8_t line)
     Tft_Driver_Show_String(line, 0, S_DIV, UI_COLOR_DIM, UI_COLOR_BG);
 }
 
+/* ── Bottom bar (row 7): left_text (col 0, left-aligned) + S_BOTTOM_R (right-aligned) ── */
+static void Draw_Bottom_Bar(const char* left_text)
+{
+    Erase_Line(7);
+    Tft_Driver_Show_CN_String(7, 0, left_text, UI_COLOR_TEXT, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_R),
+        S_BOTTOM_R, UI_COLOR_TEXT, UI_COLOR_BG);
+}
+
 /* ── Draw menu text at line,col (erases whole line first, text at col≥2 for star) ── */
 static void Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t enabled)
 {
@@ -314,8 +323,7 @@ static void Draw_Main_Menu_Full(void)
     Draw_Cursor(2 + s_menu_cursor);   /* rows 2-5 */
 
     Draw_Divider(6);              /* row 6 */
-    Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_CONFIRM),
-        S_BOTTOM_CONFIRM, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
+    Draw_Bottom_Bar(S_BOTTOM_L_CONFIRM);
 
     s_last_is_running    = is_running;
     s_last_is_fault_menu = is_fault;
@@ -394,8 +402,7 @@ static void Draw_Sub_Menu_Full(void)
     Draw_Cursor(2 + (s_menu_cursor - visible_top));   /* rows 2-5 */
 
     Draw_Divider(6);              /* row 6 */
-    Tft_Driver_Show_CN_String(7, Right("\xe8\xbf\x94\xe5\x9b\x9e"),
-        "\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
+    Draw_Bottom_Bar("");                                      /* only PAGE:返回 on right */
 
     s_last_sub_visible = visible_top;
 }
@@ -489,10 +496,7 @@ static void Draw_Sweep_Full(void)
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
     Draw_Divider(6);              /* row 6 */
-    {
-        const char* hint = is_stopped ? S_BOTTOM_CONT : S_BOTTOM_STOP;
-        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
-    }
+    Draw_Bottom_Bar(is_stopped ? S_BOTTOM_L_CONT : S_BOTTOM_L_STOP);  /* row 7 */
 
     s_last_sweep_stopped = is_stopped;
 }
@@ -551,9 +555,7 @@ static void Sweep_Dynamic_Update(void)
 
     /* Bottom hint */
     if (is_stopped != s_last_sweep_stopped) {
-        const char* hint = is_stopped ? S_BOTTOM_CONT : S_BOTTOM_STOP;
-        Erase_Line(7);
-        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);
+        Draw_Bottom_Bar(is_stopped ? S_BOTTOM_L_CONT : S_BOTTOM_L_STOP);
         s_last_sweep_stopped = is_stopped;
     }
 }
@@ -595,8 +597,8 @@ static void Draw_Summary_Full(void)
 
     Draw_Divider(6);              /* row 6 */
     {
-        const char* hint = is_running ? S_BOTTOM_TUNE : S_BOTTOM_CONFIRM;
-        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
+        const char* hint = is_running ? S_BOTTOM_L_TUNE : S_BOTTOM_L_CONFIRM;
+        Draw_Bottom_Bar(hint);     /* row 7 */
     }
 
     s_last_is_running = is_running;
@@ -637,9 +639,8 @@ static void Summary_Dynamic_Update(void)
 
     /* Bottom hint */
     if (is_running != s_last_is_running) {
-        const char* hint = is_running ? S_BOTTOM_TUNE : S_BOTTOM_CONFIRM;
-        Erase_Line(7);
-        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);
+        const char* hint = is_running ? S_BOTTOM_L_TUNE : S_BOTTOM_L_CONFIRM;
+        Draw_Bottom_Bar(hint);
         s_last_is_running = is_running;
     }
 }
@@ -675,10 +676,7 @@ static void Draw_Freq_Full(void)
     Tft_Driver_Show_String(5, 17, "150", UI_COLOR_TITLE, UI_COLOR_BG);
 
     Draw_Divider(6);               /* row 6 */
-    {
-        const char* hint = is_running ? S_BOTTOM_TUNE : S_BOTTOM_CONFIRM;
-        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
-    }
+    Draw_Bottom_Bar(is_running ? S_BOTTOM_L_TUNE : S_BOTTOM_L_CONFIRM);  /* row 7 */
 
     s_last_is_running = is_running;
 }
@@ -704,9 +702,7 @@ static void Freq_Dynamic_Update(void)
                    ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
 
     if (is_running != s_last_is_running) {
-        const char* hint = is_running ? S_BOTTOM_TUNE : S_BOTTOM_CONFIRM;
-        Erase_Line(7);
-        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);
+        Draw_Bottom_Bar(is_running ? S_BOTTOM_L_TUNE : S_BOTTOM_L_CONFIRM);
         s_last_is_running = is_running;
     }
 }
@@ -739,8 +735,7 @@ static void Draw_Volt_Full(void)
     Tft_Driver_Show_String(5, 17, "48", UI_COLOR_TITLE, UI_COLOR_BG);
 
     Draw_Divider(6);               /* row 6 */
-    Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_BACK),
-        S_BOTTOM_BACK, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
+    Draw_Bottom_Bar("");                                       /* only PAGE:返回 on right */
 }
 
 static void Volt_Dynamic_Update(void)
@@ -787,8 +782,7 @@ static void Draw_Curr_Full(void)
     Tft_Driver_Show_String(5, 18, "3", UI_COLOR_TITLE, UI_COLOR_BG);
 
     Draw_Divider(6);               /* row 6 */
-    Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_BACK),
-        S_BOTTOM_BACK, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
+    Draw_Bottom_Bar("");                                       /* only PAGE:返回 on right */
 }
 
 static void Curr_Dynamic_Update(void)
@@ -933,8 +927,7 @@ static void Draw_Fault_Full(void)
         S_RESET_HINT, UI_COLOR_VALUE, UI_COLOR_BG);    /* row 5 */
 
     Draw_Divider(6);                /* row 6 */
-    Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_BACK),
-        S_BOTTOM_BACK, UI_COLOR_TEXT, UI_COLOR_BG);    /* row 7 */
+    Draw_Bottom_Bar("");                                          /* only PAGE:返回 on right */
 }
 
 /* ================================================================
