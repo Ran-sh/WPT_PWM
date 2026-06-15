@@ -25,8 +25,8 @@
 #include "Sys_Timer.h"
 #include "Energy_Bar.h"
 #include <stdio.h>
-#include <math.h>
 #include <string.h>
+#include <math.h>
 
 #define UI_COLOR_BG      TFT_COLOR_BLACK
 #define UI_COLOR_TITLE   TFT_COLOR_YELLOW
