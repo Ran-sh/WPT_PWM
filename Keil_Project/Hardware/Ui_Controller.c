@@ -709,13 +709,17 @@ static void Draw_Thick_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
     while (1) {
         int16_t o;
         if (dx > dy) {
-            /* mostly horizontal: offset Y */
-            for (o = -hw; o <= hw; o++)
-                Tft_Driver_Fill_Rect((uint16_t)x0, (uint16_t)(y0 + o), 1, 1, color);
+            for (o = -hw; o <= hw; o++) {
+                int16_t wy = (int16_t)(y0 + o);
+                if (wy >= 0 && wy < TFT_HEIGHT && x0 >= 0 && x0 < TFT_WIDTH)
+                    Tft_Driver_Fill_Rect((uint16_t)x0, (uint16_t)wy, 1, 1, color);
+            }
         } else {
-            /* mostly vertical: offset X */
-            for (o = -hw; o <= hw; o++)
-                Tft_Driver_Fill_Rect((uint16_t)(x0 + o), (uint16_t)y0, 1, 1, color);
+            for (o = -hw; o <= hw; o++) {
+                int16_t wx = (int16_t)(x0 + o);
+                if (wx >= 0 && wx < TFT_WIDTH && y0 >= 0 && y0 < TFT_HEIGHT)
+                    Tft_Driver_Fill_Rect((uint16_t)wx, (uint16_t)y0, 1, 1, color);
+            }
         }
         if (x0 == x1 && y0 == y1) break;
         { int16_t e2 = (int16_t)(err * 2);
