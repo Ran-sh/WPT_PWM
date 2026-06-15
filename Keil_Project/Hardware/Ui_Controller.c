@@ -896,22 +896,22 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
     for (a = 0; a < red_a; a++) {
         int16_t ax, ay;
         Gauge_Polar(CPS(a), R_ARC-2, &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 3, 3, UI_COLOR_TEXT);
+        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 2, 2, UI_COLOR_TEXT);
         Gauge_Polar(CPS(a), R_ARC,   &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 3, 3, UI_COLOR_TEXT);
+        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 2, 2, UI_COLOR_TEXT);
         Gauge_Polar(CPS(a), R_ARC+2, &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 3, 3, UI_COLOR_TEXT);
+        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 2, 2, UI_COLOR_TEXT);
     }
 
     /* ── red zone arc (R=65, red_start → end) ── */
     for (a = red_a; a <= 180; a++) {
         int16_t ax, ay;
         Gauge_Polar(CPS(a), R_ARC-2, &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 3, 3, UI_COLOR_ALARM);
+        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 2, 2, UI_COLOR_ALARM);
         Gauge_Polar(CPS(a), R_ARC,   &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 3, 3, UI_COLOR_ALARM);
+        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 2, 2, UI_COLOR_ALARM);
         Gauge_Polar(CPS(a), R_ARC+2, &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 3, 3, UI_COLOR_ALARM);
+        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 2, 2, UI_COLOR_ALARM);
     }
 
     /* ── ticks (NO white arc, standalone radial lines) ── */
