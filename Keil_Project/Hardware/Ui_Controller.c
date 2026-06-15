@@ -705,14 +705,18 @@ static void Draw_Thick_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
     int16_t sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
     int16_t err = (int16_t)(dx - dy);
     int16_t hw = (int16_t)((w - 1) / 2);
-    int16_t nx = 0, ny = 0;
-    /* perpendicular normal for thick stroke: rotate dx,dy 90° */
-    if (dx > dy) ny = 1; else nx = 1;
 
     while (1) {
         int16_t o;
-        for (o = -hw; o <= hw; o++)
-            Tft_Driver_Fill_Rect((uint16_t)(x0 + o*nx), (uint16_t)(y0 + o*ny), 1, 1, color);
+        if (dx > dy) {
+            /* mostly horizontal: offset Y */
+            for (o = -hw; o <= hw; o++)
+                Tft_Driver_Fill_Rect((uint16_t)x0, (uint16_t)(y0 + o), 1, 1, color);
+        } else {
+            /* mostly vertical: offset X */
+            for (o = -hw; o <= hw; o++)
+                Tft_Driver_Fill_Rect((uint16_t)(x0 + o), (uint16_t)y0, 1, 1, color);
+        }
         if (x0 == x1 && y0 == y1) break;
         { int16_t e2 = (int16_t)(err * 2);
           if (e2 > -dy) { err = (int16_t)(err - dy); x0 = (int16_t)(x0 + sx); }
