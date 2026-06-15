@@ -1,0 +1,92 @@
+<h2>粗线仪表盘 — 7px弧 + 3px刻度 + 3px指针</h2>
+<p class="subtitle">防缩减、抗锯齿、视觉厚实。全元素加粗</p>
+
+<div class="mockup">
+  <div class="mockup-header">电压表 0→48V — 厚实版，工业级粗线仪表</div>
+  <div class="mockup-body" style="background:#000; padding:6px; display:flex; justify-content:center;">
+    <svg width="160" height="128" viewBox="0 0 160 128" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- 粗弧 R=53, 圆心(80,116), 厚7px -->
+      <path d="M 24 116 A 54 54 0 0 1 80 62" fill="none" stroke="#00cc00" stroke-width="8"/>
+      <path d="M 80 62 A 54 54 0 0 1 121 99" fill="none" stroke="#ffcc00" stroke-width="8"/>
+      <path d="M 121 99 A 54 54 0 0 1 136 116" fill="none" stroke="#cc2200" stroke-width="8"/>
+
+      <!-- 粗大刻度 R=54→44(10px长, 3px宽), 端点圆形 -->
+      <line x1="24" y1="116" x2="24" y2="106" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="47" y1="74" x2="43" y2="66" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="80" y1="62" x2="80" y2="52" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="113" y1="74" x2="117" y2="66" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="136" y1="116" x2="136" y2="106" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+
+      <!-- 小刻度 R=54→50(4px长, 2px宽) -->
+      <line x1="34" y1="100" x2="33" y2="96" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="39" y1="88" x2="38" y2="84" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="42" y1="80" x2="41" y2="76" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="55" y1="69" x2="54" y2="65" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="64" y1="65" x2="63" y2="61" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="73" y1="63" x2="73" y2="59" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="87" y1="63" x2="87" y2="59" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="96" y1="65" x2="97" y2="61" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="105" y1="69" x2="106" y2="65" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="118" y1="80" x2="119" y2="76" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="121" y1="88" x2="122" y2="84" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="126" y1="100" x2="127" y2="96" stroke="#667" stroke-width="1.5" stroke-linecap="round"/>
+
+      <!-- 粗指针 3px宽 -->
+      <line x1="80" y1="116" x2="53" y2="73" stroke="#00ffff" stroke-width="3"/>
+      <!-- 针尾部 -->
+      <line x1="80" y1="116" x2="88" y2="122" stroke="#00ffff" stroke-width="2"/>
+
+      <!-- 圆心 Hub 粗框 -->
+      <circle cx="80" cy="116" r="10" fill="#000" stroke="#bbb" stroke-width="2.5"/>
+      <circle cx="80" cy="116" r="4" fill="#00ffff"/>
+
+      <!-- 外侧数值 粗体 -->
+      <text x="12" y="130" font-size="14" fill="#fff" font-weight="bold">0</text>
+      <text x="34" y="56" font-size="14" fill="#fff" font-weight="bold">12</text>
+      <text x="71" y="43" font-size="14" fill="#fff" font-weight="bold">24</text>
+      <text x="111" y="56" font-size="14" fill="#fff" font-weight="bold">36</text>
+      <text x="141" y="130" font-size="14" fill="#fff" font-weight="bold">48</text>
+
+      <!-- 左上标签 -->
+      <text x="3" y="12" font-size="12" fill="#FFE000" font-weight="bold">V</text>
+      <!-- WIFI -->
+      <rect x="144" y="0" width="16" height="16" rx="1" fill="#000" stroke="#0f0" stroke-width="1"/>
+      <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="124" y="10" font-size="8" fill="#0f0">OK</text>
+    </svg>
+  </div>
+</div>
+
+<div class="section">
+  <h3>线宽对比</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e; color:#fff;"><th>元素</th><th>之前</th><th>现在</th></tr>
+    <tr><td>弧</td><td>6px</td><td style="color:#0f0;">8px ✓</td></tr>
+    <tr><td>大刻度</td><td>2px</td><td style="color:#0f0;">3px, 10px长 ✓</td></tr>
+    <tr><td>大刻度线端</td><td>直角</td><td style="color:#0f0;">圆端 (Fill_Rect 3×10) ✓</td></tr>
+    <tr><td>小刻度</td><td>1px</td><td style="color:#0f0;">1.5px, 4px长 ✓</td></tr>
+    <tr><td>指针</td><td>2px</td><td style="color:#0f0;">3px ✓</td></tr>
+    <tr><td>指针尾</td><td>1px</td><td style="color:#0f0;">2px ✓</td></tr>
+    <tr><td>Hub外圈</td><td>2px</td><td style="color:#0f0;">2.5px, r=10 ✓</td></tr>
+    <tr><td>外侧数值</td><td>8px字</td><td style="color:#0f0;">14px字(用现有8×16字库) ✓</td></tr>
+  </table>
+  <p style="color:#0f0; margin-top:8px;">弧宽8px用两圈5px填充模拟，或直接用Fill_Rect逐点画圆环断面</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="go" onclick="toggleSelect(this)">
+    <div class="letter">GO</div>
+    <div class="content">
+      <h3>就这个，确认实装</h3>
+      <p>粗线版5刻度半圆仪表盘，三页(V/C/F)全部替换HUD风格</p>
+    </div>
+  </div>
+  <div class="option" data-choice="thin" onclick="toggleSelect(this)">
+    <div class="letter">THIN</div>
+    <div class="content">
+      <h3>回到细线版</h3>
+      <p>保持之前的6px/2px/2px细线仪表</p>
+    </div>
+  </div>
+</div>

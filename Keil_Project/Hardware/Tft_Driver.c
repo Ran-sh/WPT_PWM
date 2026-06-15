@@ -532,3 +532,88 @@ void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
 
     Tft_DMA_Send(s_dma_buf, 256);
 }
+
+/* ════════════════════════════════════════════════════════
+ *  4×8 微型字库 — PCtoLCD2002 行主序 LSB-first 宋体
+ *  字符: 0 1 2 3 4 5 6 7 8 9 . - V F C k H z  W 空格
+ *  共 19 字符 × 8 字节 = 152 字节
+ *  位序: 低4位有效, bit0=最左像素 (LSB-first)
+ * ════════════════════════════════════════════════════════ */
+static const uint8_t FONT_4X8[19][8] = {
+    /* [0] '0' */ {0x00,0x00,0x02,0x05,0x05,0x05,0x02,0x00},
+    /* [1] '1' */ {0x00,0x00,0x06,0x04,0x04,0x04,0x0E,0x00},
+    /* [2] '2' */ {0x00,0x00,0x07,0x05,0x02,0x01,0x07,0x00},
+    /* [3] '3' */ {0x00,0x00,0x07,0x04,0x02,0x04,0x07,0x00},
+    /* [4] '4' */ {0x00,0x00,0x04,0x06,0x05,0x0F,0x0E,0x00},
+    /* [5] '5' */ {0x00,0x00,0x07,0x07,0x04,0x04,0x07,0x00},
+    /* [6] '6' */ {0x00,0x00,0x06,0x07,0x05,0x05,0x07,0x00},
+    /* [7] '7' */ {0x00,0x00,0x06,0x04,0x04,0x04,0x04,0x00},
+    /* [8] '8' */ {0x00,0x00,0x07,0x05,0x02,0x05,0x07,0x00},
+    /* [9] '9' */ {0x00,0x00,0x07,0x05,0x07,0x04,0x03,0x00},
+    /*[10] '.' */ {0x00,0x00,0x00,0x00,0x00,0x00,0x02,0x00},
+    /*[11] '-' */ {0x00,0x00,0x00,0x00,0x0F,0x00,0x00,0x00},
+    /*[12] 'V' */ {0x00,0x00,0x09,0x09,0x06,0x06,0x00,0x00},
+    /*[13] 'F' */ {0x00,0x00,0x06,0x06,0x06,0x06,0x07,0x00},
+    /*[14] 'C' */ {0x00,0x00,0x06,0x01,0x01,0x01,0x06,0x00},
+    /*[15] 'k' */ {0x00,0x02,0x02,0x06,0x06,0x06,0x02,0x00},
+    /*[16] 'H' */ {0x00,0x00,0x06,0x06,0x06,0x06,0x06,0x00},
+    /*[17] 'z' */ {0x00,0x00,0x00,0x06,0x06,0x06,0x06,0x00},
+    /*[18] ' ' */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
+};
+
+/**
+ * @brief  将 ASCII 字符映射到 FONT_4X8 索引
+ * @param  ch  待映射字符
+ * @retval 0..18 FONT_4X8 索引, 不支持→回退空格(18)
+ */
+static uint8_t Map_4x8_Idx(char ch)
+{
+    if (ch >= '0' && ch <= '9') return (uint8_t)(ch - '0');
+    switch (ch) {
+        case '.': return 10;
+        case '-': return 11;
+        case 'V': return 12;
+        case 'F': return 13;
+        case 'C': return 14;
+        case 'k': return 15;
+        case 'H': return 16;
+        case 'z': return 17;
+        case ' ': return 18;
+    }
+    return 18;
+}
+
+/**
+ * @brief  在 TFT 像素坐标绘制 4×8 微型字符串
+ * @param  x, y   像素坐标 (0≤x≤156, 0≤y≤120)
+ * @param  s      字符串 (仅支持 FONT_4X8 字符集)
+ * @param  fg, bg 前景色/字体色
+ * @note   每字符 4px宽 × 8px高, 间距2px, 每字符步进 6px
+ *         用 4px 宽字符可在R=55弧外标注20+个数字
+ */
+void Tft_Driver_Show_4x8_String_Pixel(uint16_t x, uint16_t y,
+                                       const char* s,
+                                       uint16_t fg, uint16_t bg)
+{
+    uint8_t row, b, idx;
+    uint16_t* p;
+
+    while (*s && x + 4 <= TFT_WIDTH) {
+        idx = Map_4x8_Idx(*s);
+
+        SetWin(x, y, x + 3, y + 7);
+
+        /* 逐行解码 → s_dma_buf: 8行 × 4像素 = 32 半字 */
+        p = s_dma_buf;
+        for (row = 0; row < 8; row++) {
+            uint8_t byte_val = FONT_4X8[idx][row];
+            for (b = 0; b < 4; b++)
+                *p++ = (byte_val & (0x01 << b)) ? fg : bg;
+        }
+
+        Tft_DMA_Send(s_dma_buf, 32);
+
+        x += 6;  /* 4px char + 2px spacing */
+        s++;
+    }
+}

@@ -1,0 +1,121 @@
+<h2>R=70 大弧仪表盘 — 3色分区弧，弧内侧标注，指针延伸到弧</h2>
+<p class="subtitle">弧内侧数值标注在R≈60处，弧外标注在R≈78处。左上方实时数值。WiFi右上不变</p>
+
+<div class="mockup">
+  <div class="mockup-header">电压表 — 弧R=70, 圆心(80,100), 弧最高点到Y=30</div>
+  <div class="mockup-body" style="background:#0a0a0a; padding:4px; display:flex; justify-content:center;">
+    <svg width="160" height="128" viewBox="0 0 160 128" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- 弧 R=68 厚3px (正好在R65→R70之间) -->
+      <path d="M 12 100 A 68 68 0 0 1 148 100" fill="none" stroke="#00cc00" stroke-width="3"/>
+      <path d="M 92 35 A 68 68 0 0 1 132 65" fill="none" stroke="#cc8800" stroke-width="3"/>
+      <path d="M 132 65 A 68 68 0 0 1 148 100" fill="none" stroke="#cc2200" stroke-width="3"/>
+
+      <!-- 大刻度 (R=68→61, 向圆心7px) -->
+      <line x1="12" y1="100" x2="12" y2="93" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="31" y1="58" x2="28" y2="52" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="80" y1="33" x2="80" y2="26" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="129" y1="58" x2="132" y2="52" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="148" y1="100" x2="148" y2="93" stroke="#aaa" stroke-width="1.5"/>
+
+      <!-- 刻度数值标注在弧内侧 R≈58处 -->
+      <text x="6" y="89" font-size="9" fill="#999">0</text>
+      <text x="21" y="45" font-size="9" fill="#999">12</text>
+      <text x="75" y="22" font-size="9" fill="#999">24</text>
+      <text x="126" y="45" font-size="9" fill="#999">36</text>
+      <text x="150" y="89" font-size="9" fill="#999">48</text>
+
+      <!-- 弧颜色说明小标 (彩色短线) -->
+      <line x1="8" y1="16" x2="18" y2="16" stroke="#00cc00" stroke-width="3"/>
+      <text x="20" y="18" font-size="7" fill="#888">0-24V</text>
+      <line x1="8" y1="24" x2="18" y2="24" stroke="#cc8800" stroke-width="3"/>
+      <text x="20" y="26" font-size="7" fill="#888">24-40V</text>
+      <line x1="8" y1="32" x2="18" y2="32" stroke="#cc2200" stroke-width="3"/>
+      <text x="20" y="34" font-size="7" fill="#888">40-48V</text>
+
+      <!-- 指针 (2px) -->
+      <line x1="80" y1="100" x2="52" y2="68" stroke="#00ffff" stroke-width="2"/>
+      <line x1="80" y1="100" x2="83" y2="103" stroke="#00ffff" stroke-width="1"/>
+
+      <!-- Hub -->
+      <circle cx="80" cy="100" r="6" fill="#0a0a0a" stroke="#888" stroke-width="1.5"/>
+      <circle cx="80" cy="100" r="2" fill="#0ff"/>
+
+      <!-- 左上实时值 -->
+      <text x="3" y="12" font-size="12" fill="#FFE000" font-weight="bold">V 12.50</text>
+
+      <!-- WiFi + Badge -->
+      <rect x="144" y="0" width="16" height="16" rx="1" fill="#0a0a0a" stroke="#0f0" stroke-width="0.8"/>
+      <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="124" y="10" font-size="8" fill="#0f0">OK</text>
+    </svg>
+  </div>
+</div>
+
+<div class="mockup" style="margin-top:8px;">
+  <div class="mockup-header">三表全景</div>
+  <div class="mockup-body" style="background:#0a0a0a; padding:4px; display:flex; gap:6px;">
+    <!-- C 电流 -->
+    <svg width="155" height="125" viewBox="0 0 155 125">
+      <path d="M 12 98 A 67 67 0 0 1 146 98" fill="none" stroke="#00cc00" stroke-width="3"/>
+      <path d="M 121 55 A 67 67 0 0 1 146 98" fill="none" stroke="#cc2200" stroke-width="3"/>
+      <line x1="80" y1="98" x2="63" y2="68" stroke="#0ff" stroke-width="2"/>
+      <line x1="80" y1="98" x2="82" y2="100" stroke="#0ff" stroke-width="1"/>
+      <circle cx="80" cy="98" r="6" fill="#0a0a0a" stroke="#888" stroke-width="1.5"/>
+      <circle cx="80" cy="98" r="2" fill="#0ff"/>
+      <text x="6" y="87" font-size="9" fill="#999">0</text>
+      <text x="22" y="44" font-size="9" fill="#999">0.75</text>
+      <text x="74" y="20" font-size="9" fill="#999">1.5</text>
+      <text x="124" y="44" font-size="9" fill="#999">2.25</text>
+      <text x="148" y="87" font-size="9" fill="#999">3</text>
+      <text x="3" y="12" font-size="12" fill="#FFE000" font-weight="bold">C 1.250</text>
+      <rect x="139" y="0" width="16" height="16" rx="1" fill="#0a0a0a" stroke="#0f0" stroke-width="0.8"/>
+      <text x="141" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="120" y="10" font-size="8" fill="#0f0">OK</text>
+    </svg>
+    <!-- F 频率 -->
+    <svg width="155" height="125" viewBox="0 0 155 125">
+      <path d="M 12 98 A 67 67 0 0 1 146 98" fill="none" stroke="#00cc00" stroke-width="3"/>
+      <path d="M 121 55 A 67 67 0 0 1 146 98" fill="none" stroke="#cc2200" stroke-width="3"/>
+      <line x1="80" y1="98" x2="100" y2="68" stroke="#0ff" stroke-width="2"/>
+      <line x1="80" y1="98" x2="78" y2="100" stroke="#0ff" stroke-width="1"/>
+      <circle cx="80" cy="98" r="6" fill="#0a0a0a" stroke="#888" stroke-width="1.5"/>
+      <circle cx="80" cy="98" r="2" fill="#0ff"/>
+      <text x="5" y="87" font-size="9" fill="#999">95</text>
+      <text x="22" y="44" font-size="9" fill="#999">109</text>
+      <text x="72" y="20" font-size="9" fill="#999">123</text>
+      <text x="122" y="44" font-size="9" fill="#999">137</text>
+      <text x="147" y="87" font-size="9" fill="#999">150</text>
+      <text x="3" y="12" font-size="12" fill="#FFE000" font-weight="bold">F 125.0</text>
+      <rect x="139" y="0" width="16" height="16" rx="1" fill="#0a0a0a" stroke="#0f0" stroke-width="0.8"/>
+      <text x="141" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="120" y="10" font-size="8" fill="#0f0">SWP</text>
+    </svg>
+  </div>
+</div>
+
+<div class="section" style="margin-top:8px;">
+  <h3>最终参数确认</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e; color:#fff;"><th>参数</th><th>值</th></tr>
+    <tr><td>弧圆心</td><td>(80, 100)</td></tr>
+    <tr><td>弧半径</td><td>R=68 (直径136, x:12→148)</td></tr>
+    <tr><td>弧最高点</td><td>Y = 100-68 = 32</td></tr>
+    <tr><td>弧线宽</td><td>3px</td></tr>
+    <tr><td>弧分区</td><td>绿0-24V | 黄24-40V | 红40-48V</td></tr>
+    <tr><td>刻度标注</td><td>弧内侧R≈58处，9px灰字</td></tr>
+    <tr><td>实时数值</td><td>左上角"V 12.50"黄字</td></tr>
+    <tr><td>颜色图例</td><td>左上角小幅彩色短线标注</td></tr>
+  </table>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="go" onclick="toggleSelect(this)">
+    <div class="letter">GO</div>
+    <div class="content"><h3>确认R=70大弧仪表盘，实装</h3></div>
+  </div>
+  <div class="option" data-choice="adj" onclick="toggleSelect(this)">
+    <div class="letter">ADJ</div>
+    <div class="content"><h3>还需调整</h3></div>
+  </div>
+</div>

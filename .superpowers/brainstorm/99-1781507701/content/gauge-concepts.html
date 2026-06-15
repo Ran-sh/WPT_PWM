@@ -1,0 +1,122 @@
+<h2>全屏环形仪表盘 — 160×128 三版方案</h2>
+<p class="subtitle">Header/Divider/Bottom 全部移除，WIFI(144,0)保持，左上角小标签标识V/F/C</p>
+
+<div class="section">
+  <h3>屏幕解放对照</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e; color:#fff;"><th></th><th>旧布局</th><th>新全屏</th></tr>
+    <tr><td>Header</td><td>行0 16px</td><td style="color:#0f0;">→ 释放</td></tr>
+    <tr><td>Divider</td><td>行1 16px</td><td style="color:#0f0;">→ 释放</td></tr>
+    <tr><td>可用</td><td>行2-5 64px</td><td style="color:#0f0;">行0-7 128px</td></tr>
+    <tr><td>环形直径</td><td>≤60px</td><td style="color:#0f0;">≤120px</td></tr>
+    <tr><td>Bottom</td><td>行6-7 32px</td><td style="color:#0f0;">→ 释放</td></tr>
+    <tr><td>WIFI</td><td>x=144 row0</td><td>保持 x=144 y=0</td></tr>
+    <tr><td>模式标签</td><td>Header标题</td><td>左上角小字符 V/F/C</td></tr>
+  </table>
+</div>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">方案 A：半圆弧 + 指针（经典仪表）</div>
+    <div class="mockup-body" style="background:#0a0a0a; padding:10px; display:flex; justify-content:center;">
+      <svg width="160" height="128" viewBox="0 0 160 128">
+        <!-- WIFI icon area -->
+        <rect x="144" y="0" width="16" height="16" fill="#0a0a0a" stroke="#00cc00" stroke-width="0.5" rx="2"/>
+        <text x="146" y="12" font-size="8" fill="#0f0">W</text>
+        <!-- Left label -->
+        <text x="4" y="12" font-size="10" fill="#FFE000" font-weight="bold">V</text>
+        <!-- Arc -->
+        <path d="M 20 110 A 65 65 0 0 1 140 110" fill="none" stroke="#333" stroke-width="8"/>
+        <path d="M 35 107 A 60 60 0 0 1 80 50" fill="none" stroke="#00cc00" stroke-width="6"/>
+        <path d="M 80 50 A 60 60 0 0 1 125 107" fill="none" stroke="#ff8800" stroke-width="4"/>
+        <!-- Tick marks -->
+        <line x1="25" y1="108" x2="25" y2="98" stroke="#666" stroke-width="1.5"/>
+        <line x1="54" y1="82" x2="48" y2="75" stroke="#666" stroke-width="1.5"/>
+        <line x1="80" y1="68" x2="80" y2="58" stroke="#666" stroke-width="1.5"/>
+        <line x1="106" y1="82" x2="112" y2="75" stroke="#666" stroke-width="1.5"/>
+        <line x1="135" y1="108" x2="135" y2="98" stroke="#666" stroke-width="1.5"/>
+        <!-- Pointer -->
+        <line x1="80" y1="110" x2="50" y2="78" stroke="#00ffff" stroke-width="2"/>
+        <circle cx="80" cy="110" r="4" fill="#333" stroke="#0ff" stroke-width="1"/>
+        <!-- Center value -->
+        <text x="80" y="100" font-size="14" fill="#0ff" text-anchor="middle">12.5</text>
+        <text x="80" y="114" font-size="7" fill="#666" text-anchor="middle">V</text>
+        <!-- Range labels -->
+        <text x="18" y="122" font-size="6" fill="#888">0</text>
+        <text x="138" y="122" font-size="6" fill="#888">48</text>
+        <!-- Badge -->
+        <text x="130" y="12" font-size="8" fill="#0f0">OK</text>
+      </svg>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">方案 B：全圆仪表（居中）</div>
+    <div class="mockup-body" style="background:#0a0a0a; padding:10px; display:flex; justify-content:center;">
+      <svg width="160" height="128" viewBox="0 0 160 128">
+        <rect x="144" y="0" width="16" height="16" fill="#0a0a0a" stroke="#00cc00" stroke-width="0.5" rx="2"/>
+        <text x="146" y="12" font-size="8" fill="#0f0">W</text>
+        <text x="4" y="12" font-size="10" fill="#FFE000" font-weight="bold">V</text>
+        <text x="130" y="12" font-size="8" fill="#0f0">OK</text>
+        <!-- Full circle gauge -->
+        <circle cx="75" cy="70" r="50" fill="none" stroke="#222" stroke-width="8"/>
+        <path d="M 75 70 L 75 20" stroke="#333" stroke-width="6"/>
+        <path d="M 75 70 A 40 40 0 0 1 115 70" fill="none" stroke="#00cc00" stroke-width="5"/>
+        <path d="M 75 70 A 40 40 0 0 0 35 70" fill="none" stroke="#ff8800" stroke-width="3"/>
+        <!-- Pointer -->
+        <line x1="75" y1="70" x2="55" y2="42" stroke="#00ffff" stroke-width="2"/>
+        <circle cx="75" cy="70" r="5" fill="#222" stroke="#0ff" stroke-width="1.5"/>
+        <text x="75" y="90" font-size="16" fill="#0ff" text-anchor="middle">12.5</text>
+        <text x="75" y="107" font-size="7" fill="#888" text-anchor="middle">VOLTAGE</text>
+        <text x="30" y="122" font-size="7" fill="#888">0</text>
+        <text x="125" y="122" font-size="7" fill="#888">48</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<div class="mockup" style="margin-top:20px;">
+  <div class="mockup-header">方案 C：双弧分区仪表（科技感）</div>
+  <div class="mockup-body" style="background:#0a0a0a; padding:10px; display:flex; justify-content:center;">
+    <svg width="160" height="128" viewBox="0 0 160 128">
+      <rect x="144" y="0" width="16" height="16" fill="#0a0a0a" stroke="#00cc00" stroke-width="0.5" rx="2"/>
+      <text x="146" y="12" font-size="8" fill="#0f0">W</text>
+      <text x="4" y="12" font-size="10" fill="#FFE000" font-weight="bold">V</text>
+      <text x="130" y="12" font-size="8" fill="#0f0">OK</text>
+      <!-- Outer arc (scale) -->
+      <path d="M 15 110 A 68 68 0 0 1 145 110" fill="none" stroke="#1a1a1a" stroke-width="3"/>
+      <!-- Colored segments on arc -->
+      <path d="M 22 107 A 62 62 0 0 1 80 52" fill="none" stroke="#00cc00" stroke-width="5"/>
+      <path d="M 80 52 A 62 62 0 0 1 138 107" fill="none" stroke="#cc4400" stroke-width="5"/>
+      <!-- Tick marks -->
+      <line x1="18" y1="108" x2="18" y2="100" stroke="#888" stroke-width="1"/>
+      <line x1="49" y1="70" x2="44" y2="64" stroke="#888" stroke-width="1"/>
+      <line x1="80" y1="52" x2="80" y2="44" stroke="#888" stroke-width="1"/>
+      <line x1="111" y1="70" x2="116" y2="64" stroke="#888" stroke-width="1"/>
+      <line x1="142" y1="108" x2="142" y2="100" stroke="#888" stroke-width="1"/>
+      <!-- Inner value area -->
+      <rect x="45" y="80" width="70" height="24" rx="3" fill="#0a0a0a" stroke="#222"/>
+      <text x="80" y="96" font-size="18" fill="#0ff" text-anchor="middle">12.5</text>
+      <text x="80" y="110" font-size="7" fill="#FFE000" text-anchor="middle">VOLT</text>
+      <!-- Pointer triangle -->
+      <polygon points="80,108 76,94 84,94" fill="#0ff"/>
+      <!-- Range labels -->
+      <text x="14" y="124" font-size="7" fill="#888">0</text>
+      <text x="140" y="124" font-size="7" fill="#888">48</text>
+    </svg>
+  </div>
+</div>
+
+<div class="section">
+  <h3>三种方案的 STM32F103 可行性对比</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e; color:#fff;"><th>维度</th><th>A 半圆弧</th><th>B 全圆</th><th>C 双弧</th></tr>
+    <tr><td>可用直径</td><td>~120px</td><td>~105px</td><td>~130px</td></tr>
+    <tr><td>像素面积</td><td>~5500px 弧线</td><td>~8300px 圆形</td><td>~4000px 弧线</td></tr>
+    <tr><td>指针动画</td><td>1条线+圆心</td><td>1条线+圆心</td><td>三角+外弧</td></tr>
+    <tr><td>擦除重绘</td><td>~300px/帧</td><td>~400px/帧</td><td>~250px/帧</td></tr>
+    <tr><td>数显位置</td><td>弧内居中</td><td>圆心上浮</td><td>弧内方框</td></tr>
+    <tr><td>三角函数</td><td>sin/cos查表</td><td>同左</td><td>同左</td></tr>
+    <tr><td>SRAM占用</td><td>~256B查表</td><td>~256B查表</td><td>~256B查表</td></tr>
+    <tr style="background:#1a1a2e; color:#fff;"><td>推荐</td><td colspan="3" style="text-align:center; color:#0ff;">方案A — 视觉效果最好 + 实现量最合适</td></tr>
+  </table>
+</div>

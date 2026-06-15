@@ -1,0 +1,120 @@
+<h2>仪表盘迭代 — 三方案位置对比</h2>
+<p class="subtitle">问题：当前实时数值不突出。需要大字、易读、不碍弧。三种位置+字体策略</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">方案 A: 弧内大字 (14px, 120×30框)</div>
+    <div class="mockup-body" style="background:#000; padding:5px; display:flex; justify-content:center;">
+      <svg width="160" height="128" viewBox="0 0 160 128">
+        <path d="M 20 115 A 55 55 0 0 1 140 115" fill="none" stroke="#00cc00" stroke-width="5"/>
+        <path d="M 80 115 A 55 55 0 0 0 140 115" fill="none" stroke="#cc2200" stroke-width="5"/>
+        <line x1="80" y1="115" x2="52" y2="70" stroke="#0ff" stroke-width="2.5"/>
+        <circle cx="80" cy="115" r="6" fill="#000" stroke="#555" stroke-width="2"/>
+        <circle cx="80" cy="115" r="2.5" fill="#0ff"/>
+        <!-- 大字居中框 -->
+        <rect x="40" y="72" width="80" height="28" rx="3" fill="#000" stroke="#333"/>
+        <text x="80" y="93" font-size="18" fill="#0ff" text-anchor="middle">12.50</text>
+        <!-- 刻度+文字 -->
+        <text x="12" y="128" font-size="7" fill="#fff">0</text>
+        <text x="35" y="68" font-size="7" fill="#fff">12</text>
+        <text x="72" y="44" font-size="7" fill="#fff">24</text>
+        <text x="110" y="68" font-size="7" fill="#fff">36</text>
+        <text x="140" y="128" font-size="7" fill="#fff">48</text>
+        <text x="3" y="10" font-size="12" fill="#FFE000" font-weight="bold">V</text>
+        <rect x="144" y="0" width="16" height="16" rx="1" fill="#000" stroke="#0f0" stroke-width="0.8"/>
+        <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+        <text x="125" y="10" font-size="8" fill="#0f0">OK</text>
+        <!-- 小单位标签 -->
+        <text x="123" y="93" font-size="9" fill="#666">V</text>
+      </svg>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">方案 B: 左上角大字 (14px, col=3)</div>
+    <div class="mockup-body" style="background:#000; padding:5px; display:flex; justify-content:center;">
+      <svg width="160" height="128" viewBox="0 0 160 128">
+        <path d="M 20 115 A 55 55 0 0 1 140 115" fill="none" stroke="#00cc00" stroke-width="5"/>
+        <path d="M 80 115 A 55 55 0 0 0 140 115" fill="none" stroke="#cc2200" stroke-width="5"/>
+        <line x1="80" y1="115" x2="52" y2="70" stroke="#0ff" stroke-width="2.5"/>
+        <circle cx="80" cy="115" r="6" fill="#000" stroke="#555" stroke-width="2"/>
+        <circle cx="80" cy="115" r="2.5" fill="#0ff"/>
+        <!-- 左上：V 标签 + 大数值 -->
+        <text x="3" y="10" font-size="12" fill="#FFE000" font-weight="bold">V</text>
+        <text x="18" y="13" font-size="16" fill="#0ff">12.50</text>
+        <text x="68" y="10" font-size="8" fill="#666">V</text>
+        <text x="12" y="128" font-size="7" fill="#fff">0</text>
+        <text x="35" y="68" font-size="7" fill="#fff">12</text>
+        <text x="72" y="44" font-size="7" fill="#fff">24</text>
+        <text x="110" y="68" font-size="7" fill="#fff">36</text>
+        <text x="140" y="128" font-size="7" fill="#fff">48</text>
+        <rect x="144" y="0" width="16" height="16" rx="1" fill="#000" stroke="#0f0" stroke-width="0.8"/>
+        <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+        <text x="125" y="10" font-size="8" fill="#0f0">OK</text>
+      </svg>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">方案 C: 弧内大字 + 底部能量条</div>
+    <div class="mockup-body" style="background:#000; padding:5px; display:flex; justify-content:center;">
+      <svg width="160" height="128" viewBox="0 0 160 128">
+        <path d="M 20 110 A 50 50 0 0 1 140 110" fill="none" stroke="#00cc00" stroke-width="5"/>
+        <path d="M 80 110 A 50 50 0 0 0 140 110" fill="none" stroke="#cc2200" stroke-width="5"/>
+        <line x1="80" y1="110" x2="58" y2="72" stroke="#0ff" stroke-width="2.5"/>
+        <circle cx="80" cy="110" r="5" fill="#000" stroke="#555" stroke-width="1.5"/>
+        <circle cx="80" cy="110" r="2" fill="#0ff"/>
+        <!-- 大字 -->
+        <rect x="45" y="65" width="70" height="24" rx="3" fill="#000" stroke="#333"/>
+        <text x="80" y="83" font-size="16" fill="#0ff" text-anchor="middle">12.50</text>
+        <!-- 能量条 -->
+        <rect x="30" y="125" width="100" height="3" rx="1" fill="#222"/>
+        <rect x="30" y="125" width="26" height="3" rx="1" fill="#0ff"/>
+        <text x="12" y="122" font-size="7" fill="#fff">0</text>
+        <text x="35" y="62" font-size="7" fill="#fff">12</text>
+        <text x="72" y="40" font-size="7" fill="#fff">24</text>
+        <text x="110" y="62" font-size="7" fill="#fff">36</text>
+        <text x="140" y="122" font-size="7" fill="#fff">48</text>
+        <text x="3" y="10" font-size="12" fill="#FFE000" font-weight="bold">V</text>
+        <rect x="144" y="0" width="16" height="16" rx="1" fill="#000" stroke="#0f0" stroke-width="0.8"/>
+        <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+        <text x="125" y="10" font-size="8" fill="#0f0">OK</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px;">
+  <h3>对比</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e;"><th></th><th>A 弧内大字框</th><th>B 左上角</th><th>C 弧内+能量条</th></tr>
+    <tr><td>可读性</td><td style="color:#0f0;">★★★★★</td><td>★★★☆☆</td><td style="color:#0f0;">★★★★★</td></tr>
+    <tr><td>仪表感</td><td>★★★★☆</td><td style="color:#0f0;">★★★★★</td><td>★★★★☆</td></tr>
+    <tr><td>数据联动</td><td>字好但遮弧</td><td>不遮弧但不明显</td><td>字+能量条双视觉</td></tr>
+    <tr><td>推荐</td><td></td><td></td><td style="color:#0ff;">✓ 推荐C</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>当前字号限制</h3>
+  <p>现有字库：8×16 ASCII, 16×16 中文 — 没有大号数字字库。</p>
+  <p style="color:#FFE000;">方案：新增 16×24 大号数字 (0-9, '.') → 11字 × 48字节 = 528字节。用 Fill_Rect 逐个像素绘制，一次 DMA。</p>
+  <p style="color:#0f0;">额外 SRAM 开销: 528 + 16×24=384px DMA缓冲 = <strong>~1KB</strong>，完全可行。</p>
+</div>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content"><h3>弧内大字框</h3><p>16×24 大字在弧中心，120×30 框包围</p></div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content"><h3>左上角大字</h3><p>V 12.50 在左上，弧全空，指针为主</p></div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content"><h3>弧内大字+能量条</h3><p>16×24 大字在弧中心内，底部细条显示比例</p></div>
+  </div>
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content"><h3>全刻度+无实时数值</h3><p>纯依赖指针判断，无任何数字显示，最简洁仪表盘</p></div>
+  </div>
+</div>

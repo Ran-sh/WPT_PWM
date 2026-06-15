@@ -1,0 +1,107 @@
+<h2>仪表盘经典布局 — 数值标在大刻度外侧，指针无声数值</h2>
+<p class="subtitle">每个大刻度旁边显示对应数值，弧中心区域完全留空，不显示数字框，仅指针</p>
+
+<div class="mockup">
+  <div class="mockup-header">电压表 0→48V — 大刻度+R=60弧+指针+弧外数值标注</div>
+  <div class="mockup-body" style="background:#000; padding:5px; display:flex; justify-content:center;">
+    <svg width="160" height="128" viewBox="0 0 160 128" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- 外弧标记 (R=65虚线参考) -->
+      <path d="M 15 122 A 65 65 0 0 1 145 122" fill="none" stroke="#111" stroke-width="0.5" stroke-dasharray="2,2"/>
+
+      <!-- 绿色弧段 0→40V (R=60) -->
+      <path d="M 20 122 A 60 60 0 0 1 80 62" fill="none" stroke="#00cc00" stroke-width="5" stroke-linecap="round"/>
+      <!-- 红色弧段 40→48V -->
+      <path d="M 80 62 A 60 60 0 0 1 140 122" fill="none" stroke="#cc2200" stroke-width="5" stroke-linecap="round"/>
+
+      <!-- 大刻度线 (R=60, 向外延伸8px, 即R=60→68) -->
+      <line x1="18" y1="122" x2="16" y2="130" stroke="#ddd" stroke-width="2"/>     <!-- 0V -->
+      <line x1="43" y1="81" x2="39" y2="75" stroke="#ddd" stroke-width="2"/>        <!-- 12V -->
+      <line x1="80" y1="62" x2="78" y2="55" stroke="#ddd" stroke-width="2"/>        <!-- 24V -->
+      <line x1="117" y1="81" x2="121" y2="75" stroke="#ddd" stroke-width="2"/>      <!-- 36V -->
+      <line x1="142" y1="122" x2="144" y2="130" stroke="#ddd" stroke-width="2"/>    <!-- 48V -->
+
+      <!-- 小刻度线 (R=60, 向外延伸5px, R=60→65) -->
+      <line x1="28" y1="108" x2="28" y2="104" stroke="#555" stroke-width="1"/>
+      <line x1="34" y1="97" x2="33" y2="93" stroke="#555" stroke-width="1"/>
+      <line x1="39" y1="86" x2="38" y2="82" stroke="#555" stroke-width="1"/>
+      <line x1="42" y1="78" x2="41" y2="74" stroke="#555" stroke-width="1"/>
+      <line x1="50" y1="74" x2="48" y2="70" stroke="#555" stroke-width="1"/>
+      <line x1="58" y1="69" x2="57" y2="65" stroke="#555" stroke-width="1"/>
+      <line x1="68" y1="65" x2="67" y2="61" stroke="#555" stroke-width="1"/>
+      <line x1="76" y1="63" x2="75" y2="59" stroke="#555" stroke-width="1"/>
+      <line x1="84" y1="63" x2="85" y2="59" stroke="#555" stroke-width="1"/>
+      <line x1="92" y1="65" x2="93" y2="61" stroke="#555" stroke-width="1"/>
+      <line x1="102" y1="69" x2="103" y2="65" stroke="#555" stroke-width="1"/>
+      <line x1="110" y1="74" x2="112" y2="70" stroke="#555" stroke-width="1"/>
+      <line x1="118" y1="78" x2="119" y2="74" stroke="#555" stroke-width="1"/>
+      <line x1="121" y1="86" x2="122" y2="82" stroke="#555" stroke-width="1"/>
+      <line x1="126" y1="97" x2="127" y2="93" stroke="#555" stroke-width="1"/>
+      <line x1="132" y1="108" x2="132" y2="104" stroke="#555" stroke-width="1"/>
+
+      <!-- 大刻度数值 (在外弧R=75处标注) -->
+      <text x="4" y="134" font-size="7" fill="#fff">0</text>
+      <text x="31" y="68" font-size="7" fill="#fff">12</text>
+      <text x="72" y="46" font-size="7" fill="#fff">24</text>
+      <text x="114" y="68" font-size="7" fill="#fff">36</text>
+      <text x="145" y="134" font-size="7" fill="#fff">48</text>
+
+      <!-- 指针 12.5V=47° -->
+      <line x1="80" y1="122" x2="52" y2="68" stroke="#00ffff" stroke-width="2.5"/>
+      <!-- 圆心 -->
+      <circle cx="80" cy="122" r="7" fill="#000" stroke="#555" stroke-width="2"/>
+      <circle cx="80" cy="122" r="3" fill="#00ffff"/>
+
+      <!-- 左上 V 标签 -->
+      <text x="3" y="10" font-size="12" fill="#FFE000" font-weight="bold">V</text>
+
+      <!-- 右上角 WIFI + Badge -->
+      <rect x="144" y="0" width="16" height="16" rx="1" fill="#000" stroke="#00cc00" stroke-width="0.8"/>
+      <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="125" y="10" font-size="8" fill="#0f0">OK</text>
+    </svg>
+  </div>
+</div>
+
+<div class="section">
+  <h3>设计决策</h3>
+  <table style="width:100%;">
+    <tr><td style="color:#0f0;">✓ 大刻度数值</td><td>标注在弧外侧 R≈70-75 处，经典仪表盘样式</td></tr>
+    <tr><td style="color:#0f0;">✓ 弧中心留空</td><td>无数字框，指针+圆心为唯一焦点</td></tr>
+    <tr><td>✗ 实时数值显示</td><td>如果需要在某处显示"当前12.50V"——放哪里？</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>需要你确认：当前实时数值（如 12.50V）放在哪里？</h3>
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>弧下方中央 (y=120-126)</h3>
+        <p>12.50V 替换底部能量条，大字显示在圆心下方</p>
+      </div>
+    </div>
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>左上标签旁边 (V:12.50)</h3>
+        <p>V 标签扩展为"V 12.50"，左上角极简</p>
+      </div>
+    </div>
+    <div class="option" data-choice="c" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>弧中心圆内 (12.5)</h3>
+        <p>圆心处显示数值，字体小(10px)，数字紧贴指针旋转</p>
+      </div>
+    </div>
+    <div class="option" data-choice="d" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>刻度下方加一行 (0/48→无)</h3>
+        <p>弧上是刻度，不显示实时数字。状态仅通过指针位置判断。</p>
+      </div>
+    </div>
+  </div>
+</div>

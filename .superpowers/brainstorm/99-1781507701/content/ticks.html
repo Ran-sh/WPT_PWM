@@ -1,0 +1,97 @@
+<h2>双层刻度 — 大小刻度精确分布</h2>
+<p class="subtitle">大刻度(4px, 带数值) + 小刻度(2px, 无文字) 交替</p>
+
+<div class="mockup">
+  <div class="mockup-header">电压0→48V, 大刻度5条(0/12/24/36/48) + 小刻度4条×4=16条共21条</div>
+  <div class="mockup-body" style="background:#0a0a0a; padding:5px; display:flex; justify-content:center;">
+    <svg width="160" height="128" viewBox="0 0 160 128" xmlns="http://www.w3.org/2000/svg">
+      <defs><pattern id="g2" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="none" stroke="#0f0f0f" stroke-width="0.15"/></pattern></defs>
+      <rect width="160" height="128" fill="url(#g2)"/>
+
+      <!-- 圆心 R=60 参考虚线 -->
+      <path d="M 20 118 A 60 60 0 0 1 140 118" fill="none" stroke="#00cc00" stroke-width="0.3" stroke-dasharray="2,2"/>
+
+      <!-- 大刻度线 R=60, 延伸到 R-7 (53), 线宽2 -->
+      <line x1="20" y1="118" x2="20" y2="111" stroke="#fff" stroke-width="2"/>     <!-- 0V  -->
+      <line x1="45" y1="76" x2="42" y2="70" stroke="#fff" stroke-width="2"/>        <!-- 12V -->
+      <line x1="80" y1="60" x2="78" y2="53" stroke="#fff" stroke-width="2"/>        <!-- 24V -->
+      <line x1="115" y1="76" x2="118" y2="70" stroke="#fff" stroke-width="2"/>      <!-- 36V -->
+      <line x1="140" y1="118" x2="140" y2="111" stroke="#fff" stroke-width="2"/>    <!-- 48V -->
+
+      <!-- 小刻度线 R=60, 延伸到 R-4 (56), 线宽1 -->
+      <!-- 0→12V 区间 (4条) -->
+      <line x1="28" y1="104" x2="28" y2="100" stroke="#555" stroke-width="1"/>       <!-- 3V -->
+      <line x1="34" y1="92" x2="33" y2="88" stroke="#555" stroke-width="1"/>         <!-- 6V -->
+      <line x1="39" y1="81" x2="38" y2="77" stroke="#555" stroke-width="1"/>         <!-- 9V -->
+      <!-- 12→24V 区间 (4条) -->
+      <line x1="52" y1="70" x2="51" y2="65" stroke="#555" stroke-width="1"/>         <!-- 15V -->
+      <line x1="60" y1="65" x2="59" y2="60" stroke="#555" stroke-width="1"/>         <!-- 18V -->
+      <line x1="70" y1="62" x2="69" y2="57" stroke="#555" stroke-width="1"/>         <!-- 21V -->
+      <!-- 24→36V 区间 (4条) -->
+      <line x1="90" y1="62" x2="91" y2="57" stroke="#555" stroke-width="1"/>         <!-- 27V -->
+      <line x1="100" y1="65" x2="101" y2="60" stroke="#555" stroke-width="1"/>       <!-- 30V -->
+      <line x1="108" y1="70" x2="109" y2="65" stroke="#555" stroke-width="1"/>       <!-- 33V -->
+      <!-- 36→48V 区间 (4条) -->
+      <line x1="121" y1="81" x2="122" y2="77" stroke="#555" stroke-width="1"/>       <!-- 39V -->
+      <line x1="126" y1="92" x2="127" y2="88" stroke="#555" stroke-width="1"/>       <!-- 42V -->
+      <line x1="132" y1="104" x2="132" y2="100" stroke="#555" stroke-width="1"/>     <!-- 45V -->
+
+      <!-- 主弧 绿段+红段 -->
+      <path d="M 20 118 A 60 60 0 0 1 80 58" fill="none" stroke="#00cc00" stroke-width="5"/>
+      <path d="M 80 58 A 60 60 0 0 1 140 118" fill="none" stroke="#cc4400" stroke-width="5"/>
+
+      <!-- 指针 -->
+      <line x1="80" y1="118" x2="52" y2="68" stroke="#00ffff" stroke-width="2"/>
+      <circle cx="80" cy="118" r="5" fill="#0a0a0a" stroke="#444" stroke-width="1.5"/>
+      <circle cx="80" cy="118" r="2" fill="#0ff"/>
+
+      <!-- 数值框 -->
+      <rect x="48" y="80" width="64" height="18" rx="2" fill="#0a0a0a" stroke="#222"/>
+      <text x="80" y="93" font-size="14" fill="#0ff" text-anchor="middle">12.50</text>
+
+      <!-- 大刻度数值 -->
+      <text x="12" y="108" font-size="7" fill="#fff">0</text>
+      <text x="36" y="65" font-size="7" fill="#fff">12</text>
+      <text x="72" y="42" font-size="7" fill="#fff">24</text>
+      <text x="108" y="65" font-size="7" fill="#fff">36</text>
+      <text x="140" y="108" font-size="7" fill="#fff">48</text>
+
+      <!-- 左上标签 -->
+      <text x="3" y="10" font-size="11" fill="#FFE000" font-weight="bold">V</text>
+
+      <!-- 右上角 -->
+      <rect x="144" y="0" width="16" height="16" fill="#0a0a0a" stroke="#0f0" stroke-width="0.8"/>
+      <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="128" y="10" font-size="8" fill="#0f0">OK</text>
+
+      <!-- 底弧能量条 -->
+      <rect x="30" y="124" width="100" height="3" rx="1" fill="#222"/>
+      <rect x="30" y="124" width="26" height="3" rx="1" fill="#0ff"/>
+    </svg>
+  </div>
+</div>
+
+<div class="section">
+  <h3>刻度参数</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e; color:#fff;"><th>属性</th><th>大刻度</th><th>小刻度</th></tr>
+    <tr><td>数量</td><td>5 (含两端)</td><td>16 (每区间4条)</td></tr>
+    <tr><td>间隔</td><td>12V / 15°</td><td>3V / 3.75°</td></tr>
+    <tr><td>线长</td><td>7px (R60→53)</td><td>4px (R60→56)</td></tr>
+    <tr><td>线宽</td><td>2px Fill_Rect</td><td>1px Fill_Rect</td></tr>
+    <tr><td>数值标注</td><td>5个值</td><td>无</td></tr>
+    <tr><td>总像素</td><td>5×14=70px</td><td>16×4=64px</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>渲染顺序（每200ms增量）</h3>
+  <ol style="color:#ccc; line-height:1.8;">
+    <li><strong>擦指针</strong>: Fill_Rect 旧指针区域 (≈12px²) 为黑色</li>
+    <li><strong>擦数值</strong>: 填充数值框位置 64×18 为黑色 → 写新值（仅值变化时）</li>
+    <li><strong>绘指针</strong>: 2条线计算新角度 → Fill_Rect 逐点 Bresenham</li>
+    <li><strong>擦状态</strong>: Badge 位置 32×8 → 新文字（仅 badge 变化时）</li>
+    <li><strong>主弧刻度</strong>: <strong>入场一次完成</strong>，之后不重复</li>
+  </ol>
+  <p style="color:#0f0; margin-top:12px;">每帧 SPI 写入量 ≈ 240px ≈ <strong>3ms</strong> (18MHz SPI DMA)</p>
+</div>

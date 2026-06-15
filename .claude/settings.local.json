@@ -132,7 +132,8 @@
       "Bash(/c/Users/48376/AppData/Local/Microsoft/WindowsApps/python3 *)",
       "Bash(git -C \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT\" add -A)",
       "Bash(git -C \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT\" diff --cached --stat)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(C:\\\\Users\\\\48376\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.1.0\\\\skills\\\\brainstorming\\\\scripts\\\\start-server.sh *)"
     ]
   }
 }

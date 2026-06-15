@@ -1,0 +1,112 @@
+<h2>全屏纯仪表 — 无操作提示，仅 V 标签 + WIFI</h2>
+<p class="subtitle">160×128全屏用于环形表盘，顶行仅V/F/C标签+WIFI，底弧能量条，无任何文字按钮提示</p>
+
+<div class="mockup">
+  <div class="mockup-header">电压 12.50V — 完整大小刻度, 指针, 能量弧</div>
+  <div class="mockup-body" style="background:#000; padding:5px; display:flex; justify-content:center;">
+    <svg width="160" height="128" viewBox="0 0 160 128" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- 主弧 R=60, 圆心(80,122) -->
+      <!-- 绿段 0→40V(83%) -->
+      <path d="M 20 122 A 60 60 0 0 1 80 62" fill="none" stroke="#00cc00" stroke-width="6" stroke-linecap="round"/>
+      <!-- 红段 40→48V -->
+      <path d="M 80 62 A 60 60 0 0 1 140 122" fill="none" stroke="#cc2200" stroke-width="6" stroke-linecap="round"/>
+
+      <!-- 大刻度 (R=60, 长7px, 宽2) -->
+      <line x1="20" y1="122" x2="20" y2="115" stroke="#ddd" stroke-width="2"/>     <!-- 0 -->
+      <line x1="44" y1="80" x2="41" y2="74" stroke="#ddd" stroke-width="2"/>        <!-- 12 -->
+      <line x1="80" y1="62" x2="78" y2="55" stroke="#ddd" stroke-width="2"/>        <!-- 24 -->
+      <line x1="116" y1="80" x2="119" y2="74" stroke="#ddd" stroke-width="2"/>      <!-- 36 -->
+      <line x1="140" y1="122" x2="140" y2="115" stroke="#ddd" stroke-width="2"/>    <!-- 48 -->
+
+      <!-- 小刻度 (R=60, 长4px, 宽1) 每大区间4条=16条 -->
+      <line x1="28" y1="108" x2="28" y2="104" stroke="#555" stroke-width="1"/>
+      <line x1="34" y1="96" x2="33" y2="92" stroke="#555" stroke-width="1"/>
+      <line x1="38" y1="85" x2="37" y2="81" stroke="#555" stroke-width="1"/>
+      <line x1="41" y1="76" x2="40" y2="72" stroke="#555" stroke-width="1"/>
+      <line x1="52" y1="72" x2="51" y2="68" stroke="#555" stroke-width="1"/>
+      <line x1="60" y1="67" x2="59" y2="63" stroke="#555" stroke-width="1"/>
+      <line x1="70" y1="64" x2="69" y2="60" stroke="#555" stroke-width="1"/>
+      <line x1="76" y1="63" x2="75" y2="59" stroke="#555" stroke-width="1"/>
+      <line x1="84" y1="63" x2="85" y2="59" stroke="#555" stroke-width="1"/>
+      <line x1="90" y1="64" x2="91" y2="60" stroke="#555" stroke-width="1"/>
+      <line x1="100" y1="67" x2="101" y2="63" stroke="#555" stroke-width="1"/>
+      <line x1="108" y1="72" x2="109" y2="68" stroke="#555" stroke-width="1"/>
+      <line x1="119" y1="76" x2="120" y2="72" stroke="#555" stroke-width="1"/>
+      <line x1="122" y1="85" x2="123" y2="81" stroke="#555" stroke-width="1"/>
+      <line x1="126" y1="96" x2="127" y2="92" stroke="#555" stroke-width="1"/>
+      <line x1="132" y1="108" x2="132" y2="104" stroke="#555" stroke-width="1"/>
+
+      <!-- 指针 (角度=12.5/48*180°=47°) -->
+      <line x1="80" y1="122" x2="52" y2="68" stroke="#00ffff" stroke-width="2.5"/>
+      <!-- 圆心 -->
+      <circle cx="80" cy="122" r="6" fill="#000" stroke="#555" stroke-width="2"/>
+      <circle cx="80" cy="122" r="2.5" fill="#00ffff"/>
+
+      <!-- 数值框 -->
+      <rect x="44" y="78" width="72" height="22" rx="3" fill="#000" stroke="#222"/>
+      <text x="80" y="94" font-size="16" fill="#00ffff" text-anchor="middle" font-family="monospace">12.50</text>
+      <text x="80" y="105" font-size="6" fill="#FFE000" text-anchor="middle">VOLTAGE</text>
+      <!-- 单位标注 -->
+      <text x="120" y="95" font-size="9" fill="#666">V</text>
+
+      <!-- 左上 V 标签 -->
+      <text x="3" y="10" font-size="11" fill="#FFE000" font-weight="bold">V</text>
+
+      <!-- 右上 WIFI -->
+      <rect x="144" y="0" width="16" height="16" rx="1" fill="#000" stroke="#00cc00" stroke-width="0.8"/>
+      <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+
+      <!-- 右上状态 -->
+      <text x="126" y="10" font-size="8" fill="#00cc00">OK</text>
+
+      <!-- 大刻度数值标注 -->
+      <text x="12" y="113" font-size="7" fill="#aaa">0</text>
+      <text x="36" y="68" font-size="7" fill="#aaa">12</text>
+      <text x="73" y="46" font-size="7" fill="#aaa">24</text>
+      <text x="110" y="68" font-size="7" fill="#aaa">36</text>
+      <text x="140" y="113" font-size="7" fill="#aaa">48</text>
+
+      <!-- 底部弧能量条 -->
+      <rect x="25" y="126" width="110" height="2" rx="1" fill="#222"/>
+      <rect x="25" y="126" width="29" height="2" rx="1" fill="#0ff"/>
+    </svg>
+  </div>
+</div>
+
+<div class="section">
+  <h3>纯仪表页面结构 (无Header/Divider/Bottom)</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e;"><th>行</th><th>Y</th><th>内容</th></tr>
+    <tr><td>0</td><td>0-15</td><td>左上V/F/C标签(黄色8×16) + 右上WIFI(144,0)+Badge(126,0)</td></tr>
+    <tr><td>1</td><td>16-31</td><td>大刻度数值标注 (0/12/24/36/48)</td></tr>
+    <tr><td>2</td><td>32-47</td><td>弧区域上半部 (刻度线+弧段)</td></tr>
+    <tr><td>3</td><td>48-63</td><td>弧顶部 (R=60最高点62,12V标注在68)</td></tr>
+    <tr><td>4</td><td>64-79</td><td>数值框上半 (y=78→94)</td></tr>
+    <tr><td>5</td><td>80-95</td><td>数值框下半 + 小刻度标注</td></tr>
+    <tr><td>6</td><td>96-111</td><td>弧底部刻度 + 指针</td></tr>
+    <tr><td>7</td><td>112-127</td><td>圆心(122) + 底部能量条(126)</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>性能 — 每200ms增量刷新</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e;"><th>操作</th><th>像素</th><th>耗时</th></tr>
+    <tr><td>擦旧指针</td><td>≈30px² Fill_Rect</td><td>0.05ms</td></tr>
+    <tr><td>绘新指针</td><td>≈35px Bresenham线</td><td>~1ms</td></tr>
+    <tr><td>更新数值 (仅值变)</td><td>64×22框擦+重写</td><td>~2ms</td></tr>
+    <tr><td>更新Badge (仅状态变)</td><td>32×8像素</td><td>0.5ms</td></tr>
+    <tr><td>WIFI图标 (仅帧变)</td><td>16×16图标</td><td>0.3ms</td></tr>
+    <tr style="background:#1a1a2e;"><td>总计/帧</td><td>~500px²</td><td>~4ms</td></tr>
+  </table>
+  <p style="color:#0f0;">入场全绘 ≈ 弧(120×5)+刻度(145×4)+标注(5×14) ≈ 15ms。之后每200ms仅4ms。</p>
+</div>
+
+<div class="section">
+  <h3>三角函数查表</h3>
+  <p>半圆 180° → 预计算 181 对 (sin, cos) → <strong>724 字节</strong> int16_t</p>
+  <pre style="background:#111; color:#0ff; padding:8px; font-size:11px;">const int16_t sin_table[181];  // sin(0..180°) × 10000
+x = cx + (int16_t)((int32_t)R * cos_table[a] / 10000);
+y = cy - (int16_t)((int32_t)R * sin_table[a] / 10000);  // 屏坐标Y轴朝下</pre>
+</div>

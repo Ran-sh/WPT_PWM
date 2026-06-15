@@ -1,0 +1,116 @@
+<h2>5刻度经典仪表盘 — 最终版本</h2>
+<p class="subtitle">5大刻度+每区间3小刻度=17条线。弧外大字。弧内留空。左上V/F/C。右上WIFI+Badge</p>
+
+<div class="mockup">
+  <div class="mockup-header">电压表 0→48V (角度180°, 间隔36°)</div>
+  <div class="mockup-body" style="background:#000; padding:6px; display:flex; justify-content:center;">
+    <svg width="160" height="128" viewBox="0 0 160 128" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- 彩色弧 R=53, 圆心(80,115) -->
+      <path d="M 27 115 A 53 53 0 0 1 80 62" fill="none" stroke="#00cc00" stroke-width="7"/>
+      <path d="M 80 62 A 53 53 0 0 1 123 98" fill="none" stroke="#ffcc00" stroke-width="7"/>
+      <path d="M 123 98 A 53 53 0 0 1 133 115" fill="none" stroke="#cc2200" stroke-width="7"/>
+
+      <!-- 5大刻度 R=53→43 (向内10px) -->
+      <line x1="27" y1="115" x2="27" y2="105" stroke="#fff" stroke-width="3"/>
+      <line x1="48" y1="73" x2="44" y2="65" stroke="#fff" stroke-width="3"/>
+      <line x1="80" y1="62" x2="80" y2="52" stroke="#fff" stroke-width="3"/>
+      <line x1="112" y1="73" x2="116" y2="65" stroke="#fff" stroke-width="3"/>
+      <line x1="133" y1="115" x2="133" y2="105" stroke="#fff" stroke-width="3"/>
+
+      <!-- 小刻度 R=53→49 (向内4px, 每区间3条) -->
+      <line x1="35" y1="101" x2="34" y2="97" stroke="#667" stroke-width="1.2"/>
+      <line x1="40" y1="88" x2="39" y2="84" stroke="#667" stroke-width="1.2"/>
+      <line x1="43" y1="80" x2="42" y2="76" stroke="#667" stroke-width="1.2"/>
+      <line x1="56" y1="68" x2="55" y2="64" stroke="#667" stroke-width="1.2"/>
+      <line x1="65" y1="64" x2="64" y2="60" stroke="#667" stroke-width="1.2"/>
+      <line x1="74" y1="63" x2="74" y2="59" stroke="#667" stroke-width="1.2"/>
+      <line x1="86" y1="63" x2="86" y2="59" stroke="#667" stroke-width="1.2"/>
+      <line x1="95" y1="64" x2="96" y2="60" stroke="#667" stroke-width="1.2"/>
+      <line x1="104" y1="68" x2="105" y2="64" stroke="#667" stroke-width="1.2"/>
+      <line x1="117" y1="80" x2="118" y2="76" stroke="#667" stroke-width="1.2"/>
+      <line x1="120" y1="88" x2="121" y2="84" stroke="#667" stroke-width="1.2"/>
+      <line x1="125" y1="101" x2="126" y2="97" stroke="#667" stroke-width="1.2"/>
+
+      <!-- 外侧数值 R≈65 -->
+      <text x="14" y="132" font-size="14" fill="#fff" font-weight="bold">0</text>
+      <text x="35" y="57" font-size="14" fill="#fff" font-weight="bold">12</text>
+      <text x="72" y="44" font-size="14" fill="#fff" font-weight="bold">24</text>
+      <text x="110" y="57" font-size="14" fill="#fff" font-weight="bold">36</text>
+      <text x="140" y="132" font-size="14" fill="#fff" font-weight="bold">48</text>
+
+      <!-- 指针 12.5V=47° -->
+      <line x1="80" y1="115" x2="53" y2="72" stroke="#00ffff" stroke-width="2.5"/>
+      <line x1="80" y1="115" x2="86" y2="119" stroke="#00ffff" stroke-width="1.5"/>
+
+      <!-- 圆心 Hub -->
+      <circle cx="80" cy="115" r="9" fill="#0a0a0a" stroke="#999" stroke-width="2"/>
+      <circle cx="80" cy="115" r="3.5" fill="#00ffff"/>
+
+      <!-- 左上 V 标签 -->
+      <text x="3" y="12" font-size="11" fill="#FFE000" font-weight="bold">V</text>
+      <!-- WIFI -->
+      <rect x="144" y="0" width="16" height="16" rx="1" fill="#000" stroke="#0f0" stroke-width="0.8"/>
+      <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+      <!-- Badge -->
+      <text x="125" y="10" font-size="8" fill="#0f0">OK</text>
+    </svg>
+  </div>
+</div>
+
+<div class="section" style="margin-top:12px;">
+  <h3>5刻度布局 — 三表参数</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e; color:#fff;"><th></th><th>电压 V</th><th>电流 C</th><th>频率 F</th></tr>
+    <tr><td>范围</td><td>0→48V</td><td>0→3A</td><td>95→150kHz</td></tr>
+    <tr><td>大刻度</td><td>0,12,24,36,48</td><td>0,0.75,1.5,2.25,3</td><td>95,109,123,137,150</td></tr>
+    <tr><td>每格角度</td><td>45°</td><td>45°</td><td>45°</td></tr>
+    <tr><td>小刻度</td><td>每2.4V一条</td><td>每0.15A一条</td><td>每2.75kHz一条</td></tr>
+    <tr><td>大刻度数</td><td>5</td><td>5</td><td>5</td></tr>
+    <tr><td>小刻度数</td><td>16</td><td>16</td><td>16</td></tr>
+    <tr style="background:#1a1a2e; color:#fff;"><td>弧色段</td><td>绿0-24/黄24-40/红40+</td><td>绿0-2/黄2-2.5/红2.5+</td><td>绿-117/黄117-140/红140+</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>C实现核心参数</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e; color:#fff;"><th>常量</th><th>值</th></tr>
+    <tr><td>圆心</td><td>(80, 115) — 160×128屏底向上13px</td></tr>
+    <tr><td>弧半径R</td><td>53px — 弧从x≈27→x≈133</td></tr>
+    <tr><td>弧宽</td><td>7px Fill_Rect块</td></tr>
+    <tr><td>指针线宽</td><td>2.5px — 两平行Bresenham线+填充</td></tr>
+    <tr><td>Hub外圈</td><td>r=9(填入) + r=3(亮色)</td></tr>
+    <tr><td>sin表</td><td>181对int16_t — 724字节</td></tr>
+    <tr><td>刻度值文字</td><td>R+15处, 现有8×16字库</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>√ 最终确认</h3>
+  <p>此布局即最终方案。以下是写死参数（零运行时计算）：</p>
+  <ul style="color:#ccc; line-height:1.8;">
+    <li>大刻度5条: 角度0°,45°,90°,135°,180° → sin/cos预计算像素坐标</li>
+    <li>小刻度每区间3条: 角度11.25°,22.5°,33.75°等</li>
+    <li>弧段3根: 绿(0°→90°), 黄(90°→150°), 红(150°→180°)</li>
+    <li>指针入参: value → 角度 → sin/cos → 端点坐标 → Bresenham线</li>
+    <li>刷新: 200ms擦旧针+绘新针≈1ms</li>
+  </ul>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="go" onclick="toggleSelect(this)">
+    <div class="letter">GO</div>
+    <div class="content">
+      <h3>确认此方案，开始实装</h3>
+      <p>5刻度半圆 + 大尺寸外侧数值 + 彩色弧分区 + 指针 + WIFI/Badge + sin查表</p>
+    </div>
+  </div>
+  <div class="option" data-choice="tune" onclick="toggleSelect(this)">
+    <div class="letter">TUNE</div>
+    <div class="content">
+      <h3>还有调整</h3>
+      <p>圆弧尺寸/位置/颜色需要微调</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,136 @@
+<h2>细线经典仪表盘 — 参考原版汽车仪表风格</h2>
+<p class="subtitle">弧3-4px细线、刻度1.5-2px、指针2px、小字标注。干净、极简、如原厂仪表</p>
+
+<div class="mockup">
+  <div class="mockup-header">电压表 0→48V — 细线经典，弧留空</div>
+  <div class="mockup-body" style="background:#0a0a0a; padding:8px; display:flex; justify-content:center;">
+    <svg width="160" height="128" viewBox="0 0 160 128" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- 细弧 R=55 宽4px 单色灰白 -->
+      <path d="M 25 118 A 55 55 0 0 1 135 118" fill="none" stroke="#888" stroke-width="4"/>
+
+      <!-- 大刻度 (细 1.5px, 长8px) -->
+      <line x1="25" y1="118" x2="25" y2="110" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="47" y1="75" x2="44" y2="68" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="80" y1="63" x2="80" y2="55" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="113" y1="75" x2="116" y2="68" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="135" y1="118" x2="135" y2="110" stroke="#aaa" stroke-width="1.5"/>
+
+      <!-- 小刻度 (更细 1px, 长5px) -->
+      <line x1="34" y1="103" x2="33" y2="98" stroke="#555" stroke-width="1"/>
+      <line x1="40" y1="90" x2="39" y2="85" stroke="#555" stroke-width="1"/>
+      <line x1="44" y1="80" x2="43" y2="75" stroke="#555" stroke-width="1"/>
+      <line x1="55" y1="71" x2="54" y2="66" stroke="#555" stroke-width="1"/>
+      <line x1="65" y1="66" x2="64" y2="61" stroke="#555" stroke-width="1"/>
+      <line x1="75" y1="63" x2="75" y2="58" stroke="#555" stroke-width="1"/>
+      <line x1="85" y1="63" x2="85" y2="58" stroke="#555" stroke-width="1"/>
+      <line x1="95" y1="66" x2="96" y2="61" stroke="#555" stroke-width="1"/>
+      <line x1="105" y1="71" x2="106" y2="66" stroke="#555" stroke-width="1"/>
+      <line x1="116" y1="80" x2="117" y2="75" stroke="#555" stroke-width="1"/>
+      <line x1="120" y1="90" x2="121" y2="85" stroke="#555" stroke-width="1"/>
+      <line x1="126" y1="103" x2="127" y2="98" stroke="#555" stroke-width="1"/>
+
+      <!-- 细指针 2px -->
+      <line x1="80" y1="118" x2="54" y2="74" stroke="#00ffff" stroke-width="2"/>
+      <line x1="80" y1="118" x2="85" y2="121" stroke="#00ffff" stroke-width="1.2"/>
+
+      <!-- Hub细 -->
+      <circle cx="80" cy="118" r="7" fill="#0a0a0a" stroke="#777" stroke-width="1.5"/>
+      <circle cx="80" cy="118" r="2.5" fill="#00ffff"/>
+
+      <!-- 小字标注 -->
+      <text x="13" y="132" font-size="10" fill="#888">0</text>
+      <text x="35" y="58" font-size="10" fill="#888">12</text>
+      <text x="71" y="45" font-size="10" fill="#888">24</text>
+      <text x="110" y="58" font-size="10" fill="#888">36</text>
+      <text x="142" y="132" font-size="10" fill="#888">48</text>
+
+      <text x="3" y="12" font-size="11" fill="#FFE000" font-weight="bold">V</text>
+      <rect x="144" y="0" width="16" height="16" rx="1" fill="#0a0a0a" stroke="#0f0" stroke-width="0.8"/>
+      <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="125" y="10" font-size="8" fill="#0f0">OK</text>
+    </svg>
+  </div>
+</div>
+
+<div class="mockup" style="margin-top:10px;">
+  <div class="mockup-header">三表 — 统一细线, 纯色弧</div>
+  <div class="mockup-body" style="background:#0a0a0a; padding:6px; display:flex; gap:6px;">
+    <!-- 电流 C -->
+    <svg width="155" height="125" viewBox="0 0 155 125">
+      <path d="M 23 116 A 54 54 0 0 1 132 116" fill="none" stroke="#888" stroke-width="4"/>
+      <line x1="23" y1="116" x2="23" y2="108" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="45" y1="74" x2="42" y2="67" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="77" y1="62" x2="77" y2="54" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="110" y1="74" x2="113" y2="67" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="132" y1="116" x2="132" y2="108" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="80" y1="116" x2="96" y2="80" stroke="#0ff" stroke-width="2"/>
+      <line x1="80" y1="116" x2="76" y2="119" stroke="#0ff" stroke-width="1.2"/>
+      <circle cx="80" cy="116" r="7" fill="#0a0a0a" stroke="#777" stroke-width="1.5"/>
+      <circle cx="80" cy="116" r="2.5" fill="#0ff"/>
+      <text x="10" y="130" font-size="10" fill="#888">0</text>
+      <text x="38" y="55" font-size="10" fill="#888">0.75</text>
+      <text x="69" y="42" font-size="10" fill="#888">1.5</text>
+      <text x="103" y="55" font-size="10" fill="#888">2.25</text>
+      <text x="138" y="130" font-size="10" fill="#888">3</text>
+      <text x="3" y="12" font-size="11" fill="#FFE000" font-weight="bold">C</text>
+      <rect x="139" y="0" width="16" height="16" rx="1" fill="#0a0a0a" stroke="#0f0" stroke-width="0.8"/>
+      <text x="141" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="120" y="10" font-size="8" fill="#0f0">OK</text>
+    </svg>
+    <!-- 频率 F -->
+    <svg width="155" height="125" viewBox="0 0 155 125">
+      <path d="M 23 116 A 54 54 0 0 1 132 116" fill="none" stroke="#888" stroke-width="4"/>
+      <line x1="23" y1="116" x2="23" y2="108" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="45" y1="74" x2="42" y2="67" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="77" y1="62" x2="77" y2="54" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="110" y1="74" x2="113" y2="67" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="132" y1="116" x2="132" y2="108" stroke="#aaa" stroke-width="1.5"/>
+      <line x1="80" y1="116" x2="62" y2="78" stroke="#0ff" stroke-width="2"/>
+      <line x1="80" y1="116" x2="84" y2="119" stroke="#0ff" stroke-width="1.2"/>
+      <circle cx="80" cy="116" r="7" fill="#0a0a0a" stroke="#777" stroke-width="1.5"/>
+      <circle cx="80" cy="116" r="2.5" fill="#0ff"/>
+      <text x="8" y="130" font-size="10" fill="#888">95</text>
+      <text x="35" y="55" font-size="10" fill="#888">109</text>
+      <text x="67" y="42" font-size="10" fill="#888">123</text>
+      <text x="100" y="55" font-size="10" fill="#888">137</text>
+      <text x="139" y="130" font-size="10" fill="#888">150</text>
+      <text x="3" y="12" font-size="11" fill="#FFE000" font-weight="bold">F</text>
+      <rect x="139" y="0" width="16" height="16" rx="1" fill="#0a0a0a" stroke="#0f0" stroke-width="0.8"/>
+      <text x="141" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="120" y="10" font-size="8" fill="#0f0">SWP</text>
+    </svg>
+  </div>
+</div>
+
+<div class="section" style="margin-top:10px;">
+  <h3>细线参数 (最终)</h3>
+  <table style="width:100%;">
+    <tr style="background:#1a1a2e; color:#fff;"><th>元素</th><th>参数</th><th>实现</th></tr>
+    <tr><td>弧</td><td>R=55, 圆心(80,118), 宽4px</td><td>Bresenham圆弧 4圈或Fill_Rect逐断面</td></tr>
+    <tr><td>弧色</td><td>#888 灰白</td><td>0x8410</td></tr>
+    <tr><td>大刻度</td><td>1.5px×8px, #aaa</td><td>Fill_Rect(2×8)</td></tr>
+    <tr><td>小刻度</td><td>1px×5px, #555</td><td>Fill_Rect(1×5)</td></tr>
+    <tr><td>指针</td><td>2px, #00ffff</td><td>Bresenham线+Fill_Rect</td></tr>
+    <tr><td>Hub</td><td>r=7外圈(1.5px)+r=2.5内点</td><td>Fill_Rect圆形区域</td></tr>
+    <tr><td>刻度数字</td><td>10px, #888, 8×16字库</td><td>Tft_Driver_Show_String</td></tr>
+    <tr><td>标签</td><td>V/C/F 11px 金黄 左上(2,0)</td><td>Tft_Driver_Show_Char</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <div class="options">
+    <div class="option" data-choice="go" onclick="toggleSelect(this)">
+      <div class="letter">GO</div>
+      <div class="content">
+        <h3>就是这个 — 细线经典仪表盘确认实装</h3>
+      </div>
+    </div>
+    <div class="option" data-choice="adj" onclick="toggleSelect(this)">
+      <div class="letter">ADJ</div>
+      <div class="content">
+        <h3>还需微调</h3>
+      </div>
+    </div>
+  </div>
+</div>

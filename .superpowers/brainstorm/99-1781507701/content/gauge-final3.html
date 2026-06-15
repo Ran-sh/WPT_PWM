@@ -1,0 +1,77 @@
+<h2>超紧凑模拟仪表盘 — 每格标注，指针刻度全匹配</h2>
+<p class="subtitle">5个大刻度+4个辅助刻度=完美标注。全黑背景，大字符，无多余装饰</p>
+
+<div class="mockup">
+  <div class="mockup-header">电压 0→48V — 大字符黑白关，仿原厂仪表盘</div>
+  <div class="mockup-body" style="background: radial-gradient(circle at 50% 85%, #0a0a0a 0%, #000 100%); padding:8px; display:flex; justify-content:center; align-items:center; min-height:140px;">
+    <svg width="160" height="128" viewBox="0 0 160 128" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- 弧 -->
+      <path d="M 22 115 A 53 53 0 0 1 138 115" fill="none" stroke="#e0e0e0" stroke-width="4"/>
+
+      <!-- 大刻度 (R=53→48, 即向内延伸) -->
+      <line x1="22" y1="115" x2="22" y2="110" stroke="#aaa" stroke-width="2"/>
+
+      <!-- 大刻度数值 -->
+      <text x="8" y="125" font-size="14" fill="#fff" font-weight="bold">0</text>
+      <text x="28" y="60" font-size="14" fill="#fff" font-weight="bold">10</text>
+      <text x="42" y="52" font-size="14" fill="#fff" font-weight="bold">20</text>
+      <text x="62" y="42" font-size="14" fill="#fff" font-weight="bold">30</text>
+      <text x="82" y="40" font-size="14" fill="#fff" font-weight="bold">40</text>
+      <text x="102" y="42" font-size="14" fill="#fff" font-weight="bold">50</text>
+      <text x="120" y="52" font-size="14" fill="#fff" font-weight="bold">60</text>
+      <text x="134" y="60" font-size="14" fill="#fff" font-weight="bold">70</text>
+      <text x="148" y="125" font-size="14" fill="#fff" font-weight="bold">80</text>
+
+      <text x="78" y="88" font-size="16" fill="#0ff" text-anchor="middle">12.50</text>
+      <text x="82" y="95" font-size="12" fill="#666">V</text>
+
+      <text x="5" y="12" font-size="12" fill="#FFE000" font-weight="bold">V</text>
+      <circle cx="80" cy="115" r="10" fill="#000" stroke="#888" stroke-width="2"/>
+      <circle cx="80" cy="115" r="4" fill="#0ff"/>
+
+      <!-- 指针 -->
+      <line x1="80" y1="115" x2="60" y2="72" stroke="#0ff" stroke-width="3"/>
+
+      <!-- WiFi -->
+      <rect x="144" y="0" width="16" height="16" rx="1" fill="#000" stroke="#0f0" stroke-width="0.8"/>
+      <text x="146" y="12" font-size="7" fill="#0f0">W</text>
+      <text x="124" y="10" font-size="8" fill="#0f0">OK</text>
+    </svg>
+  </div>
+</div>
+
+<div class="section" style="margin-top:10px;">
+  <h3>9个均匀大刻度布局 (全0→80V示例的通用模板)</h3>
+  <p style="color:#ff0;">实际应用到你的3个量程：</p>
+  <table style="width:100%;">
+    <tr><td style="color:#0f0;">V 0→48V</td><td>9刻度: 0,6,12,18,24,30,36,42,48</td></tr>
+    <tr><td style="color:#0f0;">C 0→3A</td><td>9刻度: 0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.0</td></tr>
+    <tr><td style="color:#0f0;">F 95→150kHz</td><td>9刻度: 95,102,109,116,123,130,137,144,150</td></tr>
+  </table>
+  <p style="margin-top:8px;">每格之间的小刻度为均匀分布的3条细线</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>10刻度 (0→40→48V, 不均匀)</h3>
+      <p>大刻度=0,10,20,30,40,48; 各区间小刻不同 — 与弧段不完美对应</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>9均匀刻度</h3>
+      <p>0,6,12,18,24,30,36,42,48; 每个大格均匀8V; 小刻每格2条=2.67V; 180°均匀间隔</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>7均匀刻度</h3>
+      <p>0,8,16,24,32,40,48; 120°弧, 每个大格8V, 间隔20°</p>
+    </div>
+  </div>
+</div>

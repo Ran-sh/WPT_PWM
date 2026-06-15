@@ -66,5 +66,9 @@ void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t f
 /** @brief 绘制 16x16 单帧图标 (32字节 LSB-first 位图) */
 void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
                                   uint16_t fg, uint16_t bg);
+/** @brief 在 TFT 像素坐标绘制 4×8 微型字符串 (6px步进, DMA发送) */
+void Tft_Driver_Show_4x8_String_Pixel(uint16_t x, uint16_t y,
+                                       const char* s,
+                                       uint16_t fg, uint16_t bg);
 
 #endif /* TFT_DRIVER_H */
