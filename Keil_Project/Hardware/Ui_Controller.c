@@ -1104,6 +1104,7 @@ static void WiFi_Dynamic_Update(void)
         char buf[42];
         snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
         if (strncmp(buf, s_last_status_buf, sizeof(s_last_status_buf)) != 0) {
+            Erase_Line(2);  /* clear old text before writing shorter/equal text */
             Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
             strncpy(s_last_status_buf, buf, sizeof(s_last_status_buf));
             s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
