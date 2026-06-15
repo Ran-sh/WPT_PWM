@@ -71,6 +71,14 @@
 #define S_BOTTOM_L_CONT    "ON:\xe7\xbb\xa7\xe7\xbb\xad"           /* ON:继续 */
 #define S_BOTTOM_L_TUNE    "F+/F-:\xe8\xb0\x83\xe9\xa2\x91"        /* F+/F-:调频 */
 #define S_BOTTOM_R         "PAGE:\xe8\xbf\x94\xe5\x9b\x9e"         /* PAGE:返回 */
+#define S_HUD_L            ">>> "
+#define S_HUD_R            " <<<"
+#define S_BADGE_OK         "[OK]"
+#define S_BADGE_WARN       "[WARN]"
+#define S_BADGE_HI         "[HI]"
+#define S_SWEEP_BADGE      "[SWEEP]"
+#define S_DONE_BADGE       "[DONE]"
+#define S_IDLE_BADGE       "[IDLE]"
 #define S_ON_DISCONNECT   "ON:\xe6\x96\xad\xe5\xbc\x80WIFI"
 #define S_ON_CONNECT      "ON:\xe8\xbf\x9e\xe6\x8e\xa5WIFI"
 #define S_LONG_CLEAR      "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI
@@ -105,6 +113,11 @@ static char    s_last_v_str[21];
 static char    s_last_i_str[21];
 static char    s_last_status_buf[42];
 static char    s_last_retry_buf[16];
+
+/* Gauge badge tracking — only redraw badge when level changes */
+static uint8_t s_last_volt_badge = 0xFF;  /* 0=OK, 1=WARN, 2=HI */
+static uint8_t s_last_curr_badge = 0xFF;  /* 0=OK, 1=WARN */
+static uint8_t s_last_freq_badge = 0xFF;  /* 0=SWEEP, 1=DONE, 2=IDLE */
 
 static void Reset_EMA(void) { s_ema_ok = 0; }
 
@@ -272,6 +285,40 @@ static void Draw_Bottom_Bar(const char* left_text)
     Tft_Driver_Show_CN_String(7, 0, left_text, UI_COLOR_TEXT, UI_COLOR_BG);
     Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_R),
         S_BOTTOM_R, UI_COLOR_TEXT, UI_COLOR_BG);
+}
+
+/* ── HUD value on row 2: >>> {formatted_value} <<<  centered ── */
+static void Draw_HUD_Value(uint8_t line, const char* formatted_buf)
+{
+    /* Erase full line first */
+    Erase_Line(line);
+
+    /* Draw left chevron at col 0 */
+    Tft_Driver_Show_String(line, 0, S_HUD_L, UI_COLOR_DIM, UI_COLOR_BG);
+
+    /* Draw value centered (it contains the leading Chinese label like "电压V:xx.xxV") */
+    Tft_Driver_Show_CN_String(line, Center(formatted_buf), formatted_buf, UI_COLOR_VALUE, UI_COLOR_BG);
+
+    /* Draw right chevron at col 16 (16*8=128px, leaves 2 cols on right = 16px) */
+    Tft_Driver_Show_String(line, 16, S_HUD_R, UI_COLOR_DIM, UI_COLOR_BG);
+}
+
+/* ── Gauge trough (dark background behind energy bar) ── */
+static void Draw_Gauge_Trough(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
+{
+    Tft_Driver_Fill_Rect(x, y, w, h, 0x2104);  /* dark grey-blue */
+}
+
+/* ── 5 tick marks above the energy bar ── */
+static void Draw_Gauge_Ticks(uint16_t x, uint16_t y, uint16_t w)
+{
+    uint8_t ti;
+    for (ti = 0; ti < 5; ti++) {
+        /* tick at x + (w/4)*ti, centered */
+        uint16_t tx = x + (uint16_t)(((uint32_t)w * ti) / 4);
+        if (tx > x + w) tx = x + w;
+        Tft_Driver_Fill_Rect(tx, y, 2, 3, UI_COLOR_DIM);
+    }
 }
 
 /* ── Draw menu text at line,col (erases whole line first, text at col≥2 for star) ── */
@@ -646,34 +693,73 @@ static void Summary_Dynamic_Update(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  MONITOR_FREQ (gauge) — covers all 8 rows
+ *  MONITOR_FREQ (gauge) — HUD industrial style, covers all 8 rows
+ *  Row 2: >>> 频率F:xxx.xkHz <<<  (HUD chevrons)
+ *  Row 3: tick marks above bar
+ *  Row 4: energy bar (dark trough + bar + ticks)
+ *  Row 5: 95  [SWEEP/DONE/IDLE]  150
+ *  Row 6: divider
+ *  Row 7: bottom bar
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Freq_Full(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
+    Inverter_Control_Soft_Start_State sw_state = Inverter_Control_Soft_Start_Get_State();
+    uint8_t badge;
+    const char* badge_text;
     char buf[21];
 
     Update_EMA();
     Draw_Header(S_MON_FREQ);       /* row 0 */
     Draw_Divider(1);               /* row 1 */
 
-    /* row 2: Freq value */
+    /* row 2: HUD chevron-wrapped freq value */
     if (is_running) { Fmt_F(buf, s_ema_f); }
     else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
-    Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Draw_HUD_Value(2, buf);
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
 
-    /* row 3: blank — gap before energy bar */
-    Erase_Line(3);
+    /* row 3: Tick marks (5 ticks above the energy bar on row 4) */
+    {
+        uint16_t bar_x = 4 * TFT_FONT_WIDTH;         /* x=32 */
+        uint16_t bar_w = 12 * TFT_FONT_WIDTH;        /* w=96 */
+        Erase_Line(3);
+        Draw_Gauge_Ticks(bar_x, 3 * TFT_FONT_HEIGHT + 12, bar_w); /* ticks at bottom of row 3 */
+    }
 
-    /* rows 4-5: Energy bar (spans ~line 4 to line 5.5) */
-    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
-                   12 * TFT_FONT_WIDTH, 12,
-                   is_running ? s_ema_f : 0.0f, 95.0f, 150.0f,
-                   ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
-    Tft_Driver_Show_String(5, 4, "95", UI_COLOR_TITLE, UI_COLOR_BG);
-    Tft_Driver_Show_String(5, 17, "150", UI_COLOR_TITLE, UI_COLOR_BG);
+    /* row 4: Energy bar with dark trough */
+    {
+        uint16_t bar_x = 4 * TFT_FONT_WIDTH;
+        uint16_t bar_y = 4 * TFT_FONT_HEIGHT + 2;
+        uint16_t bar_w = 12 * TFT_FONT_WIDTH;
+        uint16_t bar_h = 8;
+        Draw_Gauge_Trough(bar_x, bar_y, bar_w, bar_h);
+        Energy_Bar_Draw(bar_x, bar_y, bar_w, bar_h,
+                       is_running ? s_ema_f : 0.0f, 95.0f, 150.0f,
+                       ENERGY_BAR_METRIC_FREQ, 0x2104);
+    }
+
+    /* row 5: range labels + status badge */
+    {
+        /* Determine freq status */
+        if      (sw_state == INVERTER_CONTROL_SS_STATE_SWEEP) { badge = 0; badge_text = S_SWEEP_BADGE; }
+        else if (sw_state == INVERTER_CONTROL_SS_STATE_DONE)  { badge = 1; badge_text = S_DONE_BADGE;  }
+        else                                                   { badge = 2; badge_text = S_IDLE_BADGE;  }
+
+        Erase_Line(5);
+        Tft_Driver_Show_String(5, 4, "95", UI_COLOR_TITLE, UI_COLOR_BG);
+        {
+            uint16_t badge_color;
+            if      (badge == 0) badge_color = UI_COLOR_VALUE;  /* SWEEP=cyan */
+            else if (badge == 1) badge_color = UI_COLOR_OK;     /* DONE=green */
+            else                 badge_color = UI_COLOR_DIM;    /* IDLE=gray */
+            Tft_Driver_Show_String(5, (uint8_t)(10 - (uint8_t)(strlen(badge_text) / 2)),
+                                   badge_text, badge_color, UI_COLOR_BG);
+        }
+        Tft_Driver_Show_String(5, 17, "150", UI_COLOR_TITLE, UI_COLOR_BG);
+        s_last_freq_badge = badge;
+    }
 
     Draw_Divider(6);               /* row 6 */
     Draw_Bottom_Bar(is_running ? S_BOTTOM_L_TUNE : S_BOTTOM_L_CONFIRM);  /* row 7 */
@@ -684,23 +770,52 @@ static void Draw_Freq_Full(void)
 static void Freq_Dynamic_Update(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
+    Inverter_Control_Soft_Start_State sw_state = Inverter_Control_Soft_Start_Get_State();
+    uint8_t badge;
+    const char* badge_text;
     char buf[21];
 
     Update_EMA();
 
+    /* Frequency value (HUD row 2) */
     if (is_running) { Fmt_F(buf, s_ema_f); }
     else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
-        Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+        Draw_HUD_Value(2, buf);
         strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
         s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
     }
 
-    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
-                   12 * TFT_FONT_WIDTH, 12,
-                   is_running ? s_ema_f : 0.0f, 95.0f, 150.0f,
-                   ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
+    /* Energy bar */
+    {
+        uint16_t bar_x = 4 * TFT_FONT_WIDTH;
+        uint16_t bar_y = 4 * TFT_FONT_HEIGHT + 2;
+        uint16_t bar_w = 12 * TFT_FONT_WIDTH;
+        uint16_t bar_h = 8;
+        Energy_Bar_Draw(bar_x, bar_y, bar_w, bar_h,
+                       is_running ? s_ema_f : 0.0f, 95.0f, 150.0f,
+                       ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
+    }
 
+    /* Status badge (row 5 center) */
+    if      (sw_state == INVERTER_CONTROL_SS_STATE_SWEEP) { badge = 0; badge_text = S_SWEEP_BADGE; }
+    else if (sw_state == INVERTER_CONTROL_SS_STATE_DONE)  { badge = 1; badge_text = S_DONE_BADGE;  }
+    else                                                   { badge = 2; badge_text = S_IDLE_BADGE;  }
+
+    if (badge != s_last_freq_badge) {
+        uint16_t badge_color;
+        if      (badge == 0) badge_color = UI_COLOR_VALUE;
+        else if (badge == 1) badge_color = UI_COLOR_OK;
+        else                 badge_color = UI_COLOR_DIM;
+        /* Erase center of row 5 (~col 7 to 13) */
+        Tft_Driver_Fill_Rect(7 * TFT_FONT_WIDTH, 5 * TFT_FONT_HEIGHT,
+                             6 * TFT_FONT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
+        Tft_Driver_Show_String(5, (uint8_t)(10 - (uint8_t)(strlen(badge_text) / 2)),
+                               badge_text, badge_color, UI_COLOR_BG);
+        s_last_freq_badge = badge;
+    }
+
+    /* Bottom bar */
     if (is_running != s_last_is_running) {
         Draw_Bottom_Bar(is_running ? S_BOTTOM_L_TUNE : S_BOTTOM_L_CONFIRM);
         s_last_is_running = is_running;
@@ -708,31 +823,60 @@ static void Freq_Dynamic_Update(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  MONITOR_VOLT (gauge) — covers all 8 rows
+ *  MONITOR_VOLT (gauge) — HUD industrial style, covers all 8 rows
+ *  Row 2: >>> 电压V:xx.xxV <<<
+ *  Row 3: tick marks
+ *  Row 4: energy bar
+ *  Row 5: 0  [OK/WARN/HI]  48
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Volt_Full(void)
 {
     char buf[21];
+    uint8_t badge;           /* 0=OK, 1=WARN, 2=HI */
+    const char* badge_text;
+    uint16_t badge_color;
+
     Update_EMA();
     Draw_Header(S_MON_VOLT);       /* row 0 */
     Draw_Divider(1);               /* row 1 */
 
-    /* row 2: Voltage value */
+    /* row 2: HUD chevron-wrapped voltage value */
     Fmt_V(buf, s_ema_v);
-    Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Draw_HUD_Value(2, buf);
     strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
     s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
 
-    /* row 3: blank — gap before energy bar */
-    Erase_Line(3);
+    /* row 3: Tick marks */
+    {
+        uint16_t bar_x = 4 * TFT_FONT_WIDTH;
+        uint16_t bar_w = 12 * TFT_FONT_WIDTH;
+        Erase_Line(3);
+        Draw_Gauge_Ticks(bar_x, 3 * TFT_FONT_HEIGHT + 12, bar_w);
+    }
 
-    /* rows 4-5: Energy bar */
-    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
-                   12 * TFT_FONT_WIDTH, 12,
-                   s_ema_v, 0.0f, 48.0f,
-                   ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
+    /* row 4: Energy bar with dark trough */
+    {
+        uint16_t bar_x = 4 * TFT_FONT_WIDTH;
+        uint16_t bar_y = 4 * TFT_FONT_HEIGHT + 2;
+        uint16_t bar_w = 12 * TFT_FONT_WIDTH;
+        uint16_t bar_h = 8;
+        Draw_Gauge_Trough(bar_x, bar_y, bar_w, bar_h);
+        Energy_Bar_Draw(bar_x, bar_y, bar_w, bar_h,
+                       s_ema_v, 0.0f, 48.0f,
+                       ENERGY_BAR_METRIC_VOLT, 0x2104);
+    }
+
+    /* row 5: range labels + status badge */
+    if      (s_ema_v > 40.0f) { badge = 2; badge_text = S_BADGE_HI;   badge_color = UI_COLOR_ALARM; }
+    else if (s_ema_v > 36.0f) { badge = 1; badge_text = S_BADGE_WARN; badge_color = UI_COLOR_VALUE; }
+    else                       { badge = 0; badge_text = S_BADGE_OK;   badge_color = UI_COLOR_OK;    }
+
+    Erase_Line(5);
     Tft_Driver_Show_String(5, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
+    Tft_Driver_Show_String(5, (uint8_t)(10 - (uint8_t)(strlen(badge_text) / 2)),
+                           badge_text, badge_color, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 17, "48", UI_COLOR_TITLE, UI_COLOR_BG);
+    s_last_volt_badge = badge;
 
     Draw_Divider(6);               /* row 6 */
     Draw_Bottom_Bar("");                                       /* only PAGE:返回 on right */
@@ -741,45 +885,100 @@ static void Draw_Volt_Full(void)
 static void Volt_Dynamic_Update(void)
 {
     char buf[21];
+    uint8_t badge;
+    const char* badge_text;
+    uint16_t badge_color;
+
     Update_EMA();
+
+    /* Voltage value (HUD row 2) */
     Fmt_V(buf, s_ema_v);
     if (strncmp(buf, s_last_v_str, sizeof(s_last_v_str)) != 0) {
-        Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+        Draw_HUD_Value(2, buf);
         strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
         s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
     }
-    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
-                   12 * TFT_FONT_WIDTH, 12,
-                   s_ema_v, 0.0f, 48.0f,
-                   ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
+
+    /* Energy bar */
+    {
+        uint16_t bar_x = 4 * TFT_FONT_WIDTH;
+        uint16_t bar_y = 4 * TFT_FONT_HEIGHT + 2;
+        uint16_t bar_w = 12 * TFT_FONT_WIDTH;
+        uint16_t bar_h = 8;
+        Energy_Bar_Draw(bar_x, bar_y, bar_w, bar_h,
+                       s_ema_v, 0.0f, 48.0f,
+                       ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
+    }
+
+    /* Status badge (row 5 center) — dirty-checked */
+    if      (s_ema_v > 40.0f) { badge = 2; badge_text = S_BADGE_HI;   badge_color = UI_COLOR_ALARM; }
+    else if (s_ema_v > 36.0f) { badge = 1; badge_text = S_BADGE_WARN; badge_color = UI_COLOR_VALUE; }
+    else                       { badge = 0; badge_text = S_BADGE_OK;   badge_color = UI_COLOR_OK;    }
+
+    if (badge != s_last_volt_badge) {
+        /* Erase center of row 5 */
+        Tft_Driver_Fill_Rect(7 * TFT_FONT_WIDTH, 5 * TFT_FONT_HEIGHT,
+                             6 * TFT_FONT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
+        Tft_Driver_Show_String(5, (uint8_t)(10 - (uint8_t)(strlen(badge_text) / 2)),
+                               badge_text, badge_color, UI_COLOR_BG);
+        s_last_volt_badge = badge;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  MONITOR_CURR (gauge) — covers all 8 rows
+ *  MONITOR_CURR (gauge) — HUD industrial style, covers all 8 rows
+ *  Row 2: >>> 电流I:+x.xxxA <<<
+ *  Row 3: tick marks
+ *  Row 4: energy bar
+ *  Row 5: 0  [OK/WARN]  3
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Curr_Full(void)
 {
     char buf[21];
+    uint8_t badge;
+    const char* badge_text;
+    uint16_t badge_color;
+
     Update_EMA();
     Draw_Header(S_MON_CURR);       /* row 0 */
     Draw_Divider(1);               /* row 1 */
 
-    /* row 2: Current value */
+    /* row 2: HUD chevron-wrapped current value */
     Fmt_I(buf, s_ema_i);
-    Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Draw_HUD_Value(2, buf);
     strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
-    /* row 3: blank — gap before energy bar */
-    Erase_Line(3);
+    /* row 3: Tick marks */
+    {
+        uint16_t bar_x = 4 * TFT_FONT_WIDTH;
+        uint16_t bar_w = 12 * TFT_FONT_WIDTH;
+        Erase_Line(3);
+        Draw_Gauge_Ticks(bar_x, 3 * TFT_FONT_HEIGHT + 12, bar_w);
+    }
 
-    /* rows 4-5: Energy bar */
-    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
-                   12 * TFT_FONT_WIDTH, 12,
-                   s_ema_i, 0.0f, 3.0f,
-                   ENERGY_BAR_METRIC_CURR, UI_COLOR_BG);
+    /* row 4: Energy bar with dark trough */
+    {
+        uint16_t bar_x = 4 * TFT_FONT_WIDTH;
+        uint16_t bar_y = 4 * TFT_FONT_HEIGHT + 2;
+        uint16_t bar_w = 12 * TFT_FONT_WIDTH;
+        uint16_t bar_h = 8;
+        Draw_Gauge_Trough(bar_x, bar_y, bar_w, bar_h);
+        Energy_Bar_Draw(bar_x, bar_y, bar_w, bar_h,
+                       s_ema_i, 0.0f, 3.0f,
+                       ENERGY_BAR_METRIC_CURR, 0x2104);
+    }
+
+    /* row 5: range labels + status badge */
+    if      (s_ema_i > 2.5f) { badge = 1; badge_text = S_BADGE_WARN; badge_color = UI_COLOR_VALUE; }
+    else                      { badge = 0; badge_text = S_BADGE_OK;   badge_color = UI_COLOR_OK;    }
+
+    Erase_Line(5);
     Tft_Driver_Show_String(5, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
+    Tft_Driver_Show_String(5, (uint8_t)(10 - (uint8_t)(strlen(badge_text) / 2)),
+                           badge_text, badge_color, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 18, "3", UI_COLOR_TITLE, UI_COLOR_BG);
+    s_last_curr_badge = badge;
 
     Draw_Divider(6);               /* row 6 */
     Draw_Bottom_Bar("");                                       /* only PAGE:返回 on right */
@@ -788,17 +987,42 @@ static void Draw_Curr_Full(void)
 static void Curr_Dynamic_Update(void)
 {
     char buf[21];
+    uint8_t badge;
+    const char* badge_text;
+    uint16_t badge_color;
+
     Update_EMA();
+
+    /* Current value (HUD row 2) */
     Fmt_I(buf, s_ema_i);
     if (strncmp(buf, s_last_i_str, sizeof(s_last_i_str)) != 0) {
-        Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+        Draw_HUD_Value(2, buf);
         strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
         s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
     }
-    Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
-                   12 * TFT_FONT_WIDTH, 12,
-                   s_ema_i, 0.0f, 3.0f,
-                   ENERGY_BAR_METRIC_CURR, UI_COLOR_BG);
+
+    /* Energy bar */
+    {
+        uint16_t bar_x = 4 * TFT_FONT_WIDTH;
+        uint16_t bar_y = 4 * TFT_FONT_HEIGHT + 2;
+        uint16_t bar_w = 12 * TFT_FONT_WIDTH;
+        uint16_t bar_h = 8;
+        Energy_Bar_Draw(bar_x, bar_y, bar_w, bar_h,
+                       s_ema_i, 0.0f, 3.0f,
+                       ENERGY_BAR_METRIC_CURR, UI_COLOR_BG);
+    }
+
+    /* Status badge (row 5 center) — dirty-checked */
+    if      (s_ema_i > 2.5f) { badge = 1; badge_text = S_BADGE_WARN; badge_color = UI_COLOR_VALUE; }
+    else                      { badge = 0; badge_text = S_BADGE_OK;   badge_color = UI_COLOR_OK;    }
+
+    if (badge != s_last_curr_badge) {
+        Tft_Driver_Fill_Rect(7 * TFT_FONT_WIDTH, 5 * TFT_FONT_HEIGHT,
+                             6 * TFT_FONT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
+        Tft_Driver_Show_String(5, (uint8_t)(10 - (uint8_t)(strlen(badge_text) / 2)),
+                               badge_text, badge_color, UI_COLOR_BG);
+        s_last_curr_badge = badge;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1307,6 +1531,7 @@ void Ui_Controller_Task(void)
 
     if (!s_page_drawn) {
         /* ── Full page draw (page entry) ── */
+        Tft_Driver_Clear(UI_COLOR_BG);  /* erase all previous-page residue */
         switch (s_page) {
             case UI_PAGE_MAIN_MENU:        Draw_Main_Menu_Full();   break;
             case UI_PAGE_MONITOR_SUB_MENU: Draw_Sub_Menu_Full();    break;
