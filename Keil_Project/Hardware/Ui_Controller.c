@@ -696,16 +696,23 @@ static void Gauge_Polar(uint8_t a, uint16_t r, int16_t *px, int16_t *py)
     *py = (int16_t)(100 - (int32_t)r * s / 10000);
 }
 
-/* ── thin Bresenham line: 1px, no DMA per-pixel overhead ── */
-static void Draw_Thin_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
-                            uint16_t color)
+/* ── Multi-line Bresenham: w parallel 1px lines offset perpendicularly ── */
+static void Draw_Thick_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                            uint8_t w, uint16_t color)
 {
     int16_t dx = (x1 > x0) ? (int16_t)(x1 - x0) : (int16_t)(x0 - x1);
     int16_t dy = (y1 > y0) ? (int16_t)(y1 - y0) : (int16_t)(y0 - y1);
     int16_t sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
     int16_t err = (int16_t)(dx - dy);
+    int16_t hw = (int16_t)((w - 1) / 2);
+    int16_t nx = 0, ny = 0;
+    /* perpendicular normal for thick stroke: rotate dx,dy 90° */
+    if (dx > dy) ny = 1; else nx = 1;
+
     while (1) {
-        Tft_Driver_Fill_Rect((uint16_t)x0, (uint16_t)y0, 1, 1, color);
+        int16_t o;
+        for (o = -hw; o <= hw; o++)
+            Tft_Driver_Fill_Rect((uint16_t)(x0 + o*nx), (uint16_t)(y0 + o*ny), 1, 1, color);
         if (x0 == x1 && y0 == y1) break;
         { int16_t e2 = (int16_t)(err * 2);
           if (e2 > -dy) { err = (int16_t)(err - dy); x0 = (int16_t)(x0 + sx); }
@@ -713,18 +720,17 @@ static void Draw_Thin_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
     }
 }
 
-/* ── pointer line: 1px needle, redraws without touching ticks ── */
-/*     pointer length = R_TICK_INNER - 4 = 46px (safe gap from ticks at R=50) */
+/* ── pointer: 3px needle + 2px tail, safe gap from ticks ── */
 #define PTR_LEN  46
 static void Draw_Pointer(uint8_t a, uint16_t color)
 {
     int16_t px, py, tx, ty;
     Gauge_Polar(a, PTR_LEN, &px, &py);
-    /* short tail ~1/3 of pointer on opposite side */
     tx = (int16_t)(80 + (80 - px) / 3);
     ty = (int16_t)(100 + (100 - py) / 3);
-    Draw_Thin_Line(80, 100, px, py, color);
-    Draw_Thin_Line(80, 100, tx, ty, color);
+    Draw_Thick_Line(80, 100, px, py, 3, color);
+    Draw_Thick_Line(80, 100, tx, ty, 2, color);
+}
 }
 
 /* ── 3-layer metallic hub ── */
