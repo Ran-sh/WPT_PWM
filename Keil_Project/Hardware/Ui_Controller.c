@@ -1001,7 +1001,8 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             { badge_text = "DON"; badge_color = UI_COLOR_OK; }
         else
             { badge_text = "IDL"; badge_color = UI_COLOR_DIM; }
-        Tft_Driver_Show_String(0, 15, badge_text, badge_color, UI_COLOR_BG);
+        Tft_Driver_Fill_Rect(108, 0, 20, 16, UI_COLOR_BG);
+        Tft_Driver_Show_String(0, 14, badge_text, badge_color, UI_COLOR_BG);
     }
 
     /* ── VOLT/CURR-only: status badge (top-right, left of WIFI) ── */
@@ -1015,7 +1016,8 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             { badge_text = "WRN"; badge_color = UI_COLOR_VALUE; }
         else
             { badge_text = "OK";  badge_color = UI_COLOR_OK; }
-        Tft_Driver_Show_String(0, 15, badge_text, badge_color, UI_COLOR_BG);
+        Tft_Driver_Fill_Rect(108, 0, 20, 16, UI_COLOR_BG);
+        Tft_Driver_Show_String(0, 14, badge_text, badge_color, UI_COLOR_BG);
     }
 
     #undef R_ARC
