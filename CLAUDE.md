@@ -636,6 +636,24 @@ void HardFault_Handler(void) {
 git add -A && git commit -m "..." && git push origin 4.0TFT
 ```
 
+## 环形仪表盘速查
+
+```c
+/* 核心渲染函数 (Ui_Controller.c) */
+Tft_Driver_Fill_Rect(x, y, w, h, color);       // DMA 单色填充 (已开 SetWin)
+Tft_Driver_Show_5x10_String_Pixel(x, y, s, fg, bg); // 5×10 微数字标注
+Bres_Line(x0, y0, x1, y1, color);               // 1px Bresenham 线
+Draw_Pointer(a, color);                          // 5 线剑形指针 (PTR_LEN=46)
+Draw_Hub();                                      // 逐行填充金属 Hub (~80 SPI)
+Gauge_Polar(angle_deg, radius, &x, &y);         // sin 查表极坐标
+Draw_Gauge_Full(cfg, val);                       // 入场全绘 (~20ms)
+Gauge_Dynamic_Update(cfg, val, old_val);         // 200ms 增量 (擦针+Hub+绘针)
+
+/* 三表配置 */
+GAUGE_V = {0,48,5,1,0.5,42,'V'};   GAUGE_C = {0,3,0.5,0.1,0.05,2.7,'C'};
+GAUGE_F = {95,150,10,2,1,143,'F'};  // {min,max,big,mid,fine,red,label}
+```
+
 ## TFT 注意事项
 
 - **Fill_Rect(1,1) 陷阱**: 每像素一次 SetWin + SPI 模式切换 + DMA 等待, 高频调用引发 SPI 片选饱和导致横竖线条纹。Hub/指针应逐行 Fill_Rect 一次性填充, 非逐像素。
