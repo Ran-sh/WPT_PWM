@@ -134,7 +134,11 @@
       "Bash(git -C \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT\" diff --cached --stat)",
       "Bash(git *)",
       "Bash(C:\\\\Users\\\\48376\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.1.0\\\\skills\\\\brainstorming\\\\scripts\\\\start-server.sh *)",
-      "Bash(awk '/GAUGE_SIN\\\\[181\\\\]/,/^\\\\};/' Keil_Project/Hardware/Ui_Controller.c)"
+      "Bash(awk '/GAUGE_SIN\\\\[181\\\\]/,/^\\\\};/' Keil_Project/Hardware/Ui_Controller.c)",
+      "Bash(awk 'BEGIN{c=0} /GAUGE_SIN\\\\[181\\\\]/{in=1;next} /^\\\\};/{in=0} in{c+=gsub\\(/,/,\"\"\\)} END{print c+1 \" values\"}' Keil_Project/Hardware/Ui_Controller.c)",
+      "Bash(awk '{print NF}')",
+      "Bash(bc)",
+      "Bash(awk '/static const int16_t GAUGE_SIN/,/};/{print NR\": \"$0}' Keil_Project/Hardware/Ui_Controller.c)"
     ]
   }
 }
