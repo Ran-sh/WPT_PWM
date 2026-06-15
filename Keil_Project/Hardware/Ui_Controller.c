@@ -892,7 +892,14 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
              (cfg->range_max - cfg->range_min) * 180.0f + 0.5f);
     if (red_a > 180) red_a = 180;
 
-    /* ── ticks (NO arc connecting them) ── */
+    /* ── red zone arc (R=65, 6px wide, red_start → end) ── */
+    for (a = red_a; a <= 180; a++) {
+        int16_t ax, ay;
+        Gauge_Polar(CPS(a), R_ARC-2, &ax, &ay);
+        Tft_Driver_Fill_Rect((uint16_t)(ax-3), (uint16_t)(ay-3), 7, 7, UI_COLOR_ALARM);
+    }
+
+    /* ── ticks (NO white arc, standalone radial lines) ── */
     for (v = cfg->range_min; v <= cfg->range_max + cfg->fine_step*0.1f;
          v += cfg->fine_step) {
         uint8_t is_red = (v >= cfg->red_start);
@@ -910,10 +917,10 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             if (d < 0.0f) d = -d;
             if (d < cfg->fine_step * 0.2f) is_mid = 1;
         }
-        /* All ticks are white/grey now — no red override for individual ticks */
-        if (is_big)      { ir = R_BIG;  lw = 2; color = UI_COLOR_TEXT; }
-        else if (is_mid) { ir = R_MID;  lw = 1; color = UI_COLOR_DIM; }
-        else             { ir = R_FINE; lw = 1; color = UI_COLOR_DIM; }
+        /* Red ticks in red zone, white/grey elsewhere */
+        if      (is_big)       { ir = R_BIG;  lw = 2; color = is_red ? UI_COLOR_ALARM : UI_COLOR_TEXT; }
+        else if (is_mid)       { ir = R_MID;  lw = 1; color = is_red ? UI_COLOR_ALARM : UI_COLOR_DIM; }
+        else                   { ir = R_FINE; lw = 1; color = is_red ? UI_COLOR_ALARM : UI_COLOR_DIM; }
 
         a = (uint16_t)((v - cfg->range_min) /
               (cfg->range_max - cfg->range_min) * 180.0f + 0.5f);
