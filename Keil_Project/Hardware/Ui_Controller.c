@@ -25,7 +25,7 @@
 #include "Sys_Timer.h"
 #include "Energy_Bar.h"
 #include <stdio.h>
-#include <string.h>
+#include <math.h>
 
 #define UI_COLOR_BG      TFT_COLOR_BLACK
 #define UI_COLOR_TITLE   TFT_COLOR_YELLOW
@@ -757,32 +757,74 @@ static void Draw_Pointer(uint8_t a, uint16_t color)
     }
 }
 
-/* ── 3-layer metallic hub ── */
+/* ── 3-layer metallic hub: 3 Fill_Rect for outer/mid/core, no per-pixel loop ── */
 static void Draw_Hub(void)
 {
-    int16_t x, y;
-    /* outer ring r=10 */
-    for (y = -12; y <= 12; y++)
-        for (x = -12; x <= 12; x++) {
-            int32_t d2 = (int32_t)x*x + (int32_t)y*y;
-            if (d2 <= 144 && d2 > 64)   Tft_Driver_Fill_Rect((uint16_t)(80+x),(uint16_t)(100+y),1,1,0x630C);
+    /* filled black background circle r=10 (erase any pointer residue) */
+    {
+        int16_t y;
+        for (y = -10; y <= 10; y++) {
+            int16_t half_w = (int16_t)(sqrtf(100.0f - (float)(y*y)) + 0.5f);
+            if (half_w < 0) half_w = 0;
+            Tft_Driver_Fill_Rect((uint16_t)(80 - half_w), (uint16_t)(100 + y),
+                                 (uint16_t)(half_w * 2 + 1), 1, UI_COLOR_BG);
         }
-    /* mid ring r=8 */
-    for (y = -8; y <= 8; y++)
-        for (x = -8; x <= 8; x++) {
-            int32_t d2 = (int32_t)x*x + (int32_t)y*y;
-            if (d2 <= 64 && d2 > 25)   Tft_Driver_Fill_Rect((uint16_t)(80+x),(uint16_t)(100+y),1,1,0xAD55);
+    }
+
+    /* outer ring r=10, 2px thick → fill r=8..10, color 0x8410 */
+    {
+        int16_t y;
+        for (y = -10; y <= 10; y++) {
+            float fy = (float)y;
+            int16_t omax = (int16_t)(sqrtf(100.0f - fy*fy) + 0.5f);
+            int16_t omin = (int16_t)(sqrtf(64.0f - fy*fy) + 0.5f);
+            if (omax < 0) continue;
+            if (omin < 0) omin = 0;
+            if (omax > omin)
+                Tft_Driver_Fill_Rect((uint16_t)(80 - omax), (uint16_t)(100 + y),
+                                     (uint16_t)(omax - omin + 1), 1, 0x8410);
         }
-    /* core r=5 */
-    for (y = -5; y <= 5; y++)
-        for (x = -5; x <= 5; x++)
-            if ((int32_t)x*x + (int32_t)y*y <= 25)
-                Tft_Driver_Fill_Rect((uint16_t)(80+x),(uint16_t)(100+y),1,1,UI_COLOR_ALARM);
-    /* highlight */
-    for (y = -4; y <= 1; y++)
-        for (x = -6; x <= 1; x++)
-            if ((int32_t)x*x*2 + (int32_t)y*y*4 <= 20)
-                Tft_Driver_Fill_Rect((uint16_t)(80+x),(uint16_t)(100+y),1,1,0xC618);
+    }
+
+    /* mid ring r=7, 2px thick → fill r=5..7, color 0xAD55 */
+    {
+        int16_t y;
+        for (y = -7; y <= 7; y++) {
+            float fy = (float)y;
+            int16_t mmax = (int16_t)(sqrtf(49.0f - fy*fy) + 0.5f);
+            int16_t mmin = (int16_t)(sqrtf(25.0f - fy*fy) + 0.5f);
+            if (mmax < 0) continue;
+            if (mmin < 0) mmin = 0;
+            if (mmax > mmin)
+                Tft_Driver_Fill_Rect((uint16_t)(80 - mmax), (uint16_t)(100 + y),
+                                     (uint16_t)(mmax - mmin + 1), 1, 0xAD55);
+        }
+    }
+
+    /* core red circle r=4 */
+    {
+        int16_t y;
+        for (y = -4; y <= 4; y++) {
+            float fy = (float)y;
+            int16_t hw = (int16_t)(sqrtf(16.0f - fy*fy) + 0.5f);
+            if (hw < 0) hw = 0;
+            Tft_Driver_Fill_Rect((uint16_t)(80 - hw), (uint16_t)(100 + y),
+                                 (uint16_t)(hw * 2 + 1), 1, UI_COLOR_ALARM);
+        }
+    }
+
+    /* highlight ellipse */
+    {
+        int16_t y;
+        for (y = -3; y <= 1; y++) {
+            float fy = (float)y;
+            int16_t hw = (int16_t)(sqrtf((20.0f - fy*fy*4.0f) / 2.0f) + 0.5f);
+            if (hw < 1) hw = 1;
+            if (hw < 0) continue;
+            Tft_Driver_Fill_Rect((uint16_t)(77 - hw), (uint16_t)(100 + y),
+                                 (uint16_t)(hw * 2 + 1), 1, 0xC618);
+        }
+    }
 }
 
 /* ── WIFI icon + MQTT cloud (top-right, for gauge pages) ── */
