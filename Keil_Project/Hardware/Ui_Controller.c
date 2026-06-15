@@ -691,25 +691,40 @@ static void Gauge_Polar(uint8_t a, uint16_t r, int16_t *px, int16_t *py)
     s = GAUGE_SIN[a];                             /* sin(a) */
     if (a <= 90) c = GAUGE_SIN[90 - a];          /* cos = sin(90-a) */
     else        c = -GAUGE_SIN[a - 90];           /* cos = -sin(a-90) */
-    *px = (int16_t)(80 + (int32_t)r * c / 10000);
+    /* 0°=right→180°=left: invert X for left=0° */
+    *px = (int16_t)(80 - (int32_t)r * c / 10000);
     *py = (int16_t)(100 - (int32_t)r * s / 10000);
 }
 
-/* ── thick Bresenham line ── */
-static void Draw_Thick_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
-                            uint8_t w, uint16_t color)
+/* ── thin Bresenham line: 1px, no DMA per-pixel overhead ── */
+static void Draw_Thin_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                            uint16_t color)
 {
     int16_t dx = (x1 > x0) ? (int16_t)(x1 - x0) : (int16_t)(x0 - x1);
     int16_t dy = (y1 > y0) ? (int16_t)(y1 - y0) : (int16_t)(y0 - y1);
     int16_t sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
-    int16_t err = (int16_t)(dx - dy), hw = (int16_t)(w / 2);
+    int16_t err = (int16_t)(dx - dy);
     while (1) {
-        Tft_Driver_Fill_Rect((uint16_t)(x0 - hw), (uint16_t)(y0 - hw), w, w, color);
+        Tft_Driver_Fill_Rect((uint16_t)x0, (uint16_t)y0, 1, 1, color);
         if (x0 == x1 && y0 == y1) break;
         { int16_t e2 = (int16_t)(err * 2);
           if (e2 > -dy) { err = (int16_t)(err - dy); x0 = (int16_t)(x0 + sx); }
           if (e2 <  dx) { err = (int16_t)(err + dx); y0 = (int16_t)(y0 + sy); } }
     }
+}
+
+/* ── pointer line: 1px needle, redraws without touching ticks ── */
+/*     pointer length = R_TICK_INNER - 4 = 46px (safe gap from ticks at R=50) */
+#define PTR_LEN  46
+static void Draw_Pointer(uint8_t a, uint16_t color)
+{
+    int16_t px, py, tx, ty;
+    Gauge_Polar(a, PTR_LEN, &px, &py);
+    /* short tail ~1/3 of pointer on opposite side */
+    tx = (int16_t)(80 + (80 - px) / 3);
+    ty = (int16_t)(100 + (100 - py) / 3);
+    Draw_Thin_Line(80, 100, px, py, color);
+    Draw_Thin_Line(80, 100, tx, ty, color);
 }
 
 /* ── 3-layer metallic hub ── */
@@ -740,13 +755,28 @@ static void Draw_Hub(void)
                 Tft_Driver_Fill_Rect((uint16_t)(80+x),(uint16_t)(100+y),1,1,0xC618);
 }
 
-/* ── WIFI icon only (top-right, for gauge pages) ── */
-static void Draw_WiFi_Corner(void)
+/* ── WIFI icon + MQTT cloud (top-right, for gauge pages) ── */
+static void Draw_TopRight_Icons(void)
 {
-    #define WX 144
+    #define WX 128
+    #define MX 144
     uint8_t  cs = App_Network_Get_Connect_Status(), icon_frame;
     static const uint16_t blue_grad[6] = {0x0018,0x001B,0x001F,0x07FF,0x07BF,0x07FF};
-    Tft_Driver_Fill_Rect(120, 0, 40, 16, UI_COLOR_BG);
+    static const uint16_t rainbow[6] = {0xF800,0xFD20,0xFFE0,0x07E0,0x07FF,0x001F};
+
+    Tft_Driver_Fill_Rect(108, 0, 52, 16, UI_COLOR_BG);
+
+    /* ── MQTT cloud (x=128) ── */
+    if (cs == APP_NETWORK_CONN_ONLINE) {
+        Tft_Driver_Draw_Single_Icon(MX, 0, MQTT_YES_ICON, UI_COLOR_OK, UI_COLOR_BG);
+    } else if (App_Network_Is_Connecting()) {
+        uint8_t mqtt_frame = (uint8_t)(Sys_Timer_Get_Tick()/200) % 6;
+        Tft_Driver_Draw_Single_Icon(MX, 0, MQTT_ANIM[mqtt_frame], rainbow[mqtt_frame], UI_COLOR_BG);
+    } else {
+        Tft_Driver_Draw_Single_Icon(MX, 0, MQTT_NO_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
+    }
+
+    /* ── WIFI icon (x=144) ── */
     if (s_no_wifi_mode) {
         Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_OFF_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
     } else if (!Esp8266_Driver_Is_Ready()) {
@@ -765,6 +795,7 @@ static void Draw_WiFi_Corner(void)
         Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_REMOVE_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
     }
     #undef WX
+    #undef MX
 }
 
 /* ── FULL redraw: arc + ticks + labels + pointer + hub ── */
@@ -790,19 +821,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
              (cfg->range_max - cfg->range_min) * 180.0f + 0.5f);
     if (red_a > 180) red_a = 180;
 
-    /* ── arc: white 0→red_start, red→end ── */
-    for (a = 0; a <= 180; a++) {
-        int16_t ax, ay;
-        uint16_t col = (a >= red_a) ? UI_COLOR_ALARM : UI_COLOR_TEXT;
-        Gauge_Polar(CPS(a), R_ARC-1, &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)(ax-1),(uint16_t)(ay-1),2,2,col);
-        Gauge_Polar(CPS(a), R_ARC, &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)(ax-1),(uint16_t)(ay-1),2,2,col);
-        Gauge_Polar(CPS(a), R_ARC+1, &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)(ax-1),(uint16_t)(ay-1),2,2,col);
-    }
-
-    /* ── ticks ── */
+    /* ── ticks (NO arc connecting them) ── */
     for (v = cfg->range_min; v <= cfg->range_max + cfg->fine_step*0.1f;
          v += cfg->fine_step) {
         uint8_t is_red = (v >= cfg->red_start);
@@ -820,8 +839,9 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             if (d < 0.0f) d = -d;
             if (d < cfg->fine_step * 0.2f) is_mid = 1;
         }
-        if (is_big)      { ir = R_BIG;  lw = 3; color = is_red ? UI_COLOR_ALARM : UI_COLOR_TEXT; }
-        else if (is_mid) { ir = R_MID;  lw = 2; color = is_red ? UI_COLOR_ALARM : UI_COLOR_DIM; }
+        /* All ticks are white/grey now — no red override for individual ticks */
+        if (is_big)      { ir = R_BIG;  lw = 2; color = UI_COLOR_TEXT; }
+        else if (is_mid) { ir = R_MID;  lw = 1; color = UI_COLOR_DIM; }
         else             { ir = R_FINE; lw = 1; color = UI_COLOR_DIM; }
 
         a = (uint16_t)((v - cfg->range_min) /
@@ -854,24 +874,17 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
                 snprintf(nb, sizeof(nb), "%.1f", (double)v);
             else snprintf(nb, sizeof(nb), "%d", (int)v);
             len = (uint8_t)strlen(nb);
-            Tft_Driver_Show_4x8_String_Pixel(
+            Tft_Driver_Show_5x10_String_Pixel(
                 (uint16_t)(x - (int16_t)(len*3) + 2),
-                (uint16_t)(y - 4), nb, color, UI_COLOR_BG);
+                (uint16_t)(y - 5), nb, color, UI_COLOR_BG);
         }
     }
 
-    /* ── pointer ── */
+    /* ── pointer (1px needle, safe gap from ticks) ── */
     a = (uint16_t)((val - cfg->range_min) /
           (cfg->range_max - cfg->range_min) * 180.0f + 0.5f);
     if (a > 180) a = 180;
-    {
-        int16_t px, py, tx, ty;
-        Gauge_Polar(CPS(a), (uint16_t)(R_ARC-9), &px, &py);
-        tx = (int16_t)(80 + (80 - px)/3);
-        ty = (int16_t)(100 + (100 - py)/3);
-        Draw_Thick_Line(80, 100, px, py, 3, UI_COLOR_ALARM);
-        Draw_Thick_Line(80, 100, tx, ty, 2, UI_COLOR_ALARM);
-    }
+    Draw_Pointer(CPS(a), UI_COLOR_ALARM);
 
     /* ── hub ── */
     Draw_Hub();
@@ -880,8 +893,8 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
     snprintf(buf, sizeof(buf), "%c %.2f", cfg->label, (double)val);
     Tft_Driver_Show_String(0, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
 
-    /* ── top-right badge + WIFI ── */
-    Draw_WiFi_Corner();
+    /* ── top-right WIFI + MQTT ── */
+    Draw_TopRight_Icons();
 
     /* ── FREQ-only: soft-start state badge (top-right, left of WIFI) ── */
     if (cfg->label == 'F') {
@@ -938,24 +951,10 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
     if (oa > 180) oa = 180;
     if (na > 180) na = 180;
 
-    /* erase old pointer */
-    {
-        int16_t px, py, tx, ty;
-        Gauge_Polar((uint8_t)oa, (uint16_t)(65-9), &px, &py);
-        tx = (int16_t)(80 + (80 - px)/3);
-        ty = (int16_t)(100 + (100 - py)/3);
-        Draw_Thick_Line(80, 100, px, py, 3, UI_COLOR_BG);
-        Draw_Thick_Line(80, 100, tx, ty, 2, UI_COLOR_BG);
-    }
-
-    /* draw new pointer */
-    {
-        int16_t px, py, tx, ty;
-        Gauge_Polar((uint8_t)na, (uint16_t)(65-9), &px, &py);
-        tx = (int16_t)(80 + (80 - px)/3);
-        ty = (int16_t)(100 + (100 - py)/3);
-        Draw_Thick_Line(80, 100, px, py, 3, UI_COLOR_ALARM);
-        Draw_Thick_Line(80, 100, tx, ty, 2, UI_COLOR_ALARM);
+    /* erase old pointer + draw new (1px needle, won't touch ticks) */
+    if (oa != na) {
+        Draw_Pointer((uint8_t)oa, UI_COLOR_BG);
+        Draw_Pointer((uint8_t)na, UI_COLOR_ALARM);
     }
 
     /* top-left value */
@@ -1395,7 +1394,7 @@ void Ui_Controller_Task(void)
                 case UI_PAGE_MONITOR_SUMMARY:  Draw_Header(S_SUMMARY);                      break;
                 case UI_PAGE_MONITOR_FREQ:
                 case UI_PAGE_MONITOR_VOLT:
-                case UI_PAGE_MONITOR_CURR:     Draw_WiFi_Corner();                          break;
+                case UI_PAGE_MONITOR_CURR:     Draw_TopRight_Icons();                       break;
                 case UI_PAGE_WIFI_SETUP:       Draw_Header(S_LAUNCH);                       break;
                 case UI_PAGE_FAULT:            Draw_Header(S_FAULT_TITLE);                  break;
             }

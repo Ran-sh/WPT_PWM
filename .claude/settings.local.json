@@ -139,7 +139,8 @@
       "Bash(awk '{print NF}')",
       "Bash(bc)",
       "Bash(awk '/static const int16_t GAUGE_SIN/,/};/{print NR\": \"$0}' Keil_Project/Hardware/Ui_Controller.c)",
-      "Bash(awk '{for\\(i=1;i<=NF;i++\\) if\\($i==\",\"\\) c++} END{print c+0}')"
+      "Bash(awk '{for\\(i=1;i<=NF;i++\\) if\\($i==\",\"\\) c++} END{print c+0}')",
+      "Bash(awk '{for\\(i=1;i<=NF;i++\\) if\\($i==\",\"\\) c++} END{print c}')"
     ]
   }
 }
