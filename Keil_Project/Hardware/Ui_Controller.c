@@ -24,6 +24,7 @@
 #include "Sys_Timer.h"
 #include "Energy_Bar.h"
 #include <stdio.h>
+#include <string.h>
 
 #define UI_COLOR_BG      TFT_COLOR_BLACK
 #define UI_COLOR_TITLE   TFT_COLOR_YELLOW
@@ -92,14 +93,12 @@ static uint8_t  s_user_target_synced = 0;
 
 /* ── Incremental refresh state (V11) ── */
 static uint8_t s_page_drawn         = 0;    /* 0=need full redraw, 1=static content present */
-static uint8_t s_last_cursor_idx    = 0;    /* previous cursor, for 2-line cursor update */
 static uint8_t s_last_is_running    = 0xFF; /* tracked PWM running state */
 static uint8_t s_last_is_fault_menu = 0xFF; /* tracked FAULT state for menu item 3 */
 static uint8_t s_last_sub_visible   = 0;    /* tracked sub-menu visible_top */
 static uint8_t s_last_sweep_stopped = 0xFF; /* tracked sweep pause state */
 static uint8_t s_last_wifi_cs       = 0xFF; /* tracked WiFi connection status */
 static uint8_t s_last_retry         = 0xFF; /* tracked WiFi retry count */
-static int8_t  s_last_rssi          = -128; /* tracked RSSI */
 
 /* Cached last formatted value strings — avoid redrawing unchanged values */
 static char    s_last_f_str[21];
@@ -220,7 +219,6 @@ static void Draw_Header(const char* title)
             else if (r >= -60) icon_frame = 2;
             else if (r >= -70) icon_frame = 1;
             else               icon_frame = 0;
-            s_last_rssi = r;
             Tft_Driver_Draw_WiFi_Icon(WIFI_ICON_X, 0, icon_frame, UI_COLOR_OK, UI_COLOR_BG);
         } else if (App_Network_Is_Connecting()) {
             icon_frame = (uint8_t)(Sys_Timer_Get_Tick() / 150) % 6;
