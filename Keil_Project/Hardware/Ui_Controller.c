@@ -897,6 +897,20 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
         Tft_Driver_Show_String(0, 15, badge_text, badge_color, UI_COLOR_BG);
     }
 
+    /* ── VOLT/CURR-only: status badge (top-right, left of WIFI) ── */
+    if (cfg->label == 'V' || cfg->label == 'C') {
+        float thr_warn = (cfg->label == 'V') ? 36.0f : 2.5f;
+        const char* badge_text;
+        uint16_t badge_color;
+        if (val >= cfg->red_start)
+            { badge_text = "HI";  badge_color = UI_COLOR_ALARM; }
+        else if (val >= thr_warn)
+            { badge_text = "WRN"; badge_color = UI_COLOR_VALUE; }
+        else
+            { badge_text = "OK";  badge_color = UI_COLOR_OK; }
+        Tft_Driver_Show_String(0, 15, badge_text, badge_color, UI_COLOR_BG);
+    }
+
     #undef R_ARC
     #undef R_TICK
     #undef R_BIG
