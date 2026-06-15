@@ -26,6 +26,7 @@
 #include "Energy_Bar.h"
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 
 #define UI_COLOR_BG      TFT_COLOR_BLACK
 #define UI_COLOR_TITLE   TFT_COLOR_YELLOW
