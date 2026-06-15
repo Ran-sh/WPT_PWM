@@ -945,9 +945,23 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
     }
 
     /* top-left value */
-    Tft_Driver_Fill_Rect(0, 0, 120, 16, UI_COLOR_BG);
+    Tft_Driver_Fill_Rect(0, 0, 130, 16, UI_COLOR_BG);
     snprintf(buf, sizeof(buf), "%c %.2f", cfg->label, (double)val);
     Tft_Driver_Show_String(0, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+
+    /* FREQ-only badge */
+    if (cfg->label == 'F') {
+        Inverter_Control_Soft_Start_State sw_state = Inverter_Control_Soft_Start_Get_State();
+        const char* badge_text;
+        uint16_t badge_color;
+        if      (sw_state == INVERTER_CONTROL_SS_STATE_SWEEP)
+            { badge_text = "SWP"; badge_color = UI_COLOR_VALUE; }
+        else if (sw_state == INVERTER_CONTROL_SS_STATE_DONE)
+            { badge_text = "DON"; badge_color = UI_COLOR_OK; }
+        else
+            { badge_text = "IDL"; badge_color = UI_COLOR_DIM; }
+        Tft_Driver_Show_String(0, 15, badge_text, badge_color, UI_COLOR_BG);
+    }
 }
 
 /* ── 6 thin wrappers for the old function-pointer call sites ── */
