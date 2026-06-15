@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT` |
-| **版本** | V10 |
+| **版本** | V11 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 ## 复合指令触发规则
@@ -157,19 +157,17 @@ while (1) {
 | 参数 | 值 |
 |:---|:---|
 | 芯片 | ST7735 (非S) 1.8" 128×160 Green Tab (中景园 ZJY180S0800TG01) |
-| SPI | Mode 3 (CPOL=High, CPHA=2Edge), 18MHz, 只写不读 |
+| SPI | Mode 3 (CPOL=High, CPHA=2Edge), 18MHz, 只写不读, DMA1_Channel3 |
 | 分辨率 | 160×128 横屏 |
 | MADCTL | **0xA0** (MY=1,MX=0,MV=1) |
 | SetWin 偏移 | X+1, Y+2 (横屏) |
 | 背光 | PB6, TIM4_CH1 PWM 1kHz (**APB1**) |
 | 颜色 | RGB565 |
-| 字库索引 | `ch - 32` (ASCII), `Cnlk(UTF-8)` 线性搜索 (中文) |
-| 字库位序 | ASCII: `0x01 << b` LSB-first; 中文: `0x01 << bit` LSB-first |
-| 字库文件 | `TFT_Font.h` (95字符 8x16), `TFT_CN_Font.h` (78汉字 16x16) |
-| 中文字符宽 | 2列 (16px), ASCII 1列 (8px) |
-| 初始化 | 硬件复位 → SLPOUT → FRMCTR → PWCTR → GAMMA → COLMOD → DISPON (**无 SWRESET**) |
-| 行号对应 | 代码 line 0-7 = 显示行 1-8 |
-| 图标元素 | `TFT_Img.h`: WIFI_ICON[4], WIFI_CONNECT_ANIM[6], WIFI_OFF, WIFI_REMOVE, MQTT_ICON/MQTT_YES/MQTT_NO, MQTT_ANIM[6], ICON_STAR |
+| DMA架构 | V11: 缓冲→DMA一发完成 (MINC=1), Fill用MINC=0同色泵送, 零WrD16 |
+| 字库 | 8×16 ASCII (95字符), 16×16 中文 (78汉字), **5×10 微型数字 (12字符)** |
+| 字库位序 | 全部 LSB-first (bit0=最左像素) |
+| s_dma_buf[256] | 512B 静态缓冲区, 通用像素解码 |
+| 图标元素 | `TFT_Img.h`: WIFI_ICON[4], WIFI_CONNECT_ANIM[6], MQTT 3态+6帧, ICON_STAR |
 
 ## PWM 基线 (不可改)
 
@@ -283,37 +281,45 @@ while (1) {
 - **POWER LED**: 与 PB10 同步, >12V 亮
 - **上电初始**: PB10 拉低 (关断 12V, 安全态)
 
-## UI 状态机 (V10 — 两级菜单架构)
+## UI 状态机 (V11 — 两级菜单 + 环形仪表盘)
 
 **9 页面** (扁平枚举, 栈式导航):
 
-```
-UI_PAGE_MAIN_MENU          (0) ← 4项主菜单
-  ├─ 1.启动/停止 PWM
-  ├─ 2.状态监测 → UI_PAGE_MONITOR_SUB_MENU (1) ← 5项子菜单
-  │     ├─ 1.综合监测 → UI_PAGE_MONITOR_SUMMARY (3)
-  │     ├─ 2.监测频率 → UI_PAGE_MONITOR_FREQ    (4)
-  │     ├─ 3.监测电压 → UI_PAGE_MONITOR_VOLT    (5)
-  │     ├─ 4.监测电流 → UI_PAGE_MONITOR_CURR    (6)
-  │     └─ 5.返回主菜单
-  ├─ 3.无线配网 → UI_PAGE_WIFI_SETUP  (7)
-  └─ 4.故障清除 → UI_PAGE_FAULT       (8) (仅FAULT时启用)
+**MENU pages** (沿用 V10 架构): MAIN_MENU, MONITOR_SUB_MENU, SWEEP, MONITOR_SUMMARY, WIFI_SETUP, FAULT — 增量刷新, 光标=ICON_STAR, 200ms 节流.
 
-UI_PAGE_SWEEP (2) — 扫频中自动进入
-UI_PAGE_FAULT (8) — 过流自动跳转
-```
+**GAUGE pages** (V11 新增环形仪表盘): MONITOR_FREQ(), MONITOR_VOLT(), MONITOR_CURR() — **全屏 160×128 无 Header/Divider/Bottom**, sin 查表极坐标, Bresenham 5 线剑形指针, 5×10 微数字标注。
 
-**子菜单滚动**: 5项显示在 4 行窗口中, 光标 ≥3 时内容上滚 (visible_top = cursor-2), 循环光标。
+### 环形仪表盘引擎 (Ui_Controller.c)
 
-**菜单项渲染**: 选中行=青色底+黑字+ICON_STAR菱形图标(左对齐col=0), 未选中行=黑底白字, 所有文字从 col=2 开始保持对齐。
+| 组件 | 实现 |
+|:---|:---|
+| sin 查表 | `GAUGE_SIN[]` 185 元素 int16_t, 自动计数, 724B ROM |
+| 极坐标 | `Gauge_Polar(a, r, &x, &y)` — a=0°=左, 90°=顶, 180°=右 |
+| 圆心 | (80, 100), 弧 R=65, 刻度外端 R=68, 大/中/细内端 R=50/58/62 |
+| 白弧 | 0°→red_start°, 3重2×2块填充 (3px宽) |
+| 红弧 | red_start°→180°, 同粗, UI_COLOR_ALARM |
+| 指针 | `Draw_Pointer(a, color)` — 5根 Bres_Line 紧挨拼成 5px 宽剑形, PTR_LEN=46 (R_BIG-4, 不触刻度) |
+| Hub | `Draw_Hub()` — 逐行 Fill_Rect 填充 4 层 (底圆+r10 外圈+r7 中圈+r4 红核+高光), 80 次 SPI |
+| 微数字 | `Tft_Driver_Show_5x10_String_Pixel()` — R=75 处标注大刻度值 |
+| WIFI+MQTT | `Draw_TopRight_Icons()` — WIFI@x=128, MQTT@x=144, 位置不变 |
+| 左上值 | 8×16 白字 `V 12.50` / `C 1.250` / `F 125.0` |
+| Badge | 右上角 3 字符: V/C 页 OK/WRN/HI, F 页 SWP/DON/IDL |
 
-**关键状态变量**: `s_page` (当前页), `s_menu_cursor` (菜单光标), `s_no_wifi_mode` (无WiFi标志), `s_user_target_hz`/`s_user_target_synced` (频率步进目标/已同步).
+### GaugeConfig 三表参数
 
-**绘制策略**: 页面切换→清屏全绘; 光标移动→增量重绘(仅擦旧行+绘新行); 200ms 节流; 每帧 Header(WIFI+MQTT双图标)刷新保证动画流畅。
+| 参数 | 电压 V | 电流 C | 频率 F |
+|:---|:---|:---|:---|
+| range | 0→48 | 0→3 | 95→150 |
+| big_step | 5 | 0.5 | 10 |
+| mid_step | 1 | 0.1 | 2 |
+| fine_step | 0.5 | 0.05 | 1 |
+| red_start | 42 | 2.7 | 143 |
 
-**WIFI角标**: `Draw_Header(title)` — 第1行: 标题左对齐(黄) + MQTT云(x=128) + WIFI(x=144)。三层检查: `s_no_wifi_mode` → `Esp8266_Driver_Is_Ready()` → `App_Network_Get_Connect_Status()`
+### 增量刷新 (V11)
 
-**无WIFI模式**: 双击ON连接WiFi → `Start_Connect()`; 双击ON断开WiFi → `s_no_wifi_mode=1; Soft_Reset()`
+- **入场**: `Draw_Gauge_Full()` — Tft_Driver_Clear + 弧+刻度+指针+Hub+值 ~20ms
+- **200ms**: `Gauge_Dynamic_Update()` — 擦旧针(黑Bres_Line) + Draw_Hub + 绘新针 + 左上值 + Badge, 角度不变时仅 Draw_Hub
+- **WIFI**: Phase 0 帧差检测 → `Draw_TopRight_Icons()` 仅更新 WIFI+MQTT 图标
 
 ### 按键功能 (V10)
 
@@ -402,14 +408,14 @@ UI_PAGE_FAULT (8) — 过流自动跳转
 行7: [OFF:停止 右对齐 白]
 ```
 
-**画面7-9: MONITOR_FREQ/VOLT/CURR (仪表盘)**
+**画面7-9: MONITOR_FREQ/VOLT/CURR (V11 环形仪表盘)**
 ```
-行0: [监测频率/电压/电流 左对齐 黄]  [MQTT云] [WIFI]
-行1: --------------------
-行3: 频率F:xxx.xkHz / 电压V:xx.xxV / 电流I:x.xxA [居中 青]
-行5: 能量条 (范围 95-150k/0-48V/0-3A)
-行6: [95/0/0 左对齐 黄] [150/48/3 右对齐 黄]
-行7: [双击Back 左对齐 白] [切页F/V/I 右对齐 白]
+全屏 160×128 无 Header/Divider/Bottom
+  圆心(80,100), 弧 R=65, 三层刻度 + 5×10 微数字
+  白弧 0°→红区, 红弧→180°
+  5线 Bresenham 红色剑形指针 + 金属 Hub
+  左上角: V 12.50 / C 1.250 / F 125.0
+  右上角: Badge(OK/WRN/HI 或 SWP/DON/IDL) + WIFI@128 + MQTT@144
 ```
 
 **WIFI角标颜色规则:**
@@ -484,7 +490,7 @@ typedef char assertion[(condition) ? 1 : -1];
 - 不写 HOW (代码本身说明), 只写 WHY (为什么这样做, 踩过什么坑)
 
 ### 文件大小
-≤800行/文件, ≤50行/函数 (当前 `Ui_Controller.c` 963行略微超限, 因其包含全部9页面绘制逻辑)
+≤800行/文件, ≤50行/函数 (当前 `Ui_Controller.c` ~1200行, 因其包含全部9页面+环形仪表盘引擎)
 
 ### 全桥 PWM 基线 (重构不改, 关系到全桥是否输出波形)
 - `TIM_CounterMode_Up` — 不可改为 CenterAligned (频率公式不同, 两路 CH1=PWM1+CH2=PWM2 配合 Up 计数实现对角线交替导通)
@@ -629,3 +635,13 @@ void HardFault_Handler(void) {
 ```bash
 git add -A && git commit -m "..." && git push origin 4.0TFT
 ```
+
+## TFT 注意事项
+
+- **Fill_Rect(1,1) 陷阱**: 每像素一次 SetWin + SPI 模式切换 + DMA 等待, 高频调用引发 SPI 片选饱和导致横竖线条纹。Hub/指针应逐行 Fill_Rect 一次性填充, 非逐像素。
+- **指针长度严格小于刻度内径**: PTR_LEN=46 < R_BIG=50, 黑线擦除不伤刻度, 实现图层物理隔离。
+- **DMA 传输后必须等待 BSY**: `while(SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY))` 确保最后一帧发完再拉高 CS。
+- **SPI 8→16→8 切换**: 每次 DMA 传输前后必须停 SPI, 切 DFF, 重开 SPI。
+- **sin 表声明不用显式长度**: `static const int16_t GAUGE_SIN[]` 让编译器自动计数, 避免 #146 too many initializer values。
+- **WIFI(x=128) + MQTT(x=144) 位置不变**: Draw_Header 和 Draw_TopRight_Icons 使用相同坐标。
+- **PCtoLCD2002 取模配置**: 字符模式, 行主序, LSB-first, 宽度对齐到字节。5×10 每字 10 字节。
