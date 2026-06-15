@@ -71,14 +71,6 @@
 #define S_BOTTOM_L_CONT    "ON:\xe7\xbb\xa7\xe7\xbb\xad"           /* ON:继续 */
 #define S_BOTTOM_L_TUNE    "F+/F-:\xe8\xb0\x83\xe9\xa2\x91"        /* F+/F-:调频 */
 #define S_BOTTOM_R         "PAGE:\xe8\xbf\x94\xe5\x9b\x9e"         /* PAGE:返回 */
-#define S_HUD_L            ">>> "
-#define S_HUD_R            " <<<"
-#define S_BADGE_OK         "[OK]"
-#define S_BADGE_WARN       "[WARN]"
-#define S_BADGE_HI         "[HI]"
-#define S_SWEEP_BADGE      "[SWEEP]"
-#define S_DONE_BADGE       "[DONE]"
-#define S_IDLE_BADGE       "[IDLE]"
 #define S_ON_DISCONNECT   "ON:\xe6\x96\xad\xe5\xbc\x80WIFI"
 #define S_ON_CONNECT      "ON:\xe8\xbf\x9e\xe6\x8e\xa5WIFI"
 #define S_LONG_CLEAR      "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI
