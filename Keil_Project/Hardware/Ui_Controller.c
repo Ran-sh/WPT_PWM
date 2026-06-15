@@ -318,7 +318,6 @@ static void Draw_Main_Menu_Full(void)
     /* Track state for incremental updates */
     s_last_is_running    = is_running;
     s_last_is_fault_menu = is_fault;
-    s_last_cursor_idx    = s_menu_cursor;
 }
 
 /* ── MAIN_MENU cursor move: erase old ▶ + draw new ▶ (2 chars total) ── */
@@ -326,7 +325,6 @@ static void Main_Menu_Cursor_Update(uint8_t old_cursor)
 {
     Erase_Cursor(2 + old_cursor);
     Draw_Cursor(2 + s_menu_cursor);
-    s_last_cursor_idx = s_menu_cursor;
 }
 
 /* ── MAIN_MENU 200ms dynamic: only redraw if PWM/fault state changed ── */
@@ -400,7 +398,6 @@ static void Draw_Sub_Menu_Full(void)
     Tft_Driver_Show_CN_String(7, Right("\xe8\xbf\x94\xe5\x9b\x9e"),
         "\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
 
-    s_last_cursor_idx  = s_menu_cursor;
     s_last_sub_visible = visible_top;
 }
 
@@ -434,7 +431,6 @@ static void Sub_Menu_Cursor_Update(uint8_t old_cursor)
         Draw_Cursor(new_line);
     }
 
-    s_last_cursor_idx  = s_menu_cursor;
     s_last_sub_visible = new_visible;
 }
 
@@ -1241,7 +1237,6 @@ void Ui_Controller_Task(void)
     if ((uint8_t)s_page != s_last_page) {
         s_last_page  = (uint8_t)s_page;
         s_page_drawn = 0;
-        s_last_cursor_idx = s_menu_cursor;
         /* Invalidate all tracking state */
         s_last_is_running    = 0xFF;
         s_last_is_fault_menu = 0xFF;
