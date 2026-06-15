@@ -756,7 +756,6 @@ static void Draw_Pointer(uint8_t a, uint16_t color)
         }
     }
 }
-}
 
 /* ── 3-layer metallic hub ── */
 static void Draw_Hub(void)
