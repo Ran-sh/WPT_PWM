@@ -892,7 +892,18 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
              (cfg->range_max - cfg->range_min) * 180.0f + 0.5f);
     if (red_a > 180) red_a = 180;
 
-    /* ── red zone arc (R=65, 6px wide, red_start → end) ── */
+    /* ── white zone arc (R=65, 0 → red_start) ── */
+    for (a = 0; a < red_a; a++) {
+        int16_t ax, ay;
+        Gauge_Polar(CPS(a), R_ARC-3, &ax, &ay);
+        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 5, 5, UI_COLOR_TEXT);
+        Gauge_Polar(CPS(a), R_ARC,   &ax, &ay);
+        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 5, 5, UI_COLOR_TEXT);
+        Gauge_Polar(CPS(a), R_ARC+3, &ax, &ay);
+        Tft_Driver_Fill_Rect((uint16_t)ax, (uint16_t)ay, 5, 5, UI_COLOR_TEXT);
+    }
+
+    /* ── red zone arc (R=65, red_start → end) ── */
     for (a = red_a; a <= 180; a++) {
         int16_t ax, ay;
         Gauge_Polar(CPS(a), R_ARC-3, &ax, &ay);
