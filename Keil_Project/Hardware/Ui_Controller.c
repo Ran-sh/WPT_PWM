@@ -784,7 +784,6 @@ static void Draw_Hub(void)
             if ((int32_t)x*x*2 + (int32_t)y*y*4 <= 20)
                 Tft_Driver_Fill_Rect((uint16_t)(80+x),(uint16_t)(100+y),1,1,0xC618);
 }
-}
 
 /* ── WIFI icon + MQTT cloud (top-right, for gauge pages) ── */
 static void Draw_TopRight_Icons(void)
