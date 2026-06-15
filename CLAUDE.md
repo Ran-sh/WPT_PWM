@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT` |
-| **版本** | V9 |
+| **版本** | V10 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 ## 复合指令触发规则
@@ -19,11 +19,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. 全面代码审查，修复发现的问题 (CRITICAL/HIGH 必须修)
 2. `/init` — 重新生成 CLAUDE.md（包含完整画面布局 + 编码规范 + 架构 + 安全基线）
 3. 更新 `embedded-architect` skill (`Claude_Files/docs/embedded-architect-system-prompt.md` → `~/.claude/skills/embedded-architect/SKILL.md`)
-4. 更新全部文档 (`Claude_Files/docs/` 下 `.md` + `.docx` 配对生成)
-5. 美化 GitHub README.md
-6. `git push` 推送当前分支 (4.0TFT)
-
-**执行期间**: 全部权限自动通过，不中断等待用户确认。
+4. 优化全部代码注释（所有源文件检查注释质量，补充 @brief/@param/@note，移除无效注释）
+5. 更新全部文档 (`Claude_Files/docs/` 下 `.md` + `.docx` 配对生成)
+6. 美化 GitHub README.md
+7. `git push` 推送当前分支 (4.0TFT)
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
@@ -71,7 +70,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Iron rule**: STM32 never sends AT commands. ESP8266 never touches PWM/ADC. Communication is pure text JSON over USART2 at 115200bps.
 
-开机默认无WIFI模式，ESP 不自动初始化，用户双击ON手动联网。
+开机默认自动联网，ESP 上电即初始化连接。
 
 ## Pin Mapping (STM32F103C8 LQFP-48)
 
@@ -100,16 +99,17 @@ TIM1 默认映射（不执行重映射），SPI1 默认映射。JTAG 禁用释�
 Keil_Project/
 ├── Hardware/
 │   ├── Tft_Driver        ← ST7735 SPI 彩屏, 160x128 横屏 RGB565
-│   ├── TFT_CN_Font       ← 73汉字 16x16 宋体字库 (LSB-first)
+│   ├── TFT_CN_Font       ← 78汉字 16x16 宋体字库 (LSB-first)
 │   ├── TFT_Font          ← 95 ASCII 8x16 字库 (LSB-first)
+│   ├── TFT_Img           ← 图标字模: WIFI(4+6帧), MQTT(3态+6帧动画), ICON_STAR
 │   ├── Pwm_Driver        ← TIM1 全桥 PWM (95-150kHz, 1000ns死区)
-│   ├── Inverter_Control  ← 软启动状态机 + 频率斜坡 (应用层)
+│   ├── Inverter_Control  ← 软启动状态机 + 频率斜坡 + Cancel
 │   ├── Adc_Driver        ← ADC1 双通道 + 64样本滑动窗口 + EMA
 │   ├── Key_Driver        ← 4键 FSM, 10ms去抖, 单击/双击/长按
 │   ├── Led_Driver        ← 6 LED 驱动 (快闪/慢闪/常亮/灭)
 │   ├── Buzzer_Driver     ← 蜂鸣器驱动
 │   ├── Esp8266_Driver    ← USART2 115200, CH_PD+RST 非阻塞初始化
-│   ├── Ui_Controller     ← 6态界面状态机 + TFT绘制 + 按键分发 + LED联动
+│   ├── Ui_Controller     ← V10 两级菜单架构 (9页面)
 │   └── Energy_Bar        ← 像素级动态能量条 (绿→红渐变)
 ├── System/
 │   └── Sys_Timer         ← SysTick 1ms + DWT 周期计数器
@@ -129,7 +129,7 @@ Keil_Project/
 while (1) {
     Key_Driver_Task();                  // 10ms  4键独立FSM轮询
     Adc_Driver_Filter_Task();           // ~2ms  ADC DMA + 滑动窗口滤波
-    Ui_Controller_Task();               // 200ms UI状态机 + 绘制 + PB10 + 过流
+    Ui_Controller_Task();               // 200ms UI状态机 + 页面绘制 + 按键分发 + PB10 + 过流
     App_Network_Task();                 //       ESP初始化 + 重试 + 指令 + 遥测
     Inverter_Control_Soft_Start_Task(); // 10ms  扫频 150k→100kHz, 200Hz/步
     Inverter_Control_Freq_Ramp_Task();  // 10ms  频率微调 1kHz/步
@@ -140,15 +140,15 @@ while (1) {
 }
 ```
 
-## 启动流程 (V9)
+## 启动流程 (V10)
 
 ```
 上电 → 阶段0: 最早钳位 PA1=0, PB11=0 (ESP RST+CH_PD)
-     → 阶段1: Pwm_Driver_Init(TIM1全关) + TFT/LED/Buzzer/ADC/Key 初始化
-     → TFT 启动页画面
+     → 阶段1: Pwm_Driver_Init(TIM1全关) + PB10拉低 + TFT/LED/Buzzer/ADC/Key 初始化
+     → TFT 启动页画面 + 背光开启
      → 阶段2: Sys_Timer_Init (SysTick + DWT) + Led_Set_System(1)
      → 阶段3: IWDG_Init (1.6s), DBGMCU 停止 (调试安全)
-     → 阶段4: 开机默认无WIFI (ESP不初始化, 用户双击ON联网)
+     → 阶段4: 开机自动联网 (App_Network_Start_Connect, ESP WiFiManager 记忆配网)
      → while(1) 主循环
 ```
 
@@ -165,10 +165,11 @@ while (1) {
 | 颜色 | RGB565 |
 | 字库索引 | `ch - 32` (ASCII), `Cnlk(UTF-8)` 线性搜索 (中文) |
 | 字库位序 | ASCII: `0x01 << b` LSB-first; 中文: `0x01 << bit` LSB-first |
-| 字库文件 | `TFT_Font.h` (95字符 8x16), `TFT_CN_Font.h` (73汉字 16x16) |
+| 字库文件 | `TFT_Font.h` (95字符 8x16), `TFT_CN_Font.h` (78汉字 16x16) |
 | 中文字符宽 | 2列 (16px), ASCII 1列 (8px) |
 | 初始化 | 硬件复位 → SLPOUT → FRMCTR → PWCTR → GAMMA → COLMOD → DISPON (**无 SWRESET**) |
 | 行号对应 | 代码 line 0-7 = 显示行 1-8 |
+| 图标元素 | `TFT_Img.h`: WIFI_ICON[4], WIFI_CONNECT_ANIM[6], WIFI_OFF, WIFI_REMOVE, MQTT_ICON/MQTT_YES/MQTT_NO, MQTT_ANIM[6], ICON_STAR |
 
 ## PWM 基线 (不可改)
 
@@ -176,7 +177,7 @@ while (1) {
 - **映射**: 默认映射 (不调用 `GPIO_PinRemapConfig`)
 - **模式**: `TIM_CounterMode_Up`, CH1=`TIM_OCMode_PWM1`, CH2=`TIM_OCMode_PWM2`
 - **占空比**: 50% 固定 (`TIM_Pulse = ARR/2`)
-- **极性**: `TIM_OCNPolarity_Low` (IR2103S LIN 引脚低有效)
+- **极性**: `TIM_OCNPolarity_Low` (IR2103S LIN 低有效)
 - **空闲态**: `TIM_OCIdleState_Reset`, `TIM_OCNIdleState_Reset` (MOE=0 时上下管全关)
 - **死区**: 1000ns, 编译期计算 `DTG = 72*1000/1000 = 72`
 - **频率**: 95kHz~150kHz (`PWM_DRIVER_FREQ_MIN_HZ`/`MAX_HZ`)
@@ -243,7 +244,9 @@ while (1) {
 |:---|:---|
 | 步进 | 1kHz/步, 10ms/步 |
 | 范围 | 95kHz~150kHz |
-| 来源 | 按键 F+/F- 或远程 CMD:SETFREQ: |
+| 来源 | F+/F- 按键 或 远程 CMD:SETFREQ: |
+
+**V10 新增**: `Freq_Ramp_Cancel()` — 手动按键时取消远程斜坡，避免竞态。F+/F- 用 `s_user_target_hz` 按 1kHz 粒度追踪逻辑目标，避免整数分频偏差累积导致频率非单调跳变。
 
 ### 安全
 - `Soft_Start_Reset()` 从 FAULT 恢复: 关PWM + 重置频率 + 清斜坡
@@ -274,174 +277,157 @@ while (1) {
 
 ## PB10 PowerContrl
 
-- **逻辑**: 低电平=使能 12V, 高电平=关断 12V
-- **控制**: 仅受电压阈值控制, 与 PWM 开关**完全独立**
+- **逻辑**: 高使能/低关断 12V (与 PWM 开关**完全独立**)
   - `Adc_Driver_Get_Voltage() > 12V` → 拉低使能
   - `Adc_Driver_Get_Voltage() ≤ 12V` → 拉高关断
 - **POWER LED**: 与 PB10 同步, >12V 亮
 - **上电初始**: PB10 拉低 (关断 12V, 安全态)
 
-## UI 状态机 (V9)
+## UI 状态机 (V10 — 两级菜单架构)
 
-**6 态**: `UI_CONTROLLER_STATE_INIT` → `FAILED` → `READY` → `SWEEPING` → `RUNNING` → `FAULT`
+**9 页面** (扁平枚举, 栈式导航):
 
-**子页**: `s_page` = 0 综合/扫频, 1 频率表, 2 电压表, 3 电流表
+```
+UI_PAGE_MAIN_MENU          (0) ← 4项主菜单
+  ├─ 1.启动/停止 PWM
+  ├─ 2.状态监测 → UI_PAGE_MONITOR_SUB_MENU (1) ← 5项子菜单
+  │     ├─ 1.综合监测 → UI_PAGE_MONITOR_SUMMARY (3)
+  │     ├─ 2.监测频率 → UI_PAGE_MONITOR_FREQ    (4)
+  │     ├─ 3.监测电压 → UI_PAGE_MONITOR_VOLT    (5)
+  │     ├─ 4.监测电流 → UI_PAGE_MONITOR_CURR    (6)
+  │     └─ 5.返回主菜单
+  ├─ 3.无线配网 → UI_PAGE_WIFI_SETUP  (7)
+  └─ 4.故障清除 → UI_PAGE_FAULT       (8) (仅FAULT时启用)
 
-**Calc_Ui_State()**: 先查 FAULT → ESP未就绪回 INIT/FAILED → 有WIFI查网络状态 → 无WIFI查逆变器
+UI_PAGE_SWEEP (2) — 扫频中自动进入
+UI_PAGE_FAULT (8) — 过流自动跳转
+```
 
-**WIFI角标**: `Draw_Header(title)` — 第1行: 标题左对齐(黄) + 角标右对齐。绿色=在线, 蓝色逐字闪烁(W→WI→WIF→WIFI, 600ms/帧)=连接中, 红色=离线, 红色"无WIFI"=无WiFi模式。三层检查: `s_no_wifi_mode` → `Esp8266_Driver_Is_Ready()` → `App_Network_Get_Connect_Status()`
+**子菜单滚动**: 5项显示在 4 行窗口中, 光标 ≥3 时内容上滚 (visible_top = cursor-2), 循环光标。
+
+**菜单项渲染**: 选中行=青色底+黑字+ICON_STAR菱形图标(左对齐col=0), 未选中行=黑底白字, 所有文字从 col=2 开始保持对齐。
+
+**关键状态变量**: `s_page` (当前页), `s_menu_cursor` (菜单光标), `s_no_wifi_mode` (无WiFi标志), `s_user_target_hz`/`s_user_target_synced` (频率步进目标/已同步).
+
+**绘制策略**: 页面切换→清屏全绘; 光标移动→增量重绘(仅擦旧行+绘新行); 200ms 节流; 每帧 Header(WIFI+MQTT双图标)刷新保证动画流畅。
+
+**WIFI角标**: `Draw_Header(title)` — 第1行: 标题左对齐(黄) + MQTT云(x=128) + WIFI(x=144)。三层检查: `s_no_wifi_mode` → `Esp8266_Driver_Is_Ready()` → `App_Network_Get_Connect_Status()`
 
 **无WIFI模式**: 双击ON连接WiFi → `Start_Connect()`; 双击ON断开WiFi → `s_no_wifi_mode=1; Soft_Reset()`
 
-### 按键功能
+### 按键功能 (V10)
 
-| 按键 | 事件 | 生效状态 | 功能 |
+| 按键 | 事件 | 生效状态/页面 | 功能 |
 |:---|:---|:---|:---|
-| ON/OFF | 单击 | READY | 启动扫频 (不检查电压) |
-| ON/OFF | 单击 | SWEEPING/RUNNING | 停止 PWM (关计数器+MOE) |
-| ON/OFF | 单击 | FAULT | 复位逆变器状态 (`Soft_Start_Reset`) |
-| ON/OFF | 双击 | 全部 | 智能WiFi: `Is_WiFi_Online()`→断开, 离线→连接 |
+| ON/OFF | 单击 | 菜单页 | 确认/进入 (启动PWM/切换启停/进入子项) |
+| ON/OFF | 单击 | SWEEPING/RUNNING | 停止 PWM |
+| ON/OFF | 单击 | FAULT | 复位逆变器 (`Soft_Start_Reset`) |
+| ON/OFF | 双击 | 全部 | 智能WiFi: 在线→断开, 离线→连接 |
 | ON/OFF | 长按 | 全部 | 清除WiFi配网 + 进入无WIFI |
-| PAGE | 单击 | SWEEPING/RUNNING | 切子页 (0→1→2→3→0) |
-| PAGE | 单击 | FAILED/READY | 进入无WIFI调试 |
-| PAGE | 双击 | SWEEPING/RUNNING | 回到综合监测 (子页0) |
-| F+ | 单击 | RUNNING | 频率 +1kHz |
-| F- | 单击 | RUNNING | 频率 -1kHz |
+| PAGE | 单击 | RUNNING仪表盘 | 切子页 (综合→频率→电压→电流→综合) |
+| PAGE | 单击 | 菜单以外的非运行页 | 进入无WIFI调试 |
+| PAGE | 双击 | RUNNING | 回到综合监测 |
+| F_UP | 单击 | 菜单 | 光标上移 (循环) |
+| F_UP | 单击 | RUNNING | 频率 +1kHz (基于逻辑目标, 单调递增) |
+| F_DOWN | 单击 | 菜单 | 光标下移 (循环) |
+| F_DOWN | 单击 | RUNNING | 频率 -1kHz (基于逻辑目标, 单调递减) |
+
+### 频率步进 (V10 修复)
+
+**问题**: F+/F- 用 `Get_Frequency()` 实际值 (整数分频偏离) +1kHz → `Set_Frequency` 导致非单调跳变 (例如 101.1→101.0→102.9).
+
+**修复**: 引入 `s_user_target_hz` 追踪逻辑 kHz 目标。首次按键从实际频率四舍五入到最近 kHz 同步, 之后严格 ±1000Hz 步进, 不受整数分频累积偏差影响。同时 `Freq_Ramp_Cancel()` 防止手动步进与远程斜坡竞态。
 
 ### 完整画面布局 (代码 line 0-7 = 显示行 1-8)
 
-**画面1: INIT — 启动页**
-第1行，显示【启动页】【左对齐】【黄色】，显示【WIFI】【右对齐】【绿色=在线 蓝色=连接中闪烁 红色=离线】
-第2行，显示【连接中 1/3】【右对齐】【白色】仅连接中时显示，其他状态空
-第3行，空
-第4行，显示【电压V:xx.xxV】【居中】【蓝色】
-第5行，显示【电流I:+x.xxA】【居中】【蓝色】
-第6行，空
-第7行，显示【双击ON连接WIFI】【右对齐】【白色】WiFi在线时改为【双击ON断开WIFI】
-第8行，显示【PAGE:无WIFI模式】【右对齐】【白色】
+**画面1: MAIN_MENU (主菜单)**
+```
+行0: [WPT-PWM 标题 左对齐 黄]  [MQTT云] [WIFI]
+行1: --------------------
+行2: 1.启动/停止PWM         ← 动态文字(运行中=停止PWM)
+行3: 2.状态监测
+行4: 3.无线配网             ← cursor 0-2 (非FAULT)
+行5: 4.故障清除             ← 仅FAULT时启用, 否则灰色
+行6: --------------------
+行7: [ON:确认 PAGE:返回 右对齐 白]
+```
 
-**画面2: FAILED — 连接失败**
-第1行，显示【启动页】【左对齐】【黄色】，显示【WIFI】【右对齐】【红色】
-第2行，显示【连接失败】【右对齐】【红色】
-第3行，空
-第4行，显示【电压V:xx.xxV】【居中】【蓝色】
-第5行，显示【电流I:+x.xxA】【居中】【蓝色】
-第6行，空
-第7行，显示【双击ON重连WIFI】【右对齐】【白色】
-第8行，显示【PAGE:无WIFI模式】【右对齐】【白色】
+**画面2: MONITOR_SUB_MENU (监测子菜单)** — 4行滚动窗口
+```
+行0: [状态监测 标题 左对齐 黄]  [MQTT云] [WIFI]
+行1: --------------------
+行2-5: 1.综合监测 / 2.监测频率 / 3.监测电压 / 4.监测电流 / 5.返回主菜单
+       (可见窗口4行, cursor≥3时内容上滚)
+行6: --------------------
+行7: [返回 右对齐 白]
+```
 
-**画面3: READY — 待命**
-第1行，显示【启动页】【左对齐】【黄色】，显示【WIFI】【右对齐】【绿色】
-第2行，空
-第3行，空
-第4行，显示【ON:启动扫频】【居中】【绿色】
-第5行，空
-第6行，空
-第7行，空
-第8行，显示【双击ON断开WIFI】【居中】【白色】WiFi离线时改为【双击ON连接WIFI】
+**画面3: WIFI_SETUP (无线配网)**
+```
+行0: [启动页 左对齐 黄]  [MQTT云] [WIFI]
+行1: --------------------
+行2: 无线状态: 连接成功/连接失败/连接中/未连接  [白]
+行3: 重试 1/3  [仅连接中显示, 其余擦除]
+行5: [ON:连接/断开WIFI 右对齐]
+行6: [长按ON: 清除WIFI 右对齐 红]
+行7: --------------------
+```
 
-**画面4: SWEEPING — 扫频中**
+**画面4: FAULT (过流故障)**
+```
+行0: [!!!故障!!! 左对齐 红]  [MQTT云] [WIFI]
+行3: 过流保护 [居中 红]
+行5: PWM已关断 [居中 白]
+行7: [ON:复位重启 右对齐 白]
+```
 
-子页0: 扫频进度
-第1行，显示【扫频页】【左对齐】【黄色】，显示【WIFI】【右对齐】【颜色同规则】
-第2行，空
-第3行，显示【频率F:xxx.xkHz】【白色】左对齐
-第4行，能量条(像素) + 百分比文字
-第5行，显示【电压V:xx.xxV】【居中】【蓝色】
-第6行，显示【电流I:+x.xxA】【居中】【蓝色】
-第7行，空
-第8行，显示【OFF:停止扫频】【右对齐】【白色】
+**画面5: SWEEP (扫频)** — 仅子页0
+```
+行0: [扫频页 左对齐 黄]  [MQTT云] [WIFI]
+行1: --------------------
+行2: 频率F:xxx.xkHz [白 左对齐]
+行3-4: 能量条(像素级) + 百分比
+行5: 电压V:xx.xxV [居中 蓝]
+行6: 电流I:+x.xxA [居中 蓝]
+行7: [OFF:停止扫频 右对齐 白]
+```
 
-子页1: 频率仪表盘
-第1行，显示【监测频率】【左对齐】【黄色】，显示【WIFI】【右对齐】【颜色同规则】
-第2行，空
-第3行，显示【频率F:xxx.xkHz】【居中】【青色】
-第4行，空
-第5行，能量条 (全宽像素, 范围 95~150kHz)
-第6行，显示【95】【左对齐】【黄色】，显示【150】【右对齐】【黄色】
-第7行，空
-第8行，显示【切页F】【右对齐】【白色】
+**画面6: MONITOR_SUMMARY (综合监测)**
+```
+行0: [监测模式 左对齐 黄]  [MQTT云] [WIFI]
+行1: --------------------
+行3: 频率F:xxx.xkHz [居中 白]
+行4: 电压V:xx.xxV [居中 白]
+行5: 电流I:+x.xxA [居中 白]
+行7: [OFF:停止 右对齐 白]
+```
 
-子页2: 电压仪表盘
-第1行，显示【监测电压】【左对齐】【黄色】，显示【WIFI】【右对齐】【颜色同规则】
-第2行，空
-第3行，显示【电压V:xx.xxV】【居中】【青色】
-第4行，空
-第5行，能量条 (居中像素, 范围 0~48V)
-第6行，显示【0】【左对齐】【黄色】，显示【48】【右对齐】【黄色】
-第7行，空
-第8行，显示【切页V】【右对齐】【白色】
-
-子页3: 电流仪表盘
-第1行，显示【监测电流】【左对齐】【黄色】，显示【WIFI】【右对齐】【颜色同规则】
-第2行，空
-第3行，显示【电流I:x.xxA】【居中】【青色】
-第4行，空
-第5行，能量条 (居中像素, 范围 0~3A)
-第6行，显示【0】【左对齐】【黄色】，显示【3】【右对齐】【黄色】
-第7行，空
-第8行，显示【切页I】【右对齐】【白色】
-
-**画面5: RUNNING — 运行中**
-
-子页0: 综合监测
-第1行，显示【监测模式】【左对齐】【黄色】，显示【WIFI】【右对齐】【颜色同规则】
-第2行，空
-第3行，显示【频率F:xxx.xkHz】【居中】【白色】
-第4行，显示【电压V:xx.xxV】【居中】【白色】
-第5行，显示【电流I:+x.xxA】【居中】【白色】
-第6行，空
-第7行，显示【OFF:停止】【右对齐】【白色】
-第8行，显示【切页F】【右对齐】【白色】
-
-子页1: 频率表
-第1行，显示【监测频率】【左对齐】【黄色】，显示【WIFI】【右对齐】【颜色同规则】
-第2行，空
-第3行，显示【频率F:xxx.xkHz】【居中】【青色】
-第4行，空
-第5行，能量条 (居中像素, 范围 95~150kHz)
-第6行，显示【95】【左对齐】【黄色】，显示【150】【右对齐】【黄色】
-第7行，空
-第8行，显示【双击Back】【左对齐】【白色】，显示【切页F】【右对齐】【白色】
-
-子页2: 电压表
-第1行，显示【监测电压】【左对齐】【黄色】，显示【WIFI】【右对齐】【颜色同规则】
-第2行，空
-第3行，显示【电压V:xx.xxV】【居中】【青色】
-第4行，空
-第5行，能量条 (居中像素, 范围 0~48V)
-第6行，显示【0】【左对齐】【黄色】，显示【48】【右对齐】【黄色】
-第7行，空
-第8行，显示【双击Back】【左对齐】【白色】，显示【切页V】【右对齐】【白色】
-
-子页3: 电流表
-第1行，显示【监测电流】【左对齐】【黄色】，显示【WIFI】【右对齐】【颜色同规则】
-第2行，空
-第3行，显示【电流I:x.xxA】【居中】【青色】
-第4行，空
-第5行，能量条 (居中像素, 范围 0~3A)
-第6行，显示【0】【左对齐】【黄色】，显示【3】【右对齐】【黄色】
-第7行，空
-第8行，显示【双击Back】【左对齐】【白色】，显示【切页I】【右对齐】【白色】
-
-**画面6: FAULT — 过流故障**
-第1行，显示【!!!故障!!!】【左对齐】【红色】，显示【WIFI】【右对齐】【颜色同规则】
-第2行，空
-第3行，显示【过流保护】【居中】【红色】
-第4行，空
-第5行，显示【PWM已关断】【居中】【白色】
-第6行，空
-第7行，显示【ON:复位重启】【右对齐】【白色】
-第8行，显示【双击ON无WIFI】【右对齐】【白色】
+**画面7-9: MONITOR_FREQ/VOLT/CURR (仪表盘)**
+```
+行0: [监测频率/电压/电流 左对齐 黄]  [MQTT云] [WIFI]
+行1: --------------------
+行3: 频率F:xxx.xkHz / 电压V:xx.xxV / 电流I:x.xxA [居中 青]
+行5: 能量条 (范围 95-150k/0-48V/0-3A)
+行6: [95/0/0 左对齐 黄] [150/48/3 右对齐 黄]
+行7: [双击Back 左对齐 白] [切页F/V/I 右对齐 白]
+```
 
 **WIFI角标颜色规则:**
 
 | 状态 | 颜色 | 动画 |
 |:---|:---|:---|
-| WiFi在线 | 绿色 | 静态 WIFI |
-| 连接中 | 蓝色 | 逐字闪烁 W→WI→WIF→WIFI |
-| 连接失败/离线 | 红色 | 静态 WIFI |
-| 无WiFi模式 | 红色 | 静态 无WIFI |
+| WiFi在线 | 绿色 | 静态 WIFI_ICON (RSSI分级 0-3格) |
+| 连接中 | 蓝色渐变 | WIFI_CONNECT_ANIM 6帧 (150ms/帧) |
+| 连接失败/离线 | 红色 | WIFI_OFF_ICON 静态 |
+| 无WiFi模式 | 红色 | WIFI_REMOVE_ICON 静态 |
+
+**MQTT云颜色规则:**
+
+| 状态 | 颜色 | 动画 |
+|:---|:---|:---|
+| 在线 | 绿色 | MQTT_YES_ICON 静态 |
+| 连接中 | 彩虹渐变(6色) | MQTT_ANIM 6帧 (200ms/帧) |
+| 离线/失败 | 红色 | MQTT_NO_ICON 静态 |
 
 ## 编码规范
 
@@ -452,7 +438,7 @@ while (1) {
 - 公开函数: `Module_Name_Verb_Noun()` — 如 `Tft_Driver_Show_CN_String()`, `Adc_Driver_Get_Voltage()`
 - 静态变量: `s_module_description` — 如 `s_ui_state`, `s_rx_frame_flag`
 - 类型/枚举: `Module_Name_Type` — 如 `Ui_Controller_State`, `Inverter_Control_Soft_Start_State`
-- 枚举值: `MODULE_NAME_ENUM_VALUE` — 全大写+下划线+模块前缀, 如 `LED_DRIVER_STATE_ON`, `INVERTER_CONTROL_SS_STATE_DONE`, `UI_CONTROLLER_STATE_READY`
+- 枚举值: `MODULE_NAME_ENUM_VALUE` — 全大写+下划线+模块前缀, 如 `LED_DRIVER_STATE_ON`, `INVERTER_CONTROL_SS_STATE_DONE`, `UI_PAGE_MAIN_MENU`
 - 宏常量: `MODULE_NAME_VALUE` — 全大写+下划线+模块前缀, 如 `ADC_DRIVER_VREF_MCU`, `APP_NETWORK_MAX_RETRIES`
 - 静态函数: 建议加模块前缀, 如 `Ui_Controller_Draw_Running()`
 - 头文件保护: `MODULE_NAME_H` (无前导下划线, 避免 C 保留标识符)
@@ -498,7 +484,7 @@ typedef char assertion[(condition) ? 1 : -1];
 - 不写 HOW (代码本身说明), 只写 WHY (为什么这样做, 踩过什么坑)
 
 ### 文件大小
-≤800行/文件, ≤50行/函数
+≤800行/文件, ≤50行/函数 (当前 `Ui_Controller.c` 963行略微超限, 因其包含全部9页面绘制逻辑)
 
 ### 全桥 PWM 基线 (重构不改, 关系到全桥是否输出波形)
 - `TIM_CounterMode_Up` — 不可改为 CenterAligned (频率公式不同, 两路 CH1=PWM1+CH2=PWM2 配合 Up 计数实现对角线交替导通)
@@ -518,14 +504,13 @@ typedef char assertion[(condition) ? 1 : -1];
 
 ## Safety
 
-- **故障处理**: Fault → 关 PWM (MOE+计数器) → 锁存 FAULT 状态 → 停止扫频任务
-- **FAULT 恢复**: 单击 ON/OFF → `Soft_Start_Reset()` → 回到 READY
+- **故障处理**: Fault → 关 PWM (MOE+计数器) → 锁存 FAULT 状态 → 停止扫频任务 → 蜂鸣器BEEP
+- **FAULT 恢复**: 单击 ON/OFF → `Soft_Start_Reset()` → 回到 MAIN_MENU
 - **PB10**: 高使能/低关断 12V。仅受电压阈值(>12V)控制, 与PWM独立
 - **过流保护**: 每 200ms 用 EMA 平滑值检查 > 5.0A → Fault + Buzzer BEEP
-- **上电安全**: 开机默认无WIFI, TIM1 全关(CEN+MOE), PB10 拉低关12V
+- **上电安全**: TIM1 全关(CEN+MOE), PB10 拉低关12V, 开机自动联网
 - **看门狗**: IWDG, LSI 40kHz/64, reload=1000 → 1.6s, `DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP` 调试时暂停
 - **HardFault**: 所有故障 ISR 先关 PWM 再死循环
-- **启动流程**: 上电→阶段0 钳位 ESP → PWM/TFT/LED/Buzzer/ADC/Key 初始化 → SysTick → IWDG → 主循环
 - **低功耗**: 主循环末尾 `__WFI()` 休眠, SysTick 唤醒, 空闲电流 ~5mA
 - **Library Doctrine**: SPL V3.5.0 ONLY. No HAL/LL functions. 内部函数加模块前缀避免命名冲突
 - **显示平滑 (EMA)**: V/I/F 显示使用指数移动平均 (α=0.25, τ≈800ms)。`Ui_Controller.c` 中 `Update_EMA()` 实现, 状态转移时 `Reset_EMA()` 重置消除收敛滞后
@@ -595,41 +580,20 @@ void HardFault_Handler(void) {
 }
 ```
 
-## V8→V9 代码审查修复清单
+## V9→V10 主要变更
 
-| 级别 | 问题 | 文件 | 修复 |
-|:---|:---|:---|:---|
-| **CRITICAL** | `CMD:SETFREQ:` 硬编码偏移 `+12` | `App_Network.c` | 用 `strstr` 返回值计算偏移 |
-| **CRITICAL** | `CMD:ON`/`CMD:OFF` 模糊匹配 | `App_Network.c` | 加分隔符 `\0`/`\r`/`\n` 检查 |
-| **HIGH** | FAULT 状态无恢复路径 | `Inverter_Control.c` | 新增 `Soft_Start_Reset()` + FAULT 按键复位 |
-| **HIGH** | 频率斜坡状态未清理 | `Inverter_Control.c` | Stop/Fault/Trigger 均重置 `s_ramp_state` |
-| **HIGH** | `App_Network_Start_Connect`/`Soft_Reset` 功能相同 | `App_Network.c` | `Soft_Reset` 改为仅重置状态, 不启动硬件 |
-| **HIGH** | `CMD:OFF` 无状态前置, 可远程清除 FAULT | `App_Network.c` | 仅允许 SWEEP/DONE 状态执行 |
-| **HIGH** | 远程指令无视 `no_wifi_mode` | `App_Network.c` | 加 `Ui_Controller_Is_No_WiFi_Mode()` 门控 |
-| **HIGH** | `Led_Driver_Task`/`Buzzer_Driver_Task` 重复调用 | `Ui_Controller.c` | 从 UI 任务中移除, 仅 main 循环调用 |
-| **HIGH** | 过流保护用 ADC 原始值 | `Ui_Controller.c` | 改用 EMA 平滑 `s_ema_i` |
-| **HIGH** | `s_ramp_state` 声明在引用之后 | `Inverter_Control.c` | 变量声明移到文件顶部 |
-| **MEDIUM** | `APP_NETWORK_CONN_MQTT` 无 case | `Ui_Controller.c` | 添加 MQTT case 归入 INIT |
-| **MEDIUM** | "模"字重复定义 (索引29+73) | `TFT_CN_Font.h` | 删除索引73重复 |
-| **MEDIUM** | `Energy_Bar` range≤0 无声掩盖错误 | `Energy_Bar.c` | 擦除后直接 return |
-| **MEDIUM** | `Filter_To_Voltage` filled==0 除零风险 | `Adc_Driver.c` | 加 `if (filled==0) return 0.0f` |
-| **MEDIUM** | `Adc_Driver_Filter_Task` 锚点双读 | `Adc_Driver.c` | 单次读取 now, 同值用于比较和赋值 |
-| **MEDIUM** | `local_buf[64]` 可能截断长帧 | `App_Network.c` | 扩容到 128 |
-| **MEDIUM** | 心跳超时离线检测误判 | `App_Network.c` | 完全移除 (ESP 无心跳帧) |
-| **LOW** | `PWM_DRIVER_OCNIdleState` = Set 导致开机下管导通 | `Pwm_Driver.c` | 改为 Reset (下管也关断) |
-| **LOW** | TIM1 开机计数器+MOE 全关 | `Pwm_Driver.c` | `TIM_Cmd(DISABLE)`, Enable 时同时开 |
-| **LOW** | PB10 初始拉高=误开 12V | `main.c` | 初始拉低关断 |
-| **LOW** | "模"不在字库 | `TFT_CN_Font.h` | 保留索引29已有字模 |
-| **LOW** | `Adc_Driver_Calibrate_Offset` 死代码 | `Adc_Driver.h` | 加注释说明固定 1.65V 零点 |
-| **LOW** | `s_last_page` 未随 `s_last_state` 重置 | `Ui_Controller.c` | 统一设为 0xFF |
-
-## 文档输出规则
-
-- 每个 `.md` 文档建议在 `Claude_Files/docs/` 存放
-- 代码变更后版本号自增 (逻辑改动 +0.1, 新模块 +1.0, 纯格式日期刷新)
-- "更新文档"时先 diff 再决定是否重写; 无变更则输出 "没有任何文件变化，无需更新"
-- 生成的文件放到指定目录, 不准散落在桌面或其他无关位置
-- 不保留废弃代码和旧文件, 删干净避免维护陷阱
+| 领域 | 变更 |
+|:---|:---|
+| UI 架构 | V9 6态7画面 → V10 两级菜单 9页面 (MAIN_MENU + MONITOR_SUB_MENU) |
+| 菜单渲染 | 纯色反白高亮 + ICON_STAR 菱形图标 (选中行col=0, 文字col=2对齐) |
+| 子菜单 | 5项4行滚动窗口, 光标循环, 增量重绘免闪烁 |
+| 频率步进 | F+/F- 改用 `s_user_target_hz` 逻辑目标, 消除整数分频累积偏差 |
+| 斜坡控制 | 新增 `Freq_Ramp_Cancel()`, 手动步进时取消远程斜坡 |
+| WiFi页面 | buf扩容 21→42字节, 修复"连接成功"显示截断 |
+| 字库 | 78汉字 (曾补"连接成功""失败""清除WIFI"等) |
+| 图标系统 | `TFT_Img.h`: WIFI_ICON[4], WIFI_CONNECT_ANIM[6], WIFI_OFF/REMOVE, MQTT 3态+6帧, ICON_STAR |
+| 自动联网 | 开机自动 `App_Network_Start_Connect()`, 不再默认无WIFI |
+| 绘制策略 | 页面切换全清, 光标移动增量, 200ms节流, Header每帧刷新动画 |
 
 ## ESP8266 Firmware (参考 3.0 基版)
 

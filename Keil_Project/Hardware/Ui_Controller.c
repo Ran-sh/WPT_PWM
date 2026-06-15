@@ -71,6 +71,10 @@ static uint8_t  s_last_page_cleared = 0xFF;
 static float   s_ema_v = 0.0f, s_ema_i = 0.0f, s_ema_f = 0.0f;
 static uint8_t s_ema_ok = 0;
 
+/* User freq stepping — based on target, not actual (avoid integer-division drift) */
+static uint32_t s_user_target_hz = 100000;
+static uint8_t  s_user_target_synced = 0;
+
 static void Reset_EMA(void) { s_ema_ok = 0; }
 
 /* ================================================================
@@ -143,6 +147,9 @@ static void Draw_Header(const char* title)
     #define MQTT_ICON_X  128
     #define WIFI_ICON_X  144
 
+    /* Fill entire header row bg first — prevents residual pixels from prev page */
+    Tft_Driver_Fill_Rect(0, 0, TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
+
     Tft_Driver_Show_CN_String(0, 0, title, UI_COLOR_TITLE, UI_COLOR_BG);
 
     /* -------- MQTT cloud icon (x=128) -------- */
@@ -203,24 +210,32 @@ static void Draw_Header(const char* title)
 static void Draw_Menu_Item(uint8_t line, uint8_t cursor, uint8_t idx, const char* text, uint8_t enabled)
 {
     uint16_t color = UI_COLOR_TEXT;
+    uint16_t bg;
+    uint8_t is_selected = (cursor == idx);
 
     if (!enabled) {
         color = UI_COLOR_DIM;
     }
 
-    if (cursor == idx) {
-        /* Selected row: cyan BG + black text */
-        Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
-                            TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_VALUE);
+    if (is_selected) {
+        /* Selected row: cyan BG + black text + star icon */
+        bg    = UI_COLOR_VALUE;
         color = UI_COLOR_BG;
     } else {
-        /* Erase row to clear stale content from previous scroll position */
-        Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
-                            TFT_WIDTH, TFT_FONT_HEIGHT, UI_COLOR_BG);
+        bg = UI_COLOR_BG;
     }
 
-    Tft_Driver_Show_CN_String(line, 0, text, color,
-        (cursor == idx) ? UI_COLOR_VALUE : UI_COLOR_BG);
+    Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
+                        TFT_WIDTH, TFT_FONT_HEIGHT, bg);
+
+    if (is_selected) {
+        /* Star icon at column-0, only when selected */
+        Tft_Driver_Draw_Single_Icon(0, (uint16_t)line * TFT_FONT_HEIGHT, ICON_STAR,
+                                     UI_COLOR_BG, UI_COLOR_VALUE);
+    }
+
+    /* Text always at column 2, aligned regardless of star */
+    Tft_Driver_Show_CN_String(line, 2, text, color, bg);
 }
 
 /* -------- Divider line at given row -------- */
@@ -499,7 +514,6 @@ static void Draw_WiFi_Setup(void)
     uint8_t cs = App_Network_Get_Connect_Status();
     const char* status_text;
     const char* hint_text;
-    char buf[21];
 
     if (cs == APP_NETWORK_CONN_ONLINE)
         status_text = S_WIFI_ONLINE;   /* online */
@@ -519,11 +533,15 @@ static void Draw_WiFi_Setup(void)
     Draw_Header(S_LAUNCH);
     Draw_Divider(1);
 
-    snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
-    Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+    {
+        char buf[42];
+        snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
+        Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+    }
 
     /* Retry count: only when connecting */
     if (App_Network_Is_Connecting()) {
+        char buf[16];
         snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d", App_Network_Get_Retry_Count() + 1, 3);
         Tft_Driver_Show_CN_String(3, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
     } else {
@@ -622,8 +640,15 @@ static void Handle_Keys_by_Page(Ui_Page page,
             case UI_PAGE_MONITOR_SUMMARY:
             case UI_PAGE_MONITOR_FREQ:
                 if (is_running) {
-                    uint32_t f = Pwm_Driver_Get_Frequency() + 1000;
-                    if (f <= PWM_DRIVER_FREQ_MAX_HZ) Pwm_Driver_Set_Frequency(f);
+                    if (!s_user_target_synced) {
+                        /* First keypress: sync target to nearest kHz from actual freq */
+                        s_user_target_hz = ((Pwm_Driver_Get_Frequency() + 500) / 1000) * 1000;
+                        s_user_target_synced = 1;
+                    }
+                    s_user_target_hz += 1000;
+                    if (s_user_target_hz > PWM_DRIVER_FREQ_MAX_HZ) s_user_target_hz = PWM_DRIVER_FREQ_MAX_HZ;
+                    Inverter_Control_Freq_Ramp_Cancel();
+                    Pwm_Driver_Set_Frequency(s_user_target_hz);
                 }
                 break;
             default: break;
@@ -647,8 +672,13 @@ static void Handle_Keys_by_Page(Ui_Page page,
             case UI_PAGE_MONITOR_SUMMARY:
             case UI_PAGE_MONITOR_FREQ:
                 if (is_running) {
-                    uint32_t f = Pwm_Driver_Get_Frequency();
-                    if (f >= PWM_DRIVER_FREQ_MIN_HZ + 1000) Pwm_Driver_Set_Frequency(f - 1000);
+                    if (!s_user_target_synced) {
+                        s_user_target_hz = ((Pwm_Driver_Get_Frequency() + 500) / 1000) * 1000;
+                        s_user_target_synced = 1;
+                    }
+                    if (s_user_target_hz >= PWM_DRIVER_FREQ_MIN_HZ + 1000) s_user_target_hz -= 1000;
+                    Inverter_Control_Freq_Ramp_Cancel();
+                    Pwm_Driver_Set_Frequency(s_user_target_hz);
                 }
                 break;
             default: break;
@@ -840,6 +870,7 @@ void Ui_Controller_Task(void)
         if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
             s_page = UI_PAGE_MONITOR_SUMMARY;
             Reset_EMA();
+            s_user_target_synced = 0;
         }
     }
 
@@ -855,10 +886,11 @@ void Ui_Controller_Task(void)
     if ((uint8_t)s_page != s_last_page || s_menu_cursor != s_last_cursor) {
         s_last_page   = (uint8_t)s_page;
         s_last_cursor = s_menu_cursor;
-        /* Only full-clear on page change, not cursor move */
+        /* Page change: skip clear, force immediate redraw to avoid black flicker */
         if ((uint8_t)s_page != s_last_page_cleared) {
-            Tft_Driver_Clear(UI_COLOR_BG);
             s_last_page_cleared = (uint8_t)s_page;
+            need_draw = 1;
+            s_last_ui_ms = Sys_Timer_Get_Tick();   /* reset throttle, draw this frame */
         }
         Reset_EMA();
     }
@@ -905,6 +937,8 @@ void Ui_Controller_Task(void)
             s_was_fault_state = 1;
             s_last_page = 0xFF;     /* force clear+redraw */
             s_last_page_cleared = 0xFF;
+            need_draw = 1;          /* force immediate redraw, skip throttle */
+            s_last_ui_ms = Sys_Timer_Get_Tick();
         }
     }
 

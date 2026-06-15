@@ -1,10 +1,12 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 1.8寸 128x160 TFT — SPI1+DMA 硬件加速版
+ * @brief   ST7735 1.8寸 128x160 TFT — SPI1+DMA 全硬件加速版 V11
  *          PA5=SCK PA7=MOSI PA4=CS PA6=DC PA0=RST PB6=BL
  *          SPI1 Mode3 (CPOL=High, CPHA=2Edge), 横屏 160x128, MADCTL=0xA0
- *          DMA1_Channel3 用于 16位大块填充, WrCmd/WrDat 保持 8位轮询
+ *          DMA1_Channel3 用于全部像素传输 (Fill + Blit), WrCmd/WrDat 8位轮询
+ * @note    V11: 字符/图标全部改为 buffer-build → DMA 发送, 消除逐像素 WrD16
+ *              填充=MINC=0(同色泵送), 位图=MINC=1(缓冲区自增)
  ******************************************************************************
  */
 
@@ -26,8 +28,11 @@
 /* DMA 传输上限: 单次最多 65535 个 16位像素 (约 128KB), ST7735 160x128=20480 足够 */
 #define TFT_DMA_MAX_PIXELS  65535
 
-/* ── DMA 填充状态机 ── */
+/* ── DMA 状态 ── */
 static uint8_t s_dma_configured = 0;
+
+/* ── 像素缓冲区: 16×16 中文/图标 = 256 像素, static 避免大栈帧 ── */
+static uint16_t s_dma_buf[256];
 
 static void dly(uint32_t us)
 {
@@ -36,7 +41,7 @@ static void dly(uint32_t us)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  8位基础通信 (保持轮询, 用于指令和少量数据)
+ *  8位基础通信 (保持轮询, 仅用于命令字节和寄存器数据)
  * ═══════════════════════════════════════════════════════════════ */
 
 /* 写 SPI 命令字节 (DC=0) */
@@ -48,7 +53,7 @@ static void WrCmd(uint8_t c)
     TFT_CS_HIGH();
 }
 
-/* 写 SPI 数据字节 (DC=1) */
+/* 写 SPI 数据字节 (DC=1) — 仅用于命令参数 (寄存器配置), 不用于像素 */
 static void WrDat(uint8_t d)
 {
     TFT_DC_DATA(); TFT_CS_LOW();
@@ -57,19 +62,26 @@ static void WrDat(uint8_t d)
     TFT_CS_HIGH();
 }
 
-/* 写 RGB565 16 位像素 (DC=1, MSB first) — 小批量逐个发送仍用轮询 */
-static void WrD16(uint16_t d)
+/* ═══════════════════════════════════════════════════════════════
+ *  SPI 模式切换 — 8bit(命令) ↔ 16bit(像素 DMA)
+ * ═══════════════════════════════════════════════════════════════ */
+
+static void Tft_SPI_8bit(void)
 {
-    TFT_DC_DATA(); TFT_CS_LOW();
-    SPI_I2S_SendData(SPI1, (uint8_t)(d >> 8));
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));
-    SPI_I2S_SendData(SPI1, (uint8_t)d);
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));
-    TFT_CS_HIGH();
+    SPI_Cmd(SPI1, DISABLE);
+    SPI1->CR1 &= ~SPI_CR1_DFF;
+    SPI_Cmd(SPI1, ENABLE);
+}
+
+static void Tft_SPI_16bit(void)
+{
+    SPI_Cmd(SPI1, DISABLE);
+    SPI1->CR1 |= SPI_CR1_DFF;
+    SPI_Cmd(SPI1, ENABLE);
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  DMA 初始化 — 一次性配置, 仅配通道参数, 不启动
+ *  DMA 一次性初始化 (只配 RCC + 外设基地址, CCR 按传输模式配置)
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Tft_DMA_Init(void)
@@ -84,7 +96,7 @@ static void Tft_DMA_Init(void)
     dma.DMA_DIR                = DMA_DIR_PeripheralDST;
     dma.DMA_BufferSize         = 0;               /* 运行时动态设置 */
     dma.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-    dma.DMA_MemoryInc          = DMA_MemoryInc_Disable;  /* 关键: 同一颜色值反复发送 */
+    dma.DMA_MemoryInc          = DMA_MemoryInc_Enable;   /* 默认自增, Fill 时覆盖 */
     dma.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
     dma.DMA_MemoryDataSize     = DMA_MemoryDataSize_HalfWord;
     dma.DMA_Mode               = DMA_Mode_Normal;
@@ -96,52 +108,56 @@ static void Tft_DMA_Init(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  DMA 16位单色连续填充 — 零显存, 同一颜色值泵入 SPI1
- *
- *  流程: 停 SPI → 切 16bit → 重开 SPI → 配 DMA 地址/长度
- *        → 使能 DMA → DC=DATA + CS=LOW → SPI TX DMA 使能
- *        → 阻塞等 TC3 → 关 SPI TX DMA → CS=HIGH
- *        → 停 SPI → 恢复 8bit → 重开 SPI
+ *  DMA 核心传输 — DC=DATA, CS=LOW, 等 TC3, 拉高 CS
+ *  inc_mem=0 → 同色填充 (CMAR 指向单色变量)
+ *  inc_mem=1 → 缓冲区自增 (CMAR 指向像素数组)
  * ═══════════════════════════════════════════════════════════════ */
 
-static void Tft_DMA_Fill(uint32_t pixel_count, uint16_t color)
+static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_mem)
 {
-    if (pixel_count == 0) return;
-    if (pixel_count > TFT_DMA_MAX_PIXELS) pixel_count = TFT_DMA_MAX_PIXELS;
-
-    if (!s_dma_configured) Tft_DMA_Init();
-
-    /* 1. 停 SPI1, 切换为 16 位数据帧 */
-    SPI_Cmd(SPI1, DISABLE);
-    SPI1->CR1 &= ~SPI_CR1_DFF;           /* 清 DFF → 8bit (先清再写) */
-    SPI1->CR1 |= SPI_CR1_DFF;            /* DFF=1 → 16bit */
-    SPI_Cmd(SPI1, ENABLE);
-
-    /* 2. 配置 DMA 通道: 内存地址=颜色变量地址, 不自增 */
     DMA_Cmd(DMA1_Channel3, DISABLE);
-    DMA1_Channel3->CMAR  = (uint32_t)&color;
-    DMA1_Channel3->CNDTR = (uint16_t)pixel_count;
+    DMA1_Channel3->CMAR  = (uint32_t)buf;
+    DMA1_Channel3->CNDTR = (uint16_t)count;
+    if (inc_mem)
+        DMA1_Channel3->CCR |=  DMA_MemoryInc_Enable;
+    else
+        DMA1_Channel3->CCR &= ~DMA_MemoryInc_Enable;
     DMA_Cmd(DMA1_Channel3, ENABLE);
 
-    /* 3. 拉低 CS, DC=DATA, 使能 SPI TX DMA */
     TFT_DC_DATA();
     TFT_CS_LOW();
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, ENABLE);
 
-    /* 4. 阻塞等待 DMA 传输完成 */
     while (DMA_GetFlagStatus(DMA1_FLAG_TC3) == RESET);
     DMA_ClearFlag(DMA1_FLAG_TC3);
 
-    /* 5. 关闭 SPI TX DMA, 拉高 CS */
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
     DMA_Cmd(DMA1_Channel3, DISABLE);
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));  /* 等最后一帧发完 */
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));  /* 等末帧发完 */
     TFT_CS_HIGH();
+}
 
-    /* 6. 恢复 SPI1 为 8 位模式 */
-    SPI_Cmd(SPI1, DISABLE);
-    SPI1->CR1 &= ~SPI_CR1_DFF;
-    SPI_Cmd(SPI1, ENABLE);
+/* ── 单色填充: 同一颜色值 DMA 泵送 (MINC=0) ── */
+static void Tft_DMA_Fill(uint32_t pixel_count, uint16_t color)
+{
+    if (pixel_count == 0) return;
+    if (pixel_count > TFT_DMA_MAX_PIXELS) pixel_count = TFT_DMA_MAX_PIXELS;
+    if (!s_dma_configured) Tft_DMA_Init();
+
+    Tft_SPI_16bit();
+    Tft_DMA_Transfer(&color, pixel_count, 0);
+    Tft_SPI_8bit();
+}
+
+/* ── 缓冲区发送: 像素数组 DMA 泵送 (MINC=1) ── */
+static void Tft_DMA_Send(const uint16_t* buf, uint32_t pixel_count)
+{
+    if (pixel_count == 0) return;
+    if (!s_dma_configured) Tft_DMA_Init();
+
+    Tft_SPI_16bit();
+    Tft_DMA_Transfer(buf, pixel_count, 1);
+    Tft_SPI_8bit();
 }
 
 /* 设置 ST7735 绘图窗口 (CASET+RASET+RAMWR), 含横屏面板物理偏移 X+1/Y+2 */
@@ -225,10 +241,6 @@ void Tft_Driver_Init(void)
     /* ═══════════════════════════════════════════
      *  ST7735 Green Tab 已验证 init
      * ═══════════════════════════════════════════ */
-
-    // 只在 reset 后发 SLPOUT, 不先发 SWRESET — 中景园参考代码
-    // WrCmd(0x01);   /* SWRESET — 和参考代码一样跳过 */
-    // dly(150000);
 
     WrCmd(0x11);   /* SLPOUT */
     dly(120000);   /* 120ms */
@@ -322,14 +334,48 @@ void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16
     Tft_DMA_Fill(total, color);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+ *  位图→缓冲区解码辅助函数
+ *  字体格式: 8x16 ASCII LSB-first, 16x16 中文 LSB-first, 每字节 bit0=左
+ * ═══════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief 将 8x16 LSB-first 字模的一行解码为 8 个 RGB565 像素
+ * @param byte_val  字模行字节 (bit0=最左像素)
+ * @param fg, bg    前景色/背景色
+ * @param out       输出缓冲区 (至少 8 个 uint16_t)
+ */
+static void Decode_Char_Row(uint8_t byte_val, uint16_t fg, uint16_t bg, uint16_t* out)
+{
+    uint8_t b;
+    for (b = 0; b < 8; b++)
+        out[b] = (byte_val & (0x01 << b)) ? fg : bg;
+}
+
+/**
+ * @brief 将 16x16 LSB-first 字模的 2 字节行解码为 16 个 RGB565 像素
+ * @param lo, hi    字模行低字节/高字节 (lo=左8列, hi=右8列)
+ * @param fg, bg    前景色/背景色
+ * @param out       输出缓冲区 (至少 16 个 uint16_t)
+ */
+static void Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16_t bg, uint16_t* out)
+{
+    uint8_t b;
+    for (b = 0; b < 8; b++) {
+        out[b]     = (lo & (0x01 << b)) ? fg : bg;
+        out[b + 8] = (hi & (0x01 << b)) ? fg : bg;
+    }
+}
+
 /* ═══════════════════════════════════
- *  ASCII 8x16 字符
+ *  ASCII 8x16 字符 — DMA 版
  * ═══════════════════════════════════ */
 
 void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
                           uint16_t fg, uint16_t bg)
 {
-    uint8_t r, b;
+    uint8_t r;
+    uint16_t* p;
     uint16_t x0, y0;
 
     if (line >= TFT_LINE_COUNT || col >= TFT_CHAR_PER_LINE) return;
@@ -337,15 +383,19 @@ void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
 
     x0 = col  * TFT_FONT_WIDTH;
     y0 = line * TFT_FONT_HEIGHT;
-    /* 像素坐标直接写入 */
     SetWin(x0, y0, x0 + TFT_FONT_WIDTH - 1, y0 + TFT_FONT_HEIGHT - 1);
 
-    for (r = 0; r < 16; r++) {
-        uint8_t byte = TFT_FONT_8X16[ch - 32][r];
-        for (b = 0; b < 8; b++)
-            WrD16((byte & (0x01 << b)) ? fg : bg);  /* LSB */
-    }
+    /* 逐行解码 → s_dma_buf, 16行 × 8像素 = 128 半字 */
+    p = s_dma_buf;
+    for (r = 0; r < 16; r++)
+        Decode_Char_Row(TFT_FONT_8X16[(uint8_t)ch - 32][r], fg, bg, p + r * 8);
+
+    Tft_DMA_Send(s_dma_buf, 128);
 }
+
+/* ═══════════════════════════════════
+ *  ASCII 字符串 — 逐字 DMA (统一 fg/bg, 每字 128px DMA 一次)
+ * ═══════════════════════════════════ */
 
 void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
                             uint16_t fg, uint16_t bg)
@@ -357,10 +407,9 @@ void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
 }
 
 /* ═══════════════════════════════════
- *  数字
+ *  数字 — 委托 Show_Char
  * ═══════════════════════════════════ */
 
-/* 计算 10^e (用于十进制数字取位) */
 static uint32_t pw(uint32_t e) { uint32_t r = 1; while (e--) r *= 10; return r; }
 
 void Tft_Driver_Show_Num(uint8_t ln, uint8_t col, uint32_t v,
@@ -391,10 +440,9 @@ void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
 }
 
 /* ═══════════════════════════════════
- *  中英文混合
+ *  中英文混合 — DMA 版
  * ═══════════════════════════════════ */
 
-/* 在 CN_INDEX 中查找 UTF-8 三字节中文, 返回索引 0..72 或 0xFF(未找到) */
 static uint8_t Cnlk(const char* u8)
 {
     uint8_t i;
@@ -404,18 +452,29 @@ static uint8_t Cnlk(const char* u8)
     return 0xFF;
 }
 
+/**
+ * @brief  绘制 16x16 中文字符 — DMA 版
+ * @note   字模 32 字节/字, 2字节/行×16行, LSB-first
+ *         每行: lo(左8列) + hi(右8列) → 16 像素, 16行×16px=256 像素, DMA 一次
+ */
 static void CnDr(uint8_t ln, uint8_t col, uint8_t idx, uint16_t fg, uint16_t bg)
 {
-    uint8_t row, bi, bit;
+    uint8_t row;
+    uint16_t* p;
+    const uint8_t* glyph;  /* 32 字节字模 */
+
     if (ln >= TFT_LINE_COUNT || col + 1 >= TFT_CHAR_PER_LINE) return;
+
     SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
+
+    glyph = CN_FONT_16X16[idx];
+    p = s_dma_buf;
     for (row = 0; row < 16; row++)
-        for (bi = 0; bi < 2; bi++)
-            for (bit = 0; bit < 8; bit++)
-                WrD16((CN_FONT_16X16[idx][row * 2 + bi] & (0x01 << bit)) ? fg : bg);
+        Decode_CN_Row(glyph[row * 2], glyph[row * 2 + 1], fg, bg, p + row * 16);
+
+    Tft_DMA_Send(s_dma_buf, 256);
 }
 
-/* 判定字节是否为 UTF-8 中文首字节 (0xE0~0xEF) */
 static uint8_t IsCN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
 
 void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
@@ -434,55 +493,42 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  WIFI 信号图标绘制 (字模存放于 TFT_Img.c)
+ *  WIFI 信号图标 — DMA 版 (16x16, 256 像素一次 DMA)
  * ═══════════════════════════════════════════════════════════════ */
 
-/**
- * @brief  绘制 16x16 WIFI 信号动画图标
- * @param  x, y : 像素坐标 (左上角)
- * @param  frame : 0-3 动画帧索引
- * @param  fg, bg : 前景色和背景色
- * @note   位图 LSB-first, 每行2字节共16行, 逐像素 WrD16 写入
- */
 void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t fg, uint16_t bg)
 {
-    uint8_t row, byte_idx, bit;
+    uint8_t row;
     const uint8_t* data;
+    uint16_t* p;
 
     if (frame > 3) frame = 3;
     data = WIFI_ICON[frame];
 
     SetWin(x, y, x + 15, y + 15);
 
-    for (row = 0; row < 16; row++) {
-        for (byte_idx = 0; byte_idx < 2; byte_idx++) {
-            uint8_t byte_val = data[row * 2 + byte_idx];
-            for (bit = 0; bit < 8; bit++) {
-                WrD16((byte_val & (0x01 << bit)) ? fg : bg);
-            }
-        }
-    }
+    p = s_dma_buf;
+    for (row = 0; row < 16; row++)
+        Decode_CN_Row(data[row * 2], data[row * 2 + 1], fg, bg, p + row * 16);
+
+    Tft_DMA_Send(s_dma_buf, 256);
 }
 
-/**
- * @brief  绘制 16x16 单帧图标 (直接传 32 字节数组)
- * @param  x, y : 像素坐标
- * @param  data : 32 字节 LSB-first 位图
- * @param  fg, bg : 前景色/背景色
- */
+/* ═══════════════════════════════════════════════════════════════
+ *  单帧图标 — DMA 版 (16x16, 256 像素一次 DMA)
+ * ═══════════════════════════════════════════════════════════════ */
+
 void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
                                   uint16_t fg, uint16_t bg)
 {
-    uint8_t row, byte_idx, bit;
+    uint8_t row;
+    uint16_t* p;
 
     SetWin(x, y, x + 15, y + 15);
 
-    for (row = 0; row < 16; row++) {
-        for (byte_idx = 0; byte_idx < 2; byte_idx++) {
-            uint8_t byte_val = data[row * 2 + byte_idx];
-            for (bit = 0; bit < 8; bit++) {
-                WrD16((byte_val & (0x01 << bit)) ? fg : bg);
-            }
-        }
-    }
+    p = s_dma_buf;
+    for (row = 0; row < 16; row++)
+        Decode_CN_Row(data[row * 2], data[row * 2 + 1], fg, bg, p + row * 16);
+
+    Tft_DMA_Send(s_dma_buf, 256);
 }

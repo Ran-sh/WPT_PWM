@@ -59,6 +59,8 @@ uint32_t Inverter_Control_Soft_Start_Get_Current_Freq(void);
 void     Inverter_Control_Freq_Ramp_Trigger(uint32_t target_hz);
 /** @brief 周期驱动频率斜坡状态机 (每10ms步进1kHz) */
 void     Inverter_Control_Freq_Ramp_Task(void);
+/** @brief 取消频率渐变斜坡 (置 IDLE, 不改变当前 PWM 输出) */
+void     Inverter_Control_Freq_Ramp_Cancel(void);
 /** @brief 获取频率斜坡目标值 (Hz) */
 uint32_t Inverter_Control_Freq_Ramp_Get_Target(void);
 

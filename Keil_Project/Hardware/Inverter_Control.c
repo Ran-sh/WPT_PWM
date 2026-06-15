@@ -142,3 +142,8 @@ uint32_t Inverter_Control_Freq_Ramp_Get_Target(void)
 {
     return s_ramp_target;
 }
+
+void Inverter_Control_Freq_Ramp_Cancel(void)
+{
+    s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
+}
