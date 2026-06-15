@@ -895,8 +895,8 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
     /* ── red zone arc (R=65, 6px wide, red_start → end) ── */
     for (a = red_a; a <= 180; a++) {
         int16_t ax, ay;
-        Gauge_Polar(CPS(a), R_ARC-2, &ax, &ay);
-        Tft_Driver_Fill_Rect((uint16_t)(ax-3), (uint16_t)(ay-3), 7, 7, UI_COLOR_ALARM);
+        Gauge_Polar(CPS(a), R_ARC, &ax, &ay);
+        Tft_Driver_Fill_Rect((uint16_t)(ax-3), (uint16_t)(ay-3), 6, 6, UI_COLOR_ALARM);
     }
 
     /* ── ticks (NO white arc, standalone radial lines) ── */
