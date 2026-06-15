@@ -1,12 +1,13 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   Ui Controller V11 — incremental refresh, zero-flicker
+ * @brief   Ui Controller V11 — incremental refresh, zero-flicker, ICON_STAR
  * @note    TFT 8x20 cols, 160x128 landscape, 4 keys: F+/F-/KEY0/PAGE
  *          Architecture: static text drawn ONCE on page entry,
- *          cursor changes update only 2 lines (erase old ▶ + draw new ▶),
+ *          cursor changes update only 2 lines (erase old ★ + draw new ★),
  *          200ms cycle only updates changing values (F/V/I/bar/status).
  *          Menu pages idle at 0% SPI activity — no writes unless state changes.
+ *          Every _Full() covers all 8 rows → zero cross-page pixel residue.
  ******************************************************************************
  */
 
@@ -50,7 +51,6 @@
 #define S_FREQ      "\xe9\xa2\x91\xe7\x8e\x87"                       /* freq */
 #define S_VOLTAGE   "\xe7\x94\xb5\xe5\x8e\x8b"                       /* voltage */
 #define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* current */
-#define S_STOP      "\xe5\x81\x9c\xe6\xad\xa2"                       /* stop */
 #define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* clear WIFI */
 #define S_WIFI_ONLINE  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe6\x88\x90" "\xe5\x8a\x9f" /* success */
 #define S_WIFI_FAILED  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe5\xa4\xb1" "\xe8\xb4\xa5" /* failed */
@@ -71,7 +71,6 @@
 #define S_BOTTOM_CONT     "ON:\xe7\xbb\xa7\xe7\xbb\xad PAGE:\xe8\xbf\x94\xe5\x9b\x9e"
 #define S_BOTTOM_BACK     "PAGE:\xe8\xbf\x94\xe5\x9b\x9e"
 #define S_BOTTOM_TUNE     "F+/F-:\xe8\xb0\x83\xe9\xa2\x91 PAGE:\xe8\xbf\x94\xe5\x9b\x9e"
-#define S_BOTTOM_SWITCH   "\xe5\x8f\x8c\xe5\x87\xbb" "PAGE" "\xe5\x88\x87" "\xe9\xa1\xb5" /* 双击PAGE切页 */
 #define S_ON_DISCONNECT   "ON:\xe6\x96\xad\xe5\xbc\x80WIFI"
 #define S_ON_CONNECT      "ON:\xe8\xbf\x9e\xe6\x8e\xa5WIFI"
 #define S_LONG_CLEAR      "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI
@@ -236,16 +235,20 @@ static void Draw_Header(const char* title)
 }
 
 /* ================================================================
- *  Cursor: ▶ at col 0 — draw/erase (minimal pixel update)
+ *  Cursor: ICON_STAR at pixel x=0 — draw/erase (16x16 pixel update)
  * ================================================================ */
 static void Draw_Cursor(uint8_t line)
 {
-    Tft_Driver_Show_Char(line, 0, '>', UI_COLOR_VALUE, UI_COLOR_BG);
+    /* ICON_STAR (diamond) at left edge — black star on cyan bg for selected row */
+    Tft_Driver_Draw_Single_Icon(0, (uint16_t)line * TFT_FONT_HEIGHT,
+                                ICON_STAR, UI_COLOR_BG, UI_COLOR_VALUE);
 }
 
 static void Erase_Cursor(uint8_t line)
 {
-    Tft_Driver_Show_Char(line, 0, ' ', UI_COLOR_BG, UI_COLOR_BG);
+    /* Erase the 16x16 icon area with black */
+    Tft_Driver_Fill_Rect(0, (uint16_t)line * TFT_FONT_HEIGHT,
+                         16, 16, UI_COLOR_BG);
 }
 
 /* ================================================================
@@ -262,7 +265,7 @@ static void Draw_Divider(uint8_t line)
     Tft_Driver_Show_String(line, 0, S_DIV, UI_COLOR_DIM, UI_COLOR_BG);
 }
 
-/* ── Draw menu text at line,col (erases whole line first) ── */
+/* ── Draw menu text at line,col (erases whole line first, text at col≥2 for star) ── */
 static void Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t enabled)
 {
     uint16_t color = enabled ? UI_COLOR_TEXT : UI_COLOR_DIM;
@@ -271,7 +274,7 @@ static void Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t 
 }
 
 /* ================================================================
- *  Page draw: MAIN_MENU (static frame — called ONCE on entry)
+ *  Page draw: MAIN_MENU (4 items) — covers all 8 rows
  * ================================================================ */
 static void Draw_Main_Menu_Full(void)
 {
@@ -284,8 +287,8 @@ static void Draw_Main_Menu_Full(void)
         is_fault   = (ss == INVERTER_CONTROL_SS_STATE_FAULT);
     }
 
-    Draw_Header(S_WPT_PWM);
-    Draw_Divider(1);
+    Draw_Header(S_WPT_PWM);       /* row 0 */
+    Draw_Divider(1);              /* row 1 */
 
     for (i = 0; i < 4; i++) {
         const char* text;
@@ -305,22 +308,20 @@ static void Draw_Main_Menu_Full(void)
             default: text = ""; break;
         }
         Erase_Line(2 + i);
-        Draw_Menu_Text(2 + i, 2, text, enabled);
+        Draw_Menu_Text(2 + i, 2, text, enabled);    /* text at col=2, leaves col-0/1 for star */
     }
 
-    /* Cursor on current item */
-    Draw_Cursor(2 + s_menu_cursor);
+    Draw_Cursor(2 + s_menu_cursor);   /* rows 2-5 */
 
-    Draw_Divider(6);
+    Draw_Divider(6);              /* row 6 */
     Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_CONFIRM),
-        S_BOTTOM_CONFIRM, UI_COLOR_TEXT, UI_COLOR_BG);
+        S_BOTTOM_CONFIRM, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
 
-    /* Track state for incremental updates */
     s_last_is_running    = is_running;
     s_last_is_fault_menu = is_fault;
 }
 
-/* ── MAIN_MENU cursor move: erase old ▶ + draw new ▶ (2 chars total) ── */
+/* ── MAIN_MENU cursor move: erase old ★ + draw new ★ ── */
 static void Main_Menu_Cursor_Update(uint8_t old_cursor)
 {
     Erase_Cursor(2 + old_cursor);
@@ -338,17 +339,15 @@ static void Main_Menu_Dynamic_Update(void)
         is_fault   = (ss == INVERTER_CONTROL_SS_STATE_FAULT);
     }
 
-    /* Item 0: text changes when PWM starts/stops */
     if (is_running != s_last_is_running) {
         const char* text = is_running
             ? "1. \xe5\x81\x9c\xe6\xad\xa2PWM"
             : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";
         Draw_Menu_Text(2, 2, text, 1);
-        if (s_menu_cursor == 0) Draw_Cursor(2);  /* re-draw cursor if it's on this line */
+        if (s_menu_cursor == 0) Draw_Cursor(2);
         s_last_is_running = is_running;
     }
 
-    /* Item 3: enabled/disabled changes with fault state */
     if (is_fault != s_last_is_fault_menu) {
         const char* text = "4. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4";
         uint8_t enabled = is_fault ? 1 : 0;
@@ -359,7 +358,7 @@ static void Main_Menu_Dynamic_Update(void)
 }
 
 /* ================================================================
- *  Page draw: MONITOR_SUB_MENU (5 items, 4-row scroll window)
+ *  Page draw: MONITOR_SUB_MENU (5 items, 4-row window) — covers all 8 rows
  * ================================================================ */
 static const char* Sub_Item_Name(uint8_t idx)
 {
@@ -378,8 +377,8 @@ static void Draw_Sub_Menu_Full(void)
     uint8_t visible_top = (s_menu_cursor >= 3) ? (s_menu_cursor - 2) : 0;
     uint8_t i, line;
 
-    Draw_Header(S_MONITOR);
-    Draw_Divider(1);
+    Draw_Header(S_MONITOR);       /* row 0 */
+    Draw_Divider(1);              /* row 1 */
 
     for (line = 2; line <= 5; line++) {
         i = visible_top + (line - 2);
@@ -392,25 +391,27 @@ static void Draw_Sub_Menu_Full(void)
         }
     }
 
-    Draw_Cursor(2 + (s_menu_cursor - visible_top));
+    Draw_Cursor(2 + (s_menu_cursor - visible_top));   /* rows 2-5 */
 
-    Draw_Divider(6);
+    Draw_Divider(6);              /* row 6 */
     Tft_Driver_Show_CN_String(7, Right("\xe8\xbf\x94\xe5\x9b\x9e"),
-        "\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);
+        "\xe8\xbf\x94\xe5\x9b\x9e", UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
 
     s_last_sub_visible = visible_top;
 }
 
-/* ── Sub-menu cursor: 2-line update (or 4-line if scroll window changed) ── */
+/* ── Sub-menu cursor ── */
 static void Sub_Menu_Cursor_Update(uint8_t old_cursor)
 {
     uint8_t old_visible = s_last_sub_visible;
     uint8_t new_visible = (s_menu_cursor >= 3) ? (s_menu_cursor - 2) : 0;
+    uint8_t old_line = 2 + (old_cursor - old_visible);
+    uint8_t new_line = 2 + (s_menu_cursor - new_visible);
 
     if (new_visible != old_visible) {
         /* Scroll happened — redraw all 4 visible lines */
         uint8_t i, line;
-        Erase_Cursor(2 + (old_cursor - old_visible));  /* erase old cursor first */
+        Erase_Cursor(old_line);
 
         for (line = 2; line <= 5; line++) {
             i = new_visible + (line - 2);
@@ -422,11 +423,9 @@ static void Sub_Menu_Cursor_Update(uint8_t old_cursor)
                 Erase_Line(line);
             }
         }
-        Draw_Cursor(2 + (s_menu_cursor - new_visible));
+        Draw_Cursor(new_line);
     } else {
-        /* Simple cursor move within same window — 2 char updates */
-        uint8_t old_line = 2 + (old_cursor - old_visible);
-        uint8_t new_line = 2 + (s_menu_cursor - new_visible);
+        /* Simple cursor move within same window */
         Erase_Cursor(old_line);
         Draw_Cursor(new_line);
     }
@@ -434,10 +433,9 @@ static void Sub_Menu_Cursor_Update(uint8_t old_cursor)
     s_last_sub_visible = new_visible;
 }
 
-/* ================================================================
- *  Page draw: SWEEP (fully dynamic — redrawn every 200ms)
- *  Static frame drawn once, values updated incrementally
- * ================================================================ */
+/* ═══════════════════════════════════════════════════════════════
+ *  SWEEP page — covers all 8 rows
+ * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Sweep_Full(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
@@ -445,28 +443,17 @@ static void Draw_Sweep_Full(void)
     uint8_t is_stopped = (ss == INVERTER_CONTROL_SS_STATE_IDLE);
     char buf[21];
 
-    Draw_Header(S_SWEEP);
-    Draw_Divider(1);
+    Draw_Header(S_SWEEP);         /* row 0 */
+    Draw_Divider(1);              /* row 1 */
 
-    /* Frequency label + first value */
+    /* row 2: Frequency */
     snprintf(buf, sizeof(buf), S_FREQ "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
 
-    /* Voltage / Current — initial draw */
-    Fmt_V(buf, Adc_Driver_Get_Voltage());
-    Tft_Driver_Show_CN_String(4, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
-    strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
-    s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
-
-    Fmt_I(buf, Adc_Driver_Get_Current());
-    Tft_Driver_Show_CN_String(5, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
-    strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
-    s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
-
-    /* Progress bar area */
+    /* row 3: Progress bar area */
     {
         uint32_t progress;
         if (is_stopped) {
@@ -489,16 +476,28 @@ static void Draw_Sweep_Full(void)
         }
     }
 
-    Draw_Divider(6);
+    /* row 4: Voltage */
+    Fmt_V(buf, Adc_Driver_Get_Voltage());
+    Tft_Driver_Show_CN_String(4, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
+    strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
+    s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
+
+    /* row 5: Current */
+    Fmt_I(buf, Adc_Driver_Get_Current());
+    Tft_Driver_Show_CN_String(5, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
+    strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
+    s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
+
+    Draw_Divider(6);              /* row 6 */
     {
         const char* hint = is_stopped ? S_BOTTOM_CONT : S_BOTTOM_STOP;
-        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
     }
 
     s_last_sweep_stopped = is_stopped;
 }
 
-/* ── SWEEP 200ms: update F value + progress bar + V/I ── */
+/* ── SWEEP 200ms ── */
 static void Sweep_Dynamic_Update(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
@@ -506,7 +505,7 @@ static void Sweep_Dynamic_Update(void)
     uint8_t is_stopped = (ss == INVERTER_CONTROL_SS_STATE_IDLE);
     char buf[21];
 
-    /* Frequency — only if changed */
+    /* Frequency */
     snprintf(buf, sizeof(buf), S_FREQ "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
@@ -550,7 +549,7 @@ static void Sweep_Dynamic_Update(void)
         s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
     }
 
-    /* Bottom hint — if stopped state changed */
+    /* Bottom hint */
     if (is_stopped != s_last_sweep_stopped) {
         const char* hint = is_stopped ? S_BOTTOM_CONT : S_BOTTOM_STOP;
         Erase_Line(7);
@@ -559,9 +558,9 @@ static void Sweep_Dynamic_Update(void)
     }
 }
 
-/* ================================================================
- *  Page draw: MONITOR_SUMMARY (F/V/I on lines 2/3/4)
- * ================================================================ */
+/* ═══════════════════════════════════════════════════════════════
+ *  MONITOR_SUMMARY (line 2=F, 3=V, 4=I) — covers all 8 rows
+ * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Summary_Full(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
@@ -569,38 +568,41 @@ static void Draw_Summary_Full(void)
 
     Update_EMA();
 
-    Draw_Header(S_SUMMARY);
-    Draw_Divider(1);
+    Draw_Header(S_SUMMARY);       /* row 0 */
+    Draw_Divider(1);              /* row 1 */
 
-    if (is_running) {
-        Fmt_F(buf, s_ema_f);
-    } else {
-        snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz");
-    }
+    /* row 2: Freq */
+    if (is_running) { Fmt_F(buf, s_ema_f); }
+    else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
 
+    /* row 3: Voltage */
     Fmt_V(buf, s_ema_v);
     Tft_Driver_Show_CN_String(3, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
     s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
 
+    /* row 4: Current */
     Fmt_I(buf, s_ema_i);
     Tft_Driver_Show_CN_String(4, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
-    Draw_Divider(6);
+    /* row 5: blank — erase any residue from previous page */
+    Erase_Line(5);
+
+    Draw_Divider(6);              /* row 6 */
     {
         const char* hint = is_running ? S_BOTTOM_TUNE : S_BOTTOM_CONFIRM;
-        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
     }
 
     s_last_is_running = is_running;
 }
 
-/* ── Summary 200ms: update F/V/I + bottom hint if is_running changed ── */
+/* ── Summary 200ms ── */
 static void Summary_Dynamic_Update(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
@@ -609,11 +611,8 @@ static void Summary_Dynamic_Update(void)
     Update_EMA();
 
     /* Frequency */
-    if (is_running) {
-        Fmt_F(buf, s_ema_f);
-    } else {
-        snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz");
-    }
+    if (is_running) { Fmt_F(buf, s_ema_f); }
+    else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
         strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
@@ -645,27 +644,29 @@ static void Summary_Dynamic_Update(void)
     }
 }
 
-/* ================================================================
- *  Page draw: MONITOR_FREQ (gauge)
- * ================================================================ */
+/* ═══════════════════════════════════════════════════════════════
+ *  MONITOR_FREQ (gauge) — covers all 8 rows
+ * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Freq_Full(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
     char buf[21];
 
     Update_EMA();
-    Draw_Header(S_MON_FREQ);
-    Draw_Divider(1);
+    Draw_Header(S_MON_FREQ);       /* row 0 */
+    Draw_Divider(1);               /* row 1 */
 
-    if (is_running) {
-        Fmt_F(buf, s_ema_f);
-    } else {
-        snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz");
-    }
+    /* row 2: Freq value */
+    if (is_running) { Fmt_F(buf, s_ema_f); }
+    else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
 
+    /* row 3: blank — gap before energy bar */
+    Erase_Line(3);
+
+    /* rows 4-5: Energy bar (spans ~line 4 to line 5.5) */
     Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
                    12 * TFT_FONT_WIDTH, 12,
                    is_running ? s_ema_f : 0.0f, 95.0f, 150.0f,
@@ -673,10 +674,10 @@ static void Draw_Freq_Full(void)
     Tft_Driver_Show_String(5, 4, "95", UI_COLOR_TITLE, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 17, "150", UI_COLOR_TITLE, UI_COLOR_BG);
 
-    Draw_Divider(6);
+    Draw_Divider(6);               /* row 6 */
     {
         const char* hint = is_running ? S_BOTTOM_TUNE : S_BOTTOM_CONFIRM;
-        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(7, Right(hint), hint, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
     }
 
     s_last_is_running = is_running;
@@ -689,11 +690,8 @@ static void Freq_Dynamic_Update(void)
 
     Update_EMA();
 
-    if (is_running) {
-        Fmt_F(buf, s_ema_f);
-    } else {
-        snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz");
-    }
+    if (is_running) { Fmt_F(buf, s_ema_f); }
+    else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
         strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
@@ -713,21 +711,26 @@ static void Freq_Dynamic_Update(void)
     }
 }
 
-/* ================================================================
- *  Page draw: MONITOR_VOLT (gauge)
- * ================================================================ */
+/* ═══════════════════════════════════════════════════════════════
+ *  MONITOR_VOLT (gauge) — covers all 8 rows
+ * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Volt_Full(void)
 {
     char buf[21];
     Update_EMA();
-    Draw_Header(S_MON_VOLT);
-    Draw_Divider(1);
+    Draw_Header(S_MON_VOLT);       /* row 0 */
+    Draw_Divider(1);               /* row 1 */
 
+    /* row 2: Voltage value */
     Fmt_V(buf, s_ema_v);
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
     s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
 
+    /* row 3: blank — gap before energy bar */
+    Erase_Line(3);
+
+    /* rows 4-5: Energy bar */
     Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
                    12 * TFT_FONT_WIDTH, 12,
                    s_ema_v, 0.0f, 48.0f,
@@ -735,9 +738,9 @@ static void Draw_Volt_Full(void)
     Tft_Driver_Show_String(5, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 17, "48", UI_COLOR_TITLE, UI_COLOR_BG);
 
-    Draw_Divider(6);
+    Draw_Divider(6);               /* row 6 */
     Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_BACK),
-        S_BOTTOM_BACK, UI_COLOR_TEXT, UI_COLOR_BG);
+        S_BOTTOM_BACK, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
 }
 
 static void Volt_Dynamic_Update(void)
@@ -756,21 +759,26 @@ static void Volt_Dynamic_Update(void)
                    ENERGY_BAR_METRIC_VOLT, UI_COLOR_BG);
 }
 
-/* ================================================================
- *  Page draw: MONITOR_CURR (gauge)
- * ================================================================ */
+/* ═══════════════════════════════════════════════════════════════
+ *  MONITOR_CURR (gauge) — covers all 8 rows
+ * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Curr_Full(void)
 {
     char buf[21];
     Update_EMA();
-    Draw_Header(S_MON_CURR);
-    Draw_Divider(1);
+    Draw_Header(S_MON_CURR);       /* row 0 */
+    Draw_Divider(1);               /* row 1 */
 
+    /* row 2: Current value */
     Fmt_I(buf, s_ema_i);
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
+    /* row 3: blank — gap before energy bar */
+    Erase_Line(3);
+
+    /* rows 4-5: Energy bar */
     Energy_Bar_Draw(4 * TFT_FONT_WIDTH, 4 * TFT_FONT_HEIGHT + 2,
                    12 * TFT_FONT_WIDTH, 12,
                    s_ema_i, 0.0f, 3.0f,
@@ -778,9 +786,9 @@ static void Draw_Curr_Full(void)
     Tft_Driver_Show_String(5, 4, "0", UI_COLOR_TITLE, UI_COLOR_BG);
     Tft_Driver_Show_String(5, 18, "3", UI_COLOR_TITLE, UI_COLOR_BG);
 
-    Draw_Divider(6);
+    Draw_Divider(6);               /* row 6 */
     Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_BACK),
-        S_BOTTOM_BACK, UI_COLOR_TEXT, UI_COLOR_BG);
+        S_BOTTOM_BACK, UI_COLOR_TEXT, UI_COLOR_BG);  /* row 7 */
 }
 
 static void Curr_Dynamic_Update(void)
@@ -799,9 +807,9 @@ static void Curr_Dynamic_Update(void)
                    ENERGY_BAR_METRIC_CURR, UI_COLOR_BG);
 }
 
-/* ================================================================
- *  Page draw: WIFI_SETUP
- * ================================================================ */
+/* ═══════════════════════════════════════════════════════════════
+ *  WIFI_SETUP — covers all 8 rows
+ * ═══════════════════════════════════════════════════════════════ */
 static void Draw_WiFi_Full(void)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
@@ -819,9 +827,10 @@ static void Draw_WiFi_Full(void)
 
     hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
 
-    Draw_Header(S_LAUNCH);
-    Draw_Divider(1);
+    Draw_Header(S_LAUNCH);         /* row 0 */
+    Draw_Divider(1);               /* row 1 */
 
+    /* row 2: Status */
     {
         char buf[42];
         snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
@@ -830,6 +839,7 @@ static void Draw_WiFi_Full(void)
         s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
     }
 
+    /* row 3: Retry count (or blank) */
     if (App_Network_Is_Connecting()) {
         char buf[16];
         snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d",
@@ -842,9 +852,14 @@ static void Draw_WiFi_Full(void)
         s_last_retry_buf[0] = '\0';
     }
 
+    /* row 4: blank — spacer between info and action hints */
+    Erase_Line(4);
+
+    /* row 5: ON action hint */
     Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
+    /* row 6: Long-press clear hint */
     Tft_Driver_Show_CN_String(6, Right(S_LONG_CLEAR), S_LONG_CLEAR, UI_COLOR_ALARM, UI_COLOR_BG);
-    Draw_Divider(7);
+    Draw_Divider(7);               /* row 7 */
 
     s_last_wifi_cs = cs;
     s_last_retry   = App_Network_Get_Retry_Count();
@@ -867,7 +882,6 @@ static void WiFi_Dynamic_Update(void)
     else
         status_text = S_WIFI_IDLE;
 
-    /* Status line — only if changed */
     if (cs != s_last_wifi_cs) {
         char buf[42];
         snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
@@ -880,7 +894,6 @@ static void WiFi_Dynamic_Update(void)
         s_last_wifi_cs = cs;
     }
 
-    /* Retry line */
     if (App_Network_Is_Connecting()) {
         char buf[16];
         snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d", retry + 1, 3);
@@ -895,31 +908,33 @@ static void WiFi_Dynamic_Update(void)
     }
     s_last_retry = retry;
 
-    /* Hint text — only if connection state changed */
     if (need_hint_update) {
         hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
         Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
     }
 }
 
-/* ================================================================
- *  Page draw: FAULT (fully static after first draw)
- * ================================================================ */
+/* ═══════════════════════════════════════════════════════════════
+ *  FAULT — fully static, covers all 8 rows
+ * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Fault_Full(void)
 {
-    Draw_Header(S_FAULT_TITLE);
-    Draw_Divider(1);
+    Draw_Header(S_FAULT_TITLE);     /* row 0 */
+    Draw_Divider(1);                /* row 1 */
 
     Tft_Driver_Show_CN_String(2, Center(S_OVERCUR),
-        S_OVERCUR, UI_COLOR_ALARM, UI_COLOR_BG);
+        S_OVERCUR, UI_COLOR_ALARM, UI_COLOR_BG);      /* row 2 */
     Tft_Driver_Show_CN_String(3, Center(S_PWM_OFF),
-        S_PWM_OFF, UI_COLOR_TEXT, UI_COLOR_BG);
-    Tft_Driver_Show_CN_String(5, Center(S_RESET_HINT),
-        S_RESET_HINT, UI_COLOR_VALUE, UI_COLOR_BG);
+        S_PWM_OFF, UI_COLOR_TEXT, UI_COLOR_BG);        /* row 3 */
 
-    Draw_Divider(6);
+    Erase_Line(4);                  /* row 4: blank spacer */
+
+    Tft_Driver_Show_CN_String(5, Center(S_RESET_HINT),
+        S_RESET_HINT, UI_COLOR_VALUE, UI_COLOR_BG);    /* row 5 */
+
+    Draw_Divider(6);                /* row 6 */
     Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_BACK),
-        S_BOTTOM_BACK, UI_COLOR_TEXT, UI_COLOR_BG);
+        S_BOTTOM_BACK, UI_COLOR_TEXT, UI_COLOR_BG);    /* row 7 */
 }
 
 /* ================================================================
@@ -1152,16 +1167,12 @@ static void Handle_Keys_by_Page(Ui_Page page,
  *  Phase 1: Fault edge detection → may set s_page, s_page_drawn=0
  *  Phase 2: Sweep complete detection → may set s_page
  *  Phase 3: Key scan + dispatch → may set s_page or s_menu_cursor
- *  Phase 4: Page change → s_page_drawn=0; cursor change → cursor_update
+ *  Phase 4: Page change → s_page_drawn=0; all tracking invalidated
  *  Phase 5: 200ms tick → dynamic incremental update (values only)
- *  Phase 6: PB10 + Overcurrent protection
- *  Phase 7: Draw — full page only when s_page_drawn==0
- *
- *  Menu pages (MAIN_MENU, SUB_MENU, FAULT): static text drawn once.
- *    200ms only checks for PWM/fault state transitions, zero SPI if idle.
- *  Dynamic pages (SWEEP, MONITOR_*): 200ms updates F/V/I values + energy bar.
- *    Only redraws lines whose content actually changed (string compare).
- *  Cursor: ▶ at col 0. On move → erase old ▶ + draw new ▶ (2 chars, ~0.5ms).
+ *  Phase 6: Cursor boundary clamp
+ *  Phase 7: PB10 PowerContrl
+ *  Phase 8: Overcurrent protection
+ *  Phase 9: Draw — full page only when s_page_drawn==0
  * ================================================================ */
 void Ui_Controller_Task(void)
 {
@@ -1316,11 +1327,10 @@ void Ui_Controller_Task(void)
         }
         Update_Leds(s_page);
         s_page_drawn = 1;
-        cursor_changed = 0;  /* consumed by full draw */
+        cursor_changed = 0;
     } else {
         /* ── Incremental updates — only touch changed pixels ── */
 
-        /* Cursor move: 2-line update for menu pages */
         if (cursor_changed) {
             switch (s_page) {
                 case UI_PAGE_MAIN_MENU:
@@ -1330,44 +1340,22 @@ void Ui_Controller_Task(void)
                     Sub_Menu_Cursor_Update(old_cursor);
                     break;
                 default:
-                    /* Non-menu pages: cursor change triggers full redraw
-                     * (only MONITOR_SUMMARY/FREQ use cursor for freq stepping,
-                     *  and they redraw completely every 200ms anyway) */
                     s_page_drawn = 0;
                     break;
             }
         }
 
-        /* 200ms dynamic value update */
         if (tick_200ms) {
             switch (s_page) {
-                case UI_PAGE_MAIN_MENU:
-                    Main_Menu_Dynamic_Update();
-                    break;
-                case UI_PAGE_MONITOR_SUB_MENU:
-                    /* Static page — nothing to update */
-                    break;
-                case UI_PAGE_SWEEP:
-                    Sweep_Dynamic_Update();
-                    break;
-                case UI_PAGE_MONITOR_SUMMARY:
-                    Summary_Dynamic_Update();
-                    break;
-                case UI_PAGE_MONITOR_FREQ:
-                    Freq_Dynamic_Update();
-                    break;
-                case UI_PAGE_MONITOR_VOLT:
-                    Volt_Dynamic_Update();
-                    break;
-                case UI_PAGE_MONITOR_CURR:
-                    Curr_Dynamic_Update();
-                    break;
-                case UI_PAGE_WIFI_SETUP:
-                    WiFi_Dynamic_Update();
-                    break;
-                case UI_PAGE_FAULT:
-                    /* Static page — nothing to update */
-                    break;
+                case UI_PAGE_MAIN_MENU:        Main_Menu_Dynamic_Update(); break;
+                case UI_PAGE_MONITOR_SUB_MENU: /* static */               break;
+                case UI_PAGE_SWEEP:            Sweep_Dynamic_Update();    break;
+                case UI_PAGE_MONITOR_SUMMARY:  Summary_Dynamic_Update();  break;
+                case UI_PAGE_MONITOR_FREQ:     Freq_Dynamic_Update();     break;
+                case UI_PAGE_MONITOR_VOLT:     Volt_Dynamic_Update();     break;
+                case UI_PAGE_MONITOR_CURR:     Curr_Dynamic_Update();     break;
+                case UI_PAGE_WIFI_SETUP:       WiFi_Dynamic_Update();     break;
+                case UI_PAGE_FAULT:            /* static */               break;
             }
             Update_Leds(s_page);
         }
