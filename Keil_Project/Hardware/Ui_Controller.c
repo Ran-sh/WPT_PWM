@@ -114,11 +114,6 @@ static char    s_last_i_str[21];
 static char    s_last_status_buf[42];
 static char    s_last_retry_buf[16];
 
-/* Gauge badge tracking — only redraw badge when level changes */
-static uint8_t s_last_volt_badge = 0xFF;  /* 0=OK, 1=WARN, 2=HI */
-static uint8_t s_last_curr_badge = 0xFF;  /* 0=OK, 1=WARN */
-static uint8_t s_last_freq_badge = 0xFF;  /* 0=SWEEP, 1=DONE, 2=IDLE */
-
 static void Reset_EMA(void) { s_ema_ok = 0; }
 
 /* ================================================================
@@ -285,40 +280,6 @@ static void Draw_Bottom_Bar(const char* left_text)
     Tft_Driver_Show_CN_String(7, 0, left_text, UI_COLOR_TEXT, UI_COLOR_BG);
     Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_R),
         S_BOTTOM_R, UI_COLOR_TEXT, UI_COLOR_BG);
-}
-
-/* ── HUD value on row 2: >>> {formatted_value} <<<  centered ── */
-static void Draw_HUD_Value(uint8_t line, const char* formatted_buf)
-{
-    /* Erase full line first */
-    Erase_Line(line);
-
-    /* Draw left chevron at col 0 */
-    Tft_Driver_Show_String(line, 0, S_HUD_L, UI_COLOR_DIM, UI_COLOR_BG);
-
-    /* Draw value centered (it contains the leading Chinese label like "电压V:xx.xxV") */
-    Tft_Driver_Show_CN_String(line, Center(formatted_buf), formatted_buf, UI_COLOR_VALUE, UI_COLOR_BG);
-
-    /* Draw right chevron at col 16 (16*8=128px, leaves 2 cols on right = 16px) */
-    Tft_Driver_Show_String(line, 16, S_HUD_R, UI_COLOR_DIM, UI_COLOR_BG);
-}
-
-/* ── Gauge trough (dark background behind energy bar) ── */
-static void Draw_Gauge_Trough(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
-{
-    Tft_Driver_Fill_Rect(x, y, w, h, 0x2104);  /* dark grey-blue */
-}
-
-/* ── 5 tick marks above the energy bar ── */
-static void Draw_Gauge_Ticks(uint16_t x, uint16_t y, uint16_t w)
-{
-    uint8_t ti;
-    for (ti = 0; ti < 5; ti++) {
-        /* tick at x + (w/4)*ti, centered */
-        uint16_t tx = x + (uint16_t)(((uint32_t)w * ti) / 4);
-        if (tx > x + w) tx = x + w;
-        Tft_Driver_Fill_Rect(tx, y, 2, 3, UI_COLOR_DIM);
-    }
 }
 
 /* ── Draw menu text at line,col (erases whole line first, text at col≥2 for star) ── */
