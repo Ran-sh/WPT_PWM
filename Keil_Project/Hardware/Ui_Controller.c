@@ -860,16 +860,17 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
         strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
         s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
 
-    /* -- Row 6 (Y=96): metric label with unit suffix ── */
-    if (cfg->label == 'F')
-        Tft_Driver_Show_CN_String(6, Center("\xe9\xa2\x91\xe7\x8e\x87"
-            " kHz"), "\xe9\xa2\x91\xe7\x8e\x87"" kHz", UI_COLOR_VALUE, UI_COLOR_BG);
-    else if (cfg->label == 'V')
-        Tft_Driver_Show_CN_String(6, Center("\xe7\x94\xb5\xe5\x8e\x8b"
-            " V"), "\xe7\x94\xb5\xe5\x8e\x8b"" V", UI_COLOR_VALUE, UI_COLOR_BG);
-    else
-        Tft_Driver_Show_CN_String(6, Center("\xe7\x94\xb5\xe6\xb5\x81"
-            " A"), "\xe7\x94\xb5\xe6\xb5\x81"" A", UI_COLOR_VALUE, UI_COLOR_BG);
+        /* -- Row 6 (Y=96): metric label with unit suffix, center-aligned ── */
+        if (cfg->label == 'F') {
+            Tft_Driver_Show_CN_String(6, Center(S_FREQ " kHz"),
+                S_FREQ " kHz", UI_COLOR_VALUE, UI_COLOR_BG);
+        } else if (cfg->label == 'V') {
+            Tft_Driver_Show_CN_String(6, Center(S_VOLTAGE " V"),
+                S_VOLTAGE " V", UI_COLOR_VALUE, UI_COLOR_BG);
+        } else {
+            Tft_Driver_Show_CN_String(6, Center(S_CURRENT " A"),
+                S_CURRENT " A", UI_COLOR_VALUE, UI_COLOR_BG);
+        }
     }
 
     /* ── 6. Footer: top-right icons only (gauge pages are full-screen, no divider/bottom bar) ── */
