@@ -14,7 +14,7 @@
 #include "Ui_Controller.h"
 #include "Sys_Core.h"
 #include "Tft_Driver.h"
-#include "TFT_Img.h"
+#include "TFT_Font_Data.h"
 #include "Key_Driver.h"
 #include "Pwm_Driver.h"
 #include "Inverter_Control.h"

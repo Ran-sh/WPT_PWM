@@ -776,9 +776,9 @@
               <FilePath>.\Hardware\Energy_Bar.h</FilePath>
             </File>
             <File>
-              <FileName>TFT_Img.h</FileName>
+              <FileName>TFT_Font_Data.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\Hardware\TFT_Img.h</FilePath>
+              <FilePath>.\Hardware\TFT_Font_Data.h</FilePath>
             </File>
           </Files>
         </Group>

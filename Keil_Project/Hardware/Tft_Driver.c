@@ -11,9 +11,7 @@
  */
 
 #include "Tft_Driver.h"
-#include "TFT_Font.h"
-#include "TFT_CN_Font.h"
-#include "TFT_Img.h"
+#include "TFT_Font_Data.h"
 
 #define TFT_DRIVER_CS_PIN   GPIO_Pin_4
 #define TFT_DRIVER_DC_PIN   GPIO_Pin_6
