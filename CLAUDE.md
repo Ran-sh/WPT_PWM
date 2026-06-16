@@ -77,7 +77,7 @@ WPT_PWM_V4.0_ONENET_TFT/
 │   ├── Hardware/ (20文件)
 │   │   ├── Tft_Driver.c/h         ← ST7735 SPI+DMA 彩屏 (606行)
 │   │   ├── TFT_Font_Data.h        ← 合并: ASCII 95字 + 中文 78字 + WIFI/MQTT/STAR 图标
-│   │   ├── Ui_Controller.c/h      ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1692行, 最大文件)
+│   │   ├── Ui_Controller.c/h      ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1700行, 最大文件)
 │   │   ├── Pwm_Driver.c/h         ← TIM1 全桥 PWM 95-150kHz 1000ns死区
 │   │   ├── Inverter_Control.c/h   ← 软启动 150k→100kHz + 频率斜坡
 │   │   ├── Adc_Driver.c/h         ← ADC1 双通道 + 64样本滑动窗口
@@ -86,9 +86,9 @@ WPT_PWM_V4.0_ONENET_TFT/
 │   │   ├── Led_Driver.c/h         ← 6 LED 闪烁
 │   │   └── Buzzer_Driver.c/h      ← 蜂鸣器
 │   ├── User/ (8文件)
-│   │   ├── main.c                 ← 程序入口 52行
-│   │   ├── Sys_Core.c/h           ← 合并: 状态枚举+初始化+安全+运行调度
-│   │   ├── App_Network.c/h        ← WiFi联网+CMD指令+遥测 (206行)
+│   │   ├── main.c                 ← 程序入口 50行
+│   │   ├── Sys_Core.c/h           ← 合并: 状态枚举+初始化+安全+运行调度 (190行)
+│   │   ├── App_Network.c/h        ← WiFi联网(指数退避7级)+CMD指令同步g_sys_state+遥测EMA (222行)
 │   │   ├── stm32f10x_it.c/h       ← ISR (SysTick + USART2)
 │   │   └── stm32f10x_conf.h       ← SPL 配置
 │   ├── System/ → Sys_Timer.c/h    ← SysTick 1ms + DWT
