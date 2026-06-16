@@ -30,7 +30,7 @@ static const uint16_t EB_COLOR_TABLE[8] = {
     0x07E0, 0x2FE0, 0x5FE0, 0x87E0, 0xFF80, 0xFD00, 0xF900, 0xF800  /* 绿→黄→红 RGB565 */
 };
 
-static void Ui_Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t h,
+static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t h,
                                 float value, float min_val, float max_val, uint16_t bg_color)
 {
     uint16_t total_w;
@@ -475,8 +475,7 @@ static void Draw_Sweep_Full(void)
         if (!is_stopped) {
             Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                            14 * TFT_FONT_WIDTH, 8,
-                           (float)progress, 0.0f, 10.0f,
-                           ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
+                           (float)progress, 0.0f, 10.0f, UI_COLOR_BG);
             snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
             if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
         } else {
@@ -530,8 +529,7 @@ static void Sweep_Dynamic_Update(void)
             if (progress > 10) progress = 10;
             Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                            14 * TFT_FONT_WIDTH, 8,
-                           (float)progress, 0.0f, 10.0f,
-                           ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
+                           (float)progress, 0.0f, 10.0f, UI_COLOR_BG);
             snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
             if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
         } else {

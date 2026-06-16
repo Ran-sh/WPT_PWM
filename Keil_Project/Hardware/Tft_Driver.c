@@ -454,7 +454,7 @@ void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
 static uint8_t Tft_Driver_CNLookup(const char* u8)
 {
     uint8_t i;
-    for (i = 0; i < CN_CHAR_COUNT; i++)
+    for (i = 0; i < TFT_CN_FONT_CHAR_COUNT; i++)
         if (CN_INDEX[i*3]==u8[0] && CN_INDEX[i*3+1]==u8[1] && CN_INDEX[i*3+2]==u8[2])
             return i;
     return 0xFF;
