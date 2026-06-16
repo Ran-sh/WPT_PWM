@@ -24,7 +24,50 @@
 #include "Led_Driver.h"
 #include "Buzzer_Driver.h"
 #include "Sys_Timer.h"
-#include "Energy_Bar.h"
+
+/* ── Energy Bar color table + draw logic (merged from Energy_Bar.c) ── */
+static const uint16_t EB_COLOR_TABLE[8] = {
+    0x07E0, 0x2FE0, 0x5FE0, 0x87E0, 0xFF80, 0xFD00, 0xF900, 0xF800  /* 绿→黄→红 RGB565 */
+};
+
+static void Ui_Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t h,
+                                float value, float min_val, float max_val, uint16_t bg_color)
+{
+    uint16_t total_w;
+    uint8_t  seg_count, i;
+    uint16_t seg_w, seg_x;
+
+    {
+        float range = max_val - min_val;
+        float ratio;
+        if (range <= 0.0f) { Tft_Driver_Fill_Rect(x, y, max_w, h, bg_color); return; }
+        ratio = (value - min_val) / range;
+        if (ratio < 0.0f) ratio = 0.0f;
+        if (ratio > 1.0f) ratio = 1.0f;
+        total_w = (uint16_t)(ratio * (float)max_w);
+    }
+
+    Tft_Driver_Fill_Rect(x, y, max_w, h, bg_color);
+    if (total_w == 0) return;
+
+    seg_count = (uint8_t)(total_w / 4);
+    if (seg_count < 1) seg_count = 1;
+    if (seg_count > 8) seg_count = 8;
+    seg_w = total_w / seg_count;
+
+    for (i = 0; i < seg_count; i++) {
+        seg_x = x + i * seg_w;
+        {
+            uint16_t w = seg_w;
+            if (i == seg_count - 1) w = (x + total_w) - seg_x;
+            if (w > 0) {
+                uint8_t ci = (uint8_t)(((uint16_t)i * 8) / seg_count);
+                if (ci >= 8) ci = 7;
+                Tft_Driver_Fill_Rect(seg_x, y, w, h, EB_COLOR_TABLE[ci]);
+            }
+        }
+    }
+}
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -430,7 +473,7 @@ static void Draw_Sweep_Full(void)
         }
         Tft_Driver_Erase_Pixel_Area(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT + 8);
         if (!is_stopped) {
-            Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+            Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                            14 * TFT_FONT_WIDTH, 8,
                            (float)progress, 0.0f, 10.0f,
                            ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
@@ -485,7 +528,7 @@ static void Sweep_Dynamic_Update(void)
             progress = (SOFTSTART_START_FREQ_HZ - f) * 10
                      / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
             if (progress > 10) progress = 10;
-            Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+            Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                            14 * TFT_FONT_WIDTH, 8,
                            (float)progress, 0.0f, 10.0f,
                            ENERGY_BAR_METRIC_FREQ, UI_COLOR_BG);
