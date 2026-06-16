@@ -187,8 +187,8 @@ void App_Network_Task(void)
                 if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
                     snprintf(json_buf, sizeof(json_buf),
                              "{\"V\":%.2f,\"I\":%.3f,\"F\":%lu,\"S\":%d}\n",
-                             Adc_Driver_Get_Voltage(),
-                             Adc_Driver_Get_Current(),
+                             (double)Sys_Safety_Get_EMA_Voltage(),
+                             (double)Sys_Safety_Get_EMA_Current(),
                              (unsigned long)Pwm_Driver_Get_Frequency(),
                              (int)ss);
                 } else {
