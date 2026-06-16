@@ -81,16 +81,17 @@ Page({
           if (item.time && item.time > latestTime) latestTime = item.time;
         });
 
-        /* 在线判断: OneNET time 字段可能是秒(10位)或毫秒(13位), 统一转为 ms 再比较 */
-        let online;
-        if (latestTime > 0) {
-          const nowMs = Date.now();
-          /* 13位 = 毫秒, 10位 = 秒 → 秒级统一乘 1000 */
-          const latestMs = (latestTime > 9999999999) ? latestTime : (latestTime * 1000);
-          online = (nowMs - latestMs) < 60000;  /* 60s 内有数据 → 在线 */
-        } else {
-          /* 无 time 字段: 数据存在即在线 */
-          online = (res.data.data && res.data.data.length > 0);
+        /* 在线判断: 数据成功返回非空 → 在线; time 字段仅作辅助参考 */
+        let online = (res.data.data && res.data.data.length > 0);
+        if (online && latestTime > 0) {
+          /* time 可能是数字(秒/毫秒)或 ISO 字符串, 统一转数字安全比较 */
+          const t = Number(latestTime);
+          if (!isNaN(t) && t > 0) {
+            const nowMs = Date.now();
+            const latestMs = (t > 9999999999) ? t : (t * 1000);
+            online = (nowMs - latestMs) < 120000;  /* 2min 内有数据 → 在线 */
+          }
+          /* t 为 NaN (ISO 字符串等非标准格式) → 保持数据兜底的 online=true */
         }
         const now = Date.now();
         const lock = that._cmdLock || {};
