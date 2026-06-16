@@ -118,6 +118,24 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
     int8_t   cmd     = 0;
     uint32_t freq_hz = 0;
 
+    /* 防重入锁: 同一帧 payload 可能被 OneNET Broker 重发, 重复处理无意义 */
+    {
+        static uint32_t s_last_cmd_ms  = 0;
+        static char     s_last_cmd_buf[64] = "";
+        uint32_t now = millis();
+        if (length < sizeof(s_last_cmd_buf)
+            && memcmp(payload, s_last_cmd_buf, length) == 0
+            && length > 0
+            && now - s_last_cmd_ms < 2000) {
+            return;  /* 2s 内完全相同的指令直接丢弃 */
+        }
+        if (length < sizeof(s_last_cmd_buf)) {
+            memcpy(s_last_cmd_buf, payload, length);
+            s_last_cmd_buf[length] = '\0';
+        }
+        s_last_cmd_ms = now;
+    }
+
     if (!err) {
         JsonObject params = doc["params"];
 

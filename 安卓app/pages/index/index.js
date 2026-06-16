@@ -24,6 +24,8 @@ const FREQ = buildFreqMap();
 const FREQ_LIST = FREQ.list;
 const FREQ_HZ   = FREQ.hzMap;
 const INIT_IDX  = FREQ_LIST.indexOf(100);
+/* PWM 停机时当前频率回零, 复位需从值域快照恢复 */
+let s_last_display_freq = 100;
 
 Page({
   data: {
@@ -87,8 +89,13 @@ Page({
         const v = raw.V !== undefined ? Number(raw.V).toFixed(2) : that.data.voltage;
         const i = raw.I !== undefined ? Number(raw.I).toFixed(2) : that.data.current;
         const fHz = raw.F;
-        const fNum = fHz !== undefined ? Math.floor(fHz / 1000) : that.data.frequency;
-        const fIdx = FREQ_LIST.indexOf(fNum);
+        const rawFreq = fHz !== undefined ? Math.floor(fHz / 1000) : 0;
+        /* PWM 停机 → F=0 (STM32 遥测 S<DONE 时 V/I=0, 频率也显示 0), 停机期间保持最近已知频率供用户选频 */
+        const isRunning = (raw.Switch === true);
+        const fNum = isRunning ? (rawFreq > 0 ? rawFreq : that.data.frequency) : 0;
+        if (isRunning && fNum > 0) s_last_display_freq = fNum;
+        const displayFreq = isRunning ? fNum : 0;
+        const fIdx = isRunning ? ((fNum > 0 && fNum >= 95) ? FREQ_LIST.indexOf(fNum) : -1) : -1;
 
         /* 控制状态 (乐观锁仅保护 Switch) */
         const sw = (lock.switch && (now - lock.switch < 5000)) ? that.data.isOn : (raw.Switch === true);
@@ -98,22 +105,24 @@ Page({
         else             { state = 'IDLE';  label = '待机'; }
 
         /* 首次成功拿到数据 → 同步一次 swiper，之后永不再自动改 */
-        if (!that._freqInited && online && fIdx >= 0) {
+        if (!that._freqInited && online && fIdx >= 0 && isRunning) {
           that._freqInited = true;
           that.setData({ selectedFreq: fNum, freqIdx: fIdx });
         }
 
         that.setData({
-          voltage: v, current: i, frequency: fNum, connected: online,
-          isOn: sw, systemState: state, stateLabel: label
+          voltage: v, current: i, frequency: displayFreq, connected: online,
+          isOn: isRunning, systemState: state, stateLabel: label
         });
       },
       fail() { that.setData({ connected: false }); }
     });
   },
 
-  /* ── 发送命令 (通用) ── */
-  _sendCmd(params, cb) {
+  /* ── 发送命令 (通用, 支持网络抖动重试) ── */
+  _sendCmd(params, cb, retry) {
+    if (!retry) retry = 0;
+    const that = this;
     const payload = JSON.stringify({
       product_id: ONENET.PRODUCT_ID,
       device_name: ONENET.DEVICE_NAME,
@@ -124,8 +133,22 @@ Page({
       method: 'POST',
       header: { 'Authorization': ONENET.TOKEN, 'Content-Type': 'application/json' },
       data: payload,
-      success() { if (cb) cb(); },
-      fail() { wx.showToast({ title: '发送失败', icon: 'none' }); }
+      success(res) {
+        if (res.statusCode === 200 && res.data.code === 0) {
+          if (cb) cb();
+        } else if (retry < 2) {
+          setTimeout(() => that._sendCmd(params, cb, retry + 1), 600);
+        } else {
+          wx.showToast({ title: '下发失败', icon: 'none' });
+        }
+      },
+      fail() {
+        if (retry < 2) {
+          setTimeout(() => that._sendCmd(params, cb, retry + 1), 800);
+        } else {
+          wx.showToast({ title: '发送失败', icon: 'none' });
+        }
+      }
     });
   },
 
@@ -137,6 +160,7 @@ Page({
     const that = this;
     this._sendCmd({ Switch: on }, function() {
       that.setData({ isOn: on, systemState: on ? 'SWEEP' : 'IDLE', stateLabel: on ? '扫频中' : '待机' });
+      /* 下发后 3s 只验证一次, 失败则弹 toast 提示而非静默忽略 */
       setTimeout(() => {
         wx.request({
           url: ONENET.BASE_URL + '/thingmodel/query-device-property?product_id=' + ONENET.PRODUCT_ID + '&device_name=' + ONENET.DEVICE_NAME,
@@ -150,7 +174,8 @@ Page({
               raw[item.identifier] = v;
             });
             if (raw.Switch !== on) {
-              that._sendCmd({ Switch: on });
+              that._sendCmd({ Switch: on });  /* 自动重发一次 */
+              wx.showToast({ title: '指令未生效, 已重发', icon: 'none', duration: 1500 });
             }
           }
         });
