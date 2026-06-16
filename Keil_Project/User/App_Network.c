@@ -230,19 +230,15 @@ void App_Network_Task(void)
             if (allow_telemetry) {
                 char json_buf[80];
                 int written;
-                if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
-                    written = snprintf(json_buf, sizeof(json_buf),
-                             "{\"V\":%.2f,\"I\":%.3f,\"F\":%lu,\"S\":%d}\n",
-                             (double)Sys_Safety_Get_EMA_Voltage(),
-                             (double)Sys_Safety_Get_EMA_Current(),
-                             (unsigned long)Pwm_Driver_Get_Frequency(),
-                             (int)ss);
-                } else {
-                    /* 非 DONE 状态 (IDLE/FAULT): V/I 强制为 0, F 也强制为 0 (PWM 未输出) */
-                    written = snprintf(json_buf, sizeof(json_buf),
-                             "{\"V\":0.00,\"I\":0.000,\"F\":0,\"S\":%d}\n",
-                             (int)ss);
-                }
+                /* 始终上报真实 V/I: 物理量在任何状态下均可采集, 仅 F 在 PWM 未运行时报 0 */
+                written = snprintf(json_buf, sizeof(json_buf),
+                         "{\"V\":%.2f,\"I\":%.3f,\"F\":%lu,\"S\":%d}\n",
+                         (double)Sys_Safety_Get_EMA_Voltage(),
+                         (double)Sys_Safety_Get_EMA_Current(),
+                         (ss == INVERTER_CONTROL_SS_STATE_DONE)
+                            ? (unsigned long)Pwm_Driver_Get_Frequency()
+                            : 0UL,
+                         (int)ss);
                 if (written > 0 && (uint16_t)written < sizeof(json_buf))
                     Esp8266_Driver_Send_String(json_buf);
             }

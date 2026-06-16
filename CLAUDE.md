@@ -188,10 +188,12 @@ int main(void) {
 
 | 状态 | STM32 遥测 | ESP 上报 OneNET | Web/小程序显示 |
 |:---|:---|:---|:---|
-| IDLE | V=0,I=0,F=0,S=0 | Switch=false, F=0 | 停机/0 |
+| IDLE | V=真实,I=真实,F=0,S=0 | Switch=false, V/I=真实, F=0 | 停机/V/I 正常/F=0 |
 | SWEEP | 不发送遥测 | (无数据) | (上一帧缓存) |
-| RUNNING | V=EMA,I=EMA,F=真实Hz,S=2 | Switch=true, F=真实Hz | 运行中/实时值 |
-| FAULT | V=0,I=0,F=0,S=3 | Switch=false, F=0 | 故障/0 |
+| RUNNING | V=EMA,I=EMA,F=真实Hz,S=2 | Switch=true, V/I/F=真实 | 运行中/实时值 |
+| FAULT | V=真实,I=真实,F=0,S=3 | Switch=false, V/I=真实, F=0 | 故障/实时V/I/F=0 |
+
+**核心原则**: V/I 始终上报真实物理量 (任何状态下 ADC 均可采集), 仅 F (频率) 在 PWM 未运行时强制为 0 (物理上无输出)。ESP 侧不再二次判断 F 值, 完全透传 STM32 的决策。
 
 Telemetry JSON 全链路格式不变: `{"V":xx,"I":xx,"F":xx,"S":x}\n`
 

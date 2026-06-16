@@ -333,14 +333,14 @@ static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
     float        i = doc["I"];
     unsigned long f = doc["F"];
     int           s = doc["S"] | 0;
-    bool    running = (s == 2);  /* S=2 (SS_DONE) 才是真正运行, S=1 (SWEEP) 是软启动过渡 */
+    bool    running = (s == 2);  /* S=2 (SS_DONE) 才是真正运行 */
 
     StaticJsonDocument<256> tx;
     tx["id"]      = "123";
     tx["version"] = "1.0";
     tx["params"]["V"]["value"]        = v;
     tx["params"]["I"]["value"]        = i;
-    tx["params"]["F"]["value"]        = running ? f : 0;  /* 仅在 DONE 状态上报频率, 否则为 0 */
+    tx["params"]["F"]["value"]        = f;  /* STM32 侧已完成 F=0 停机处理, 直接透传 */
     tx["params"]["SetFreq"]["value"]  = s_mqtt_last_set_freq;
 
     if (s_mqtt_skip_switch) {
