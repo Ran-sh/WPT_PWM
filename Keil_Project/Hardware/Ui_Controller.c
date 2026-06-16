@@ -822,13 +822,13 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
         }
     }
 
-    /* ── 5. Info cabin: row 5 status → row 6 value → row 7 label ── */
+    /* ── 5. Info cabin: row 4 status → row 5 value → row 6 label ── */
     {
         const char* cn_label = (cfg->label == 'F') ? S_FREQ
                              : (cfg->label == 'V') ? S_VOLTAGE
                              : (cfg->label == 'C') ? S_CURRENT
                              : "";
-        /* -- Row 5 (Y=80): status stamp (OK/WRN/HI or SWP/DON/IDL) -- */
+        /* -- Row 4 (Y=64): status stamp (OK/WRN/HI or SWP/DON/IDL), sits inside arc ── */
         {
             const char* status_text;
             uint16_t status_color;
@@ -849,20 +849,20 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
                 else
                     { status_text = "OK"; status_color = UI_COLOR_OK; }
             }
-            Tft_Driver_Show_CN_String(5, Center(status_text), status_text,
+            Tft_Driver_Show_CN_String(4, Center(status_text), status_text,
                                       status_color, UI_COLOR_BG);
             strncpy(s_gauge_status_buf, status_text, sizeof(s_gauge_status_buf));
             s_gauge_status_buf[sizeof(s_gauge_status_buf) - 1] = '\0';
         }
 
-        /* -- Row 6 (Y=96): numeric value only, large/focused -- */
+        /* -- Row 5 (Y=80): numeric value only, large/focused -- */
         snprintf(buf, sizeof(buf), "%.2f", (double)val);
-        Tft_Driver_Show_CN_String(6, Center(buf), buf, TFT_COLOR_YELLOW, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(5, Center(buf), buf, TFT_COLOR_YELLOW, UI_COLOR_BG);
         strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
         s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
 
-        /* -- Row 7 (Y=112): metric label centered -- */
-        Tft_Driver_Show_CN_String(7, Center(cn_label), cn_label, UI_COLOR_VALUE, UI_COLOR_BG);
+        /* -- Row 6 (Y=96): metric label centered -- */
+        Tft_Driver_Show_CN_String(6, Center(cn_label), cn_label, UI_COLOR_VALUE, UI_COLOR_BG);
     }
 
     /* ── 6. Footer: top-right icons only (gauge pages are full-screen, no divider/bottom bar) ── */
@@ -959,8 +959,8 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         }
     }
 
-    /* ── 2. Value + status text diff (strict safe dirty rects, X:24-136) ── */
-    /* -- Row 5 (Y=80): status stamp (OK/WRN/HI or SWP/DON/IDL) -- */
+    /* ── 2. Info cabin diff: row 4 status → row 5 value → row 6 label ── */
+    /* -- Row 4 (Y=64): status stamp, inside arc -- */
     {
         const char* status_text;
         uint16_t status_color;
@@ -983,26 +983,26 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         }
 
         if (strncmp(status_text, s_gauge_status_buf, sizeof(s_gauge_status_buf)) != 0) {
-            Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
-            Tft_Driver_Show_CN_String(5, Center(status_text), status_text,
+            Tft_Driver_Erase_Pixel_Area(24, 64, 112, 16);
+            Tft_Driver_Show_CN_String(4, Center(status_text), status_text,
                                       status_color, UI_COLOR_BG);
             strncpy(s_gauge_status_buf, status_text, sizeof(s_gauge_status_buf));
             s_gauge_status_buf[sizeof(s_gauge_status_buf) - 1] = '\0';
         }
     }
 
-    /* -- Row 6 (Y=96): pure numeric value, yellow -- */
+    /* -- Row 5 (Y=80): pure numeric value, yellow -- */
     {
         snprintf(buf, sizeof(buf), "%.2f", (double)val);
         if (strncmp(buf, s_gauge_val_str, sizeof(s_gauge_val_str)) != 0) {
-            Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
-            Tft_Driver_Show_CN_String(6, Center(buf), buf, TFT_COLOR_YELLOW, UI_COLOR_BG);
+            Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
+            Tft_Driver_Show_CN_String(5, Center(buf), buf, TFT_COLOR_YELLOW, UI_COLOR_BG);
             strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
             s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
         }
     }
 
-    /* -- Row 7 (Y=112): metric label, cyan -- */
+    /* -- Row 6 (Y=96): metric label, cyan -- */
     {
         const char* cn_label = (cfg->label == 'F') ? S_FREQ
                              : (cfg->label == 'V') ? S_VOLTAGE
@@ -1011,8 +1011,8 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         static const char* s_last_gauge_label = NULL;
         if (cn_label != s_last_gauge_label) {
             s_last_gauge_label = cn_label;
-            Tft_Driver_Erase_Pixel_Area(24, 112, 112, 16);
-            Tft_Driver_Show_CN_String(7, Center(cn_label), cn_label, UI_COLOR_VALUE, UI_COLOR_BG);
+            Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
+            Tft_Driver_Show_CN_String(6, Center(cn_label), cn_label, UI_COLOR_VALUE, UI_COLOR_BG);
         }
     }
 
