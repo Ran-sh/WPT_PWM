@@ -1058,7 +1058,9 @@ static void Draw_Freq_Full(void) {
                        || Inverter_Control_Soft_Start_Get_State()
                          == INVERTER_CONTROL_SS_STATE_SWEEP);
     Update_EMA();
-    Draw_Gauge_Full(&GAUGE_F, s_ema_f);
+    /* PWM 未运行时强制 val=0, 防止 EMA 取到默认 90kHz 导致能量条非零 */
+    float display_val = is_running ? s_ema_f : 0.0f;
+    Draw_Gauge_Full(&GAUGE_F, display_val);
     /* PWM 未运行时数值显示为 0 (频率实际未输出) */
     if (!is_running) {
         Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
