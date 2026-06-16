@@ -855,19 +855,25 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             s_gauge_status_buf[sizeof(s_gauge_status_buf) - 1] = '\0';
         }
 
-        /* -- Row 5 (Y=80): numeric value only, large/focused -- */
-        snprintf(buf, sizeof(buf), "%.2f", (double)val);
+        /* -- Row 5 (Y=80): numeric value, format by table ── */
+        if (cfg->label == 'C')
+            snprintf(buf, sizeof(buf), "%.3f", (double)val);           /* 电流 3 decimal */
+        else
+            snprintf(buf, sizeof(buf), "%.2f", (double)val);           /* 电压/频率 2 decimal */
         Tft_Driver_Show_CN_String(5, Center(buf), buf, TFT_COLOR_YELLOW, UI_COLOR_BG);
         strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
         s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
 
-    /* -- Row 6 (Y=96): metric label, cyan (frequency appends "kHz") -- */
-    if (cfg->label == 'F') {
+    /* -- Row 6 (Y=96): metric label with unit suffix ── */
+    if (cfg->label == 'F')
         Tft_Driver_Show_CN_String(6, Center("\xe9\xa2\x91\xe7\x8e\x87"
             " kHz"), "\xe9\xa2\x91\xe7\x8e\x87"" kHz", UI_COLOR_VALUE, UI_COLOR_BG);
-    } else {
-        Tft_Driver_Show_CN_String(6, Center(cn_label), cn_label, UI_COLOR_VALUE, UI_COLOR_BG);
-    }
+    else if (cfg->label == 'V')
+        Tft_Driver_Show_CN_String(6, Center("\xe7\x94\xb5\xe5\x8e\x8b"
+            " V"), "\xe7\x94\xb5\xe5\x8e\x8b"" V", UI_COLOR_VALUE, UI_COLOR_BG);
+    else
+        Tft_Driver_Show_CN_String(6, Center("\xe7\x94\xb5\xe6\xb5\x81"
+            " A"), "\xe7\x94\xb5\xe6\xb5\x81"" A", UI_COLOR_VALUE, UI_COLOR_BG);
     }
 
     /* ── 6. Footer: top-right icons only (gauge pages are full-screen, no divider/bottom bar) ── */
@@ -996,9 +1002,12 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         }
     }
 
-    /* -- Row 5 (Y=80): pure numeric value, yellow -- */
+    /* -- Row 5 (Y=80): numeric value (3 decimal for current, 2 otherwise) -- */
     {
-        snprintf(buf, sizeof(buf), "%.2f", (double)val);
+        if (cfg->label == 'C')
+            snprintf(buf, sizeof(buf), "%.3f", (double)val);
+        else
+            snprintf(buf, sizeof(buf), "%.2f", (double)val);
         if (strncmp(buf, s_gauge_val_str, sizeof(s_gauge_val_str)) != 0) {
             Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
             Tft_Driver_Show_CN_String(5, Center(buf), buf, TFT_COLOR_YELLOW, UI_COLOR_BG);
@@ -1007,17 +1016,23 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         }
     }
 
-    /* -- Row 6 (Y=96): metric label, cyan -- */
+    /* -- Row 6 (Y=96): metric label with unit suffix -- */
     {
-        const char* cn_label = (cfg->label == 'F') ? S_FREQ
-                             : (cfg->label == 'V') ? S_VOLTAGE
-                             : (cfg->label == 'C') ? S_CURRENT
-                             : "";
+        const char* label_text;
+        if (cfg->label == 'F')
+            label_text = "\xe9\xa2\x91\xe7\x8e\x87"
+            " kHz";
+        else if (cfg->label == 'V')
+            label_text = "\xe7\x94\xb5\xe5\x8e\x8b"
+            " V";
+        else
+            label_text = "\xe7\x94\xb5\xe6\xb5\x81"
+            " A";
         static const char* s_last_gauge_label = NULL;
-        if (cn_label != s_last_gauge_label) {
-            s_last_gauge_label = cn_label;
+        if (label_text != s_last_gauge_label) {
+            s_last_gauge_label = label_text;
             Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
-            Tft_Driver_Show_CN_String(6, Center(cn_label), cn_label, UI_COLOR_VALUE, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(6, Center(label_text), label_text, UI_COLOR_VALUE, UI_COLOR_BG);
         }
     }
 
@@ -1035,12 +1050,11 @@ static void Draw_Freq_Full(void) {
                          == INVERTER_CONTROL_SS_STATE_SWEEP);
     Update_EMA();
     Draw_Gauge_Full(&GAUGE_F, s_ema_f);
-    /* PWM 未运行时覆盖 info cabin 为灰字 */
+    /* PWM 未运行时数值显示为 0 (频率实际未输出) */
     if (!is_running) {
-        Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
-        Tft_Driver_Show_CN_String(6, Center("---.-"),
-            "---.-", UI_COLOR_DIM, UI_COLOR_BG);
-        strncpy(s_gauge_val_str, "---.-", sizeof(s_gauge_val_str));
+        Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
+        Tft_Driver_Show_CN_String(5, Center("0"), "0", UI_COLOR_DIM, UI_COLOR_BG);
+        strncpy(s_gauge_val_str, "0", sizeof(s_gauge_val_str));
     }
     s_last_val_f = s_ema_f;
 }
