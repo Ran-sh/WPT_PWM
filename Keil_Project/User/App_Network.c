@@ -179,6 +179,7 @@ void App_Network_Task(void)
                     Inverter_Control_Soft_Start_Stop();
                     g_sys_state = SYS_STATE_IDLE;  /* V14 状态机同步: 远程关断必须重置全局状态 */
                     Ui_Controller_Force_Page(UI_PAGE_MAIN_MENU);  /* 多端同步: 远程关断后回到主菜单 */
+                    s_menu_cursor = 0;  /* 重置光标, 防止远端关断后本地菜单光标错位 */
                 }
             }
         }
