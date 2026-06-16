@@ -861,8 +861,13 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
         strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
         s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
 
-        /* -- Row 6 (Y=96): metric label centered -- */
+    /* -- Row 6 (Y=96): metric label, cyan (frequency appends "kHz") -- */
+    if (cfg->label == 'F') {
+        Tft_Driver_Show_CN_String(6, Center("\xe9\xa2\x91\xe7\x8e\x87"
+            " kHz"), "\xe9\xa2\x91\xe7\x8e\x87"" kHz", UI_COLOR_VALUE, UI_COLOR_BG);
+    } else {
         Tft_Driver_Show_CN_String(6, Center(cn_label), cn_label, UI_COLOR_VALUE, UI_COLOR_BG);
+    }
     }
 
     /* ── 6. Footer: top-right icons only (gauge pages are full-screen, no divider/bottom bar) ── */
