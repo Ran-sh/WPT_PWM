@@ -104,6 +104,9 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 #define S_WIFI_FORMAT  "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81" /* 无线状态 */
 #define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* summary */
 #define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* back to main */
+#define S_LABEL_FREQ   "\xe9\xa2\x91\xe7\x8e\x87" " kHz"
+#define S_LABEL_VOLT   "\xe7\x94\xb5\xe5\x8e\x8b" " V"
+#define S_LABEL_CURR   "\xe7\x94\xb5\xe6\xb5\x81" " A"
 #define S_DIV       "--------------------"           /* divider */
 
 #define S_PAUSE     "\xe5\xb7\xb2\xe6\x9a\x82\xe5\x81\x9c"           /* 已暂停 */
@@ -919,16 +922,12 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
         }
 
         /* -- Row 6 (Y=96): metric label with unit suffix, center-aligned ── */
-        if (cfg->label == 'F') {
-            Tft_Driver_Show_CN_String(6, Center(S_FREQ " kHz"),
-                S_FREQ " kHz", UI_COLOR_VALUE, UI_COLOR_BG);
-        } else if (cfg->label == 'V') {
-            Tft_Driver_Show_CN_String(6, Center(S_VOLTAGE " V"),
-                S_VOLTAGE " V", UI_COLOR_VALUE, UI_COLOR_BG);
-        } else {
-            Tft_Driver_Show_CN_String(6, Center(S_CURRENT " A"),
-                S_CURRENT " A", UI_COLOR_VALUE, UI_COLOR_BG);
-        }
+        if (cfg->label == 'F')
+            Tft_Driver_Show_CN_String(6, Center(S_LABEL_FREQ), S_LABEL_FREQ, UI_COLOR_VALUE, UI_COLOR_BG);
+        else if (cfg->label == 'V')
+            Tft_Driver_Show_CN_String(6, Center(S_LABEL_VOLT), S_LABEL_VOLT, UI_COLOR_VALUE, UI_COLOR_BG);
+        else
+            Tft_Driver_Show_CN_String(6, Center(S_LABEL_CURR), S_LABEL_CURR, UI_COLOR_VALUE, UI_COLOR_BG);
     }
 
     /* ── 6. Footer: top-right icons only (gauge pages are full-screen, no divider/bottom bar) ── */
@@ -1039,7 +1038,7 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
             else
                 { status_text = "IDL"; status_color = UI_COLOR_DIM; }
         } else {
-            float thr_warn = (cfg->label == 'V') ? 36.0f : 2.5f;
+            float thr_warn = (cfg->label == 'V') ? 36.0f : 1.2f;
             if (val >= cfg->red_start)
                 { status_text = "HI"; status_color = UI_COLOR_ALARM; }
             else if (val >= thr_warn)
@@ -1059,13 +1058,23 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
 
     /* -- Row 5 (Y=80): numeric value (3 decimal for current, 2 otherwise) -- */
     {
+        uint8_t is_running_f = (cfg->label == 'F')
+            && (Inverter_Control_Soft_Start_Get_State()
+                 == INVERTER_CONTROL_SS_STATE_DONE
+             || Inverter_Control_Soft_Start_Get_State()
+                 == INVERTER_CONTROL_SS_STATE_SWEEP);
+        uint16_t num_color = (cfg->label == 'F' && !is_running_f)
+            ? UI_COLOR_DIM : TFT_COLOR_YELLOW;
+
         if (cfg->label == 'C')
             snprintf(buf, sizeof(buf), "%.3f", (double)val);
+        else if (cfg->label == 'F' && !is_running_f)
+            snprintf(buf, sizeof(buf), "0");
         else
             snprintf(buf, sizeof(buf), "%.2f", (double)val);
         if (strncmp(buf, s_gauge_val_str, sizeof(s_gauge_val_str)) != 0) {
             Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
-            Tft_Driver_Show_CN_String(5, Center(buf), buf, TFT_COLOR_YELLOW, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(5, Center(buf), buf, num_color, UI_COLOR_BG);
             strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
             s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
         }
@@ -1074,15 +1083,9 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
     /* -- Row 6 (Y=96): metric label with unit suffix -- */
     {
         const char* label_text;
-        if (cfg->label == 'F')
-            label_text = "\xe9\xa2\x91\xe7\x8e\x87"
-            " kHz";
-        else if (cfg->label == 'V')
-            label_text = "\xe7\x94\xb5\xe5\x8e\x8b"
-            " V";
-        else
-            label_text = "\xe7\x94\xb5\xe6\xb5\x81"
-            " A";
+        if (cfg->label == 'F')      label_text = S_LABEL_FREQ;
+        else if (cfg->label == 'V') label_text = S_LABEL_VOLT;
+        else                        label_text = S_LABEL_CURR;
         static const char* s_last_gauge_label = NULL;
         if (label_text != s_last_gauge_label) {
             s_last_gauge_label = label_text;

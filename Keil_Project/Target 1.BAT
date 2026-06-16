@@ -44,4 +44,3 @@ SET CPU_CLOCK=0x00B71B00
 "D:\Keil5\ARM\ARMCC\Bin\ArmCC" --Via ".\objects\app_network.__i"
 "D:\Keil5\ARM\ARMCC\Bin\ArmCC" --Via ".\objects\sys_core.__i"
 "D:\Keil5\ARM\ARMCC\Bin\ArmLink" --Via ".\Objects\Project.lnp"
-"D:\Keil5\ARM\ARMCC\Bin\fromelf.exe" ".\Objects\Project.axf" --i32combined --output ".\Objects\Project.hex"

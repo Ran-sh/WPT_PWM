@@ -20,11 +20,8 @@ static Inverter_Control_Ramp_State s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
 
 static void Inverter_Control_Set_State_Atomic(Inverter_Control_Soft_Start_State new_state)
 {
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();
     s_ss_state = new_state;
-    /* 注: s_ss_state 为 uint32_t 对齐枚举, Cortex-M3 单指令原子读写, Get_State 无需禁用 IRQ */
-    __set_PRIMASK(primask);
+    /* Cortex-M3 对 32-bit 对齐存储保证单指令原子写入, Get_State 无需禁用 IRQ */
 }
 
 void Inverter_Control_Soft_Start_Trigger(void)

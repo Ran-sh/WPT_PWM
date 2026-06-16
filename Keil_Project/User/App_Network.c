@@ -27,12 +27,14 @@ static App_Network_Conn_State s_conn_state    = APP_NETWORK_CONN_IDLE;
 static uint8_t                s_retry_count   = 0;
 static uint32_t               s_connect_start = 0;
 static int8_t                 s_rssi          = -100;  /* WIFI 信号强度 dBm, 默认-100 */
+static uint32_t               s_last_esp_ms   = 0;     /* 最后一次收到 ESP 有效帧的时间戳, 心跳超时用 */
 
 uint8_t App_Network_Start_Connect(void)
 {
     s_conn_state    = APP_NETWORK_CONN_WIFI;
     s_retry_count   = 0;
     s_connect_start = Sys_Timer_Get_Tick();
+    s_last_esp_ms   = Sys_Timer_Get_Tick();  /* 刚启动, 给予初始超时窗口 */
     Esp8266_Driver_Start_Init();
     Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     return 0;
@@ -89,14 +91,11 @@ static void App_Network_Check_Retry(void)
         s_connect_start = Sys_Timer_Get_Tick();
     }
 
-    /* STATUS:MQTT 到达后重置计时器, 延长 MQTT 连接等待 */
-    if (s_conn_state == APP_NETWORK_CONN_MQTT)
-        s_connect_start = Sys_Timer_Get_Tick();
-
     /* 指数退避超时, 自动重试, 无限循环 */
     if (Sys_Timer_Get_Tick() - s_connect_start >= App_Network_Get_Retry_Timeout()) {
         s_retry_count++;
         s_connect_start = Sys_Timer_Get_Tick();
+        s_last_esp_ms   = Sys_Timer_Get_Tick();  /* 重置心跳, 给新 init 完整超时窗口 */
         Esp8266_Driver_Start_Init();
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     }
@@ -116,11 +115,25 @@ void App_Network_Task(void)
 
     App_Network_Check_Retry();
 
+    /* ── 心跳超时检测: 8s 无任何 ESP 帧 → 判定离线, 强制重连 ── */
+    if (s_conn_state != APP_NETWORK_CONN_IDLE
+        && Sys_Timer_Get_Tick() - s_last_esp_ms >= APP_NETWORK_CONNECT_TIMEOUT_MS) {
+        s_conn_state    = APP_NETWORK_CONN_WIFI;
+        s_retry_count   = 0;
+        s_connect_start = Sys_Timer_Get_Tick();
+        s_last_esp_ms   = Sys_Timer_Get_Tick();  /* 给予新 init 完整超时窗口 */
+        s_rssi          = -100;
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+        Esp8266_Driver_Start_Init();
+    }
+
     /* ── 指令接收 ── */
     if (Esp8266_Driver_Get_Rx_Flag()) {
         char local_buf[128];
         const char* p;
         Esp8266_Driver_Copy_Rx_Frame(local_buf, sizeof(local_buf));
+
+        s_last_esp_ms = Sys_Timer_Get_Tick();  /* 任何有效帧都刷新心跳时间戳 */
 
         if (strstr(local_buf, "STATUS:DISCONNECTED")) {
             /* 断连 → 回到 WIFI 等待, 不清 s_conn_state 避免跳过 Check_Retry */
@@ -133,7 +146,8 @@ void App_Network_Task(void)
         else if (strstr(local_buf, "STATUS:MQTT")) {
             /* MQTT 中间状态: 保留 WIFI_CONN→MQTT_CONN 转移, 但不从 ONLINE 降级 */
             if (s_conn_state == APP_NETWORK_CONN_WIFI) {
-                s_conn_state = APP_NETWORK_CONN_MQTT;
+                s_conn_state    = APP_NETWORK_CONN_MQTT;
+                s_connect_start = Sys_Timer_Get_Tick();  /* 进入 MQTT 时给新超时窗口, 仅一次 */
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
             }
         }
@@ -146,6 +160,11 @@ void App_Network_Task(void)
                 s_retry_count = 0;
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
             }
+        }
+        else if (strstr(local_buf, "STATUS:RSSI=")) {
+            /* 独立 RSSI 心跳帧: 仅更新信号强度, 不触发状态转移 (在线状态下 ESP 每 2s 发送) */
+            const char* r = strstr(local_buf, "RSSI=");
+            if (r) s_rssi = (int8_t)strtol(r + 5, NULL, 10);
         }
         else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {

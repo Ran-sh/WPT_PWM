@@ -17,8 +17,6 @@
     ((PWM_DRIVER_DEADTIME_NS) * 72 + 500) / 1000
 typedef char Pwm_Driver_Deadtime_Check[(PWM_DRIVER_DEADTIME_CYCLES <= 127) ? 1 : -1];  /* 编译期断言: DTG 必须 ≤ 127 (7位线性段) */
 
-static uint32_t s_current_freq = 150000;
-
 void Pwm_Driver_Init(void)
 {
     GPIO_InitTypeDef        gpio;
@@ -79,7 +77,6 @@ void Pwm_Driver_Init(void)
     /* 仅配置定时器但不启动, 按ON后再由 Soft_Start_Trigger 统一启动 */
     TIM_Cmd(TIM1, DISABLE);
     TIM_CtrlPWMOutputs(TIM1, DISABLE);
-    (void)s_current_freq;  /* 抑制未用警告 */
 }
 
 void Pwm_Driver_Enable(void)  { TIM_Cmd(TIM1, ENABLE); TIM_CtrlPWMOutputs(TIM1, ENABLE); }
@@ -105,8 +102,7 @@ uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz)
     TIM1->EGR  = TIM_EGR_UG;
     TIM1->CR1 &= ~TIM_CR1_UDIS;
 
-    s_current_freq = SystemCoreClock / ticks;
-    return s_current_freq;
+    return SystemCoreClock / ticks;
 }
 
 uint32_t Pwm_Driver_Get_Frequency(void)
