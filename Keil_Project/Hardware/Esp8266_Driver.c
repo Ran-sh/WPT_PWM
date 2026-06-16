@@ -118,6 +118,7 @@ void Esp8266_Driver_Start_Init(void)
 
     /* 先给 CH_PD 供电, 让模块上电 (此时 RST 已经是高, 模块会开始启动但马上会被拉低复位) */
     GPIO_SetBits(ESP8266_DRIVER_CH_PD_PORT, ESP8266_DRIVER_CH_PD_PIN);
+    { volatile uint32_t i; for (i = 0; i < 7000; i++) __NOP(); } /* 建立稳定供电腹地, 等待 VCC 充放电建立 */
 
     /* 给一个干净的硬件复位脉冲: 拉低 RST */
     GPIO_ResetBits(ESP8266_DRIVER_RST_PORT, ESP8266_DRIVER_RST_PIN);
