@@ -31,7 +31,7 @@ Page({
   data: {
     voltage: '--', current: '--', frequency: '--',
     systemState: 'IDLE', stateLabel: '待机',
-    isOn: false, isFault: false, connected: false,
+    isOn: false, isFault: false, connected: true,  /* 默认在线: 避免启动瞬间闪现"未连接", API 错误时再切离线 */
     freqList: FREQ_LIST, selectedFreq: 100, freqIdx: INIT_IDX,
     currentTheme: 'theme-dark',
     spinning: false
@@ -81,12 +81,16 @@ Page({
           if (item.time && item.time > latestTime) latestTime = item.time;
         });
 
-        /* 在线判断: 优先用 OneNET 返回的 time 字段 (毫秒时间戳), 若无则数据存在即在线 */
+        /* 在线判断: OneNET time 字段可能是秒(10位)或毫秒(13位), 统一转为 ms 再比较 */
         let online;
         if (latestTime > 0) {
-          online = (Date.now() - latestTime) < 30000;  /* 30s 内有数据 → 在线 */
+          const nowMs = Date.now();
+          /* 13位 = 毫秒, 10位 = 秒 → 秒级统一乘 1000 */
+          const latestMs = (latestTime > 9999999999) ? latestTime : (latestTime * 1000);
+          online = (nowMs - latestMs) < 60000;  /* 60s 内有数据 → 在线 */
         } else {
-          online = (res.data.data && res.data.data.length > 0);  /* 无时间戳兜底 */
+          /* 无 time 字段: 数据存在即在线 */
+          online = (res.data.data && res.data.data.length > 0);
         }
         const now = Date.now();
         const lock = that._cmdLock || {};
