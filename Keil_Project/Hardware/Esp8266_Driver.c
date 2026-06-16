@@ -103,8 +103,8 @@ static void Esp8266_Driver_Config_USART_Once(void)
 void Esp8266_Driver_Start_Init(void)
 {
     /* 硬件只配一次, 避免反复 USART_Init 干扰正在接收的数据 */
-    Config_GPIO_Once();
-    Config_USART_Once();
+    Esp8266_Driver_Config_GPIO_Once();
+    Esp8266_Driver_Config_USART_Once();
 
     /* 清空接收缓冲 */
     {

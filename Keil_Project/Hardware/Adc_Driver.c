@@ -35,7 +35,7 @@ typedef struct {
 } Adc_Driver_Filter_Window;
 
 /* 推入新 ADC 样本到滑动窗口: 窗口未满时仅累加, 满后减去最老值 → 维持 64 样本滚动平均 */
-static void Adc_Driver_Adc_Driver_Filter_PushAdc_Driver_Filter_Window* fw, uint16_t new_val)
+static void Adc_Driver_Filter_Push(Adc_Driver_Filter_Window* fw, uint16_t new_val)
 {
     uint16_t old = fw->buf[fw->idx];
     fw->buf[fw->idx] = new_val;
@@ -46,7 +46,7 @@ static void Adc_Driver_Adc_Driver_Filter_PushAdc_Driver_Filter_Window* fw, uint1
     if (fw->filled < ADC_DRIVER_FILTER_WINDOW) fw->filled++;
 }
 
-static float Adc_Driver_Adc_Driver_Filter_To_Voltageconst Adc_Driver_Filter_Window* fw)
+static float Adc_Driver_Filter_To_Voltage(const Adc_Driver_Filter_Window* fw)
 {
     if (fw->filled == 0) return 0.0f;
     return ((float)fw->accum / (float)fw->filled / 4095.0f) * ADC_DRIVER_VREF_MCU;
@@ -130,11 +130,11 @@ void Adc_Driver_Filter_Task(void)
         last_cyc = now;
     }
 
-    Adc_Driver_Filter_Push&s_v_filter, s_adc_raw[1]);
-    s_voltage = Adc_Driver_Filter_To_Voltage&s_v_filter) * ADC_DRIVER_VOLTAGE_DIVIDER;
+    Adc_Driver_Filter_Push(&s_v_filter, s_adc_raw[1]);
+    s_voltage = Adc_Driver_Filter_To_Voltage(&s_v_filter) * ADC_DRIVER_VOLTAGE_DIVIDER;
 
-    Adc_Driver_Filter_Push&s_c_filter, s_adc_raw[0]);
-    s_raw_pin_v = Adc_Driver_Filter_To_Voltage&s_c_filter);
+    Adc_Driver_Filter_Push(&s_c_filter, s_adc_raw[0]);
+    s_raw_pin_v = Adc_Driver_Filter_To_Voltage(&s_c_filter);
     s_current   = (s_raw_pin_v - s_i_offset) / ADC_DRIVER_CURRENT_SENSITIVITY * ADC_DRIVER_CURRENT_CAL_FACTOR;
 }
 

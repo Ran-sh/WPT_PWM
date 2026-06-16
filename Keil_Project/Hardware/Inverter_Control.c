@@ -18,7 +18,7 @@ static uint32_t s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
 static uint32_t s_ss_last_ms      = 0;
 static Inverter_Control_Ramp_State s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
 
-static void Inverter_Control_Inverter_Control_Set_State_AtomicInverter_Control_Soft_Start_State new_state)
+static void Inverter_Control_Set_State_Atomic(Inverter_Control_Soft_Start_State new_state)
 {
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
@@ -36,7 +36,7 @@ void Inverter_Control_Soft_Start_Trigger(void)
     Pwm_Driver_Set_Frequency(s_ss_current_freq);
     Pwm_Driver_Enable();
     s_ss_last_ms = Sys_Timer_Get_Tick();
-    Inverter_Control_Set_State_AtomicINVERTER_CONTROL_SS_STATE_SWEEP);
+    Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_SWEEP);
 }
 
 void Inverter_Control_Soft_Start_Task(void)
@@ -49,7 +49,7 @@ void Inverter_Control_Soft_Start_Task(void)
         if (s_ss_current_freq <= SOFTSTART_TARGET_FREQ_HZ + SOFTSTART_STEP_HZ) {
             Pwm_Driver_Set_Frequency(SOFTSTART_TARGET_FREQ_HZ);
             s_ss_current_freq = SOFTSTART_TARGET_FREQ_HZ;
-            Inverter_Control_Set_State_AtomicINVERTER_CONTROL_SS_STATE_DONE);
+            Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_DONE);
         } else {
             s_ss_current_freq -= SOFTSTART_STEP_HZ;
             if (s_ss_current_freq < SOFTSTART_TARGET_FREQ_HZ)
@@ -63,14 +63,14 @@ void Inverter_Control_Soft_Start_Stop(void)
 {
     Pwm_Driver_Disable();
     s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
-    Inverter_Control_Set_State_AtomicINVERTER_CONTROL_SS_STATE_IDLE);
+    Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_IDLE);
 }
 
 void Inverter_Control_Soft_Start_Fault(void)
 {
     Pwm_Driver_Disable();
     s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
-    Inverter_Control_Set_State_AtomicINVERTER_CONTROL_SS_STATE_FAULT);
+    Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_FAULT);
 }
 
 void Inverter_Control_Soft_Start_Reset(void)
@@ -78,7 +78,7 @@ void Inverter_Control_Soft_Start_Reset(void)
     Pwm_Driver_Disable();
     s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
     s_ramp_state       = INVERTER_CONTROL_RAMP_IDLE;
-    Inverter_Control_Set_State_AtomicINVERTER_CONTROL_SS_STATE_IDLE);
+    Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_IDLE);
 }
 
 Inverter_Control_Soft_Start_State Inverter_Control_Soft_Start_Get_State(void)

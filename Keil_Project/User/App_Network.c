@@ -59,7 +59,7 @@ uint8_t App_Network_Is_Connected(void)
 }
 
 /* ── 重试超时检查: 等待 CONNECT_TIMEOUT_MS(8s) 内收到 STATUS:ONLINE, 超时→重新 Start_Init → 最多 MAX_RETRIES(3) 次 → FAILED ── */
-static void App_Network_App_Network_Check_Retryvoid)
+static void App_Network_Check_Retry(void)
 {
     if (s_conn_state != APP_NETWORK_CONN_WIFI && s_conn_state != APP_NETWORK_CONN_MQTT) return;
     if (s_retry_count >= APP_NETWORK_MAX_RETRIES) {
@@ -93,7 +93,7 @@ void App_Network_Task(void)
 
     if (!Esp8266_Driver_Is_Ready()) return;
 
-    App_Network_Check_Retry);
+    App_Network_Check_Retry();
 
     /* ── 指令接收 ── */
     if (Esp8266_Driver_Get_Rx_Flag()) {
