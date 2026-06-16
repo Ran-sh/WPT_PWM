@@ -63,7 +63,7 @@ uint8_t App_Network_Is_Connected(void)
 /* ── 指数退避: 3s → 15s → 30s → 60s → 2min → 5min → 30min, 不永久 FAILED ── */
 static uint32_t App_Network_Get_Retry_Timeout(void)
 {
-    if (s_retry_count < 3)  return 3000;     /* 0-2:    3s (快速响应) */
+    if (s_retry_count < 3)  return 3000;     /* 0-2:    3s */
     if (s_retry_count < 8)  return 15000;    /* 3-7:   15s */
     if (s_retry_count < 14) return 30000;    /* 8-13:  30s */
     if (s_retry_count < 22) return 60000;    /* 14-21: 60s */
@@ -72,10 +72,22 @@ static uint32_t App_Network_Get_Retry_Timeout(void)
     return 1800000;                           /* 47+:   30min */
 }
 
+/** @brief 判断设备是否热点打开可配网 (RSSI 极强, 通常在 -30 以内) */
+static uint8_t App_Network_Is_Hotspot_Nearby(void)
+{
+    return (s_rssi >= -35);
+}
+
 static void App_Network_Check_Retry(void)
 {
     if (s_conn_state != APP_NETWORK_CONN_WIFI && s_conn_state != APP_NETWORK_CONN_MQTT)
         return;
+
+    /* 侦测到强信号热点 → 加速重试 (直接重置为 3s 级) */
+    if (App_Network_Is_Hotspot_Nearby()) {
+        s_retry_count   = 0;
+        s_connect_start = Sys_Timer_Get_Tick();
+    }
 
     /* STATUS:MQTT 到达后重置计时器, 延长 MQTT 连接等待 */
     if (s_conn_state == APP_NETWORK_CONN_MQTT)
