@@ -238,9 +238,9 @@ void App_Network_Task(void)
                              (unsigned long)Pwm_Driver_Get_Frequency(),
                              (int)ss);
                 } else {
+                    /* 非 DONE 状态 (IDLE/FAULT): V/I 强制为 0, F 也强制为 0 (PWM 未输出) */
                     written = snprintf(json_buf, sizeof(json_buf),
-                             "{\"V\":0.00,\"I\":0.000,\"F\":%lu,\"S\":%d}\n",
-                             (unsigned long)Pwm_Driver_Get_Frequency(),
+                             "{\"V\":0.00,\"I\":0.000,\"F\":0,\"S\":%d}\n",
                              (int)ss);
                 }
                 if (written > 0 && (uint16_t)written < sizeof(json_buf))
