@@ -13,10 +13,7 @@
  */
 
 #include "stm32f10x.h"
-#include "Sys_State.h"
-#include "Sys_Init.h"
-#include "Sys_Safety.h"
-#include "Sys_Run.h"
+#include "Sys_Core.h"
 #include "Key_Driver.h"
 #include "Adc_Driver.h"
 #include "App_Network.h"

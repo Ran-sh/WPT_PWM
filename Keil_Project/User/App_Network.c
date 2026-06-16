@@ -7,7 +7,7 @@
  */
 
 #include "App_Network.h"
-#include "Sys_State.h"  /* V14: 远程指令需同步 g_sys_state */
+#include "Sys_Core.h"  /* V14: 远程指令需同步 g_sys_state */
 #include "Esp8266_Driver.h"
 #include "Adc_Driver.h"
 #include "Pwm_Driver.h"

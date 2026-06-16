@@ -12,8 +12,7 @@
  */
 
 #include "Ui_Controller.h"
-#include "Sys_State.h"
-#include "Sys_Safety.h"
+#include "Sys_Core.h"
 #include "Tft_Driver.h"
 #include "TFT_Img.h"
 #include "Key_Driver.h"
