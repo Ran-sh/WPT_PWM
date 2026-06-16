@@ -1066,11 +1066,8 @@ static void Freq_Dynamic_Update(void) {
         Gauge_Dynamic_Update(&GAUGE_F, s_ema_f, old);
         s_last_val_f = s_ema_f;
     } else {
-        /* PWM 停止时仅刷新灰字, 不更新能量条 */
-        Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
-        Tft_Driver_Show_CN_String(6, Center("---.-"),
-            "---.-", UI_COLOR_DIM, UI_COLOR_BG);
-        strncpy(s_gauge_val_str, "---.-", sizeof(s_gauge_val_str));
+        /* PWM 停止时能量条回零 + 数值灰0 */
+        Gauge_Dynamic_Update(&GAUGE_F, 0.0f, old);
         s_last_val_f = s_ema_f;
         s_user_target_synced = 0;
     }
