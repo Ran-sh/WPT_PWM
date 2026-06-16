@@ -153,6 +153,7 @@ void App_Network_Task(void)
                 if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE) {
                     Inverter_Control_Soft_Start_Stop();
                     g_sys_state = SYS_STATE_IDLE;  /* V14 状态机同步: 远程关断必须重置全局状态 */
+                    Ui_Controller_Force_Page(UI_PAGE_MAIN_MENU);  /* 多端同步: 远程关断后回到主菜单 */
                 }
             }
         }
@@ -161,6 +162,7 @@ void App_Network_Task(void)
                 if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE) {
                     Inverter_Control_Soft_Start_Trigger();
                     g_sys_state = SYS_STATE_SWEEP;  /* V14 状态机同步: 远程开机必须告知主循环 */
+                    Ui_Controller_Force_Page(UI_PAGE_SWEEP);  /* 防 UI 滞留菜单页导致遥测误门控 */
                 }
             }
         }

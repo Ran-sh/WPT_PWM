@@ -29,6 +29,8 @@ typedef enum {
 void    Ui_Controller_Task(void);
 /** @brief 获取当前所在页面 */
 Ui_Page Ui_Controller_Get_Page(void);
+/** @brief 外部强制跳转到目标页面 (远程指令/系统状态迁移同步用) */
+void    Ui_Controller_Force_Page(Ui_Page page);
 /** @brief 是否处于无WiFi模式 (远程指令门控用) */
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void);
 

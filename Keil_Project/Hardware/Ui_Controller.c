@@ -1690,3 +1690,13 @@ void Ui_Controller_Task(void)
  * ================================================================ */
 Ui_Page Ui_Controller_Get_Page(void)      { return s_page; }
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void) { return s_no_wifi_mode; }
+
+/**
+ * @brief  外部强制跳转到目标页面 (物理级)
+ * @note   远程指令触发或系统状态迁移时, 调用此函数同步 UI 页面, 防止 UI 展示不同步
+ */
+void Ui_Controller_Force_Page(Ui_Page page)
+{
+    s_page = page;
+    s_page_drawn = 0;  /* 强制全量重绘 */
+}
