@@ -696,16 +696,6 @@
               <FilePath>.\Hardware\Tft_Driver.h</FilePath>
             </File>
             <File>
-              <FileName>TFT_Font.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\TFT_Font.h</FilePath>
-            </File>
-            <File>
-              <FileName>TFT_CN_Font.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\TFT_CN_Font.h</FilePath>
-            </File>
-            <File>
               <FileName>Buzzer_Driver.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Hardware\Buzzer_Driver.c</FilePath>
