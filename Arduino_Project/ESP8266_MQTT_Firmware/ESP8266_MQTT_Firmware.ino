@@ -434,22 +434,34 @@ void setup()
 void loop()
 {
     static unsigned long last_check = 0;
+    static unsigned long last_wifi_retry = 0;
     unsigned long now = millis();
 
     Mqtt_Task_Loop();
     Serial_Parse_Read_Loop();
 
-    /* 全局 WiFi 断连检测: 每 500ms 检查一次 */
+    /* 全局 WiFi 断连检测: 每 500ms 检查一次, 任何非 IDLE 状态均需 WiFi */
     if (now - last_check >= 500) {
         last_check = now;
-        if (s_conn_state == MQTT_CONN_STATE_ONLINE ||
-            s_conn_state == MQTT_CONN_STATE_MQTT_CONN) {
+        if (s_conn_state != MQTT_CONN_STATE_IDLE &&
+            s_conn_state != MQTT_CONN_STATE_FAILED) {
             if (WiFi.status() != WL_CONNECTED) {
-                s_conn_state     = MQTT_CONN_STATE_WIFI_CONN;
-                s_conn_retry_ms  = now;
-                s_conn_retry_cnt = 0;
-                Serial.print("STATUS:DISCONNECTED\n");
-                WiFi.begin();
+                /* WiFi 断连 → 回退到 WIFI_CONN, 播报 DISCONNECTED */
+                if (s_conn_state != MQTT_CONN_STATE_WIFI_CONN) {
+                    s_conn_state     = MQTT_CONN_STATE_WIFI_CONN;
+                    s_conn_retry_cnt = 0;
+                    Serial.print("STATUS:DISCONNECTED\n");
+                }
+                /* 每 3s 重试 WiFi.begin(), 利用保存的凭证重连 */
+                if (now - last_wifi_retry >= 3000) {
+                    last_wifi_retry = now;
+                    s_conn_retry_ms  = now;
+                    WiFi.mode(WIFI_STA);
+                    WiFi.begin();
+                }
+            } else {
+                /* WiFi 已连接, 重置重试计时器 */
+                last_wifi_retry = now;
             }
         }
     }
