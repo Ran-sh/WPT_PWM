@@ -62,10 +62,10 @@ uint8_t App_Network_Is_Connected(void)
     return (s_conn_state == APP_NETWORK_CONN_ONLINE);
 }
 
-/* ── 指数退避: 3s → 15s → 30s → 60s → 2min → 5min → 30min, 不永久 FAILED ── */
+/* ── 指数退避: 前两级 ≥5s (覆盖 ESP 4s 启动), 不永久 FAILED ── */
 static uint32_t App_Network_Get_Retry_Timeout(void)
 {
-    if (s_retry_count < 3)  return 3000;     /* 0-2:    3s */
+    if (s_retry_count < 3)  return 5000;     /* 0-2:    5s (必须 >4s ESP 启动) */
     if (s_retry_count < 8)  return 15000;    /* 3-7:   15s */
     if (s_retry_count < 14) return 30000;    /* 8-13:  30s */
     if (s_retry_count < 22) return 60000;    /* 14-21: 60s */
@@ -143,7 +143,7 @@ void App_Network_Task(void)
         conn_cs = s_conn_state;
 
         if (strstr(local_buf, "STATUS:DISCONNECTED")) {
-            /* 断连 → 回到 WIFI 等待, 不清 s_conn_state 避免跳过 Check_Retry */
+            /* 断连 → 回到 WIFI 等待, 重置重试参数 */
             s_conn_state    = APP_NETWORK_CONN_WIFI;
             s_retry_count   = 0;
             s_connect_start = Sys_Timer_Get_Tick();
