@@ -837,7 +837,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
                 else
                     { status_text = "IDL"; status_color = UI_COLOR_DIM; }
             } else {
-                float thr_warn = (cfg->label == 'V') ? 36.0f : 2.5f;
+                float thr_warn = (cfg->label == 'V') ? 36.0f : 1.2f;
                 if (val >= cfg->red_start)
                     { status_text = "HI"; status_color = UI_COLOR_ALARM; }
                 else if (val >= thr_warn)
@@ -852,13 +852,25 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
         }
 
         /* -- Row 5 (Y=80): numeric value, format by table ── */
-        if (cfg->label == 'C')
-            snprintf(buf, sizeof(buf), "%.3f", (double)val);           /* 电流 3 decimal */
-        else
-            snprintf(buf, sizeof(buf), "%.2f", (double)val);           /* 电压/频率 2 decimal */
-        Tft_Driver_Show_CN_String(5, Center(buf), buf, TFT_COLOR_YELLOW, UI_COLOR_BG);
-        strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
-        s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
+        {
+            uint8_t is_running_f = (cfg->label == 'F')
+                && (Inverter_Control_Soft_Start_Get_State()
+                     == INVERTER_CONTROL_SS_STATE_DONE
+                 || Inverter_Control_Soft_Start_Get_State()
+                     == INVERTER_CONTROL_SS_STATE_SWEEP);
+            uint16_t num_color = (cfg->label == 'F' && !is_running_f)
+                ? UI_COLOR_DIM : TFT_COLOR_YELLOW;
+
+            if (cfg->label == 'C')
+                snprintf(buf, sizeof(buf), "%.3f", (double)val);
+            else if (cfg->label == 'F' && !is_running_f)
+                snprintf(buf, sizeof(buf), "0");
+            else
+                snprintf(buf, sizeof(buf), "%.2f", (double)val);
+            Tft_Driver_Show_CN_String(5, Center(buf), buf, num_color, UI_COLOR_BG);
+            strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
+            s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
+        }
 
         /* -- Row 6 (Y=96): metric label with unit suffix, center-aligned ── */
         if (cfg->label == 'F') {
