@@ -59,7 +59,15 @@ uint8_t App_Network_Is_Connected(void)
     return (s_conn_state == APP_NETWORK_CONN_ONLINE);
 }
 
-/* ── 自动重试: 不限次数, 每 15s 超时自动重试一次, 永远不进入 FAILED ── */
+/* ── 指数退避重试: 前3次 15s → 4-6次 60s → 7-9次 120s → 10+次 300s, 不永久 FAILED ── */
+static uint32_t App_Network_Get_Retry_Timeout(void)
+{
+    if (s_retry_count < 3)  return 15000;   /* 0-2:  15s */
+    if (s_retry_count < 6)  return 60000;   /* 3-5:  60s */
+    if (s_retry_count < 9)  return 120000;  /* 6-8: 120s */
+    return 300000;                           /* 9+:  300s (5min) */
+}
+
 static void App_Network_Check_Retry(void)
 {
     if (s_conn_state != APP_NETWORK_CONN_WIFI && s_conn_state != APP_NETWORK_CONN_MQTT)
@@ -69,8 +77,8 @@ static void App_Network_Check_Retry(void)
     if (s_conn_state == APP_NETWORK_CONN_MQTT)
         s_connect_start = Sys_Timer_Get_Tick();
 
-    /* 超时 15s 自动重试, 无限循环不打烊 */
-    if (Sys_Timer_Get_Tick() - s_connect_start >= 15000) {
+    /* 指数退避超时, 自动重试, 无限循环 */
+    if (Sys_Timer_Get_Tick() - s_connect_start >= App_Network_Get_Retry_Timeout()) {
         s_retry_count++;
         s_connect_start = Sys_Timer_Get_Tick();
         Esp8266_Driver_Start_Init();
