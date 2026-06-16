@@ -110,7 +110,7 @@ static char    s_last_status_buf[42];
 static char    s_last_retry_buf[16];
 
 /* Gauge value & status cache (for diff-based incremental refresh) */
-static char    s_gauge_val_str[16] = "";
+static char    s_gauge_val_str[24] = "";
 static char    s_gauge_status_buf[24] = "";
 
 static void Reset_EMA(void) { s_ema_ok = 0; }
