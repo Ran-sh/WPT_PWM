@@ -26,6 +26,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
+## Git 推送前置钩子
+
+**每次 `git push` 之前，必须按顺序执行以下步骤：**
+
+1. 运行 `Keil_Project/keilkill.bat` 清理全部 Keil 编译中间产物
+2. `git add -A` 暂存所有变更
+3. `git commit -m "..."`
+4. `git push origin 4.0TFT`
+
+**铁律**: 推送之前必须先 keilkill，禁止将 `.obj` `.lst` `.axf` 等编译产物上传到 GitHub。
+
 ## Build System
 
 - **IDE**: Keil MDK-ARM V5 (uVision), ARMCC V5.06 update 5 (build 528)
