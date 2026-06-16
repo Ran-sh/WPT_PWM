@@ -18,8 +18,6 @@
 #include "Adc_Driver.h"
 #include "App_Network.h"
 
-volatile Sys_State g_sys_state = SYS_STATE_INIT;
-
 int main(void)
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
