@@ -333,7 +333,7 @@ static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
     float        i = doc["I"];
     unsigned long f = doc["F"];
     int           s = doc["S"] | 0;
-    bool    running = (s == 2);  /* S=2 (SS_DONE) 才是真正运行 */
+    bool    running = (s == 2);  /* S=2 (SS_DONE) 才是真正运行, S=1 (SWEEP) 已通过遥测门控排除 */
 
     StaticJsonDocument<256> tx;
     tx["id"]      = "123";
