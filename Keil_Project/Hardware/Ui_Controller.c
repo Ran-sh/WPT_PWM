@@ -824,10 +824,6 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
 
     /* ── 5. Info cabin: row 4 status → row 5 value → row 6 label ── */
     {
-        const char* cn_label = (cfg->label == 'F') ? S_FREQ
-                             : (cfg->label == 'V') ? S_VOLTAGE
-                             : (cfg->label == 'C') ? S_CURRENT
-                             : "";
         /* -- Row 4 (Y=64): status stamp (OK/WRN/HI or SWP/DON/IDL), sits inside arc ── */
         {
             const char* status_text;
