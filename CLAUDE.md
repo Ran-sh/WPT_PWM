@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V15 |
+| **版本** | V16 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 ## Git 推送前置钩子
@@ -65,7 +65,7 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 | RUNNING | 开 | + Freq_Ramp |
 | FAULT | 关 | + FAULT UI, 取消所有斜坡 |
 
-## 文件结构 (V15)
+## 文件结构 (V16)
 
 ### 完整目录树
 
@@ -74,33 +74,45 @@ WPT_PWM_V4.0_ONENET_TFT/
 ├── Keil_Project/                    ← STM32 固件 (Keil MDK)
 │   ├── Project.uvprojx              ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                 ← 清理编译产物 (push前必执行)
-│   ├── Hardware/ (20文件)
-│   │   ├── Tft_Driver.c/h         ← ST7735 SPI+DMA 彩屏 (606行)
-│   │   ├── TFT_Font_Data.h        ← 合并: ASCII 95字 + 中文 78字 + WIFI/MQTT/STAR 图标
-│   │   ├── Ui_Controller.c/h      ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1700行, 最大文件)
-│   │   ├── Pwm_Driver.c/h         ← TIM1 全桥 PWM 95-150kHz 1000ns死区
-│   │   ├── Inverter_Control.c/h   ← 软启动 150k→100kHz + 频率斜坡
-│   │   ├── Adc_Driver.c/h         ← ADC1 双通道 + 64样本滑动窗口
-│   │   ├── Esp8266_Driver.c/h     ← USART2 115200 + CH_PD/RST 非阻塞初始化
-│   │   ├── Key_Driver.c/h         ← 4键 FSM, 单击/双击/长按
-│   │   ├── Led_Driver.c/h         ← 6 LED 闪烁
-│   │   └── Buzzer_Driver.c/h      ← 蜂鸣器
-│   ├── User/ (8文件)
+│   ├── Hardware/ (12源文件, ~3600行)
+│   │   ├── Tft_Driver.c/h         ← ST7735 SPI+DMA 彩屏 (606+76行)
+│   │   ├── TFT_Font_Data.h        ← ASCII 95字 + 中文 78字 + WIFI/MQTT/STAR 图标 (358行)
+│   │   ├── Ui_Controller.c/h      ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1697+37行)
+│   │   ├── Pwm_Driver.c/h         ← TIM1 全桥 PWM 95-150kHz 1000ns死区 (113+33行)
+│   │   ├── Inverter_Control.c/h   ← 软启动 150k→100kHz + 频率斜坡 (146+67行)
+│   │   ├── Adc_Driver.c/h         ← ADC1 双通道 + 64样本滑动窗口 (162+20行)
+│   │   ├── Esp8266_Driver.c/h     ← USART2 115200 + Try_Copy_Rx_Frame 原子接收 (246+49行)
+│   │   ├── Key_Driver.c/h         ← 4键 FSM, 单击/双击/长按 (137+38行)
+│   │   ├── Led_Driver.c/h         ← 6 LED 闪烁 (135+42行)
+│   │   └── Buzzer_Driver.c/h      ← 蜂鸣器 (68+30行)
+│   ├── User/ (8文件, ~750行)
 │   │   ├── main.c                 ← 程序入口 50行
-│   │   ├── Sys_Core.c/h           ← 合并: 状态枚举+初始化+安全+运行调度 (190行)
-│   │   ├── App_Network.c/h        ← WiFi联网(指数退避7级)+CMD指令同步g_sys_state+遥测EMA (222行)
-│   │   ├── stm32f10x_it.c/h       ← ISR (SysTick + USART2)
-│   │   └── stm32f10x_conf.h       ← SPL 配置
-│   ├── System/ → Sys_Timer.c/h    ← SysTick 1ms + DWT
-│   ├── Start/  → system_stm32f10x.c
+│   │   ├── Sys_Core.c/h           ← 状态枚举+初始化+安全(Sys_Safety_Reset_EMA)+运行调度 (203+44行)
+│   │   ├── App_Network.c/h        ← WiFi+V16指数退避+8s心跳+帧快照TOCTOU防竞态+遥测 (253+41行)
+│   │   ├── stm32f10x_it.c/h       ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
+│   │   └── stm32f10x_conf.h       ← SPL 配置 (87行)
+│   ├── System/ → Sys_Timer.c/h    ← SysTick 1ms + DWT (48+36行)
+│   ├── Start/  → system_stm32f10x.c + CMSIS
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
 ├── Arduino_Project/                ← ESP8266 固件 (Arduino IDE)
-│   └── ESP8266_MQTT_Firmware.ino  ← WiFiManager+OneNET双MQTT Broker (468行)
+│   └── ESP8266_MQTT_Firmware.ino  ← WiFiManager+双MQTT Broker+指令去抖+Mqtt_Task_Publish_Telemetry (486行)
 ├── ONENETapp/                      ← 网页控制台 (Cloudflare Pages, 纯JS)
-│   ├── js/onenet.js               ← OneNET API + 乐观更新 + 历史缓存 (292行)
-│   ├── js/config.js               ← 数据模型 + 颜色映射 (67行)
-│   ├── js/mobile-nav.js           ← 移动端底部导航栏
-│   └── service-worker.js          ← PWA Service Worker
+│   ├── index.html                 ← 主页+连接指示 (404行)
+│   ├── monitoring.html            ← 实时监测+趋势图 (394行)
+│   ├── control.html               ← 设备控制+5s同步 (450行)
+│   ├── history.html               ← 历史查询 (531行)
+│   ├── alerts.html                ← 报警记录 (325行)
+│   ├── settings.html              ← 系统设置 (803行)
+│   ├── login.html                 ← 登录页 (150行)
+│   ├── js/onenet.js               ← OneNET API+乐观更新+setProperty重试3次 (303行)
+│   ├── js/config.js               ← 数据模型+颜色映射 (67行)
+│   ├── js/mobile-nav.js           ← 移动端底部导航栏 (30行)
+│   └── service-worker.js          ← PWA Service Worker (16行)
+├── 安卓app/                        ← 微信小程序 (WeChat MiniProgram)
+│   ├── app.js/json/wxss           ← 全局配置+双主题 (18行)
+│   ├── pages/index/index.js       ← OneNET直连+频率映射+指令验证重发重试 (216行)
+│   ├── pages/index/index.wxml     ← UI 模板 (79行)
+│   └── pages/index/index.wxss     ← 双主题样式系统 (345行)
 └── Claude_Files/                   ← AI 生成文档 (tools/docs)
     ├── tools/generate_docx.js      ← .docx 生成器
     └── docs/                       ← 技术文档 (.md + .docx)
@@ -139,11 +151,49 @@ int main(void) {
 | 显示级 | `Ui_Controller_Update_EMA()` | Sys_Safety 输出 | UI 仪表盘 + 综合监测页 |
 | 数字量 | `Pwm_Driver_Get_Frequency()` | 无滤波 | 频率（零迟滞, 保证调频跟手） |
 
-## App_Network WiFi 重试
+## App_Network WiFi 重试 (V16)
 
-- **指数退避**: 0-2次 15s → 3-5次 60s → 6-8次 120s → 9-11次 300s → 12+次 1800s(30min)，永不 FAILED
-- **心跳超时**: 8s 无 ESP 帧 → 判定离线 → 自动重连
-- **远程指令**: CMD:ON/OFF 同步更新 `g_sys_state` (V14 修复)
+- **指数退避**: 0-2次 3s → 3-7次 15s → 8-13次 30s → 14-21次 60s → 22-31次 2min → 32-46次 5min → 47+次 30min，永不 FAILED
+- **心跳超时**: 8s 无 ESP 帧 → 判定离线 → 自动重连 (`s_last_esp_ms` + `Esp8266_Driver_Start_Init()`)
+- **远程指令**: CMD:ON/OFF 同步更新 `g_sys_state` + `Ui_Controller_Force_Page()`
+- **帧处理安全**: `Try_Copy_Rx_Frame` 消除 check-then-act 丢帧窗口; `ss_cmd`/`conn_cs` 帧内快照防 ELSE-IF 链间 TOCTOU
+- **热点加速**: RSSI ≥ -35 → 直接重置退避级别为 3s 级快速直连
+- **MQTT 超时修复**: 计时器仅在首次进入 MQTT 状态时重置一次 (非每圈)
+
+## ESP8266 固件 (V16)
+
+- **指令去抖**: Mqtt_Task_Parse_Command 2s 窗口内相同 payload 直接丢弃
+- **Switch 状态**: 仅 `s==2` (SS_DONE) 上报 true, `s==1` (SWEEP) 为过渡态不上报运行
+- **遥测频率**: 仅在 running 时上报真实 F 值, 否则上报 0
+- **SetFreq 量化**: `(val/1000)*1000`, 与 STM32 PMW 1kHz 步进一致
+- **公共 Broker 透传**: `wpt/20260001/data` 接收原始 STM32 JSON, `wpt/20260001/cmd` 透传 CMD 指令
+
+## 网页端 (Cloudflare Pages) 关键设计
+
+- **乐观更新**: `setProperty` 成功后立即写 localStorage 缓存 + 3s 乐观锁, 轮询同步时忽略云端旧值
+- **重试机制**: `setProperty` 网络/业务错误各重试 3 次 (500ms/800ms 间隔)
+- **连接指示**: 同步失败 → 红色"连接失败"; 设备离线 → 黄色"离线"; 在线 → 绿色"在线"
+- **控制页同步**: 5s 间隔 (与首页一致), 非 60s
+- **数据模型**: `config.js` DEFAULT_DATA_MODEL 定义 sensors(V/I/F) + controls(Switch/SetFreq)
+- **频率映射**: `fromCloud: v => Math.floor(v/1000)` / `toCloud: v => v*1000`, Web 显示 kHz
+
+## 微信小程序 关键设计
+
+- **频率查表**: `buildFreqMap()` 预计算 STM32 硬件分频后的有效 kHz 值 (匹配 PMW 偶数 ticks 约束)
+- **停机显示**: F=0 时频率显示 0 (灰色), 保持最近已知频率供用户选频 (`s_last_display_freq`)
+- **指令重试**: `_sendCmd` 内置 3 次重试 (600ms/800ms), onSwitch 额外 3s 后验证重发
+- **双主题**: CSS 变量 `theme-dark` / `theme-light` 完整调色板
+
+## 全链路数据一致性 (V16 铁律)
+
+| 状态 | STM32 遥测 | ESP 上报 OneNET | Web/小程序显示 |
+|:---|:---|:---|:---|
+| IDLE | V=0,I=0,F=0,S=0 | Switch=false, F=0 | 停机/0 |
+| SWEEP | 不发送遥测 | (无数据) | (上一帧缓存) |
+| RUNNING | V=EMA,I=EMA,F=真实Hz,S=2 | Switch=true, F=真实Hz | 运行中/实时值 |
+| FAULT | V=0,I=0,F=0,S=3 | Switch=false, F=0 | 故障/0 |
+
+Telemetry JSON 全链路格式不变: `{"V":xx,"I":xx,"F":xx,"S":x}\n`
 
 ## Pin Mapping (STM32F103C8 LQFP-48)
 
