@@ -4,7 +4,7 @@
  * @brief   合并字库 + 图标数据 (原 TFT_Font.h + TFT_CN_Font.h + TFT_Img.h)
  * @note    仅被 Tft_Driver.c 包含, static const 数据 ~43KB ROM
  *          - 8x16 ASCII 95字符 (TFT_FONT_8X16)
- *          - 16x16 中文 75汉字 (CN_INDEX + CN_FONT_16X16)
+ *          - 16x16 中文 76汉字 (CN_INDEX + CN_FONT_16X16)
  *          - WIFI/MQTT/ROCKET/STAR 图标
  ******************************************************************************
  */
@@ -120,7 +120,7 @@ static const uint8_t TFT_FONT_8X16[][16] = {
  *  2. 16x16 中文字库 (78 字, 宋体, LSB-first)
  * ═══════════════════════════════════════════════════════════════ */
 
-#define TFT_CN_FONT_CHAR_COUNT  75
+#define TFT_CN_FONT_CHAR_COUNT  76
 
 static const char CN_INDEX[] = /* UTF-8 索引 */
     /* 0-8 */

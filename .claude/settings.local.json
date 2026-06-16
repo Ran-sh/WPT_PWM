@@ -148,7 +148,10 @@
       "Bash(perl *)",
       "Bash(echo \"EXIT:$?\")",
       "Bash(./keilkill.bat)",
-      "Bash(awk '{print $NF, $5}')"
+      "Bash(awk '{print $NF, $5}')",
+      "Bash(awk '/CN_FONT_16X16/{found=1} found && /\\\\/\\\\* [0-9]+/{count++} /^};/{if\\(found\\){print count; exit}}' TFT_Font_Data.h)",
+      "Bash(awk '/CN_FONT_16X16/{found=1} found && /[0-9]+ \\\\x [a-z]+ \\\\x/{count++} /^};/ && found {print count; exit}' TFT_Font_Data.h)",
+      "Bash(awk '/CN_FONT_16X16/{found=1; next} found && /};/{print count; exit} found {count++}' TFT_Font_Data.h)"
     ]
   }
 }
