@@ -85,7 +85,7 @@ static uint8_t  s_was_fault_state = 0;
 static uint8_t  s_no_wifi_mode    = 0;
 static uint8_t  s_last_page       = 0xFF;
 
-/* EMA smoothing */
+/* EMA filtering (V/I from Sys_Safety, F is raw digital — no EMA lag) */
 static float   s_ema_v = 0.0f, s_ema_i = 0.0f, s_ema_f = 0.0f;
 static uint8_t s_ema_ok = 0;
 
@@ -1465,9 +1465,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
  *  Phase 4: Page change → s_page_drawn=0; all tracking invalidated
  *  Phase 5: 200ms tick → dynamic incremental update (values only)
  *  Phase 6: Cursor boundary clamp
- *  Phase 7: PB10 PowerContrl
- *  Phase 8: Overcurrent protection
- *  Phase 9: Draw — full page only when s_page_drawn==0
+ *  Phase 7: Draw — full page only when s_page_drawn==0
  * ================================================================ */
 void Ui_Controller_Task(void)
 {
