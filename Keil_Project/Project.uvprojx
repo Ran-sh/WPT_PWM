@@ -815,6 +815,21 @@
               <FileType>5</FileType>
               <FilePath>.\User\App_Network.h</FilePath>
             </File>
+            <File>
+              <FileName>Sys_Init.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\Sys_Init.c</FilePath>
+            </File>
+            <File>
+              <FileName>Sys_Safety.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\Sys_Safety.c</FilePath>
+            </File>
+            <File>
+              <FileName>Sys_Run.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\Sys_Run.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

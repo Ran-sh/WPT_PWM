@@ -1,0 +1,3 @@
+This file forces Keil uVision to reload the .uvprojx XML, which caches file group membership.
+After manually editing .uvprojx, uVision may not see the new files until the project is closed and reopened.
+This touch file serves as a visual reminder, but the actual fix is: close uVision → reopen Project.uvprojx.

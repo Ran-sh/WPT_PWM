@@ -334,6 +334,16 @@ void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16
     Tft_DMA_Fill(total, color);
 }
 
+/**
+ * @brief  用背景色擦除指定像素区域 (DMA 单色填充)
+ * @param  x, y  左上角像素坐标
+ * @param  w, h  宽度/高度
+ */
+void Tft_Driver_Erase_Pixel_Area(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
+{
+    Tft_Driver_Fill_Rect(x, y, w, h, TFT_COLOR_BLACK);
+}
+
 /* ═══════════════════════════════════════════════════════════════
  *  位图→缓冲区解码辅助函数
  *  字体格式: 8x16 ASCII LSB-first, 16x16 中文 LSB-first, 每字节 bit0=左
