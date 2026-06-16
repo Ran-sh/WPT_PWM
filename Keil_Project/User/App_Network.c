@@ -178,8 +178,8 @@ void App_Network_Task(void)
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_SWEEP || ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {
                     Inverter_Control_Soft_Start_Stop();
                     g_sys_state = SYS_STATE_IDLE;  /* V14 状态机同步: 远程关断必须重置全局状态 */
-                    Ui_Controller_Force_Page(UI_PAGE_MAIN_MENU);  /* 多端同步: 远程关断后回到主菜单 */
-                    s_menu_cursor = 0;  /* 重置光标, 防止远端关断后本地菜单光标错位 */
+                    /* 强制回到主菜单并重置光标 — 远端关断时本地可能在任意页面, 需完整复位 */
+                    Ui_Controller_Force_Page_And_Reset(UI_PAGE_MAIN_MENU);
                 }
             }
         }
@@ -188,7 +188,8 @@ void App_Network_Task(void)
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_IDLE) {
                     Inverter_Control_Soft_Start_Trigger();
                     g_sys_state = SYS_STATE_SWEEP;  /* V14 状态机同步: 远程开机必须告知主循环 */
-                    Ui_Controller_Force_Page(UI_PAGE_SWEEP);  /* 防 UI 滞留菜单页导致遥测误门控 */
+                    /* 强制跳转到扫频页并重置光标 — 远端开机时本地可能在菜单页, 不跳转则遥测门控阻塞 */
+                    Ui_Controller_Force_Page_And_Reset(UI_PAGE_SWEEP);
                 }
             }
         }

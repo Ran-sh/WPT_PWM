@@ -1694,3 +1694,15 @@ void Ui_Controller_Force_Page(Ui_Page page)
     s_page = page;
     s_page_drawn = 0;  /* 强制全量重绘 */
 }
+
+/**
+ * @brief  外部强制跳转到目标页面并重置菜单光标
+ * @note   远程 CMD:ON/OFF 专用 — 除页面跳转外, 还强制重置 s_menu_cursor=0
+ *         防止远端操作后本地菜单光标停留在已失效的旧菜单项上
+ */
+void Ui_Controller_Force_Page_And_Reset(Ui_Page page)
+{
+    s_page        = page;
+    s_menu_cursor = 0;
+    s_page_drawn  = 0;
+}

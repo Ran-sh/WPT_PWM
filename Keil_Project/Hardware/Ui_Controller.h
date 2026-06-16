@@ -31,6 +31,8 @@ void    Ui_Controller_Task(void);
 Ui_Page Ui_Controller_Get_Page(void);
 /** @brief 外部强制跳转到目标页面 (远程指令/系统状态迁移同步用) */
 void    Ui_Controller_Force_Page(Ui_Page page);
+/** @brief 外部强制跳转到目标页面并重置菜单光标 (远程 CMD:ON/OFF 专用, 避免远端操作后本地光标错位) */
+void    Ui_Controller_Force_Page_And_Reset(Ui_Page page);
 /** @brief 是否处于无WiFi模式 (远程指令门控用) */
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void);
 
