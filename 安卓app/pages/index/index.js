@@ -81,7 +81,13 @@ Page({
           if (item.time && item.time > latestTime) latestTime = item.time;
         });
 
-        const online = (Date.now() - latestTime) < 10000;
+        /* 在线判断: 优先用 OneNET 返回的 time 字段 (毫秒时间戳), 若无则数据存在即在线 */
+        let online;
+        if (latestTime > 0) {
+          online = (Date.now() - latestTime) < 30000;  /* 30s 内有数据 → 在线 */
+        } else {
+          online = (res.data.data && res.data.data.length > 0);  /* 无时间戳兜底 */
+        }
         const now = Date.now();
         const lock = that._cmdLock || {};
 

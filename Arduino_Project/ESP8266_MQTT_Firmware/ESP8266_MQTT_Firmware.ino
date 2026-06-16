@@ -385,8 +385,16 @@ static void Serial_Parse_Process_Line(const char* line)
 
 static void Serial_Parse_Read_Loop(void)
 {
+    /* 1s 无换行 → 丢弃半帧缓冲, 防止噪声/断帧导致永久卡死 */
+    static unsigned long s_last_char_ms = 0;
+    unsigned long now = millis();
+    if (s_serial_len > 0 && now - s_last_char_ms >= 1000) {
+        s_serial_len = 0;  /* 丢弃卡死半帧 */
+    }
+
     while (Serial.available() > 0) {
         char c = (char)Serial.read();
+        s_last_char_ms = now;
         if (c == '\n') {
             if (s_serial_len > 0) {
                 s_serial_buf[s_serial_len] = '\0';

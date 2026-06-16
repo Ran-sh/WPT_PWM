@@ -70,7 +70,6 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 }
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 
 #define UI_COLOR_BG      TFT_COLOR_BLACK
 #define UI_COLOR_TITLE   TFT_COLOR_YELLOW

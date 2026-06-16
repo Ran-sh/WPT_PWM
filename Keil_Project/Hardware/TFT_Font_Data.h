@@ -120,7 +120,7 @@ static const uint8_t TFT_FONT_8X16[][16] = {
  *  2. 16x16 中文字库 (78 字, 宋体, LSB-first)
  * ═══════════════════════════════════════════════════════════════ */
 
-#define TFT_CN_FONT_CHAR_COUNT  78
+#define TFT_CN_FONT_CHAR_COUNT  76
 
 static const char CN_INDEX[] = /* UTF-8 索引 */
     /* 0-8 */
@@ -155,10 +155,10 @@ static const char CN_INDEX[] = /* UTF-8 索引 */
     "\xe5\x8a\x9f" /* 功 */ "\xe5\x87\xbb" /* 击 */ "\xe4\xbb\xaa" /* 仪 */
     "\xe8\xa1\xa8" /* 表 */ "\xe7\x9b\x98" /* 盘 */ "\xe6\x88\x90" /* 成 */
     "\xe9\x95\xbf" /* 长 */
-    /* 69-77 */
+    /* 69-76 */
     "\xe5\x8f\x8c" /* 双 */ "\xe7\xa1\xae" /* 确 */ "\xe5\xae\x9a" /* 定 */
-    "\xe8\xbf\x94" /* 返 */ "\xe5\x9b\x9e" /* 回 */ "\xe5\xa4\xb1" /* 失 */
-    "\xe8\xb4\xa5" /* 败 */ "\xe7\xbb\xbc" /* 综 */ "\xe5\x90\x88" /* 合 */
+    "\xe8\xbf\x94" /* 返 */ "\xe5\x9b\x9e" /* 回 */ "\xe7\xbb\xbc" /* 综 */
+    "\xe5\x90\x88" /* 合 */
     ;
 
 static const uint8_t CN_FONT_16X16[TFT_CN_FONT_CHAR_COUNT][32] = {
