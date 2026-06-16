@@ -42,6 +42,7 @@ uint8_t App_Network_Soft_Reset(void)
     /* 仅重置网络状态为 IDLE, 不重启硬件 — 用于进入无WIFI模式 */
     s_conn_state    = APP_NETWORK_CONN_IDLE;
     s_retry_count   = 0;
+    s_rssi          = -100;
     Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     return 0;
 }
@@ -55,29 +56,25 @@ uint8_t App_Network_Get_Retry_Count(void)  { return s_retry_count; }
 
 uint8_t App_Network_Is_Connected(void)
 {
-    return Esp8266_Driver_Is_Ready() && (s_conn_state == APP_NETWORK_CONN_ONLINE);
+    return (s_conn_state == APP_NETWORK_CONN_ONLINE);
 }
 
-/* ── 重试超时检查: 等待 CONNECT_TIMEOUT_MS(8s) 内收到 STATUS:ONLINE, 超时→重新 Start_Init → 最多 MAX_RETRIES(3) 次 → FAILED ── */
+/* ── 自动重试: 不限次数, 每 15s 超时自动重试一次, 永远不进入 FAILED ── */
 static void App_Network_Check_Retry(void)
 {
-    if (s_conn_state != APP_NETWORK_CONN_WIFI && s_conn_state != APP_NETWORK_CONN_MQTT) return;
-    if (s_retry_count >= APP_NETWORK_MAX_RETRIES) {
-        s_conn_state = APP_NETWORK_CONN_FAILED;
-        Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+    if (s_conn_state != APP_NETWORK_CONN_WIFI && s_conn_state != APP_NETWORK_CONN_MQTT)
         return;
-    }
 
-    if (Sys_Timer_Get_Tick() - s_connect_start >= APP_NETWORK_CONNECT_TIMEOUT_MS) {
+    /* STATUS:MQTT 到达后重置计时器, 延长 MQTT 连接等待 */
+    if (s_conn_state == APP_NETWORK_CONN_MQTT)
+        s_connect_start = Sys_Timer_Get_Tick();
+
+    /* 超时 15s 自动重试, 无限循环不打烊 */
+    if (Sys_Timer_Get_Tick() - s_connect_start >= 15000) {
         s_retry_count++;
-        if (s_retry_count < APP_NETWORK_MAX_RETRIES) {
-            s_connect_start = Sys_Timer_Get_Tick();
-            Esp8266_Driver_Start_Init();
-            Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
-        } else {
-            s_conn_state = APP_NETWORK_CONN_FAILED;
-            Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
-        }
+        s_connect_start = Sys_Timer_Get_Tick();
+        Esp8266_Driver_Start_Init();
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     }
 }
 
@@ -102,7 +99,7 @@ void App_Network_Task(void)
         Esp8266_Driver_Copy_Rx_Frame(local_buf, sizeof(local_buf));
 
         if (strstr(local_buf, "STATUS:DISCONNECTED")) {
-            /* 断连 → 重置并回到 WIFI 连接状态, 清 RSSI */
+            /* 断连 → 回到 WIFI 等待, 不清 s_conn_state 避免跳过 Check_Retry */
             s_conn_state    = APP_NETWORK_CONN_WIFI;
             s_retry_count   = 0;
             s_connect_start = Sys_Timer_Get_Tick();
@@ -110,17 +107,19 @@ void App_Network_Task(void)
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
         }
         else if (strstr(local_buf, "STATUS:MQTT")) {
-            if (s_conn_state != APP_NETWORK_CONN_ONLINE) {
+            /* MQTT 中间状态: 保留 WIFI_CONN→MQTT_CONN 转移, 但不从 ONLINE 降级 */
+            if (s_conn_state == APP_NETWORK_CONN_WIFI) {
                 s_conn_state = APP_NETWORK_CONN_MQTT;
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
             }
         }
         else if (strstr(local_buf, "STATUS:ONLINE")) {
-            /* STATUS:ONLINE 可带 RSSI 参数 "STATUS:ONLINE:RSSI=-45" */
+            /* ONLINE: 任何非 ONLINE 状态→ONLINE, 包括从 FAILED 恢复 */
             const char* r = strstr(local_buf, "RSSI=");
             if (r) s_rssi = (int8_t)strtol(r + 5, NULL, 10);
             if (s_conn_state != APP_NETWORK_CONN_ONLINE) {
                 s_conn_state = APP_NETWORK_CONN_ONLINE;
+                s_retry_count = 0;
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
             }
         }
