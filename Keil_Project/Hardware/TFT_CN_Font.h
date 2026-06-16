@@ -1,6 +1,15 @@
-/** @brief 78-character 16x16 Song font, LSB-first, linear scanned */
+/**
+ ******************************************************************************
+ * @file    Hardware/TFT_CN_Font.h
+ * @brief   78-character 16x16 Song font, LSB-first, linear scanned
+ * @note    中文字库, PCtoLCD2002 行主序 LSB-first 取模
+ *          CN_INDEX[] + CN_FONT_16X16[][] — 仅被 Tft_Driver.c 包含
+ ******************************************************************************
+ */
 #ifndef TFT_CN_FONT_H
 #define TFT_CN_FONT_H
+
+#define TFT_CN_FONT_CHAR_COUNT  78
 
 static const char CN_INDEX[] =
     /* 0-8 */

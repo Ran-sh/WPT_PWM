@@ -36,7 +36,7 @@ static uint32_t                  s_init_timer = 0;
 static uint8_t                   s_hw_configured = 0;  /* 硬件仅配一次 */
 
 /* ── 内部: 仅配置 GPIO (只执行一次) ── */
-static void Config_GPIO_Once(void)
+static void Esp8266_Driver_Config_GPIO_Once(void)
 {
     GPIO_InitTypeDef gpio;
 
@@ -59,7 +59,7 @@ static void Config_GPIO_Once(void)
 }
 
 /* ── 内部: 配置 USART2 (只执行一次) ── */
-static void Config_USART_Once(void)
+static void Esp8266_Driver_Config_USART_Once(void)
 {
     GPIO_InitTypeDef  gpio;
     USART_InitTypeDef usart;

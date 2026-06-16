@@ -34,7 +34,7 @@ static uint8_t s_dma_configured = 0;
 /* ── 像素缓冲区: 16×16 中文/图标 = 256 像素, static 避免大栈帧 ── */
 static uint16_t s_dma_buf[256];
 
-static void dly(uint32_t us)
+static void Tft_Driver_Dly(uint32_t us)
 {
     volatile uint32_t i;
     for (i = 0; i < us * 9; i++) __NOP();
@@ -45,7 +45,7 @@ static void dly(uint32_t us)
  * ═══════════════════════════════════════════════════════════════ */
 
 /* 写 SPI 命令字节 (DC=0) */
-static void WrCmd(uint8_t c)
+static void Tft_Driver_WrCmd(uint8_t c)
 {
     TFT_DC_CMD(); TFT_CS_LOW();
     SPI_I2S_SendData(SPI1, c);
@@ -54,7 +54,7 @@ static void WrCmd(uint8_t c)
 }
 
 /* 写 SPI 数据字节 (DC=1) — 仅用于命令参数 (寄存器配置), 不用于像素 */
-static void WrDat(uint8_t d)
+static void Tft_Driver_WrDat(uint8_t d)
 {
     TFT_DC_DATA(); TFT_CS_LOW();
     SPI_I2S_SendData(SPI1, d);
@@ -165,13 +165,13 @@ static void SetWin(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
 {
     xs += 1; xe += 1;  /* 横屏 X偏移=1 */
     ys += 2; ye += 2;  /* 横屏 Y偏移=2 */
-    WrCmd(0x2A);
-    WrDat((uint8_t)(xs >> 8)); WrDat((uint8_t)xs);
-    WrDat((uint8_t)(xe >> 8)); WrDat((uint8_t)xe);
-    WrCmd(0x2B);
-    WrDat((uint8_t)(ys >> 8)); WrDat((uint8_t)ys);
-    WrDat((uint8_t)(ye >> 8)); WrDat((uint8_t)ye);
-    WrCmd(0x2C);
+    Tft_Driver_WrCmd(0x2A);
+    Tft_Driver_WrDat((uint8_t)(xs >> 8)); Tft_Driver_WrDat((uint8_t)xs);
+    Tft_Driver_WrDat((uint8_t)(xe >> 8)); Tft_Driver_WrDat((uint8_t)xe);
+    Tft_Driver_WrCmd(0x2B);
+    Tft_Driver_WrDat((uint8_t)(ys >> 8)); Tft_Driver_WrDat((uint8_t)ys);
+    Tft_Driver_WrDat((uint8_t)(ye >> 8)); Tft_Driver_WrDat((uint8_t)ye);
+    Tft_Driver_WrCmd(0x2C);
 }
 
 /** ═══════════════════════════════════════════════
@@ -234,43 +234,43 @@ void Tft_Driver_Init(void)
 
     /* ── 硬件复位 ── */
     GPIO_ResetBits(GPIOA, TFT_DRIVER_RST_PIN);
-    dly(100000);   /* 100ms */
+Tft_Driver_Dly(100000);   /* 100ms */
     GPIO_SetBits(GPIOA, TFT_DRIVER_RST_PIN);
-    dly(120000);   /* 120ms */
+Tft_Driver_Dly(120000);   /* 120ms */
 
     /* ═══════════════════════════════════════════
      *  ST7735 Green Tab 已验证 init
      * ═══════════════════════════════════════════ */
 
-    WrCmd(0x11);   /* SLPOUT */
-    dly(120000);   /* 120ms */
+    Tft_Driver_WrCmd(0x11);   /* SLPOUT */
+Tft_Driver_Dly(120000);   /* 120ms */
 
-    WrCmd(0x3A);   /* COLMOD: RGB565 — 中景园放在 NORON 之后 */
-    WrDat(0x05);
+    Tft_Driver_WrCmd(0x3A);   /* COLMOD: RGB565 — 中景园放在 NORON 之后 */
+    Tft_Driver_WrDat(0x05);
 
-    WrCmd(0xB1);   /* FRMCTR1 */
-    WrDat(0x05); WrDat(0x3C); WrDat(0x3C);
-    WrCmd(0xB2);   /* FRMCTR2 */
-    WrDat(0x05); WrDat(0x3C); WrDat(0x3C);
-    WrCmd(0xB3);   /* FRMCTR3 */
-    WrDat(0x05); WrDat(0x3C); WrDat(0x3C);
-    WrDat(0x05); WrDat(0x3C); WrDat(0x3C);
+    Tft_Driver_WrCmd(0xB1);   /* FRMCTR1 */
+    Tft_Driver_WrDat(0x05); Tft_Driver_WrDat(0x3C); Tft_Driver_WrDat(0x3C);
+    Tft_Driver_WrCmd(0xB2);   /* FRMCTR2 */
+    Tft_Driver_WrDat(0x05); Tft_Driver_WrDat(0x3C); Tft_Driver_WrDat(0x3C);
+    Tft_Driver_WrCmd(0xB3);   /* FRMCTR3 */
+    Tft_Driver_WrDat(0x05); Tft_Driver_WrDat(0x3C); Tft_Driver_WrDat(0x3C);
+    Tft_Driver_WrDat(0x05); Tft_Driver_WrDat(0x3C); Tft_Driver_WrDat(0x3C);
 
-    WrCmd(0xB4);   /* INVCTR */
-    WrDat(0x03);
+    Tft_Driver_WrCmd(0xB4);   /* INVCTR */
+    Tft_Driver_WrDat(0x03);
 
-    WrCmd(0xC0);   /* PWCTR1 */
-    WrDat(0x28); WrDat(0x08); WrDat(0x04);
-    WrCmd(0xC1);   /* PWCTR2 */
-    WrDat(0xC0);
-    WrCmd(0xC2);   /* PWCTR3 */
-    WrDat(0x0D); WrDat(0x00);
-    WrCmd(0xC3);   /* PWCTR4 */
-    WrDat(0x8D); WrDat(0x2A);
-    WrCmd(0xC4);   /* PWCTR5 */
-    WrDat(0x8D); WrDat(0xEE);
-    WrCmd(0xC5);   /* VMCTR1 */
-    WrDat(0x1A);
+    Tft_Driver_WrCmd(0xC0);   /* PWCTR1 */
+    Tft_Driver_WrDat(0x28); Tft_Driver_WrDat(0x08); Tft_Driver_WrDat(0x04);
+    Tft_Driver_WrCmd(0xC1);   /* PWCTR2 */
+    Tft_Driver_WrDat(0xC0);
+    Tft_Driver_WrCmd(0xC2);   /* PWCTR3 */
+    Tft_Driver_WrDat(0x0D); Tft_Driver_WrDat(0x00);
+    Tft_Driver_WrCmd(0xC3);   /* PWCTR4 */
+    Tft_Driver_WrDat(0x8D); Tft_Driver_WrDat(0x2A);
+    Tft_Driver_WrCmd(0xC4);   /* PWCTR5 */
+    Tft_Driver_WrDat(0x8D); Tft_Driver_WrDat(0xEE);
+    Tft_Driver_WrCmd(0xC5);   /* VMCTR1 */
+    Tft_Driver_WrDat(0x1A);
 
     /* ═══════════════════════════════════════════════════════════════
      *  MADCTL (0x36): 横屏 160x128, (0,0)=左上角
@@ -279,30 +279,30 @@ void Tft_Driver_Init(void)
      *  备选: 0x70 (MY=0,MX=1,MV=1) — 方向1 横屏 (若上下颠倒可用)
      *  BGR注意: 设0x08后红蓝颠倒, 保持bit3=0, 不用BGR
      *  ═══════════════════════════════════════════════════════════════ */
-    WrCmd(0x36);
-    WrDat(0xA0);
+    Tft_Driver_WrCmd(0x36);
+    Tft_Driver_WrDat(0xA0);
 
     /* Gamma (+) */
-    WrCmd(0xE0);
-    WrDat(0x04);WrDat(0x22);WrDat(0x07);WrDat(0x0A);
-    WrDat(0x2E);WrDat(0x30);WrDat(0x25);WrDat(0x2A);
-    WrDat(0x28);WrDat(0x26);WrDat(0x2E);WrDat(0x3A);
-    WrDat(0x00);WrDat(0x01);WrDat(0x03);WrDat(0x13);
+    Tft_Driver_WrCmd(0xE0);
+    Tft_Driver_WrDat(0x04);Tft_Driver_WrDat(0x22);Tft_Driver_WrDat(0x07);Tft_Driver_WrDat(0x0A);
+    Tft_Driver_WrDat(0x2E);Tft_Driver_WrDat(0x30);Tft_Driver_WrDat(0x25);Tft_Driver_WrDat(0x2A);
+    Tft_Driver_WrDat(0x28);Tft_Driver_WrDat(0x26);Tft_Driver_WrDat(0x2E);Tft_Driver_WrDat(0x3A);
+    Tft_Driver_WrDat(0x00);Tft_Driver_WrDat(0x01);Tft_Driver_WrDat(0x03);Tft_Driver_WrDat(0x13);
 
     /* Gamma (-) */
-    WrCmd(0xE1);
-    WrDat(0x04);WrDat(0x16);WrDat(0x06);WrDat(0x0D);
-    WrDat(0x2D);WrDat(0x26);WrDat(0x23);WrDat(0x27);
-    WrDat(0x27);WrDat(0x25);WrDat(0x2D);WrDat(0x3B);
-    WrDat(0x00);WrDat(0x01);WrDat(0x04);WrDat(0x13);
+    Tft_Driver_WrCmd(0xE1);
+    Tft_Driver_WrDat(0x04);Tft_Driver_WrDat(0x16);Tft_Driver_WrDat(0x06);Tft_Driver_WrDat(0x0D);
+    Tft_Driver_WrDat(0x2D);Tft_Driver_WrDat(0x26);Tft_Driver_WrDat(0x23);Tft_Driver_WrDat(0x27);
+    Tft_Driver_WrDat(0x27);Tft_Driver_WrDat(0x25);Tft_Driver_WrDat(0x2D);Tft_Driver_WrDat(0x3B);
+    Tft_Driver_WrDat(0x00);Tft_Driver_WrDat(0x01);Tft_Driver_WrDat(0x04);Tft_Driver_WrDat(0x13);
 
-    WrCmd(0x13);   /* NORON */
+    Tft_Driver_WrCmd(0x13);   /* NORON */
 
-    WrCmd(0x3A);   /* COLMOD: RGB565 */
-    WrDat(0x05);
+    Tft_Driver_WrCmd(0x3A);   /* COLMOD: RGB565 */
+    Tft_Driver_WrDat(0x05);
 
-    WrCmd(0x29);   /* DISPON */
-    dly(50000);    /* 50ms */
+    Tft_Driver_WrCmd(0x29);   /* DISPON */
+Tft_Driver_Dly(50000);    /* 50ms */
 
     Tft_Driver_Clear(TFT_COLOR_BLACK);
 }
@@ -420,7 +420,7 @@ void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
  *  数字 — 委托 Show_Char
  * ═══════════════════════════════════ */
 
-static uint32_t pw(uint32_t e) { uint32_t r = 1; while (e--) r *= 10; return r; }
+static uint32_t Tft_Driver_Pw(uint32_t e) { uint32_t r = 1; while (e--) r *= 10; return r; }
 
 void Tft_Driver_Show_Num(uint8_t ln, uint8_t col, uint32_t v,
                          uint8_t len, uint16_t fg, uint16_t bg)
@@ -428,13 +428,13 @@ void Tft_Driver_Show_Num(uint8_t ln, uint8_t col, uint32_t v,
     uint8_t i;
     for (i = 0; i < len; i++)
         Tft_Driver_Show_Char(ln, col + i,
-            (char)('0' + (v / pw(len - 1 - i)) % 10), fg, bg);
+            (char)('0' + (v / Tft_Driver_Pw(len - 1 - i)) % 10), fg, bg);
 }
 
 void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
                            uint8_t il, uint8_t fl, uint16_t fg, uint16_t bg)
 {
-    uint32_t ip, fp, p10 = pw(fl);
+    uint32_t ip, fp, p10 = Tft_Driver_Pw(fl);
     uint8_t i;
     if (v < 0) { Tft_Driver_Show_Char(ln, col, '-', fg, bg); col++; v = -v; }
     v += 0.5f / (float)p10;
@@ -442,18 +442,18 @@ void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
     fp = (uint32_t)((v - (float)ip) * (float)p10);
     for (i = 0; i < il; i++)
         Tft_Driver_Show_Char(ln, col + i,
-            (char)('0' + (ip / pw(il - 1 - i)) % 10), fg, bg);
+            (char)('0' + (ip / Tft_Driver_Pw(il - 1 - i)) % 10), fg, bg);
     Tft_Driver_Show_Char(ln, col + il, '.', fg, bg);
     for (i = 0; i < fl; i++)
         Tft_Driver_Show_Char(ln, col + il + 1 + i,
-            (char)('0' + (fp / pw(fl - 1 - i)) % 10), fg, bg);
+            (char)('0' + (fp / Tft_Driver_Pw(fl - 1 - i)) % 10), fg, bg);
 }
 
 /* ═══════════════════════════════════
  *  中英文混合 — DMA 版
  * ═══════════════════════════════════ */
 
-static uint8_t Cnlk(const char* u8)
+static uint8_t Tft_Driver_CNLookup(const char* u8)
 {
     uint8_t i;
     for (i = 0; i < CN_CHAR_COUNT; i++)
@@ -467,7 +467,7 @@ static uint8_t Cnlk(const char* u8)
  * @note   字模 32 字节/字, 2字节/行×16行, LSB-first
  *         每行: lo(左8列) + hi(右8列) → 16 像素, 16行×16px=256 像素, DMA 一次
  */
-static void CnDr(uint8_t ln, uint8_t col, uint8_t idx, uint16_t fg, uint16_t bg)
+static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, uint8_t idx, uint16_t fg, uint16_t bg)
 {
     uint8_t row;
     uint16_t* p;
@@ -485,15 +485,15 @@ static void CnDr(uint8_t ln, uint8_t col, uint8_t idx, uint16_t fg, uint16_t bg)
     Tft_DMA_Send(s_dma_buf, 256);
 }
 
-static uint8_t IsCN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
+static uint8_t Tft_Driver_IsCN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
 
 void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
                                 uint16_t fg, uint16_t bg)
 {
     while (*s && col < TFT_CHAR_PER_LINE) {
-        if (IsCN((uint8_t)*s)) {
-            uint8_t idx = Cnlk(s);
-            if (idx != 0xFF) { CnDr(ln, col, idx, fg, bg); col += 2; s += 3; }
+        if (Tft_Driver_IsCN((uint8_t)*s)) {
+            uint8_t idx = Tft_Driver_CNLookup(s);
+            if (idx != 0xFF) { Tft_Driver_CN_Draw(ln, col, idx, fg, bg); col += 2; s += 3; }
             else { col += 2; s += 3; }
         } else {
             Tft_Driver_Show_Char(ln, col, *s, fg, bg);
