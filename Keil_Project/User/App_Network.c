@@ -7,6 +7,7 @@
  */
 
 #include "App_Network.h"
+#include "Sys_State.h"  /* V14: 远程指令需同步 g_sys_state */
 #include "Esp8266_Driver.h"
 #include "Adc_Driver.h"
 #include "Pwm_Driver.h"
@@ -131,17 +132,21 @@ void App_Network_Task(void)
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
             }
         }
-        else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')  /* 精确匹配: 确保 "CMD:OFF" 后跟结束符, 非更长字符串如 "CMD:OFFSET" */) {
+        else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
-                if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE)
+                if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE) {
                     Inverter_Control_Soft_Start_Stop();
+                    g_sys_state = SYS_STATE_IDLE;  /* V14 状态机同步: 远程关断必须重置全局状态 */
+                }
             }
         }
         else if ((p = strstr(local_buf, "CMD:ON")) != 0   && (p[6] == '\0' || p[6] == '\r' || p[6] == '\n')) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
-                if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE)
+                if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE) {
                     Inverter_Control_Soft_Start_Trigger();
+                    g_sys_state = SYS_STATE_SWEEP;  /* V14 状态机同步: 远程开机必须告知主循环 */
+                }
             }
         }
         else if ((p = strstr(local_buf, "CMD:SETFREQ:")) != 0) {

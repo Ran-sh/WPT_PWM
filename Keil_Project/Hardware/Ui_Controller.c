@@ -141,6 +141,12 @@ static uint8_t Right(const char* s)
     return (w >= 20) ? 0 : 20 - w;
 }
 
+/**
+ * @brief  UI 层 EMA 滤波: V/I 平滑 Sys_Safety 输出(显示级二次滤波), F 直接读数无迟滞
+ * @note   V/I: α=0.25, τ≈800ms, 减少屏幕数值高频抖动
+ *         F:   数字寄存器原子值, 零 EMA 迟滞, 保证按键调频跟手
+ *         数据源: Sys_Safety 已对 ADC 做一级滤波, 此处仅做显示平滑
+ */
 static void Update_EMA(void)
 {
     if (!s_ema_ok) {
@@ -151,7 +157,7 @@ static void Update_EMA(void)
     } else {
         s_ema_v = s_ema_v * 0.75f + Sys_Safety_Get_EMA_Voltage()  * 0.25f;
         s_ema_i = s_ema_i * 0.75f + Sys_Safety_Get_EMA_Current()  * 0.25f;
-        s_ema_f = (float)Pwm_Driver_Get_Frequency() / 1000.0f;
+        s_ema_f = (float)Pwm_Driver_Get_Frequency() / 1000.0f;  /* 数字量直读, 零迟滞 */
     }
 }
 
