@@ -111,6 +111,19 @@ static void Sys_Safety_Update_EMA(void)
 float Sys_Safety_Get_EMA_Voltage(void)  { return s_safety_ema_v; }
 float Sys_Safety_Get_EMA_Current(void)  { return s_safety_ema_i; }
 
+/**
+ * @brief  重置过流 EMA 滤波缓存, 防止 FAULT 复位后 EMA 残留值立即重新触发过流
+ * @note   FAULT 状态下 KEY0 单击复位时, Sys_Safety 持有的 EMA 电流值可能仍 > 5.0A,
+ *         若不重置, Sys_Safety_Task 下一圈又会将 g_sys_state 拉回 FAULT, 造成"消除无效"。
+ *         调用后将 EMA 重置为当前 ADC 原始值, 同时锁定新状态让 EMA 重新收敛。
+ */
+void Sys_Safety_Reset_EMA(void)
+{
+    s_safety_ema_i  = 0.0f;
+    s_safety_ema_ok = 0;  /* 下一轮 Update_EMA 将从原始 ADC 值重新开始 */
+    /* 电压 EMA 保持不变 — 电压值不受过流复位影响 */
+}
+
 void Sys_Safety_Task(void)
 {
     Sys_Safety_Update_EMA();

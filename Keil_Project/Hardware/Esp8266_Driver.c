@@ -214,3 +214,33 @@ uint16_t Esp8266_Driver_Copy_Rx_Frame(char* dst, uint16_t max_len)
     __set_PRIMASK(primask);
     return len;
 }
+
+/**
+ * @brief  原子检查+复制: flag-check + frame-copy + clear 在同一临界区内完成
+ * @note   消除 Get_Rx_Flag()→Copy_Rx_Frame() 之间的中断窗口:
+ *         若检测到帧标志后 ISR 又写入新帧, 旧原子方案会在 Copy 内清标志,
+ *         导致新帧标志也一并被清零, 帧静默丢失。
+ *         本函数将"判断+复制"合一, 返回 0 (无帧) 或有效帧长, 调用方无需先调 Get_Rx_Flag。
+ */
+uint16_t Esp8266_Driver_Try_Copy_Rx_Frame(char* dst, uint16_t max_len)
+{
+    uint16_t len = 0;
+    uint32_t primask;
+    if (max_len < 2) return 0;
+    primask = __get_PRIMASK();
+    __disable_irq();
+    if (!s_rx_frame_flag) {
+        __set_PRIMASK(primask);
+        return 0;
+    }
+    while (s_rx_buf[len] && len < max_len - 1) {
+        dst[len] = s_rx_buf[len];
+        len++;
+    }
+    dst[len]        = '\0';
+    s_rx_buf[0]     = '\0';
+    s_rx_index      = 0;
+    s_rx_frame_flag = 0;
+    __set_PRIMASK(primask);
+    return len;
+}

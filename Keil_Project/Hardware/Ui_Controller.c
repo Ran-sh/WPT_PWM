@@ -98,7 +98,6 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 #define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* current */
 #define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* clear WIFI */
 #define S_WIFI_ONLINE  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe6\x88\x90" "\xe5\x8a\x9f" /* success */
-#define S_WIFI_FAILED  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe5\xa4\xb1" "\xe8\xb4\xa5" /* failed */
 #define S_WIFI_CONN    "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe4\xb8\xad"               /* connecting */
 #define S_WIFI_IDLE    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"                   /* idle */
 #define S_WIFI_FORMAT  "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81" /* 无线状态 */
@@ -698,6 +697,7 @@ static const GaugeConfig GAUGE_C = {0.0f,   2.0f,  0.5f, 0.25f, 0.1f,  1.8f, 'C'
 static const GaugeConfig GAUGE_F = {90.0f, 150.0f, 10.0f, 5.0f, 1.0f, 140.0f, 'F'};
 
 static float s_last_val_v = -1.0f, s_last_val_c = -1.0f, s_last_val_f = -1.0f;
+static const char* s_last_gauge_label = NULL;  /* cross-gauge label cache, reset on page change */
 
 /* ── polar: angle 0°=left, 90°=top, 180°=right, center (G_CX, G_CY) ── */
 #define G_CX   80
@@ -752,9 +752,7 @@ static void Draw_TopRight_Icons(void)
     } else if (App_Network_Is_Connecting()) {
         icon_frame = (uint8_t)(Sys_Timer_Get_Tick()/150) % 6;
         Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_CONNECT_ANIM[icon_frame], blue_grad[icon_frame], UI_COLOR_BG);
-    } else if (cs == APP_NETWORK_CONN_FAILED) {
-        Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_OFF_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
-    } else {
+    } else {  /* IDLE / 旧 FAILED (不可达, V15 永不进入 FAILED) */
         Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_REMOVE_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
     }
 
@@ -1086,7 +1084,6 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         if (cfg->label == 'F')      label_text = S_LABEL_FREQ;
         else if (cfg->label == 'V') label_text = S_LABEL_VOLT;
         else                        label_text = S_LABEL_CURR;
-        static const char* s_last_gauge_label = NULL;
         if (label_text != s_last_gauge_label) {
             s_last_gauge_label = label_text;
             Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
@@ -1132,7 +1129,6 @@ static void Freq_Dynamic_Update(void) {
         /* PWM 停止时能量条回零 + 数值灰0 */
         Gauge_Dynamic_Update(&GAUGE_F, 0.0f, old);
         s_last_val_f = s_ema_f;
-        s_user_target_synced = 0;
     }
 }
 static void Draw_Volt_Full(void) {
@@ -1161,11 +1157,9 @@ static void Draw_WiFi_Full(void)
 
     if (cs == APP_NETWORK_CONN_ONLINE)
         status_text = S_WIFI_ONLINE;
-    else if (cs == APP_NETWORK_CONN_FAILED)
-        status_text = S_WIFI_FAILED;
     else if (App_Network_Is_Connecting())
         status_text = S_WIFI_CONN;
-    else
+    else  /* IDLE / 旧 FAILED (V15 永不进入 FAILED) */
         status_text = S_WIFI_IDLE;
 
     hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
@@ -1218,11 +1212,9 @@ static void WiFi_Dynamic_Update(void)
 
     if (cs == APP_NETWORK_CONN_ONLINE)
         status_text = S_WIFI_ONLINE;
-    else if (cs == APP_NETWORK_CONN_FAILED)
-        status_text = S_WIFI_FAILED;
     else if (App_Network_Is_Connecting())
         status_text = S_WIFI_CONN;
-    else
+    else  /* IDLE / 旧 FAILED (V15 永不进入 FAILED) */
         status_text = S_WIFI_IDLE;
 
     if (cs != s_last_wifi_cs) {
@@ -1455,6 +1447,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
 
             case UI_PAGE_FAULT:
                 Inverter_Control_Soft_Start_Reset();
+                Sys_Safety_Reset_EMA();  /* 清除过流 EMA 残留, 防立即重触发 FAULT */
                 g_sys_state = SYS_STATE_IDLE;
                 s_page = UI_PAGE_MAIN_MENU;
                 s_menu_cursor = 0;
@@ -1609,6 +1602,7 @@ void Ui_Controller_Task(void)
         s_last_wifi_cs       = 0xFF;
         s_last_retry         = 0xFF;
         s_last_sub_visible   = 0;
+        s_last_gauge_label   = NULL;  /* cross-gauge label cache */
         s_last_f_str[0] = '\0';
         s_last_v_str[0] = '\0';
         s_last_i_str[0] = '\0';

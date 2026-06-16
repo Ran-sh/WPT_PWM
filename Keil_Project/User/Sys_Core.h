@@ -32,6 +32,8 @@ void Sys_Post_Init(void);
 void  Sys_Safety_Task(void);
 float Sys_Safety_Get_EMA_Voltage(void);
 float Sys_Safety_Get_EMA_Current(void);
+/** @brief 重置过流 EMA 滤波缓存 (FAULT 复位时调用, 防止 EMA 残留值立即重新触发过流) */
+void  Sys_Safety_Reset_EMA(void);
 
 /* ── 运行调度 ── */
 void Sys_Run_Idle(void);

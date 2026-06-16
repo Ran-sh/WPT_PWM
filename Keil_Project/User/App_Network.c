@@ -128,12 +128,19 @@ void App_Network_Task(void)
     }
 
     /* ── 指令接收 ── */
-    if (Esp8266_Driver_Get_Rx_Flag()) {
+    {
         char local_buf[128];
         const char* p;
-        Esp8266_Driver_Copy_Rx_Frame(local_buf, sizeof(local_buf));
+        Inverter_Control_Soft_Start_State ss_cmd;  /* 帧内快照: 防 ELSE-IF 链间 TOCTOU */
+        uint8_t conn_cs;
+
+        if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
+            goto skip_frame;
 
         s_last_esp_ms = Sys_Timer_Get_Tick();  /* 任何有效帧都刷新心跳时间戳 */
+
+        ss_cmd  = Inverter_Control_Soft_Start_Get_State();
+        conn_cs = s_conn_state;
 
         if (strstr(local_buf, "STATUS:DISCONNECTED")) {
             /* 断连 → 回到 WIFI 等待, 不清 s_conn_state 避免跳过 Check_Retry */
@@ -145,7 +152,7 @@ void App_Network_Task(void)
         }
         else if (strstr(local_buf, "STATUS:MQTT")) {
             /* MQTT 中间状态: 保留 WIFI_CONN→MQTT_CONN 转移, 但不从 ONLINE 降级 */
-            if (s_conn_state == APP_NETWORK_CONN_WIFI) {
+            if (conn_cs == APP_NETWORK_CONN_WIFI) {
                 s_conn_state    = APP_NETWORK_CONN_MQTT;
                 s_connect_start = Sys_Timer_Get_Tick();  /* 进入 MQTT 时给新超时窗口, 仅一次 */
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
@@ -155,7 +162,7 @@ void App_Network_Task(void)
             /* ONLINE: 任何非 ONLINE 状态→ONLINE, 包括从 FAILED 恢复 */
             const char* r = strstr(local_buf, "RSSI=");
             if (r) s_rssi = (int8_t)strtol(r + 5, NULL, 10);
-            if (s_conn_state != APP_NETWORK_CONN_ONLINE) {
+            if (conn_cs != APP_NETWORK_CONN_ONLINE) {
                 s_conn_state = APP_NETWORK_CONN_ONLINE;
                 s_retry_count = 0;
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
@@ -168,8 +175,7 @@ void App_Network_Task(void)
         }
         else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
-                Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
-                if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE) {
+                if (ss_cmd == INVERTER_CONTROL_SS_STATE_SWEEP || ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {
                     Inverter_Control_Soft_Start_Stop();
                     g_sys_state = SYS_STATE_IDLE;  /* V14 状态机同步: 远程关断必须重置全局状态 */
                     Ui_Controller_Force_Page(UI_PAGE_MAIN_MENU);  /* 多端同步: 远程关断后回到主菜单 */
@@ -178,7 +184,7 @@ void App_Network_Task(void)
         }
         else if ((p = strstr(local_buf, "CMD:ON")) != 0   && (p[6] == '\0' || p[6] == '\r' || p[6] == '\n')) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
-                if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_IDLE) {
+                if (ss_cmd == INVERTER_CONTROL_SS_STATE_IDLE) {
                     Inverter_Control_Soft_Start_Trigger();
                     g_sys_state = SYS_STATE_SWEEP;  /* V14 状态机同步: 远程开机必须告知主循环 */
                     Ui_Controller_Force_Page(UI_PAGE_SWEEP);  /* 防 UI 滞留菜单页导致遥测误门控 */
@@ -187,14 +193,18 @@ void App_Network_Task(void)
         }
         else if ((p = strstr(local_buf, "CMD:SETFREQ:")) != 0) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
-                if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE) {
-                    long f = atol(p + 12);
-                    if (f >= PWM_DRIVER_FREQ_MIN_HZ && f <= PWM_DRIVER_FREQ_MAX_HZ)
-                        Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);
+                if (ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {
+                    const char* f_str = p + 12;
+                    if (*f_str >= '0' && *f_str <= '9') {
+                        long f = atol(f_str);
+                        if (f >= PWM_DRIVER_FREQ_MIN_HZ && f <= PWM_DRIVER_FREQ_MAX_HZ)
+                            Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);
+                    }
                 }
             }
         }
     }
+    skip_frame:
 
     /* ── 遥测发送 (门控: 仅 UI >= READY 且系统在线) ── */
     {
@@ -219,20 +229,22 @@ void App_Network_Task(void)
 
             if (allow_telemetry) {
                 char json_buf[80];
+                int written;
                 if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
-                    snprintf(json_buf, sizeof(json_buf),
+                    written = snprintf(json_buf, sizeof(json_buf),
                              "{\"V\":%.2f,\"I\":%.3f,\"F\":%lu,\"S\":%d}\n",
                              (double)Sys_Safety_Get_EMA_Voltage(),
                              (double)Sys_Safety_Get_EMA_Current(),
                              (unsigned long)Pwm_Driver_Get_Frequency(),
                              (int)ss);
                 } else {
-                    snprintf(json_buf, sizeof(json_buf),
+                    written = snprintf(json_buf, sizeof(json_buf),
                              "{\"V\":0.00,\"I\":0.000,\"F\":%lu,\"S\":%d}\n",
                              (unsigned long)Pwm_Driver_Get_Frequency(),
                              (int)ss);
                 }
-                Esp8266_Driver_Send_String(json_buf);
+                if (written > 0 && (uint16_t)written < sizeof(json_buf))
+                    Esp8266_Driver_Send_String(json_buf);
             }
         }
     }
