@@ -22,13 +22,11 @@
 #define APP_NETWORK_CONNECT_TIMEOUT_MS   8000
 #define APP_NETWORK_MAX_RETRIES           3
 #define APP_NETWORK_TELEMETRY_PERIOD_MS  500
-#define APP_NETWORK_HEARTBEAT_TIMEOUT_MS  8000  /* 8s 未收到任何 ESP 帧 → 离线 */
 
 static App_Network_Conn_State s_conn_state    = APP_NETWORK_CONN_IDLE;
 static uint8_t                s_retry_count   = 0;
 static uint32_t               s_connect_start = 0;
-static int8_t                 s_rssi          = -100;
-static uint32_t               s_last_esp_rx   = 0;   /* 最后收到 ESP 帧的时间戳, 用于心跳超时检测 */
+static int8_t                 s_rssi          = -100;  /* WIFI 信号强度 dBm, 默认-100 */
 
 uint8_t App_Network_Start_Connect(void)
 {
@@ -103,23 +101,11 @@ void App_Network_Task(void)
 
     App_Network_Check_Retry();
 
-    /* ── 心跳超时检测: 8s 无任何 ESP 帧 → 判定离线 ── */
-    if (s_conn_state == APP_NETWORK_CONN_ONLINE) {
-        if (Sys_Timer_Get_Tick() - s_last_esp_rx >= APP_NETWORK_HEARTBEAT_TIMEOUT_MS) {
-            s_conn_state    = APP_NETWORK_CONN_WIFI;
-            s_retry_count   = 0;
-            s_connect_start = Sys_Timer_Get_Tick();
-            s_rssi          = -100;
-            Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
-        }
-    }
-
     /* ── 指令接收 ── */
     if (Esp8266_Driver_Get_Rx_Flag()) {
         char local_buf[128];
         const char* p;
         Esp8266_Driver_Copy_Rx_Frame(local_buf, sizeof(local_buf));
-        s_last_esp_rx = Sys_Timer_Get_Tick();  /* 收到任何 ESP 帧都刷新心跳时间戳 */
 
         if (strstr(local_buf, "STATUS:DISCONNECTED")) {
             /* 断连 → 回到 WIFI 等待, 不清 s_conn_state 避免跳过 Check_Retry */
