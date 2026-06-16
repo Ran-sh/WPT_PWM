@@ -453,17 +453,48 @@ while (1) {
 
 ## 编码规范
 
-### 命名规范 (V6.0+)
+### 命名规范 (V14 强制执行)
 
-全部模块统一采用 `Module_Name_Action_Object()` 帕斯卡+下划线命名:
+全部模块统一采用 `Module_Name_Action_Object()` 帕斯卡+下划线命名。
 
-- 公开函数: `Module_Name_Verb_Noun()` — 如 `Tft_Driver_Show_CN_String()`, `Adc_Driver_Get_Voltage()`
-- 静态变量: `s_module_description` — 如 `s_ui_state`, `s_rx_frame_flag`
-- 类型/枚举: `Module_Name_Type` — 如 `Ui_Controller_State`, `Inverter_Control_Soft_Start_State`
-- 枚举值: `MODULE_NAME_ENUM_VALUE` — 全大写+下划线+模块前缀, 如 `LED_DRIVER_STATE_ON`, `INVERTER_CONTROL_SS_STATE_DONE`, `UI_PAGE_MAIN_MENU`
-- 宏常量: `MODULE_NAME_VALUE` — 全大写+下划线+模块前缀, 如 `ADC_DRIVER_VREF_MCU`, `APP_NETWORK_MAX_RETRIES`
-- 静态函数: 建议加模块前缀, 如 `Ui_Controller_Draw_Running()`
-- 头文件保护: `MODULE_NAME_H` (无前导下划线, 避免 C 保留标识符)
+**零容忍铁律**：即使是用户直接指定的命名, 不符合规范也必须更正。AI 生成代码时首次就按规范命名, 不允许使用临时占位名或通用短名。
+
+| 层次 | 规则 | 正确示例 | 违规示例 |
+|:---|:---|:---|:---|
+| 公开函数 | `Module_Name_Verb_Noun()` | `Tft_Driver_Show_CN_String()` | `show_cn_string()` |
+| 静态函数 | `Module_Name_Verb_Noun()` (模块前缀强制) | `Sys_Run_Led_Tick()` | `Led_Tick()`, `polar()` |
+| 静态变量 | `s_module_description` 小写+下划线 | `s_ui_state`, `s_gauge_val_str` | `uiState`, `gauge_str` |
+| 全局变量 | `g_description` 小写+下划线 | `g_sys_state` | `Sys_State_Global` |
+| 类型/枚举名 | `Module_Name_Type` | `Sys_State`, `GaugeConfig` | `sysState_t`, `gauge_config_t` |
+| 枚举值 | `MODULE_NAME_ENUM_VALUE` 全大写+下划线+模块前缀 | `SYS_STATE_IDLE`, `UI_PAGE_FAULT` | `State_Idle`, `pgFault` |
+| 宏常量 | `MODULE_NAME_VALUE` 全大写+下划线+模块前缀 | `SYS_SAFETY_OVERCURRENT_A` | `OVER_CURRENT` |
+| 头文件保护 | `MODULE_NAME_H` 无前导下划线 | `SYS_STATE_H` | `_SYS_STATE_H` |
+| 文件名 | PascalCase+下划线, `.c`/`.h` 配对 | `Sys_State.h` / `Sys_State.c` | `sysstate.h` |
+
+### 注释 (V14 强化)
+
+```c
+/**
+ ******************************************************************************
+ * @file    User/Sys_State.h
+ * @brief   系统全局状态机 — 公开接口       ← 一句话
+ * @note    V14: 定义系统级运行模式...       ← 关键设计约束/踩坑记录
+ ******************************************************************************
+ */
+
+/** @brief  公开函数: 一行说明功能 */
+/** @param  param_name  参数说明 */
+/** @retval 返回值说明 */
+
+/* ── 行内注释: 只写 WHY, 不写 HOW ── */    /* 代码本身说明 HOW */
+```
+
+**注释铁律**:
+- 公开函数必须带 `@brief` + `@param`/`@retval` (如有参数/返回值)
+- 模块 `.h` 顶部必须带 `@file` + `@brief` + `@note`
+- 禁止 `//` 双斜杠注释 (ARMCC V5 兼容, 项目规范强制), 统一用 `/** */` 或 `/* */`
+- 不写 HOW (代码本身说明), 只写 WHY (为什么这样做, 踩过什么坑)
+- 修改任何函数逻辑时, 同步更新注释
 
 ### 状态机
 - 禁止隐式 bool/int 拼凑 → 必须用 `typedef enum` + 单一状态变量
@@ -507,6 +538,38 @@ typedef char assertion[(condition) ? 1 : -1];
 
 ### 文件大小
 ≤800行/文件, ≤50行/函数 (当前 `Ui_Controller.c` ~1650行, 因其包含全部9页面+环形仪表盘引擎)
+
+## 跨子项目命名规范 (V14 强制)
+
+本仓库含 3 个独立子项目, 各自遵循其语言生态的标准命名约定。
+
+| 层级 | STM32 (C/SPL) | ESP8266 (Arduino C++) | ONENETapp (JavaScript) |
+|:---|:---|:---|:---|
+| 函数/方法 | `Module_Name_Verb_Noun()` | `Module_Task_Verb_Noun()` | `camelCase()` / `PascalCase` class |
+| 静态函数 | `Module_Name_Verb_Noun()` (强制前缀) | 同左, 推荐前缀 | N/A (模块作用域) |
+| 静态变量 | `s_module_description` | `s_module_description` | N/A (模块作用域) |
+| 全局变量 | `g_description` | 禁止 (用 getter/setter) | 禁止 |
+| 枚举/类名 | `MODULE_NAME_TYPE` | `Module_Name` PascalCase | `PascalCase` class |
+| 枚举值 | `MODULE_NAME_VALUE` | `MODULE_NAME_VALUE` (全大写推荐) | `UPPER_SNAKE_CASE` const |
+| 宏常量 | `MODULE_NAME_VALUE` | `#define MODULE_NAME_VALUE` | `UPPER_SNAKE_CASE` |
+| 头文件/保护 | `MODULE_NAME_H` | `#pragma once` | N/A |
+| 注释格式 | `/** @brief */` `/* ── */` | `/** @brief */` `/* */` | `/** JSDoc */` `// inline` |
+| 禁止注释 | `//` 双斜杠 (ARMCC V5 兼容) | `//` 允许 (Arduino 标准) | `//` 允许 (JS 标准) |
+
+**跨子项目零容忍**:
+- 任何子项目的代码都必须遵循其所属语言的标准命名, 即使是用户指定的名称, 不符合规范也必须更正
+- AI 生成代码时首次就按规范命名, 不允许使用 `temp`/`test`/`foo`/`xxx` 占位名
+- 每次 `/init` 或提交前审查时, 优先检查命名合规, 发现违规自动修复
+
+**ESP8266 特殊约束** (Arduino C++):
+- 静态变量在 `.ino` 顶层声明, 加 `s_` 前缀标记模块内私有
+- 禁止使用 C++ `new`/`delete` (ESP8266 堆仅 ~40KB)
+- 避免 `String` 类动态分配, 优先用 `char[]` 栈缓冲区
+
+**ONENETapp 特殊约束** (Vanilla JS, 无菌构建):
+- 不使用 Node.js `require`/`import` (纯浏览器环境)
+- localStorage key 统一 `iot_` 前缀
+- 网络请求统一加 3s 超时 `AbortController`
 
 ### 全桥 PWM 基线 (重构不改, 关系到全桥是否输出波形)
 - `TIM_CounterMode_Up` — 不可改为 CenterAligned (频率公式不同, 两路 CH1=PWM1+CH2=PWM2 配合 Up 计数实现对角线交替导通)
