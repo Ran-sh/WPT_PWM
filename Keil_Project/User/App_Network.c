@@ -60,14 +60,14 @@ uint8_t App_Network_Is_Connected(void)
     return (s_conn_state == APP_NETWORK_CONN_ONLINE);
 }
 
-/* ── 指数退避重试: 前3次 15s → 4-6次 60s → 7-9次 120s → 10-12次 300s → 13+次 1800s(30min), 不永久 FAILED ── */
+/* ── 指数退避: 15s → 30s → 60s → 300s(5min) → 30min, 不永久 FAILED ── */
 static uint32_t App_Network_Get_Retry_Timeout(void)
 {
     if (s_retry_count < 3)  return 15000;    /* 0-2:   15s */
-    if (s_retry_count < 6)  return 60000;    /* 3-5:   60s */
-    if (s_retry_count < 9)  return 120000;   /* 6-8:  120s */
-    if (s_retry_count < 12) return 300000;   /* 9-11: 300s (5min) */
-    return 1800000;                           /* 12+:  1800s (30min) */
+    if (s_retry_count < 6)  return 30000;    /* 3-5:   30s */
+    if (s_retry_count < 12) return 60000;    /* 6-11:  60s */
+    if (s_retry_count < 24) return 300000;   /* 12-23: 5min */
+    return 1800000;                           /* 24+:   30min */
 }
 
 static void App_Network_Check_Retry(void)
