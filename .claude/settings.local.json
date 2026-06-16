@@ -147,7 +147,8 @@
       "Bash(perl -e 'undef $/; $f=<>; $o=\\($f=~tr/{//\\); $c=\\($f=~tr/}//\\); print \"$o:$c\\\\n\"' 'D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/Hardware/Ui_Controller.c')",
       "Bash(perl *)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(./keilkill.bat)"
+      "Bash(./keilkill.bat)",
+      "Bash(awk '{print $NF, $5}')"
     ]
   }
 }
