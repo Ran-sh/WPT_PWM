@@ -262,7 +262,16 @@ WPT_PWM_V4.0_ONENET_TFT/
 | 10 | `更新全部内容` 漏掉生成 .docx 就直接 commit 了 | 看到 md 更新完就以为完成了，技能里写了步骤 4 是 "update all docs (.md+.docx)" 但没执行 | **技能触发词流程必须逐条打勾执行**，每步完成后 checkpoint 再下一步 |
 | 11 | Git push 时 `keilkill.bat` 用 `cmd.exe /c` 调用但没验证清理效果 | keilkill.bat 在 bash 环境下用 cmd.exe /c 调用后没检查 .obj/.lst 是否真的被删除 | **push 前 `git status` 确认零编译产物**，发现 .obj/.lst 立即停止 |
 
-### 4.2 "更新全部内容"执行检查清单
+### 4.2 2026-06-17 (#2): V26 全量同步教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 12 | 行数统计 `~5300` 只含 STM32，不含 ESP/Web/小程序 | 旧 CLAUDE.md 只统计了 Keil_Project 目录 | **每次更新必须统计全平台行数**: Keil + Arduino + ONENETapp + 安卓app，分别列出 |
+| 13 | `keilkill.bat` 运行后仍有 2 个编译产物未清理 | keilkill.bat 脚本本身不完整，没有覆盖所有中间文件 | **检查 keilkill.bat 脚本内容**，确保覆盖 .obj .lst .axf .__i .crf .d .o .htm .lnp .sct .dep .map .hex .build_log.htm .dbgconf .scvd |
+| 14 | 移动 ONENETapp/ 下文件到 js/ 后路径没及时更新 | 结构变化后 CLAUDE.md 仍引用旧路径 | **目录结构变更后立即全文 grep 旧路径**，确保 CLAUDE.md + 开发指南 + 技能文件全部同步 |
+| 15 | 小程序行数只列了 `tail -1` 总计没细分到文件 | 一次性命令只关注总行数，漏掉各页面拆分数据 | **每个平台都列出文件级行数**，与 CLAUDE.md 中的行数注释一一对应 |
+
+### 4.3 "更新全部内容"执行检查清单
 
 以后每次触发"更新全部内容"，**必须逐条执行并打勾**:
 
