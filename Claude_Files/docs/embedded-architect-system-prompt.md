@@ -333,7 +333,17 @@ Vx.y.z 三数字体系：
 | 17 | 4 个分支的 README 分支表版本号不一致 | 每个分支独立更新，agent 改版本号时漏了分支表中其他分支的版本引用 | **跨分支版本号更新后，逐分支检查分支表中的全部版本号列**，用 `grep -A10 "分支" README.md` 一次性验证 |
 | 18 | `更新全部内容` 未更新 1.0LAN/2.0WAN/3.0ONENET 的 README | CLAUDE.md 流程只覆盖当前分支 (4.0TFT)，其他分支需要额外处理 | **"更新全部内容"完成后提醒用户检查其他分支是否需要同步更新**，或提供跨分支 batch 命令 |
 
-### 4.4 "更新全部内容"执行检查清单
+### 4.4 2026-06-17 (#4): V4.2.2 WiFi OFFLINE 开发教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 19 | 首次推送后"连不上WiFi" | 每次重试都发硬件RST→4s BOOT_WAIT→5次重试全浪费在等待 | **重试/恢复路径禁止硬件RST**: ESP已在运行的连接恢复场景, 只切状态不碰硬件 |
+| 20 | OFFLINE_PASSIVE 嗅探在 Is_Ready() 之后才执行 | 代码放在 App_Network_Task 的 `if (!Is_Ready()) return` 之后 | **离线嗅探检查必须在 Is_Ready() 之前或独立路径**: 依赖串口读帧的逻辑不能躲在硬件就绪检查后面 |
+| 21 | `s_no_wifi_mode` 和 `App_Network_Is_Offline()` 语义重叠 | 旧代码的 NoWiFi 标记和新 OFFLINE 状态机共存但未收敛 | **大功能新增时必须全局 grep 旧标记的所有引用**, 决定是删除/替换/还是共存 |
+| 22 | 审查报告 CLAUDE.md 只列了 3 行 change summary, 行数还是旧的 | 写审查报告时只看了 App_Network.c 没跑 `wc -l` 全平台统计 | **每次"更新全部内容"第 1 条必须先 `wc -l` 全平台行数**, 不能靠记忆 |
+| 23 | `git add -A` 每次把 `.claude/settings.local.json` 和 `Target 1.BAT` 也 stage | 这两个文件有本地修改但不应提交 | **`git add` 前先 `git diff --name-only` 过滤**, 或用 `git add <specific-files>` 替代 `-A` |
+
+### 4.5 "更新全部内容"执行检查清单
 
 以后每次触发"更新全部内容"，**必须逐条执行并打勾**:
 
