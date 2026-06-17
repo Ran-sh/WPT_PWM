@@ -8,10 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V26 |
+| **版本** | V4.2.0 |
 | **语言** | 中文交流，代码注释中英混合 |
 
-> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V10, 全平台)
+> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.2.0)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
 > **频率斜坡设计**: `Claude_Files/docs/superpowers/specs/2026-05-24-freq-ramp-design.md`
 > **频率斜坡设计**: `Claude_Files/docs/superpowers/specs/2026-05-24-freq-ramp-design.md`
@@ -179,7 +179,7 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~10800 行逻辑代码 (全�
 │   ├── js/onenet.js(327)                       ← OneNET API 核心
 │   ├── js/config.js(67)/mobile-nav.js(33)      ← 数据模型+导航
 │   └── service-worker.js(22)                   ← PWA 离线回退
-├── 安卓app/                                    ← 微信小程序 — 1845 行 (V25, 6页面+Component)
+├── 安卓app/                                    ← 微信小程序 — 1845 行 (6页面+Component)
 │   ├── utils/config.js                         ← 数据模型单一来源 (DEFAULT_DATA_MODEL)
 │   ├── utils/onenet.js                         ← API 层 (双请求并行+细化错误+Mock)
 │   ├── custom-tab-bar/                         ← 底部导航 Component (无高亮)
@@ -373,7 +373,7 @@ CN_INDEX 与 CN_FONT_16X16 严格一一对应 (76字, 索引 0-75), 末尾为 �
 | 6 | Cursor boundary clamp |
 | 7 | Draw — full page only when s_page_drawn==0 |
 
-### 底部栏 (V26 简化)
+### 底部栏
 
 所有页面统一: 左侧 `ON:确定` + 右侧 `PAGE:返回`。
 SUB_MENU 和 FAULT 页面仅右侧 `PAGE:返回`。
@@ -413,6 +413,6 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
-| V16 | 8 轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 (30+项) |
-| V25 | 小程序全重写: 单数据模型源+双API并行+动态卡片+底部栏Component+HTTP细化错误 |
-| V26 | TFT字库修复: CN_FONT[74..75] 失败→综合字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |
+| V4.2.0 | TFT字库修复: CN_FONT[74..75] 失败→综合字模替换 + 底部栏简化 + 全平台版本号统一为 Vx.x.x |
+| V4.1.0 | 小程序全重写: 单数据模型源+双API并行+动态卡片+底部栏Component+HTTP细化错误 |
+| V4.0.0 | 9页面TFT UI + 全局状态机 + Sys_Safety独立安全 + EMA双级滤波 + 圆弧能量条仪表盘 + 16轮全链路审查 |

@@ -1,4 +1,4 @@
-<!-- WPT Monitor — 自定义底部栏 Component V2 -->
+<!-- WPT Monitor — 自定义底部栏 Component -->
 <view class="tab-bar">
   <view class="tab-bar-glow"></view>
   <view class="tab-bar-inner">

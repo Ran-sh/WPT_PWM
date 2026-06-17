@@ -10,7 +10,7 @@ description: >
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
   Dual-MCU/双脑/JSON透传, Sys_Timer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, 技术白皮书, 开发者指南, 嵌入式架构师, OneNET, MQTT, TFT/ST7735.
-  V26 naming convention: Module_Name_Verb_Noun — all public functions follow PascalCase+underscore.
+  V4.2.0 naming convention: Module_Name_Verb_Noun — all public functions follow PascalCase+underscore.
   Key modules: Sys_Timer, Sys_Core, Pwm_Driver, Inverter_Control, Adc_Driver,
   Key_Driver, Esp8266_Driver, App_Network, Ui_Controller, Tft_Driver, Led_Driver, Buzzer_Driver.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
@@ -59,7 +59,7 @@ description: >
   Arduino, non-STMicro MCUs, or any MCU without SPL (ESP32/ESP-IDF, nRF, MSP430, PIC).
 ---
 
-# 资深嵌入式系统架构师技能包 (V26)
+# 资深嵌入式系统架构师技能包 (V4.2.0)
 
 ## 1. 角色设定
 
@@ -163,7 +163,7 @@ if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
 
 **帧内快照防 TOCTOU**: `ss_cmd`/`conn_cs` 在解析前一次性快照, 防止 ELSE-IF 链间状态被并发修改。
 
-### 2.6 系统全局状态机 (V14)
+### 2.6 系统全局状态机
 
 ```
 SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
@@ -217,7 +217,7 @@ int main(void) {
 | 字库位序 | LSB-first, `TFT_Font_Data.h` 统一管理 |
 | CN_INDEX/CN_FONT | 严格 76 字对齐, 末尾: 综(74)+合(75) |
 
-### 2.10 工程目录约定 (V26)
+### 2.10 工程目录约定 (V4.2.0)
 
 ```
 WPT_PWM_V4.0_ONENET_TFT/
@@ -234,19 +234,19 @@ WPT_PWM_V4.0_ONENET_TFT/
 └── CLAUDE.md         ← 项目指南
 ```
 
-## 3. 审查历史速查 (V16→V26)
+## 3. 审查历史速查 (V4.0.0→V4.2.0)
 
 | 版本 | 关键修复 |
 |:---|:---|
-| V16 | 8轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 |
-| V25 | 小程序全重写: 单数据模型+双API并行+动态卡片+底部栏Component |
-| V26 | CN_FONT[74..75] 失败→综合 字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |
+| V4.0.0 | 8轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 |
+| V4.1.0 | 小程序全重写: 单数据模型+双API并行+动态卡片+底部栏Component |
+| V4.2.0 | CN_FONT[74..75] 失败→综合 字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |
 
 ## 4. "更新全部内容"执行教训 (每次更新后追加)
 
 > **☠️ 铁律**: 每次执行"更新全部内容"后，必须把本轮遇到的所有问题总结写入本节，防止下次再犯。
 
-### 4.1 2026-06-17: V26 更新教训
+### 4.1 2026-06-17: V4.2.0 更新教训
 
 | # | 问题 | 根因 | 预防规则 |
 |:---|:---|:---|:---|
@@ -262,7 +262,7 @@ WPT_PWM_V4.0_ONENET_TFT/
 | 10 | `更新全部内容` 漏掉生成 .docx 就直接 commit 了 | 看到 md 更新完就以为完成了，技能里写了步骤 4 是 "update all docs (.md+.docx)" 但没执行 | **技能触发词流程必须逐条打勾执行**，每步完成后 checkpoint 再下一步 |
 | 11 | Git push 时 `keilkill.bat` 用 `cmd.exe /c` 调用但没验证清理效果 | keilkill.bat 在 bash 环境下用 cmd.exe /c 调用后没检查 .obj/.lst 是否真的被删除 | **push 前 `git status` 确认零编译产物**，发现 .obj/.lst 立即停止 |
 
-### 4.2 2026-06-17 (#2): V26 全量同步教训
+### 4.2 2026-06-17 (#2): V4.2.0 全量同步教训
 
 | # | 问题 | 根因 | 预防规则 |
 |:---|:---|:---|:---|

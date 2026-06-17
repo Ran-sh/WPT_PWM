@@ -17,9 +17,9 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V10 |
+| **文档版本** | V4.2.0 |
 | **最后更新** | 2026-06-17 |
-| **对应固件版本** | V26 (分支 `4.0TFT`) |
+| **对应固件版本** | V4.2.0 (分支 `4.0TFT`) |
 | **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) |
 | **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages) |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接, 备选) |
@@ -30,8 +30,8 @@
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
 | V5.0 | 2026-05-24 | 全篇重构: 调试避坑模块、配图标注、双主题小程序、频率渐变斜坡、Cloudflare部署 |
-| V9 | 2026-06-11 | 4.0TFT 重大升级: OLED→TFT彩屏 + 9页面UI + 动态能量条 + 4键6LED蜂鸣器 + 37项审查修复 |
-| V10 | 2026-06-17 | V26 全链路升级: TFT字库 76字精准对齐(综/合字模修复) + 底部栏简化(仅ON:确定+PAGE:返回) + EMA双级滤波链 + 16轮全链路审查 + 微信小程序 V25 全重写 + 文件结构更新 |
+| V4.2.0 | 2026-06-17 | 全平台版本号统一为 Vx.x.x 体系 + TFT字库 76字精准对齐(综/合字模修复) + 底部栏简化(仅ON:确定+PAGE:返回) + EMA双级滤波链 + 16轮全链路审查 + 微信小程序全重写 + 文件结构更新 |
+| V4.1.0 | 2026-06-11 | OLED→TFT彩屏 + 9页面UI + 动态能量条 + 4键6LED蜂鸣器 + 37项审查修复 |
 
 ---
 
@@ -400,7 +400,7 @@ if (filled >= 64) accum -= old;  // 去掉最旧
 
 `ADC_Filter_Task` 以 2ms 独立节拍运行, 不跟 UI/网络的节奏走。
 
-#### 4.3.6 EMA 双级滤波链 (V26)
+#### 4.3.6 EMA 双级滤波链
 
 | 层级 | 模块 | 滤波对象 | α | 用途 |
 |:---|:---|:---|:---|:---|
@@ -447,7 +447,7 @@ Sys_Safety 每圈主循环运行, 与 UI 完全解耦:
 | WIFI_SETUP | 7 | 无线配网 — 状态+清除 |
 | FAULT | 8 | 故障清除 — 过流锁存 |
 
-**底部栏 (V26 简化)**: 所有页面统一 `ON:确定` + `PAGE:返回`。SUB_MENU 和 FAULT 仅显示 `PAGE:返回`。
+**底部栏**: 所有页面统一 `ON:确定` + `PAGE:返回`。SUB_MENU 和 FAULT 仅显示 `PAGE:返回`。
 
 **UI Phase 架构**: 7 个 Phase 依次执行 — Global Icons(0) → Fault detection(1) → Sweep→Summary(2) → Key dispatch(3) → Page tracking(4) → 200ms incremental(5) → Cursor clamp(6) → Draw(7)。
 
@@ -692,11 +692,11 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 
 ---
 
-## 7. 微信小程序 (V25)
+## 7. 微信小程序 (6页面+Component)
 
 ### 7.1 架构
 
-V25 小程序**直连 OneNET HTTP API**, 与网页端完全相同的后端逻辑:
+V4.2.0 小程序**直连 OneNET HTTP API**, 与网页端完全相同的后端逻辑:
 
 ```
 小程序 ──HTTPS── OneNET API ──MQTT── ESP8266 ── STM32
@@ -800,7 +800,7 @@ curl "https://iot-api.heclouds.com/thingmodel/query-device-property?product_id=�
 
 Token 里是 `devices` (复数), 不是 `device`。写成单数会让 OneNET 返回 `authentication failed: invalid res`, 让你怀疑人生半小时。
 
-### 10.4 TFT 中文"综合"变"失败" (V26 修复)
+### 10.4 TFT 中文"综合"变"失败"
 
 **现象**: TFT 上"综合监测"菜单项显示为"失败监测"(实际是"回失监测")。
 
@@ -816,14 +816,14 @@ Token 里是 `devices` (复数), 不是 `device`。写成单数会让 OneNET 返
 
 一直以为是跨域问题, F12 查了半天 CORS 头。最后发现 OneNET API 本来就返回 `Access-Control-Allow-Origin: *`, 真正的问题是 Token 里 `device` 少了一个 `s`。
 
-### 10.7 审查历史 (V15→V26, 共16轮)
+### 10.7 审查历史
 
 | 版本 | 关键修复 |
 |:---|:---|
-| V16 | 8轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 (30+项) |
-| V25 | 小程序全重写: 单数据模型+双API并行+动态卡片+底部栏Component+HTTP细化错误 |
-| V26 | CN_FONT[74..75] 失败→综合 字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |
+| V4.2.0 | TFT字库修复 + 底部栏简化 + 全平台版本号统一 |
+| V4.1.0 | 9页面TFT UI + 全局状态机 + Sys_Safety + 圆弧能量条仪表盘 |
+| V4.0.0 | 小程序全重写 + 网页乐观更新 + ESP去抖 + 数据一致性铁律 |
 
 ---
 
-> **全文完**。这份文档从 V5 写到 V10, 踩过的坑比跑通的代码还多。如果你跟着做遇到问题, 回头翻第 9 章故障速查表, 大概率能找到答案。祝你的全桥不发烫, ESP8266 不掉线, OneNET 不报 401, TFT 不显示乱码。
+> **全文完**。这份文档从 V4.0.0 一路迭代到 V4.2.0, 踩过的坑比跑通的代码还多。如果你跟着做遇到问题, 回头翻第 9 章故障速查表, 大概率能找到答案。祝你的全桥不发烫, ESP8266 不掉线, OneNET 不报 401, TFT 不显示乱码。

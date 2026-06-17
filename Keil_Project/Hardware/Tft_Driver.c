@@ -1,11 +1,11 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 1.8寸 128x160 TFT — SPI1+DMA 全硬件加速版 V11
+ * @brief   ST7735 1.8寸 128x160 TFT — SPI1+DMA 全硬件加速版 V4.2.0
  *          PA5=SCK PA7=MOSI PA4=CS PA6=DC PA0=RST PB6=BL
  *          SPI1 Mode3 (CPOL=High, CPHA=2Edge), 横屏 160x128, MADCTL=0xA0
  *          DMA1_Channel3 用于全部像素传输 (Fill + Blit), WrCmd/WrDat 8位轮询
- * @note    V11: 字符/图标全部改为 buffer-build → DMA 发送, 消除逐像素 WrD16
+ * @note    V4.2.0: 字符/图标全部改为 buffer-build → DMA 发送, 消除逐像素 WrD16
  *              填充=MINC=0(同色泵送), 位图=MINC=1(缓冲区自增)
  ******************************************************************************
  */

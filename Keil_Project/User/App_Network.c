@@ -2,12 +2,12 @@
  ******************************************************************************
  * @file    User/App_Network.c
  * @brief   网络应用层 — 实现
- * @note    V9: 显式 App_Network_Conn_State 枚举替代隐式 bool 组合
+ * @note    V4.2.0: 显式 App_Network_Conn_State 枚举替代隐式 bool 组合
  ******************************************************************************
  */
 
 #include "App_Network.h"
-#include "Sys_Core.h"  /* V14: 远程指令需同步 g_sys_state */
+#include "Sys_Core.h"  /* V4.2.0: 远程指令需同步 g_sys_state */
 #include "Esp8266_Driver.h"
 #include "Adc_Driver.h"
 #include "Pwm_Driver.h"
@@ -177,7 +177,7 @@ void App_Network_Task(void)
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_SWEEP || ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {
                     Inverter_Control_Soft_Start_Stop();
-                    g_sys_state = SYS_STATE_IDLE;  /* V14 状态机同步: 远程关断必须重置全局状态 */
+                    g_sys_state = SYS_STATE_IDLE;  /* V4.2.0 状态机同步: 远程关断必须重置全局状态 */
                     /* 强制回到主菜单并重置光标 — 远端关断时本地可能在任意页面, 需完整复位 */
                     Ui_Controller_Force_Page_And_Reset(UI_PAGE_MAIN_MENU);
                 }
@@ -187,7 +187,7 @@ void App_Network_Task(void)
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_IDLE) {
                     Inverter_Control_Soft_Start_Trigger();
-                    g_sys_state = SYS_STATE_SWEEP;  /* V14 状态机同步: 远程开机必须告知主循环 */
+                    g_sys_state = SYS_STATE_SWEEP;  /* V4.2.0 状态机同步: 远程开机必须告知主循环 */
                     /* 强制跳转到扫频页并重置光标 — 远端开机时本地可能在菜单页, 不跳转则遥测门控阻塞 */
                     Ui_Controller_Force_Page_And_Reset(UI_PAGE_SWEEP);
                 }

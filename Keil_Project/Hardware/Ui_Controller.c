@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   Ui Controller V11 — incremental refresh, zero-flicker, ICON_STAR
+ * @brief   Ui Controller V4.2.0 — incremental refresh, zero-flicker, ICON_STAR
  * @note    TFT 8x20 cols, 160x128 landscape, 4 keys: F+/F-/KEY0/PAGE
  *          Architecture: static text drawn ONCE on page entry,
  *          cursor changes update only 2 lines (erase old ★ + draw new ★),
@@ -133,7 +133,7 @@ static uint8_t s_ema_ok = 0;
 static uint32_t s_user_target_hz = 100000;
 static uint8_t  s_user_target_synced = 0;
 
-/* ── Incremental refresh state (V11) ── */
+/* ── Incremental refresh state (V4.2.0) ── */
 static uint8_t s_page_drawn         = 0;    /* 0=need full redraw, 1=static content present */
 static uint8_t s_last_is_running    = 0xFF; /* tracked PWM running state */
 static uint8_t s_last_is_fault_menu = 0xFF; /* tracked FAULT state for menu item 3 */
@@ -746,7 +746,7 @@ static void Draw_TopRight_Icons(void)
     } else if (App_Network_Is_Connecting()) {
         icon_frame = (uint8_t)(Sys_Timer_Get_Tick()/150) % 6;
         Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_CONNECT_ANIM[icon_frame], blue_grad[icon_frame], UI_COLOR_BG);
-    } else {  /* IDLE / 旧 FAILED (不可达, V15 永不进入 FAILED) */
+    } else {  /* IDLE / 旧 FAILED (不可达) */
         Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_REMOVE_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
     }
 
@@ -1153,7 +1153,7 @@ static void Draw_WiFi_Full(void)
         status_text = S_WIFI_ONLINE;
     else if (App_Network_Is_Connecting())
         status_text = S_WIFI_CONN;
-    else  /* IDLE / 旧 FAILED (V15 永不进入 FAILED) */
+    else  /* IDLE */
         status_text = S_WIFI_IDLE;
 
     hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
@@ -1208,7 +1208,7 @@ static void WiFi_Dynamic_Update(void)
         status_text = S_WIFI_ONLINE;
     else if (App_Network_Is_Connecting())
         status_text = S_WIFI_CONN;
-    else  /* IDLE / 旧 FAILED (V15 永不进入 FAILED) */
+    else  /* IDLE */
         status_text = S_WIFI_IDLE;
 
     if (cs != s_last_wifi_cs) {
@@ -1494,7 +1494,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
 }
 
 /* ================================================================
- *  Main Scheduler — V11 incremental refresh architecture
+ *  Main Scheduler — V4.2.0 incremental refresh architecture
  *
  *  Phase 0: Global Top-Right Icons Manager (Always On, Auto-Sync)
  *  Phase 1: Fault edge detection → may set s_page, s_page_drawn=0
