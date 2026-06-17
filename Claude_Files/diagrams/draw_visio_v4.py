@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-WPT PWM ONENET V3.0 — Visio 系统工作流程图
+WPT PWM ONENET V4.4.0 — Visio 系统工作流程图
 pywin32 COM 驱动, 坐标全部绑定在 A4 横版 (297×210mm) 内
 """
 import win32com.client, os, sys
@@ -102,7 +102,7 @@ WHT = (255,255,255); BLK = (30,30,30)
 
 # ═══════════════ 主程序 ═══════════════
 v = V()
-OUT = r"D:\Claude Code Project\WPT_PWM_ONENET_V3.0\Claude_Files\diagrams\WPT_PWM_系统工作流.vsdx"
+OUT = r"D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT\Claude_Files\diagrams\WPT_PWM_系统工作流.vsdx"
 
 # Helper to trace y positions
 def trace(pg_name, y_val, label="", max_y=PH-MY_BOT):
@@ -115,7 +115,7 @@ p1.PageSheet.Cells("PageWidth").Formula = f"{PW} mm"
 p1.PageSheet.Cells("PageHeight").Formula = f"{PH} mm"
 
 y = MY_TOP
-v.title(p1, y, "WPT PWM V6.0 — 上电启动流程 (STM32 + ESP8266 Dual-MCU)")
+v.title(p1, y, "WPT PWM V4.4.0 — 上电启动流程 (STM32 + ESP8266 Dual-MCU)")
 y += 11
 
 # Phase 1 header

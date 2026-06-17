@@ -14,7 +14,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.2.0)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
 > **频率斜坡设计**: `Claude_Files/docs/superpowers/specs/2026-05-24-freq-ramp-design.md`
-> **频率斜坡设计**: `Claude_Files/docs/superpowers/specs/2026-05-24-freq-ramp-design.md`
+
+## 版本号规则 (全项目铁律)
+
+```
+Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_TFT):
+  x — 大版本: 固定 4 (TFT 彩屏架构, 4.0TFT 分支)
+  y — 中版本: 新增页面/大功能/全平台重写 时 +1
+  z — 小版本: Bug修复/字库修正/底部栏调整 时 +1
+
+当前版本: V4.2.0
+  V4 = TFT 彩屏架构
+  .2 = 两次中版本升级
+  .0 = 当前小版本号
+
+涉及版本号的位置 (全项目必须统一):
+  文件头注释: 每个 .c/.h/.ino 的 @brief/@note 行
+  文档控制信息: 开发指南/技能文件的文档版本
+  CLAUDE.md: 版本号 + 审查历史
+  README.md: badge + 版本历史
+  操作手册/部署文档: 版本字段
+  小程序注释: wxss/wxml/js 头部
+
+禁止事项:
+  禁止使用 V1~V26 等旧格式 (已全部映射到 V4.x.x)
+  禁止在代码行内注释中添加版本标记 (如 "EMA 双级滤波链 (V26)")
+  仅 SPL V3.5.0、ARMCC V5、Keil V5 等外部工具版本号例外
+```
 
 ## Git 推送前置钩子
 

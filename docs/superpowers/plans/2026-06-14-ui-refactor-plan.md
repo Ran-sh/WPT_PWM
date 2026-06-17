@@ -6,7 +6,7 @@
 
 **Architecture:** 页面枚举 `Ui_Page` 替代旧 `Ui_Controller_State`，页面跳转由按键直接控制 (非状态推导)，故障检测用边沿触发防无限重入。保留 Draw_Header/WIFI+Mqtt 图标/EMA/能量条/格式化等渲染图元。
 
-**Tech Stack:** C (ARMCC V5), STM32F103 SPL V3.5.0, ST7735 TFT 160×128, Keil MDK-ARM V5
+**Tech Stack:** C (ARMCC V5), STM32F103 SPL V3.5.0, ST7735 TFT 160×128, Keil MDK-ARM V5. V4.2.0
 
 ---
 

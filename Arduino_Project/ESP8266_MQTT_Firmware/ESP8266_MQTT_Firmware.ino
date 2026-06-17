@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    ESP8266_MQTT_Firmware.ino
  * @brief   ESP8266 Dual-MCU MQTT 固件 (Arduino)
- * @note    V5.2: 双 Broker MQTT (OneNET + 公共) + 防误触前缀匹配 + 休眠优化 — 命名空间前缀 + 显式连接状态机 + 防误触协议解析
+ * @note    V2.5.0: 双 Broker MQTT (OneNET + 公共) + 防误触前缀匹配 + 休眠优化 — 命名空间前缀 + 显式连接状态机 + 防误触协议解析
  *
  *          Dual-MCU 通信协议 (115200 8N1):
  *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx,"S":x}\n
