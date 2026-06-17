@@ -118,8 +118,7 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
     DeserializationError err = deserializeJson(doc, (const char*)payload, length);
 
     int8_t   cmd     = 0;
-    int8_t   wifi_cmd = 0;  /* -1=WIFI_OFF, +1=WIFI_ON, 0=无操作 */
-    uint32_t freq_hz  = 0;
+    uint32_t freq_hz = 0;
 
     /* 防重入锁: 同一帧 payload 可能被 OneNET Broker 重发, 重复处理无意义 */
     {
@@ -167,18 +166,6 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
                 cmd = 3;
             }
         }
-
-        if (params.containsKey("Switch_WIFI")) {
-            JsonVariant swf = params["Switch_WIFI"];
-            int val = 0;
-            if (swf.is<bool>())
-                val = swf.as<bool>() ? 1 : 0;
-            else if (swf.containsKey("value"))
-                val = (swf["value"].as<int>() != 0) ? 1 : 0;
-            else
-                val = swf.as<int>() ? 1 : 0;
-            wifi_cmd = val ? 1 : -1;
-        }
     } else {
         /* 非 JSON → 前缀字符串匹配兜底, 防子串误触 */
         char msg[64];
@@ -188,8 +175,6 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
 
         if      (Str_Starts_With(msg, "CMD:ON")  || strstr(msg, "\"Switch\":true"))  cmd =  1;
         else if (Str_Starts_With(msg, "CMD:OFF") || strstr(msg, "\"Switch\":false")) cmd = -1;
-        else if (Str_Starts_With(msg, "CMD:WIFI_ON")  || strstr(msg, "\"Switch_WIFI\":true"))  wifi_cmd =  1;
-        else if (Str_Starts_With(msg, "CMD:WIFI_OFF") || strstr(msg, "\"Switch_WIFI\":false")) wifi_cmd = -1;
         else return;
     }
 
@@ -203,13 +188,6 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
             Serial.print(buf);
             break;
         }
-        default: break;
-    }
-
-    /* WiFi 开关指令 — 独立于 PWM 指令, 可以同时发送 */
-    switch (wifi_cmd) {
-        case  1: Serial.print("CMD:WIFI_ON\n");  break;
-        case -1: Serial.print("CMD:WIFI_OFF\n"); break;
         default: break;
     }
 
@@ -386,11 +364,6 @@ static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
     } else {
         tx["params"]["Switch"]["value"] = running;
     }
-
-    /* Switch_WIFI: 上报 ESP 连接状态 (ONLINE/WIFI/MQTT 为在线, OFFLINE/IDLE 为离线) */
-    tx["params"]["Switch_WIFI"]["value"] = (s_conn_state == MQTT_CONN_STATE_ONLINE
-                                         || s_conn_state == MQTT_CONN_STATE_WIFI_CONN
-                                         || s_conn_state == MQTT_CONN_STATE_MQTT_CONN);
 
     char buf[256];
     serializeJson(tx, buf, sizeof(buf));

@@ -10,7 +10,7 @@ var INIT_IDX = FREQ_LIST.indexOf(100);
 
 Page({
   data: {
-    isOn: false, wifiOn: true, isFault: false, systemState: 'IDLE', stateLabel: '待机',
+    isOn: false, isFault: false, systemState: 'IDLE', stateLabel: '待机',
     freqList: FREQ_LIST, selectedFreq: 100, freqIdx: INIT_IDX >= 0 ? INIT_IDX : 0,
     logs: [], currentTheme: 'theme-dark'
   },
@@ -18,7 +18,7 @@ Page({
   onLoad: function() {
     this._checkTheme();
     this._active = true;
-    this._cmdLock = {}; this._switchPending = false; this._wifiPending = false;
+    this._cmdLock = {}; this._switchPending = false;
     this._logs = wx.getStorageSync('wpt_ctrl_logs') || [];
     this.setData({ logs: this._logs.slice(0, 10) });
     this._syncStatus();
@@ -44,13 +44,12 @@ Page({
       else if (sState === 1) { isRunning=true;  isFault=false; systemState='SWEEP'; stateLabel='扫频中'; }
       else                   { isRunning=false; isFault=false; systemState='IDLE';  stateLabel='待机'; }
       var swOn = (data.switch !== undefined) ? (data.switch === true) : isRunning;
-      var wifiOn = data.Switch_WIFI !== undefined ? (data.Switch_WIFI === true) : that.data.wifiOn;
       var freqKHz = raw.F !== undefined ? Math.floor(raw.F / 1000) : that.data.selectedFreq;
       var lock = that._cmdLock || {}, now = Date.now();
       if (!(lock.freq && (now - lock.freq < OneNet.LOCK_MS)) && freqKHz >= 95 && freqKHz <= 150) {
         var idx = FREQ_LIST.indexOf(freqKHz); if (idx >= 0) that.setData({ selectedFreq: freqKHz, freqIdx: idx });
       }
-      that.setData({ isOn: swOn, wifiOn: wifiOn, isFault: isFault, systemState: systemState, stateLabel: stateLabel });
+      that.setData({ isOn: swOn, isFault: isFault, systemState: systemState, stateLabel: stateLabel });
     }).catch(function(){});
   },
 
@@ -62,23 +61,11 @@ Page({
     this._switchPending = true;
     if (!this._cmdLock) this._cmdLock = {};
     this._cmdLock.switch = Date.now();
-    this.setData({ isOn: on, wifiOn: that.data.wifiOn, systemState: on ? 'SWEEP' : 'IDLE', stateLabel: on ? '扫频中' : '待机', isFault: false });
+    this.setData({ isOn: on, systemState: on ? 'SWEEP' : 'IDLE', stateLabel: on ? '扫频中' : '待机', isFault: false });
     OneNet.setProperty(null, { switch: on }).then(function(ok) {
       if (ok) { that._addLog('Switch', on ? '开启设备' : '关闭设备'); }
-      else { that.setData({ isOn: !on, wifiOn: that.data.wifiOn, systemState: !on ? 'SWEEP' : 'IDLE', stateLabel: !on ? '扫频中' : '待机' }); wx.showToast({ title: '下发失败', icon: 'none' }); }
+      else { that.setData({ isOn: !on, systemState: !on ? 'SWEEP' : 'IDLE', stateLabel: !on ? '扫频中' : '待机' }); wx.showToast({ title: '下发失败', icon: 'none' }); }
       that._switchPending = false;
-    });
-  },
-
-  onWifiSwitch: function(e) {
-    var on = e.detail.value, that = this;
-    if (this._wifiPending) return;
-    this._wifiPending = true;
-    this.setData({ wifiOn: on });
-    OneNet.setProperty(null, { Switch_WIFI: on }).then(function(ok) {
-      if (ok) { that._addLog('WiFi', on ? '开启WiFi' : '关闭WiFi'); }
-      else { that.setData({ wifiOn: !on }); wx.showToast({ title: '下发失败', icon: 'none' }); }
-      that._wifiPending = false;
     });
   },
 

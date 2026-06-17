@@ -236,19 +236,6 @@ void App_Network_Task(void)
             const char* r = strstr(local_buf, "RSSI=");
             if (r) s_rssi = (int8_t)strtol(r + 5, NULL, 10);
         }
-        else if ((p = strstr(local_buf, "CMD:WIFI_OFF")) != 0 && (p[12] == '\0' || p[12] == '\r' || p[12] == '\n')) {
-            /* 远程关闭 WiFi → 主动离线 (不自动重连, 保留配网凭证) */
-            App_Network_Manual_Disconnect();
-            Ui_Controller_Force_Page_And_Reset(UI_PAGE_WIFI_SETUP);
-        }
-        else if ((p = strstr(local_buf, "CMD:WIFI_ON")) != 0 && (p[11] == '\0' || p[11] == '\r' || p[11] == '\n')) {
-            /* 远程开启 WiFi → 从离线恢复连接 */
-            if (s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE
-             || s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE
-             || s_conn_state == APP_NETWORK_CONN_IDLE) {
-                App_Network_Manual_Connect();
-            }
-        }
         else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_SWEEP || ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {

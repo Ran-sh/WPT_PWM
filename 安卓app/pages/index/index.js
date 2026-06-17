@@ -30,16 +30,14 @@ function buildCards(model, data) {
   /* 控制 */
   (model.controls || []).forEach(function(c) {
     var displayVal = '--';
-    var boolVal = false;
     if (data && data[c.id] !== undefined) {
       if (c.dataType === 'bool') {
-        boolVal = data[c.id] === true;
-        displayVal = boolVal ? '已开启' : '已关闭';
+        displayVal = data[c.id] === true ? '已开启' : '已关闭';
       } else {
         displayVal = formatValue(data[c.id], c.dataType, c.step);
       }
     }
-    controls.push({ id: c.id, name: c.name, dataType: c.dataType, value: displayVal, boolValue: boolVal });
+    controls.push({ id: c.id, name: c.name, value: displayVal });
   });
   return { sensors: sensors, controls: controls };
 }
