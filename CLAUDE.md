@@ -11,8 +11,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **版本** | V26 |
 | **语言** | 中文交流，代码注释中英混合 |
 
-> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V9, 1.6万字)
+> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V10, 全平台)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
+> **频率斜坡设计**: `Claude_Files/docs/superpowers/specs/2026-05-24-freq-ramp-design.md`
 > **频率斜坡设计**: `Claude_Files/docs/superpowers/specs/2026-05-24-freq-ramp-design.md`
 
 ## Git 推送前置钩子
@@ -146,11 +147,11 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 ## 文件结构
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/                        ← ~5300 行逻辑代码
-├── Keil_Project/                               ← STM32 固件 — ~4558 行
+WPT_PWM_V4.0_ONENET_TFT/                        ← ~10800 行逻辑代码 (全平台)
+├── Keil_Project/                               ← STM32 固件 — 4937 行 (含 User/System, 不含 Library/Start)
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
-│   ├── Hardware/
+│   ├── Hardware/                               ← 硬件驱动 — 4067 行
 │   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1703+39行)
 │   │   ├── Tft_Driver.c/h                      ← ST7735 SPI+DMA 彩屏 + CN_Lookup (606+76行)
 │   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (356行)
@@ -161,7 +162,7 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~5300 行逻辑代码
 │   │   ├── Led_Driver.c/h                      ← 6 LED 闪烁 (135+42行)
 │   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (113+33行)
 │   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (68+30行)
-│   ├── User/
+│   ├── User/                                   ← 应用层 — 786 行
 │   │   ├── App_Network.c/h                     ← WiFi+心跳+帧快照+遥测 (251+41行)
 │   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全 (203+44行)
 │   │   ├── main.c                              ← 程序入口 (50行)
@@ -170,19 +171,25 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~5300 行逻辑代码
 │   ├── Start/  → CMSIS + system_stm32f10x
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
 ├── Arduino_Project/                            ← ESP8266 固件 — 494 行
-│   └── ESP8266_MQTT_Firmware.ino               ← WiFiManager+双MQTT+指令去抖+遥测
-├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages, 纯JS)
-│   ├── index.html / control.html               ← 主页+控制+乐观更新+轮询
-│   ├── monitoring.html / history.html          ← 监测+历史趋势图
-│   ├── alerts.html / settings.html / login.html
-│   ├── js/onenet.js                            ← OneNET API 核心
-│   └── js/config.js                            ← 数据模型+颜色映射
-├── 安卓app/                                    ← 微信小程序 (V25, 6页面+Component)
+│   └── ESP8266_MQTT_Firmware/...ino            ← WiFiManager+双MQTT+指令去抖+遥测
+├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3529 行
+│   ├── index.html(419)/control.html(458)       ← 主页+控制+乐观更新+轮询
+│   ├── monitoring.html(394)/history.html(531)  ← 监测+历史趋势图
+│   ├── alerts.html(325)/settings.html(803)/login.html(150)
+│   ├── js/onenet.js(327)                       ← OneNET API 核心
+│   ├── js/config.js(67)/mobile-nav.js(33)      ← 数据模型+导航
+│   └── service-worker.js(22)                   ← PWA 离线回退
+├── 安卓app/                                    ← 微信小程序 — 1845 行 (V25, 6页面+Component)
 │   ├── utils/config.js                         ← 数据模型单一来源 (DEFAULT_DATA_MODEL)
 │   ├── utils/onenet.js                         ← API 层 (双请求并行+细化错误+Mock)
 │   ├── custom-tab-bar/                         ← 底部导航 Component (无高亮)
-│   └── pages/{index,monitoring,control,history,alerts,settings}/
-└── Claude_Files/docs/                          ← 开发者指南 + 架构师技能文件
+│   ├── pages/{index,monitoring,control,history,alerts,settings}/
+│   ├── 操作手册.md / 部署文档.md               ← 小程序文档
+│   └── docs/                                   ← 设计 spec
+└── Claude_Files/                               ← AI 生成文档+工具
+    ├── docs/                                   ← 开发者指南 + 技能文件 + specs
+    ├── diagrams/                               ← Visio 流程图
+    └── tools/                                  ← generate_docx.js + 桥接脚本
 ```
 
 ## 主循环
