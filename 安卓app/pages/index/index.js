@@ -131,29 +131,5 @@ Page({
   onToggleTheme: function() { var n = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark'; this.setData({ currentTheme: n }); wx.setStorageSync('wpt_theme', n); },
   onPullDownRefresh: function() { var that = this; this._doFetch().then(function() { wx.stopPullDownRefresh(); }, function() { wx.stopPullDownRefresh(); }); },
   onAlertTap: function() { wx.switchTab({ url: '/pages/alerts/alerts' }); },
-  onConnTap: function() { this._doFetch().catch(function(){}); },
-
-  onCtrlSwitch: function(e) {
-    var id = e.currentTarget.dataset.id;
-    var on = e.detail.value;
-    var that = this;
-    /* 乐观更新: 立即切换 UI */
-    var controls = this.data.controls.map(function(c) {
-      if (c.id === id) { c.boolValue = on; c.value = on ? '已开启' : '已关闭'; }
-      return c;
-    });
-    this.setData({ controls: controls });
-    var params = {}; params[id] = on;
-    OneNet.setProperty(null, params).then(function(ok) {
-      if (!ok) {
-        /* 回滚 */
-        var rev = that.data.controls.map(function(c) {
-          if (c.id === id) { c.boolValue = !on; c.value = !on ? '已开启' : '已关闭'; }
-          return c;
-        });
-        that.setData({ controls: rev });
-        wx.showToast({ title: '下发失败', icon: 'none' });
-      }
-    });
-  }
+  onConnTap: function() { this._doFetch().catch(function(){}); }
 });
