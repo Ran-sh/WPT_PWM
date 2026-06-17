@@ -23,6 +23,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. `git add -A && git commit -m "..." && git push origin 4.0TFT`
 3. **铁律**: 禁止将 `.obj` `.lst` `.axf` 等编译产物上传到 GitHub
 
+## "更新全部内容" 执行流程
+
+> 触发词 `更新全部内容` 必须严格按以下 9 步执行，每步标注了 **【针对文件】**，禁止跳过、禁止处理不在列表中的文件。
+
+| 步骤 | 操作 | 针对文件 |
+|:---:|:---|:---|
+| 1 | 全局代码审查 — 对比 .c/.h 与 CLAUDE.md 是否一致 | 所有 `Keil_Project/Hardware/` `Keil_Project/User/` `Keil_Project/System/` |
+| 2 | 修复发现的问题 | 上一步检测到的差异文件 |
+| 3 | 更新 CLAUDE.md (版本号/文件结构+行数/审查历史) | `CLAUDE.md` |
+| 4 | 更新开发指南 (版本号/修改日志/架构章节与代码对齐) | `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` |
+| 5 | 更新技能文件 (版本号/审查历史/执行教训) | `Claude_Files/docs/embedded-architect-system-prompt.md` |
+| 6 | 重新生成 .docx | `Claude_Files/docs/*.md` → `node tools/generate_docx.js` 覆盖同名 .docx |
+| 7 | 清理 Keil 编译产物 (`keilkill.bat`) | `Keil_Project/` 下所有 `.obj` `.lst` `.axf` |
+| 8 | Git 提交 + 推送 | `git add -A && git commit && git push origin 4.0TFT` |
+| 9 | 追加执行教训到技能文件第 4 节 | `Claude_Files/docs/embedded-architect-system-prompt.md` |
+
+> **验证**: 第 7 步后必须 `git status` 确认零编译产物, 第 8 步禁止上传 `.obj` `.lst` `.axf` `.uvopt` `.uvgui.*`
+
 ## Build System
 
 - **IDE**: Keil MDK-ARM V5 (uVision), ARMCC V5.06 update 5 (build 528)
