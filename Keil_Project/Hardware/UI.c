@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    Hardware/UI.c
  * @brief   人机交互界面 —— OLED 显示 + 按键事件分发 + LED 状态驱动
- * @note    V1.0: 纯本地控制, UI_UpdateLEDs / UI_HandleKeys / UI_DrawPage0 / UI_DrawPage1
+ * @note    V0.0.0: 纯本地控制, UI_UpdateLEDs / UI_HandleKeys / UI_DrawPage0 / UI_DrawPage1
  ******************************************************************************
  */
 

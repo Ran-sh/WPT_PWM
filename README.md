@@ -3,7 +3,7 @@
 [![MCU](https://img.shields.io/badge/MCU-STM32F103C8T6-blue)]()
 [![Library](https://img.shields.io/badge/Library-SPL%20V3.5.0-green)]()
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
-[![Version](https://img.shields.io/badge/Firmware-V1.1-brightgreen)]()
+[![Version](https://img.shields.io/badge/Firmware-V0.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
 基于 STM32F103C8T6 的 100kHz LCC-S 谐振全桥无线供电系统，支持 OLED 本地控制和按键操作。**纯本地固件，无网络功能。**
@@ -74,7 +74,7 @@
 
 | 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | LED | 看门狗 | 适用场景 |
 |:---|:---|:---:|:---|:---|:---:|:---:|:---|
-| **`master`** ⬅ | `WPT_PWM_V0.0` | **V1.0** | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
+| **`master`** ⬅ | `WPT_PWM_V0.0` | **V0.0.0** | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
 | `1.0LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V3.4 | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 30s | 内网调试 |
 | `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V3.5 | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
 | `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V6.2 | OneNET MQTT | OneNET Studio | 4 LED | IWDG 1.6s | 物联网双脑架构 |

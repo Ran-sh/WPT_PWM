@@ -10,9 +10,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `master` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_V0.0` |
 | **协议** | 纯本地控制 (无 WiFi) |
-| **版本** | V1.0 |
+| **版本** | V0.0.0 |
 
 其他分支: `1.0LAN` (NetAssist 局域网 V3.4) → `WPT_PWM_NetAssistant_LAN_V1.0`, `2.0WAN` (巴法云 TCP V3.5) → `WPT_PWM_Bemfa_WAN_V2.0`, `3.0ONENET` (OneNET MQTT V6.2 OLED) → `WPT_PWM_ONENET_V3.0`, `4.0TFT` (OneNET MQTT V6.2 TFT彩屏) → `WPT_PWM_V4.0_ONENET_TFT`
+
+## Version Numbering (语义化版本)
+
+本项目采用 **Vx.y.z** 语义化版本号, 其中:
+- **x = 0** — 固定为 0 (对应项目根目录名 `WPT_PWM_V0.0`)
+- **y** — 中版本号, 大功能升级时递增 (如新增模块、新增通信协议)
+- **z** — 小版本号, Bug修复/文档更新/代码优化时递增
+
+**当前版本: V0.0.0** (初始基版, 纯本地控制)
+
+### 历史版本映射 (审查记录 → V0.x.x)
+
+| 旧版本号 | 新版本号 | 日期 | 说明 |
+|:---|:---|:---|:---|
+| V1.0 | V0.0.0 | 2026-05-21 | 初始基版: 纯本地控制, 全桥PWM, 软启动, OLED双页UI |
+| V1.1 | V0.0.1 | 2026-05-22 | 代码审查修复: ADC精度修正, OLED精简, 注释修正 |
+| (未来) | V0.1.0 | — | 下一次大功能升级 (如新增通信模块)
 
 ### 复合指令触发规则
 
