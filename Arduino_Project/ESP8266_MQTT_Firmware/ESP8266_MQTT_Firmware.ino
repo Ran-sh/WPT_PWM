@@ -2,8 +2,7 @@
  ******************************************************************************
  * @file    ESP8266_MQTT_Firmware.ino
  * @brief   ESP8266 Dual-MCU MQTT 固件 (Arduino)
- * @note    V2.5.0: 双 Broker MQTT (OneNET + 公共) + 防误触前缀匹配 + 休眠优化 — 命名空间前缀 + 显式连接状态机 + 防误触协议解析
- *
+ * @note    V2.5.1: 状态机对齐 STM32 — OFFLINE 双模式 + 持续重试不放弃
  *          Dual-MCU 通信协议 (115200 8N1):
  *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx,"S":x}\n
  *            ESP8266 → STM32:  CMD:ON\n  /  CMD:OFF\n  /  CMD:SETFREQ:<Hz>\n
@@ -74,18 +73,21 @@
  * ═══════════════════════════════════════════════════════════════ */
 
 typedef enum {
-    MQTT_CONN_STATE_IDLE        = 0,  /* 未启动 */
-    MQTT_CONN_STATE_WIFI_CONN   = 1,  /* WiFi 连接中 */
-    MQTT_CONN_STATE_MQTT_CONN   = 2,  /* MQTT 连接中 */
-    MQTT_CONN_STATE_ONLINE      = 3,  /* 双 MQTT 均在线, 可收发 */
-    MQTT_CONN_STATE_FAILED      = 4   /* 重试耗尽 */
+    MQTT_CONN_STATE_IDLE            = 0,  /* 未启动 */
+    MQTT_CONN_STATE_WIFI_CONN       = 1,  /* WiFi 连接中 */
+    MQTT_CONN_STATE_MQTT_CONN       = 2,  /* MQTT 连接中 */
+    MQTT_CONN_STATE_ONLINE          = 3,  /* 双 MQTT 均在线, 可收发 */
+    MQTT_CONN_STATE_OFFLINE_PASSIVE = 4,  /* 被动离线 (热点断开, STM32 自动嗅探恢复) */
+    MQTT_CONN_STATE_OFFLINE_ACTIVE  = 5   /* 主动离线 (用户按键OFF, 需手动ON恢复) */
 } Conn_State;
 
 static Conn_State    s_conn_state      = MQTT_CONN_STATE_IDLE;
 static unsigned long s_conn_retry_ms   = 0;
 static uint8_t       s_conn_retry_cnt  = 0;
-static uint8_t       s_conn_max_retry  = 3;
-static unsigned long s_conn_timeout_ms = 15000;
+
+/* WiFi 重连配置: ESP 侧不设上限, 持续重试; 上限判断由 STM32 App_Network 负责 */
+#define WIFI_CONN_TIMEOUT_MS    15000   /* 单次 WiFi 连接超时 */
+#define WIFI_RETRY_INTERVAL_MS   3000   /* 断开后重试间隔 */
 
 
 /* ═══════════════════════════════════════════════════════════════
@@ -116,7 +118,8 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
     DeserializationError err = deserializeJson(doc, (const char*)payload, length);
 
     int8_t   cmd     = 0;
-    uint32_t freq_hz = 0;
+    int8_t   wifi_cmd = 0;  /* -1=WIFI_OFF, +1=WIFI_ON, 0=无操作 */
+    uint32_t freq_hz  = 0;
 
     /* 防重入锁: 同一帧 payload 可能被 OneNET Broker 重发, 重复处理无意义 */
     {
@@ -164,6 +167,18 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
                 cmd = 3;
             }
         }
+
+        if (params.containsKey("Switch_WIFI")) {
+            JsonVariant swf = params["Switch_WIFI"];
+            int val = 0;
+            if (swf.is<bool>())
+                val = swf.as<bool>() ? 1 : 0;
+            else if (swf.containsKey("value"))
+                val = (swf["value"].as<int>() != 0) ? 1 : 0;
+            else
+                val = swf.as<int>() ? 1 : 0;
+            wifi_cmd = val ? 1 : -1;
+        }
     } else {
         /* 非 JSON → 前缀字符串匹配兜底, 防子串误触 */
         char msg[64];
@@ -173,6 +188,8 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
 
         if      (Str_Starts_With(msg, "CMD:ON")  || strstr(msg, "\"Switch\":true"))  cmd =  1;
         else if (Str_Starts_With(msg, "CMD:OFF") || strstr(msg, "\"Switch\":false")) cmd = -1;
+        else if (Str_Starts_With(msg, "CMD:WIFI_ON")  || strstr(msg, "\"Switch_WIFI\":true"))  wifi_cmd =  1;
+        else if (Str_Starts_With(msg, "CMD:WIFI_OFF") || strstr(msg, "\"Switch_WIFI\":false")) wifi_cmd = -1;
         else return;
     }
 
@@ -186,6 +203,13 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
             Serial.print(buf);
             break;
         }
+        default: break;
+    }
+
+    /* WiFi 开关指令 — 独立于 PWM 指令, 可以同时发送 */
+    switch (wifi_cmd) {
+        case  1: Serial.print("CMD:WIFI_ON\n");  break;
+        case -1: Serial.print("CMD:WIFI_OFF\n"); break;
         default: break;
     }
 
@@ -231,14 +255,15 @@ static void Mqtt_Task_Maintain_Connection(void)
             if (WiFi.status() == WL_CONNECTED) {
                 s_conn_state = MQTT_CONN_STATE_MQTT_CONN;
                 Serial.print("STATUS:MQTT\n");
-            } else if (now - s_conn_retry_ms >= s_conn_timeout_ms) {
+            } else if (now - s_conn_retry_ms >= WIFI_CONN_TIMEOUT_MS) {
+                /* 持续重试, 不设上限 — 上限判断由 STM32 App_Network 负责 */
                 s_conn_retry_cnt++;
-                if (s_conn_retry_cnt >= s_conn_max_retry) {
-                    s_conn_state = MQTT_CONN_STATE_FAILED;
-                } else {
-                    s_conn_retry_ms = now;
-                    WiFi.begin();
-                }
+                s_conn_retry_ms = now;
+                WiFi.begin();
+                /* 上报重试次数给 STM32, 方便 TFT 显示 */
+                Serial.print("STATUS:RETRY=");
+                Serial.print(s_conn_retry_cnt);
+                Serial.print("\n");
             }
             break;
 
@@ -288,8 +313,21 @@ static void Mqtt_Task_Maintain_Connection(void)
             break;
         }
 
-        case MQTT_CONN_STATE_FAILED:
-            break;  /* 需外部复位 */
+        case MQTT_CONN_STATE_OFFLINE_PASSIVE:
+        case MQTT_CONN_STATE_OFFLINE_ACTIVE:
+            /* 离线状态: 持续监测 WiFi 恢复, 恢复后自动上报 STATUS:ONLINE 触发 STM32 嗅探 */
+            if (WiFi.status() == WL_CONNECTED) {
+                s_conn_state     = MQTT_CONN_STATE_MQTT_CONN;
+                s_conn_retry_cnt = 0;
+                Serial.print("STATUS:MQTT\n");
+            } else {
+                /* 每 WIFI_RETRY_INTERVAL_MS 重试一次连接 */
+                if (now - s_conn_retry_ms >= WIFI_RETRY_INTERVAL_MS) {
+                    s_conn_retry_ms = now;
+                    WiFi.begin();
+                }
+            }
+            break;
     }
 }
 
@@ -304,14 +342,14 @@ static void Mqtt_Task_Start_Connect(void)
 
 static void Mqtt_Task_Soft_Reset(void)
 {
-    s_conn_state     = MQTT_CONN_STATE_WIFI_CONN;
+    s_conn_state     = MQTT_CONN_STATE_IDLE;
     s_conn_retry_ms  = millis();
     s_conn_retry_cnt = 0;
 }
 
 static uint8_t Mqtt_Task_Get_Connect_Status(void)
 {
-    return (uint8_t)s_conn_state;  /* 0=IDLE 1=WIFI 2=MQTT 3=ONLINE 4=FAILED */
+    return (uint8_t)s_conn_state;  /* 0=IDLE 1=WIFI 2=MQTT 3=ONLINE 4=被动离线 5=主动离线 */
 }
 
 static uint8_t Mqtt_Task_Get_Retry_Count(void) { return s_conn_retry_cnt; }
@@ -349,6 +387,11 @@ static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
         tx["params"]["Switch"]["value"] = running;
     }
 
+    /* Switch_WIFI: 上报 ESP 连接状态 (ONLINE/WIFI/MQTT=在线, OFFLINE_*/IDLE=离线) */
+    tx["params"]["Switch_WIFI"]["value"] = (s_conn_state == MQTT_CONN_STATE_ONLINE
+                                         || s_conn_state == MQTT_CONN_STATE_WIFI_CONN
+                                         || s_conn_state == MQTT_CONN_STATE_MQTT_CONN);
+
     char buf[256];
     serializeJson(tx, buf, sizeof(buf));
     s_mqtt_client.publish(MQTT_TOPIC_PROPERTY_POST, buf);
@@ -368,7 +411,18 @@ static uint8_t s_serial_len = 0;
 
 static void Serial_Parse_Process_Line(const char* line)
 {
-    /* CMD:CLEAR — 前缀匹配防误触 */
+    /* CMD:WIFI_DISC — 断开 WiFi 但不清除凭证, 进入被动离线 (可自动恢复)
+     * 注意: ESP 侧用 PASSIVE, STM32 侧用 ACTIVE — 设计意图是 ESP 保持 WiFi 自动重连,
+     * 但 STM32 的门控阻止应用层重连, 直到用户手动 ON 才放行 */
+    if (Str_Starts_With(line, "CMD:WIFI_DISC")) {
+        WiFi.disconnect();
+        s_conn_state     = MQTT_CONN_STATE_OFFLINE_PASSIVE;
+        s_conn_retry_cnt = 0;
+        Serial.print("STATUS:DISCONNECTED\n");
+        return;
+    }
+
+    /* CMD:CLEAR — 清除配网凭证并重启, 进入配网模式 (需手动重新配网) */
     if (Str_Starts_With(line, "CMD:CLEAR")) {
 #ifdef DEBUG
         Serial.println("[System] CMD:CLEAR — resetting WiFi...");
@@ -466,11 +520,12 @@ void loop()
     Mqtt_Task_Loop();
     Serial_Parse_Read_Loop();
 
-    /* 全局 WiFi 断连检测: 每 500ms 检查一次, 任何非 IDLE 状态均需 WiFi */
+    /* 全局 WiFi 断连检测: 每 500ms 检查一次, 排除 IDLE 和 离线状态 */
     if (now - last_check >= 500) {
         last_check = now;
         if (s_conn_state != MQTT_CONN_STATE_IDLE &&
-            s_conn_state != MQTT_CONN_STATE_FAILED) {
+            s_conn_state != MQTT_CONN_STATE_OFFLINE_PASSIVE &&
+            s_conn_state != MQTT_CONN_STATE_OFFLINE_ACTIVE) {
             if (WiFi.status() != WL_CONNECTED) {
                 /* WiFi 断连 → 回退到 WIFI_CONN, 播报 DISCONNECTED */
                 if (s_conn_state != MQTT_CONN_STATE_WIFI_CONN) {
@@ -479,7 +534,7 @@ void loop()
                     Serial.print("STATUS:DISCONNECTED\n");
                 }
                 /* 每 3s 重试 WiFi.begin(), 利用保存的凭证重连 */
-                if (now - last_wifi_retry >= 3000) {
+                if (now - last_wifi_retry >= WIFI_RETRY_INTERVAL_MS) {
                     last_wifi_retry = now;
                     s_conn_retry_ms  = now;
                     WiFi.mode(WIFI_STA);

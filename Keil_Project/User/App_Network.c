@@ -2,12 +2,12 @@
  ******************************************************************************
  * @file    User/App_Network.c
  * @brief   网络应用层 — 实现
- * @note    V4.2.0: 显式 App_Network_Conn_State 枚举替代隐式 bool 组合
+ * @note    V4.2.1: OFFLINE 双模式 (被动自动嗅探 / 主动手动恢复) + 5次有限重试
  ******************************************************************************
  */
 
 #include "App_Network.h"
-#include "Sys_Core.h"  /* V4.2.0: 远程指令需同步 g_sys_state */
+#include "Sys_Core.h"
 #include "Esp8266_Driver.h"
 #include "Adc_Driver.h"
 #include "Pwm_Driver.h"
@@ -20,21 +20,21 @@
 #include <stdlib.h>
 
 #define APP_NETWORK_CONNECT_TIMEOUT_MS   8000
-#define APP_NETWORK_MAX_RETRIES           3
+#define APP_NETWORK_MAX_RETRIES            5   /* 被动断开重试上限, 耗尽进 OFFLINE */
 #define APP_NETWORK_TELEMETRY_PERIOD_MS  500
 
 static App_Network_Conn_State s_conn_state    = APP_NETWORK_CONN_IDLE;
 static uint8_t                s_retry_count   = 0;
 static uint32_t               s_connect_start = 0;
-static int8_t                 s_rssi          = -100;  /* WIFI 信号强度 dBm, 默认-100 */
-static uint32_t               s_last_esp_ms   = 0;     /* 最后一次收到 ESP 有效帧的时间戳, 心跳超时用 */
+static int8_t                 s_rssi          = -100;
+static uint32_t               s_last_esp_ms   = 0;
 
 uint8_t App_Network_Start_Connect(void)
 {
     s_conn_state    = APP_NETWORK_CONN_WIFI;
     s_retry_count   = 0;
     s_connect_start = Sys_Timer_Get_Tick();
-    s_last_esp_ms   = Sys_Timer_Get_Tick();  /* 刚启动, 给予初始超时窗口 */
+    s_last_esp_ms   = Sys_Timer_Get_Tick();
     Esp8266_Driver_Start_Init();
     Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     return 0;
@@ -42,12 +42,41 @@ uint8_t App_Network_Start_Connect(void)
 
 uint8_t App_Network_Soft_Reset(void)
 {
-    /* 仅重置网络状态为 IDLE, 不重启硬件 — 用于进入无WIFI模式 */
     s_conn_state    = APP_NETWORK_CONN_IDLE;
     s_retry_count   = 0;
     s_rssi          = -100;
     Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     return 0;
+}
+
+void App_Network_Manual_Connect(void)
+{
+    /* 仅从主动离线恢复: 清除离线标记, 开始连接 */
+    if (s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE) {
+        s_conn_state    = APP_NETWORK_CONN_WIFI;
+        s_retry_count   = 0;
+        s_connect_start = Sys_Timer_Get_Tick();
+        s_last_esp_ms   = Sys_Timer_Get_Tick();
+        Esp8266_Driver_Start_Init();
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+    }
+}
+
+void App_Network_Manual_Disconnect(void)
+{
+    /* 进入主动离线: STM32 侧 OFFLINE_ACTIVE (忽略所有帧, 需手动ON恢复)
+     * ESP 侧收到 CMD:WIFI_DISC 后进入 OFFLINE_PASSIVE (持续嗅探 WiFi 恢复)
+     * 两个 MCU 状态不同是设计意图: ESP 保持凭证并自动重连 WiFi 层,
+     * 但 STM32 的 ACTIVE 门控阻止了应用层重连 — 直到用户手动 ON 才放行 */
+    if (s_conn_state == APP_NETWORK_CONN_ONLINE
+        || s_conn_state == APP_NETWORK_CONN_WIFI
+        || s_conn_state == APP_NETWORK_CONN_MQTT) {
+        Esp8266_Driver_Send_String("CMD:WIFI_DISC\n");
+        s_conn_state    = APP_NETWORK_CONN_OFFLINE_ACTIVE;
+        s_retry_count   = 0;
+        s_rssi          = -100;
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_OFF);
+    }
 }
 
 uint8_t App_Network_Get_Connect_Status(void)
@@ -62,22 +91,22 @@ uint8_t App_Network_Is_Connected(void)
     return (s_conn_state == APP_NETWORK_CONN_ONLINE);
 }
 
-/* ── 指数退避: 前两级 ≥5s (覆盖 ESP 4s 启动), 不永久 FAILED ── */
-static uint32_t App_Network_Get_Retry_Timeout(void)
+uint8_t App_Network_Is_Offline(void)
 {
-    if (s_retry_count < 3)  return 5000;     /* 0-2:    5s (必须 >4s ESP 启动) */
-    if (s_retry_count < 8)  return 15000;    /* 3-7:   15s */
-    if (s_retry_count < 14) return 30000;    /* 8-13:  30s */
-    if (s_retry_count < 22) return 60000;    /* 14-21: 60s */
-    if (s_retry_count < 32) return 120000;   /* 22-31: 2min */
-    if (s_retry_count < 47) return 300000;   /* 32-46: 5min */
-    return 1800000;                           /* 47+:   30min */
+    return (s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE
+         || s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE);
 }
 
-/** @brief 判断设备是否热点打开可配网 (RSSI 极强, 通常在 -30 以内) */
-static uint8_t App_Network_Is_Hotspot_Nearby(void)
+/* ── 指数退避 ── */
+static uint32_t App_Network_Get_Retry_Timeout(void)
 {
-    return (s_rssi >= -35);
+    if (s_retry_count < 3)  return 5000;
+    if (s_retry_count < 6)  return 15000;
+    if (s_retry_count < 10) return 30000;
+    if (s_retry_count < 15) return 60000;
+    if (s_retry_count < 25) return 120000;
+    if (s_retry_count < 40) return 300000;
+    return 1800000;
 }
 
 static void App_Network_Check_Retry(void)
@@ -85,19 +114,47 @@ static void App_Network_Check_Retry(void)
     if (s_conn_state != APP_NETWORK_CONN_WIFI && s_conn_state != APP_NETWORK_CONN_MQTT)
         return;
 
-    /* 侦测到强信号热点 → 加速重试 (直接重置为 3s 级) */
-    if (App_Network_Is_Hotspot_Nearby()) {
-        s_retry_count   = 0;
-        s_connect_start = Sys_Timer_Get_Tick();
-    }
-
-    /* 指数退避超时, 自动重试, 无限循环 */
+    /* 指数退避超时 */
     if (Sys_Timer_Get_Tick() - s_connect_start >= App_Network_Get_Retry_Timeout()) {
         s_retry_count++;
+
+        /* 重试达到上限 → 进入被动离线 (热点断开, 自动嗅探恢复) */
+        if (s_retry_count > APP_NETWORK_MAX_RETRIES) {
+            s_conn_state  = APP_NETWORK_CONN_OFFLINE_PASSIVE;
+            s_retry_count = 0;
+            Led_Driver_Set_WiFi(LED_DRIVER_STATE_OFF);
+            return;
+        }
+
         s_connect_start = Sys_Timer_Get_Tick();
-        s_last_esp_ms   = Sys_Timer_Get_Tick();  /* 重置心跳, 给新 init 完整超时窗口 */
+        s_last_esp_ms   = Sys_Timer_Get_Tick();
         Esp8266_Driver_Start_Init();
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+    }
+}
+
+/* ── 被动离线嗅探: ESP 上报有效帧 → 热点恢复, 自动重连 ── */
+static void App_Network_Check_Offline_Recovery(void)
+{
+    if (s_conn_state != APP_NETWORK_CONN_OFFLINE_PASSIVE)
+        return;
+
+    /* 被动监听: 串口收到任何有效 STATUS 帧表示 ESP 已恢复通信
+     * 注意: 仅切换 STM32 状态为 WIFI, 不发硬件 RST — ESP 已存活且在重连中,
+     * 发硬件 RST 反而会引入 4s BOOT_WAIT 延迟 */
+    {
+        char local_buf[128];
+        if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
+            return;
+
+        /* 仅响应 STATUS 类帧 (排除遥控 CMD 帧) */
+        if (strstr(local_buf, "STATUS:")) {
+            s_conn_state    = APP_NETWORK_CONN_WIFI;
+            s_retry_count   = 0;
+            s_connect_start = Sys_Timer_Get_Tick();
+            s_last_esp_ms   = Sys_Timer_Get_Tick();
+            Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+        }
     }
 }
 
@@ -113,15 +170,18 @@ void App_Network_Task(void)
 
     if (!Esp8266_Driver_Is_Ready()) return;
 
+    /* 被动离线嗅探: ESP 恢复 → 自动重连 (在 App_Network_Check_Retry 之前, 优先级最高) */
+    App_Network_Check_Offline_Recovery();
+
     App_Network_Check_Retry();
 
-    /* ── 心跳超时检测: 8s 无任何 ESP 帧 → 判定离线, 强制重连 ── */
-    if (s_conn_state != APP_NETWORK_CONN_IDLE
+    /* ── 心跳超时检测: 8s 无任何 ESP 帧 → 判定离线, 开始重试 ── */
+    if (s_conn_state == APP_NETWORK_CONN_ONLINE
         && Sys_Timer_Get_Tick() - s_last_esp_ms >= APP_NETWORK_CONNECT_TIMEOUT_MS) {
         s_conn_state    = APP_NETWORK_CONN_WIFI;
         s_retry_count   = 0;
         s_connect_start = Sys_Timer_Get_Tick();
-        s_last_esp_ms   = Sys_Timer_Get_Tick();  /* 给予新 init 完整超时窗口 */
+        s_last_esp_ms   = Sys_Timer_Get_Tick();
         s_rssi          = -100;
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
         Esp8266_Driver_Start_Init();
@@ -131,19 +191,25 @@ void App_Network_Task(void)
     {
         char local_buf[128];
         const char* p;
-        Inverter_Control_Soft_Start_State ss_cmd;  /* 帧内快照: 防 ELSE-IF 链间 TOCTOU */
+        Inverter_Control_Soft_Start_State ss_cmd;
         uint8_t conn_cs;
 
         if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
             goto skip_frame;
 
-        s_last_esp_ms = Sys_Timer_Get_Tick();  /* 任何有效帧都刷新心跳时间戳 */
+        s_last_esp_ms = Sys_Timer_Get_Tick();
 
         ss_cmd  = Inverter_Control_Soft_Start_Get_State();
         conn_cs = s_conn_state;
 
+        /* 离线状态下收到 STATUS 帧 → 忽略 (由 App_Network_Check_Offline_Recovery 统一处理)
+         * 主动离线时 ESP 回显的 STATUS:DISCONNECTED 也在此吞掉, 防止意外状态转移 */
+        if (s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE
+         || s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE) {
+            goto skip_frame;
+        }
+
         if (strstr(local_buf, "STATUS:DISCONNECTED")) {
-            /* 断连 → 回到 WIFI 等待, 重置重试参数 */
             s_conn_state    = APP_NETWORK_CONN_WIFI;
             s_retry_count   = 0;
             s_connect_start = Sys_Timer_Get_Tick();
@@ -151,15 +217,13 @@ void App_Network_Task(void)
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
         }
         else if (strstr(local_buf, "STATUS:MQTT")) {
-            /* MQTT 中间状态: 保留 WIFI_CONN→MQTT_CONN 转移, 但不从 ONLINE 降级 */
             if (conn_cs == APP_NETWORK_CONN_WIFI) {
                 s_conn_state    = APP_NETWORK_CONN_MQTT;
-                s_connect_start = Sys_Timer_Get_Tick();  /* 进入 MQTT 时给新超时窗口, 仅一次 */
+                s_connect_start = Sys_Timer_Get_Tick();
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
             }
         }
         else if (strstr(local_buf, "STATUS:ONLINE")) {
-            /* ONLINE: 任何非 ONLINE 状态→ONLINE, 包括从 FAILED 恢复 */
             const char* r = strstr(local_buf, "RSSI=");
             if (r) s_rssi = (int8_t)strtol(r + 5, NULL, 10);
             if (conn_cs != APP_NETWORK_CONN_ONLINE) {
@@ -169,16 +233,27 @@ void App_Network_Task(void)
             }
         }
         else if (strstr(local_buf, "STATUS:RSSI=")) {
-            /* 独立 RSSI 心跳帧: 仅更新信号强度, 不触发状态转移 (在线状态下 ESP 每 2s 发送) */
             const char* r = strstr(local_buf, "RSSI=");
             if (r) s_rssi = (int8_t)strtol(r + 5, NULL, 10);
+        }
+        else if ((p = strstr(local_buf, "CMD:WIFI_OFF")) != 0 && (p[12] == '\0' || p[12] == '\r' || p[12] == '\n')) {
+            /* 远程关闭 WiFi → 主动离线 (不自动重连, 保留配网凭证) */
+            App_Network_Manual_Disconnect();
+            Ui_Controller_Force_Page_And_Reset(UI_PAGE_WIFI_SETUP);
+        }
+        else if ((p = strstr(local_buf, "CMD:WIFI_ON")) != 0 && (p[11] == '\0' || p[11] == '\r' || p[11] == '\n')) {
+            /* 远程开启 WiFi → 从离线恢复连接 */
+            if (s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE
+             || s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE
+             || s_conn_state == APP_NETWORK_CONN_IDLE) {
+                App_Network_Manual_Connect();
+            }
         }
         else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_SWEEP || ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {
                     Inverter_Control_Soft_Start_Stop();
-                    g_sys_state = SYS_STATE_IDLE;  /* V4.2.0 状态机同步: 远程关断必须重置全局状态 */
-                    /* 强制回到主菜单并重置光标 — 远端关断时本地可能在任意页面, 需完整复位 */
+                    g_sys_state = SYS_STATE_IDLE;
                     Ui_Controller_Force_Page_And_Reset(UI_PAGE_MAIN_MENU);
                 }
             }
@@ -187,8 +262,7 @@ void App_Network_Task(void)
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_IDLE) {
                     Inverter_Control_Soft_Start_Trigger();
-                    g_sys_state = SYS_STATE_SWEEP;  /* V4.2.0 状态机同步: 远程开机必须告知主循环 */
-                    /* 强制跳转到扫频页并重置光标 — 远端开机时本地可能在菜单页, 不跳转则遥测门控阻塞 */
+                    g_sys_state = SYS_STATE_SWEEP;
                     Ui_Controller_Force_Page_And_Reset(UI_PAGE_SWEEP);
                 }
             }
@@ -208,7 +282,7 @@ void App_Network_Task(void)
     }
     skip_frame:
 
-    /* ── 遥测发送 (门控: 仅 UI >= READY 且系统在线) ── */
+    /* ── 遥测发送 ── */
     {
         static uint32_t last_telemetry = 0;
 
@@ -232,7 +306,6 @@ void App_Network_Task(void)
             if (allow_telemetry) {
                 char json_buf[80];
                 int written;
-                /* 始终上报真实 V/I: 物理量在任何状态下均可采集, 仅 F 在 PWM 未运行时报 0 */
                 written = snprintf(json_buf, sizeof(json_buf),
                          "{\"V\":%.2f,\"I\":%.3f,\"F\":%lu,\"S\":%d}\n",
                          (double)Sys_Safety_Get_EMA_Voltage(),

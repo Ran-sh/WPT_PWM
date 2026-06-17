@@ -96,9 +96,10 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 #define S_VOLTAGE   "\xe7\x94\xb5\xe5\x8e\x8b"                       /* voltage */
 #define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* current */
 #define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* clear WIFI */
-#define S_WIFI_ONLINE  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe6\x88\x90" "\xe5\x8a\x9f" /* success */
-#define S_WIFI_CONN    "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe4\xb8\xad"               /* connecting */
-#define S_WIFI_IDLE    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"                   /* idle */
+#define S_WIFI_ONLINE  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe6\x88\x90" "\xe5\x8a\x9f" /* 连接成功 */
+#define S_WIFI_CONN    "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe4\xb8\xad"               /* 连接中 */
+#define S_WIFI_OFFLINE "\xe5\xb7\xb2" "\xe7\xa6\xbb" "\xe7\xba\xbf"           /* 已离线 */
+#define S_WIFI_IDLE    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"                   /* 未连接 */
 #define S_WIFI_FORMAT  "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81" /* 无线状态 */
 #define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* summary */
 #define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* back to main */
@@ -734,7 +735,7 @@ static void Draw_TopRight_Icons(void)
     static const uint16_t rainbow[6] = {0xF800,0xFD20,0xFFE0,0x07E0,0x07FF,0x001F};
 
     /* ── WIFI icon (x=128) ── */
-    if (s_no_wifi_mode) {
+    if (s_no_wifi_mode || App_Network_Is_Offline()) {
         Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_OFF_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
     } else if (!Esp8266_Driver_Is_Ready()) {
         icon_frame = (uint8_t)(Sys_Timer_Get_Tick()/150) % 6;
@@ -746,7 +747,7 @@ static void Draw_TopRight_Icons(void)
     } else if (App_Network_Is_Connecting()) {
         icon_frame = (uint8_t)(Sys_Timer_Get_Tick()/150) % 6;
         Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_CONNECT_ANIM[icon_frame], blue_grad[icon_frame], UI_COLOR_BG);
-    } else {  /* IDLE / 旧 FAILED (不可达) */
+    } else {  /* IDLE */
         Tft_Driver_Draw_Single_Icon(WX, 0, WIFI_REMOVE_ICON, UI_COLOR_ALARM, UI_COLOR_BG);
     }
 
@@ -1153,10 +1154,16 @@ static void Draw_WiFi_Full(void)
         status_text = S_WIFI_ONLINE;
     else if (App_Network_Is_Connecting())
         status_text = S_WIFI_CONN;
+    else if (App_Network_Is_Offline())
+        status_text = S_WIFI_OFFLINE;
     else  /* IDLE */
         status_text = S_WIFI_IDLE;
 
-    hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
+    if (App_Network_Is_Offline()) {
+        hint_text = S_ON_CONNECT;
+    } else {
+        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
+    }
 
     Draw_Header(S_LAUNCH);         /* row 0 */
     Draw_Divider(1);               /* row 1 */
@@ -1174,7 +1181,7 @@ static void Draw_WiFi_Full(void)
     if (App_Network_Is_Connecting()) {
         char buf[16];
         snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d",
-                 App_Network_Get_Retry_Count() + 1, 3);
+                 App_Network_Get_Retry_Count() + 1, 5);
         Tft_Driver_Show_CN_String(3, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
         strncpy(s_last_retry_buf, buf, sizeof(s_last_retry_buf));
         s_last_retry_buf[sizeof(s_last_retry_buf) - 1] = '\0';
@@ -1208,6 +1215,8 @@ static void WiFi_Dynamic_Update(void)
         status_text = S_WIFI_ONLINE;
     else if (App_Network_Is_Connecting())
         status_text = S_WIFI_CONN;
+    else if (App_Network_Is_Offline())
+        status_text = S_WIFI_OFFLINE;
     else  /* IDLE */
         status_text = S_WIFI_IDLE;
 
@@ -1226,7 +1235,7 @@ static void WiFi_Dynamic_Update(void)
 
     if (App_Network_Is_Connecting()) {
         char buf[16];
-        snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d", retry + 1, 3);
+        snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d", retry + 1, 5);
         if (retry != s_last_retry || strncmp(buf, s_last_retry_buf, sizeof(s_last_retry_buf)) != 0) {
             Tft_Driver_Show_CN_String(3, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
             strncpy(s_last_retry_buf, buf, sizeof(s_last_retry_buf));
@@ -1239,7 +1248,11 @@ static void WiFi_Dynamic_Update(void)
     s_last_retry = retry;
 
     if (need_hint_update) {
-        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
+        if (App_Network_Is_Offline()) {
+            hint_text = S_ON_CONNECT;
+        } else {
+            hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
+        }
         Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
     }
 }
@@ -1277,6 +1290,8 @@ static void Update_Leds(Ui_Page page)
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
     else if (cs == APP_NETWORK_CONN_WIFI || cs == APP_NETWORK_CONN_MQTT)
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
+    else if (App_Network_Is_Offline())
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_OFF);
     else
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
 
@@ -1425,15 +1440,18 @@ static void Handle_Keys_by_Page(Ui_Page page,
 
             case UI_PAGE_WIFI_SETUP: {
                 uint8_t cs = App_Network_Get_Connect_Status();
-                if (cs == APP_NETWORK_CONN_ONLINE) {
-                    App_Network_Soft_Reset();
+                if (cs == APP_NETWORK_CONN_ONLINE || App_Network_Is_Connecting()) {
+                    /* 在线或连接中 → 主动断开, 进入主动离线 */
+                    App_Network_Manual_Disconnect();
                     s_no_wifi_mode = 1;
-                } else {
-                    if (Esp8266_Driver_Is_Ready()) {
-                        Esp8266_Driver_Send_String("CMD:CLEAR\n");
-                    }
-                    App_Network_Soft_Reset();
+                } else if (cs == APP_NETWORK_CONN_OFFLINE_ACTIVE) {
+                    /* 主动离线 → 手动恢复连接 */
                     s_no_wifi_mode = 0;
+                    App_Network_Manual_Connect();
+                } else {
+                    /* IDLE 或被动离线 → 软复位后开始连接 */
+                    s_no_wifi_mode = 0;
+                    App_Network_Soft_Reset();
                     App_Network_Start_Connect();
                 }
                 break;
@@ -1453,21 +1471,20 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* KEY0 long-press: clear WiFi */
+    /* KEY0 long-press: clear WiFi credentials → active offline + reboot ESP into config mode */
     if (k0 == KEY_DRIVER_EVENT_LONG_PRESS) {
         Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
         if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE) {
             return;
         }
-        if (Esp8266_Driver_Is_Ready()) {
-            Esp8266_Driver_Send_String("CMD:CLEAR\n");
-            App_Network_Soft_Reset();
-            s_no_wifi_mode = 1;
-            if (s_page != UI_PAGE_WIFI_SETUP && s_page != UI_PAGE_FAULT) {
-                s_page = UI_PAGE_WIFI_SETUP;
-            }
-            Reset_EMA();
+        /* 清除配网凭证并重启 ESP — 发送 CMD:CLEAR 触发 ESP.restart() */
+        Esp8266_Driver_Send_String("CMD:CLEAR\n");
+        App_Network_Soft_Reset();
+        s_no_wifi_mode = 1;
+        if (s_page != UI_PAGE_WIFI_SETUP && s_page != UI_PAGE_FAULT) {
+            s_page = UI_PAGE_WIFI_SETUP;
         }
+        Reset_EMA();
     }
 
     /* PAGE (k3): go back */
