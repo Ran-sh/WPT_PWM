@@ -204,3 +204,40 @@ WPT_PWM_V4.0_ONENET_TFT/
 | V16 | 8轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 |
 | V25 | 小程序全重写: 单数据模型+双API并行+动态卡片+底部栏Component |
 | V26 | CN_FONT[74..75] 失败→综合 字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |
+
+## 4. "更新全部内容"执行教训 (每次更新后追加)
+
+> **☠️ 铁律**: 每次执行"更新全部内容"后，必须把本轮遇到的所有问题总结写入本节，防止下次再犯。
+
+### 4.1 2026-06-17: V26 更新教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 1 | CN_INDEX 与 CN_FONT_16X16 末尾字不对齐 | 之前修复 76 字对齐时只改了 CN_INDEX (综/合)，CN_FONT 末尾没有同步替换 | **字库修改必须双向验证**: 改 CN_INDEX 后立即 grep 确认 CN_FONT 对应索引的字模也匹配 |
+| 2 | 底部栏 SWEEP/SUMMARY 页面显示 "ON:停止/ON:继续/F+/F-:调频" | 硬编码在不同 Full/Dynamic 函数中，修改时漏掉 Dynamic Update 路径 | **改 UI 字符串必须全局 grep 所有引用**，包括 Full 和 Dynamic 两个路径 |
+| 3 | 开发指南 V9→V10 改写时差异过大 | 文档 809 行，OLED→TFT 架构全变，逐段修改比全文重写更费时 | **架构升级后旧文档直接标注"历史版本"归档，新建 V10 从头写**；不要试图 diff-patch 大版本 |
+| 4 | 小程序 custom-tab-bar 缺少 index.wxss/index.json | Component 需要 4 个文件 (js/json/wxml/wxss)，创建时只写了 js 和 wxml | **微信小程序 Component 必须 4 文件齐全**：json(component:true) + js + wxml + wxss |
+| 5 | 方法名 `switchTab` 与 `wx.switchTab` API 冲突 | Component 方法名与微信全局 API 同名，真机/工具表现不一致 | **Component 方法名避免与 wx.* API 重名**：用 `onSwitchTab` 而非 `switchTab` |
+| 6 | WebFetch/GitHub API 被网络拦截时浪费时间搜字模 | 企业网络拦截外部 URL，无法用在线工具生成 16×16 字模 | **准备离线字模工具**：Windows 用 PowerShell System.Drawing 渲染，或找用户直接提供 PCtoLCD2002 数据 |
+| 7 | `generate_docx.js` 路径不在 `claude_code/` 下 | 技能文件旧版写死了 `claude_code/tools/` 路径，实际在 `Claude_Files/tools/` | **技能中的路径必须与项目实际目录一致**，更新技能时一并修正路径引用 |
+| 8 | 底部栏无用宏(S_BOTTOM_L_STOP/CONT/TUNE)删除后未清理干净 | 只删了宏定义的 3 行，忘记 grep 确认已无引用 | **删宏/删函数后必须 grep 全项目确认零引用** |
+| 9 | CN_FONT 字模替换时两次都写错（复制绪→综，两个合） | 人工手写字模数据极易出错，第一次用了"绪"的字模，第二次索引标签写重复 | **字模数据必须从标准来源获取**（用户提供/PCtoLCD2002/标准 HZK16 导出），禁止手写字模 |
+| 10 | `更新全部内容` 漏掉生成 .docx 就直接 commit 了 | 看到 md 更新完就以为完成了，技能里写了步骤 4 是 "update all docs (.md+.docx)" 但没执行 | **技能触发词流程必须逐条打勾执行**，每步完成后 checkpoint 再下一步 |
+| 11 | Git push 时 `keilkill.bat` 用 `cmd.exe /c` 调用但没验证清理效果 | keilkill.bat 在 bash 环境下用 cmd.exe /c 调用后没检查 .obj/.lst 是否真的被删除 | **push 前 `git status` 确认零编译产物**，发现 .obj/.lst 立即停止 |
+
+### 4.2 "更新全部内容"执行检查清单
+
+以后每次触发"更新全部内容"，**必须逐条执行并打勾**:
+
+```
+[ ] 1. 全局代码审查 (grep .c/.h 变更 vs CLAUDE.md 描述)
+[ ] 2. 修复所有发现的问题
+[ ] 3. 更新 CLAUDE.md (版本号、文件结构、审查历史)
+[ ] 4. 更新 Claude_Files/docs/*.md (开发指南 + 技能文件)
+[ ] 5. 运行 generate_docx.js 重新生成全部 .docx
+[ ] 6. 运行 keilkill.bat 清理编译产物
+[ ] 7. git status 确认: 零 .obj/.lst/.axf 文件
+[ ] 8. git add -A && git commit -m "docs: Vxx — ..."
+[ ] 9. git push origin 4.0TFT
+[ ] 10. 追加本轮教训到本节的"执行教训"表格
+```

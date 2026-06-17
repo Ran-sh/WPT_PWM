@@ -156,7 +156,8 @@
       "WebFetch(domain:www.23bei.com)",
       "WebFetch(domain:github.com)",
       "Bash(powershell *)",
-      "Bash(cmd.exe /c Keil_Project\\\\keilkill.bat)"
+      "Bash(cmd.exe /c Keil_Project\\\\keilkill.bat)",
+      "Bash(Push to *)"
     ]
   }
 }
