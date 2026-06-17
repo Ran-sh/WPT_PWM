@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 项目 | 内容 |
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
-| **分支** | `LAN` |
+| **分支** | `1.0LAN` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_NetAssistant_LAN_V1.0` |
 | **协议** | NetAssist TCP 局域网 |
 | **版本** | V1.0.0 |
