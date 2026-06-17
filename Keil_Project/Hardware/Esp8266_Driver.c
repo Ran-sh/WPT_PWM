@@ -145,8 +145,18 @@ void Esp8266_Driver_Init_Task(void)
             break;
 
         case ESP8266_DRIVER_INIT_BOOT_WAIT:
+            /* 到达超时 → 就绪 */
             if (Sys_Timer_Get_Tick() - s_init_timer >= ESP8266_DRIVER_BOOT_WAIT_MS) {
                 s_init_state = ESP8266_DRIVER_INIT_READY;
+            }
+            /* 提前完成: ESP 已在串口发数据 → 说明固件已启动, 立即就绪 */
+            {
+                uint32_t primask = __get_PRIMASK();
+                __disable_irq();
+                if (s_rx_frame_flag) {
+                    s_init_state = ESP8266_DRIVER_INIT_READY;
+                }
+                __set_PRIMASK(primask);
             }
             break;
     }
