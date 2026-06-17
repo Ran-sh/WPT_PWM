@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `2.0WAN` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_Bemfa_WAN_V2.0` |
 | **协议** | 巴法云 TCP 创客云 (Bemfa Cloud) |
-| **版本** | V3.5 |
+| | **版本** | V2.0.0 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `1.0LAN` (NetAssist 局域网 V3.4) → `WPT_PWM_NetAssistant_LAN_V1.0`, `3.0ONENET` (OneNET MQTT V6.1 OLED) → `WPT_PWM_ONENET_V3.0`, `4.0TFT` (OneNET MQTT V6.2 TFT彩屏) → `WPT_PWM_V4.0_ONENET_TFT`
 
@@ -120,7 +120,7 @@ All `static uint32_t last` variables in task functions are per-function private 
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi (slow→connecting, fast→connecting, **solid→connected**) + PB4 PWM (blink) + PB5 Ready (on/off); `LED_Init`/`LED_Task` |
 | App_Net | `User/App_Net.c` | **V3.5 Bemfa Cloud**: config macros in `App_Net.h` for branch diff; `Bemfa_Subscribe()` injected in both blocking + non-blocking connect paths; **cmd=2 telemetry** envelope at 2000ms (1Hz rate limit); CMD:ON/CMD:OFF protocol; CLOSED→immediate shutdown + wifi reset; **silent watchdog removed** (Bemfa is silent by default, CLOSED frame suffices); `snprintf` for buffer safety |
 
-## Startup Flow (V3.5)
+## Startup Flow (V2.0.0)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA → KEY
