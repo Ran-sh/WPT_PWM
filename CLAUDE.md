@@ -25,32 +25,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## "更新全部内容" 执行流程
 
-> 触发词 `更新全部内容` 必须严格按以下 9 步执行，每步标注了 **【针对文件】**，禁止跳过、禁止处理不在列表中的文件。
+> 触发词 `更新全部内容` 必须严格按以下 9 步执行，每步标注了 **【针对文件】**，
+> 路径规则: 写目录路径表示该目录下全部文件 (含子目录)，禁止跳过、禁止处理不在列表中的文件。
 
 ### 第 1 条 — 全局代码审查
 
 | 针对文件 | 检查内容 |
 |:---|:---|
-| `Keil_Project/Hardware/Adc_Driver.c/.h` | 函数签名、滤波窗口 (64样本)、ADC 通道 |
-| `Keil_Project/Hardware/Buzzer_Driver.c/.h` | 蜂鸣器状态枚举 |
-| `Keil_Project/Hardware/Esp8266_Driver.c/.h` | Try_Copy_Rx_Frame、USART2 参数 |
-| `Keil_Project/Hardware/Inverter_Control.c/.h` | SS 状态机 (IDLE/SWEEP/DONE/FAULT)、斜坡参数 |
-| `Keil_Project/Hardware/Key_Driver.c/.h` | 4键 FSM (F+/F-/ON/PAGE) |
-| `Keil_Project/Hardware/Led_Driver.c/.h` | 6 LED 闪烁状态 |
-| `Keil_Project/Hardware/Pwm_Driver.c/.h` | TIM1 频率范围 95-150kHz、死区 1000ns |
-| `Keil_Project/Hardware/TFT_Font_Data.h` | CN_INDEX/CN_FONT_16X16 76字对齐 |
-| `Keil_Project/Hardware/Tft_Driver.c/.h` | ST7735 SPI+DMA、CNLookup |
-| `Keil_Project/Hardware/Ui_Controller.c/.h` | 9页面枚举、底部栏宏、UI Phase |
-| `Keil_Project/System/Sys_Timer.c/.h` | SysTick 1ms、DWT |
-| `Keil_Project/User/App_Network.c/.h` | 指数退避、心跳超时 8s、遥测门控、CMD 指令 |
-| `Keil_Project/User/Sys_Core.c/.h` | 5状态枚举、Sys_Safety、EMA α=0.25 |
-| `Keil_Project/User/main.c` | 主循环结构 |
-| `Keil_Project/User/stm32f10x_it.c/.h` | ISR (SysTick + USART2 ORE) |
-| `Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino` | WiFiManager、双 MQTT、指令去抖 |
-| `ONENETapp/*.html` + `ONENETapp/js/*.js` | 网页端 6页面 + OneNET API |
-| `安卓app/app.*` + `安卓app/utils/*.js` | 小程序全局配置 + API 层 |
-| `安卓app/custom-tab-bar/*` | 底部栏 Component |
-| `安卓app/pages/*/` | 6 页面 (js/wxml/wxss/json) |
+| `Keil_Project/Hardware/` 下全部 .c/.h | 12 模块: ADC/Buzzer/Esp8266/Inverter/Key/Led/Pwm/TFT_Font/Tft/Ui，函数签名/参数/枚举/宏 |
+| `Keil_Project/System/` 下全部 .c/.h | Sys_Timer: SysTick 1ms、DWT |
+| `Keil_Project/User/` 下全部 .c/.h | Sys_Core (5状态+Safety+EMA)、App_Network (重试/心跳/遥测/CMD)、main、stm32f10x_it |
+| `Arduino_Project/` 下全部 .ino | ESP8266: WiFiManager、双 MQTT、指令去抖、遥测 |
+| `ONENETapp/` 下全部 .html + `ONENETapp/js/` 下全部 .js | 网页端 6页面 + OneNET API + 数据模型 |
+| `安卓app/` 下全部文件 (排除 node_modules/ server/ .superpowers/ minitest/ sourcemap.zip) | 小程序: app.* + utils/ + custom-tab-bar/ + pages/ + 操作手册 + 部署文档 + docs/ |
 
 ### 第 2 条 — 修复发现的问题
 
@@ -62,7 +49,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 针对文件 | 写入内容 |
 |:---|:---|
-| `CLAUDE.md` | 版本号、文件结构+精确行数、审查历史追加、新增/变更模块说明 |
+| `D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT\CLAUDE.md` | 版本号、文件结构+精确行数、审查历史追加、新增/变更模块说明 |
 
 ### 第 4 条 — 更新开发指南
 
@@ -76,27 +63,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | `Claude_Files/docs/embedded-architect-system-prompt.md` | 版本号、审查历史、执行教训(第 4 节) |
 
-### 第 6 条 — 重新生成 .docx
+### 第 6 条 — 更新 Claude_Files 下全部文档
 
-| 针对文件 | 命令 |
+| 针对文件 | 操作 |
 |:---|:---|
-| `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.docx` | `cd Claude_Files && node tools/generate_docx.js "docs/WPT无线充电系统-从零搭建全指南.md"` |
-| `Claude_Files/docs/embedded-architect-system-prompt.docx` | `cd Claude_Files && node tools/generate_docx.js "docs/embedded-architect-system-prompt.md"` |
+| `Claude_Files/docs/` 下全部 .md | 与当前代码对齐 (开发指南 + 技能文件 + specs) |
+| `Claude_Files/docs/` 下全部 .docx | `cd Claude_Files && node tools/generate_docx.js` 对所有 .md 重新生成 |
+| `Claude_Files/diagrams/` 下全部 .vsdx .py .md | 检查架构图是否与当前代码一致 |
+| `Claude_Files/tools/` 下全部 .js .ps1 | 检查路径/依赖是否有效 |
+| `Claude_Files/package.json` | 检查依赖版本 |
 
-### 第 7 条 — 清理 Keil 编译产物
+### 第 7 条 — 更新项目 README
 
-| 针对文件 | 命令 |
+| 针对文件 | 写入内容 |
 |:---|:---|
-| `Keil_Project/` 下所有 `.obj` `.lst` `.axf` `.uvopt` `.uvgui.*` | `cmd.exe /c Keil_Project\keilkill.bat` |
+| `README.md` | 版本号、架构图、功能列表与当前代码对齐 |
+| `ONENETapp/README.md` | 网页端部署信息 |
+| `Railway_Deploy/README.md` | 桥接服务器状态 (当前为备选方案) |
+| `Claude_Files/diagrams/README.md` | 图表文件说明 |
+
+### 第 8 条 — 清理 Keil 编译产物 + Git 提交推送
+
+| 针对文件 | 操作 |
+|:---|:---|
+| `Keil_Project/Objects/` `Keil_Project/Listings/` 下全部 .obj .lst .axf .uvopt .uvgui.* .__i .crf .d .o .htm .lnp .sct .dep .map .hex .build_log.htm .dbgconf .scvd | `cmd.exe /c Keil_Project\keilkill.bat` |
 | **验证** | `git status` 确认零编译产物残留 |
-
-### 第 8 条 — Git 提交 + 推送
-
-| 命令 | 禁止上传 |
-|:---|:---|
-| `git add -A` | `.obj` `.lst` `.axf` `.uvopt` `.uvgui.*` |
-| `git commit -m "docs: Vxx — <变更摘要>"` | — |
-| `git push origin 4.0TFT` | — |
+| 提交 | `git add -A && git commit -m "docs: Vxx — <变更摘要>" && git push origin 4.0TFT` |
 
 ### 第 9 条 — 追加执行教训
 
