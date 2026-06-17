@@ -8,10 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.2.1 |
+| **版本** | V4.2.2 |
 | **语言** | 中文交流，代码注释中英混合 |
 
-> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.2.0)
+> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.2.2)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
 > **频率斜坡设计**: `Claude_Files/docs/superpowers/specs/2026-05-24-freq-ramp-design.md`
 
@@ -23,16 +23,16 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.2.1
+当前版本: V4.2.2
 
 涉及版本号的位置 (全项目必须统一):
-  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.2.1
-  文档控制信息: 开发指南/技能文件的文档版本 → V4.2.1
-  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.2.1
-  README.md: badge + 版本历史 + 分支表 → V4.2.1
-  操作手册/部署文档: 版本字段 → V4.2.1
-  小程序: wxss/wxml/js 头部注释 → V4.2.1
-  其他文档: ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.2.1
+  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.2.2
+  文档控制信息: 开发指南/技能文件的文档版本 → V4.2.2
+  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.2.2
+  README.md: badge + 版本历史 + 分支表 → V4.2.2
+  操作手册/部署文档: 版本字段 → V4.2.2
+  小程序: wxss/wxml/js 头部注释 → V4.2.2
+  其他文档: ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.2.2
 
 历史版本 → V4.x.x 完整映射:
   旧 V0.0/V1.0 → V1.0.x | 旧 V3.0     → V2.0.0
@@ -178,31 +178,31 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 ## 文件结构
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/                        ← ~10800 行逻辑代码 (全平台)
-├── Keil_Project/                               ← STM32 固件 — 4937 行 (含 User/System, 不含 Library/Start)
+WPT_PWM_V4.0_ONENET_TFT/                        ← ~11053 行逻辑代码 (全平台)
+├── Keil_Project/                               ← STM32 固件 — 5063 行 (含 User/System, 不含 Library/Start)
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
-│   ├── Hardware/                               ← 硬件驱动 — 4067 行
-│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1703+39行)
+│   ├── Hardware/                               ← 硬件驱动 — 4140 行
+│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1724+39行)
 │   │   ├── Tft_Driver.c/h                      ← ST7735 SPI+DMA 彩屏 + CN_Lookup (606+76行)
 │   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (356行)
-│   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (247+49行)
+│   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (257+49行)
 │   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (162+20行)
 │   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡 (146+67行)
 │   │   ├── Key_Driver.c/h                      ← 4键 FSM (137+38行)
 │   │   ├── Led_Driver.c/h                      ← 6 LED 闪烁 (135+42行)
 │   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (113+33行)
 │   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (68+30行)
-│   ├── User/                                   ← 应用层 — 786 行
-│   │   ├── App_Network.c/h                     ← WiFi+心跳+帧快照+遥测 (251+41行)
+│   ├── User/                                   ← 应用层 — 875 行
+│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (336+51行)
 │   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全 (203+44行)
 │   │   ├── main.c                              ← 程序入口 (50行)
 │   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
 │   ├── System/ → Sys_Timer.c/h                 ← SysTick 1ms + DWT (48+36行)
 │   ├── Start/  → CMSIS + system_stm32f10x
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
-├── Arduino_Project/                            ← ESP8266 固件 — 494 行
-│   └── ESP8266_MQTT_Firmware/...ino            ← WiFiManager+双MQTT+指令去抖+遥测
+├── Arduino_Project/                            ← ESP8266 固件 — 522 行
+│   └── ESP8266_MQTT_Firmware/...ino            ← WiFiManager+双MQTT+指令去抖+遥测+OFFLINE
 ├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3529 行
 │   ├── index.html(419)/control.html(458)       ← 主页+控制+乐观更新+轮询
 │   ├── monitoring.html(394)/history.html(531)  ← 监测+历史趋势图
@@ -210,9 +210,8 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~10800 行逻辑代码 (全�
 │   ├── js/onenet.js(327)                       ← OneNET API 核心
 │   ├── js/config.js(67)/mobile-nav.js(33)      ← 数据模型+导航
 │   └── service-worker.js(22)                   ← PWA 离线回退
-├── 安卓app/                                    ← 微信小程序 — 1845 行 (6页面+Component)
-│   ├── utils/config.js                         ← 数据模型单一来源 (DEFAULT_DATA_MODEL)
-│   ├── utils/onenet.js                         ← API 层 (双请求并行+细化错误+Mock)
+├── 安卓app/                                    ← 微信小程序 — 1939 行 (6页面+Component)
+│   ├── utils/config.js(47)/onenet.js(274)      ← 数据模型单一来源 + API层
 │   ├── custom-tab-bar/                         ← 底部导航 Component (无高亮)
 │   ├── pages/{index,monitoring,control,history,alerts,settings}/
 │   ├── 操作手册.md / 部署文档.md               ← 小程序文档
@@ -256,16 +255,25 @@ int main(void) {
 | 显示级 | `Ui_Controller_Update_EMA()` | Sys_Safety 输出 | UI 仪表盘 + 综合监测页 |
 | 数字量 | `Pwm_Driver_Get_Frequency()` | 无滤波 | 频率（零迟滞, 保证调频跟手） |
 
-## App_Network WiFi 重试
+## App_Network WiFi 连接与离线
 
-- **指数退避**: 0-2次 3s → 3-7次 15s → 8-13次 30s → 14-21次 60s → 22-31次 2min → 32-46次 5min → 47+次 30min，永不 FAILED
-- **心跳超时**: 8s 无 ESP 帧 → 判定离线 → 自动重连
+- **状态机**: IDLE→WIFI→MQTT→ONLINE, 新增 OFFLINE_PASSIVE(被动断开自动嗅探)/OFFLINE_ACTIVE(主动断开需手动ON)
+- **被动离线**: 热点断开后重试 5 次耗尽→OFFLINE_PASSIVE→被动监听 ESP STATUS 帧, 热点恢复自动重连
+- **主动离线**: 用户按键/配网页 断开→OFFLINE_ACTIVE→忽略所有帧, 需手动 ON 恢复
+- **重试**: 指数退避 5s→15s→30s→60s→2min→5min→30min, 5次上限, 不发硬件 RST (ESP 已在运行)
+- **断连指令**: CMD:WIFI_DISC (断开但保留凭证) / CMD:CLEAR (清除凭证+ESP 重启)
+- **MQTT 超时**: MQTT 状态 30s 无 ESP 帧→回退 WIFI 重试, 防 broker 不可达死锁
+- **BOOT_WAIT 加速**: ESP 串口有数据即提前结束等待, 避免 4s 窗口丢 STATUS 帧
+- **心跳超时**: 8s 无任何 ESP 帧仅检测 ONLINE 状态→判定离线开始重试
 - **远程指令**: CMD:ON/OFF → `Ui_Controller_Force_Page_And_Reset()` 同步复位页面+光标
 - **帧处理安全**: `Try_Copy_Rx_Frame` 消除 TOCTOU; `ss_cmd`/`conn_cs` 帧内快照防 ELSE-IF 链竞态
-- **热点加速**: RSSI ≥ -35 → 直接重置退避级别为 3s 级快速直连
 
 ## ESP8266 固件
 
+- **状态机对齐**: Conn_State 与 STM32 App_Network 一致 (IDLE/WIFI/MQTT/ONLINE/OFFLINE_PASSIVE/OFFLINE_ACTIVE)
+- **持续重试**: ESP 侧不设重试上限, 上限判断由 STM32 负责; WiFi 断开后每 3s 重试 WiFi.begin()
+- **CMD:WIFI_DISC**: 断开 WiFi 但保留凭证, 进入 OFFLINE_PASSIVE 持续嗅探恢复
+- **CMD:CLEAR**: 清除配网凭证+ESP.restart(), 进入配网模式
 - **指令去抖**: Mqtt_Task_Parse_Command 2s 窗口内相同 payload 直接丢弃
 - **Switch 状态**: 仅 `s==2` (SS_DONE) 上报 true, `s==1` (SWEEP) 为过渡态不上报
 - **遥测频率**: 仅在 running 时上报真实 F 值, 否则上报 0 (完全透传 STM32)
@@ -444,6 +452,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V4.2.2 | WiFi OFFLINE 双模式(被动自动嗅探/主动手动恢复)+5次有限重试+BOOT_WAIT提前+MQTT超时+Bug修复8项 |
 | V4.2.1 | 全项目 README 重写(4分支统一分支表) + CLAUDE.md 版本号规则流程扩展到全部文档 |
 | V4.2.0 | TFT字库修复: CN_FONT[74..75] 失败→综合字模替换 + 底部栏简化 + 全平台版本号统一为 Vx.x.x |
 | V4.1.0 | 小程序全重写: 单数据模型源+双API并行+动态卡片+底部栏Component+HTTP细化错误 |
