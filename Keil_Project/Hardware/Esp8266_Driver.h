@@ -5,7 +5,7 @@
  * @note    Dual-MCU 架构: USART2 115200, 纯 JSON 文本透传
  *          STM32 绝不发 AT 指令, ESP8266 绝不碰 PWM/ADC
  *
- *          V6.0: 非阻塞初始化 — Start_Init + Init_Task 替代 3s 忙等
+ *          V3.0.0: 非阻塞初始化 — Start_Init + Init_Task 替代 3s 忙等
  *          帧格式: 以 \r 或 \n 为分隔符
  *          ISR 安全: Copy_Rx_Frame 原子复制 + 清标志
  ******************************************************************************

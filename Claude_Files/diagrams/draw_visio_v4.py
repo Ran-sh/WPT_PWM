@@ -115,7 +115,7 @@ p1.PageSheet.Cells("PageWidth").Formula = f"{PW} mm"
 p1.PageSheet.Cells("PageHeight").Formula = f"{PH} mm"
 
 y = MY_TOP
-v.title(p1, y, "WPT PWM V6.0 — 上电启动流程 (STM32 + ESP8266 Dual-MCU)")
+v.title(p1, y, "WPT PWM V3.0.0 — 上电启动流程 (STM32 + ESP8266 Dual-MCU)")
 y += 11
 
 # Phase 1 header

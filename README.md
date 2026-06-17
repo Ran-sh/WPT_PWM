@@ -4,12 +4,12 @@
 [![Library](https://img.shields.io/badge/Library-SPL%20V3.5.0-green)]()
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-red)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V6.2-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V3.0.0-brightgreen)]()
 [![App](https://img.shields.io/badge/App-WeChat%20Mini%20Program-07C160)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V6.2** (2026-06-05) — 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统。采用 **Dual-MCU 双脑架构**：STM32 (SPL V3.5.0) 全桥 PFM 发波与保护，ESP8266 (Arduino) 独立 MQTT 固件连接 **OneNET 物模型**。支持 OLED 7 界面状态机本地控制、Cloudflare Pages 网页控制台、微信小程序远程遥控。应用于植入式医疗设备无线充电。
+> **V3.0.0** (2026-06-17) — 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统。采用 **Dual-MCU 双脑架构**：STM32 (SPL V3.5.0) 全桥 PFM 发波与保护，ESP8266 (Arduino) 独立 MQTT 固件连接 **OneNET 物模型**。支持 OLED 7 界面状态机本地控制、Cloudflare Pages 网页控制台、微信小程序远程遥控。应用于植入式医疗设备无线充电。
 
 ---
 
@@ -40,15 +40,16 @@
 
 | 版本 | 日期 | 分支 | 主要变更 |
 |:---|:---|:---|:---|
-| **V6.2** | **2026-06-05** | **`3.0ONENET`** | **12 项代码质量优化 + 协议规范 + 编译修复** |
-| V6.1 | 2026-06-01 | `3.0ONENET` | 8 项 Bug 修复 + 过流保护 + 代码质量提升 |
-| V6.0 | 2026 | `ONENET` | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
-| V5.0 | 2026 | `ONENET` | OneNET MQTT 物模型 + Dual-MCU 架构 |
-| V3.0 | 2026 | `LAN` | NetAssist 局域网 TCP 调试 |
-| V2.0 | 2026 | `WAN` | 巴法云 MQTT TCP 协议 |
-| V1.0 | 2026 | `master` | 纯本地裸机基版, 全桥 PWM + OLED + 按键 |
+| **V3.0.0** | **2026-06-17** | **`3.0ONENET`** | **当前版本 — OneNET MQTT 物模型 + Dual-MCU 架构** |
+| V3.1.2 | 2026-06-05 | `3.0ONENET` | 12 项代码质量优化 + 协议规范 |
+| V3.1.1 | 2026-06-01 | `3.0ONENET` | 8 项 Bug 修复 + 过流保护 |
+| V3.1.0 | 2026-05 | `ONENET` | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
+| V3.0.1 | 2026-05-25 | `ONENET` | 7界面状态机 + 遥测门控 + 防误触协议解析 |
+| V3.0.0 | 2026-05 | `ONENET` | OneNET MQTT 物模型 + Dual-MCU 架构 (基线) |
 
-### V6.2 代码质量优化 (2026-06-05)
+> **注**: 旧版本号(V5.x/V6.x)已按 V3.x.y 规则重新映射。历史 LAN/WAN 分支版本号不变。
+
+### V3.1.2 代码质量优化 (2026-06-05)
 
 | 级别 | 问题 | 文件 | 优化 |
 |:---|:---|:---|:---|
@@ -65,7 +66,7 @@
 | **LOW** | 硬编码 retry max | `Ui_Controller.c` | `3` → `App_Network_Get_Max_Retries()` |
 | **LOW** | 公开接口缺失 | `App_Network.h` | 新增 `Get_Max_Retries()` |
 
-### V6.1 Bug 修复清单
+### V3.1.1 Bug 修复清单
 
 | 级别 | 问题 | 文件 | 修复 |
 |:---|:---|:---|:---|
@@ -74,7 +75,7 @@
 | **CRITICAL** | 过流保护未接入 | `Ui_Controller.c` | 新增 5A 阈值检测, 触发 `Inverter_Control_Soft_Start_Fault()` |
 | **HIGH** | RX 缓冲区残留帧 | `Esp8266_Driver.c` | `Start_Init()` 时清空缓冲, 防 ESP 复位后误消费 |
 | **HIGH** | 裸 `__enable_irq()` | `Esp8266_Driver.c` `Key_Driver.c` | 3 处改为 PRIMASK 保存/恢复模式 |
-| **MEDIUM** | ADC 时钟假设无保护 | `Adc_Driver.c` | 编译期静态断言 → V6.2 改为注释 (ARMCC V5 变量数组不支持) |
+| **MEDIUM** | ADC 时钟假设无保护 | `Adc_Driver.c` | 编译期静态断言 → V3.1.2 改为注释 (ARMCC V5 变量数组不支持) |
 | **MEDIUM** | `double` 无硬件 FPU 开销 | `Oled_Driver.c/h` | 全部 `double` → `float` |
 | **MEDIUM** | EMA 显示不复位 | `Ui_Controller.c` | 模块级 EMA + 状态转移时 `Reset_Display_EMA()` |
 | **LOW** | 嵌套 `return` 风格 | `App_Network.c` | 嵌套 `return` 门控 → 单 `if(allow_telemetry)` 模式 |
@@ -435,7 +436,7 @@ CMD:SETFREQ:108000 → FreqRamp_Trigger(108000)
   → |current - target| ≤ 1000 → Set_Freq(target) → RAMP_IDLE
 ```
 
-> [V6.1 修复] 收敛判定从 `current == s_ramp_target` 改为 `|diff| ≤ FREQ_RAMP_STEP_HZ`, 消除整数分频永不收敛的 bug。
+> [V3.1.1 修复] 收敛判定从 `current == s_ramp_target` 改为 `|diff| ≤ FREQ_RAMP_STEP_HZ`, 消除整数分频永不收敛的 bug。
 
 ---
 
@@ -466,7 +467,7 @@ V/I/F 显示使用指数移动平均 (α=0.25, τ≈800ms) 消除 OLED 数值跳
 s_disp_v = s_disp_v * 0.75f + Adc_Driver_Get_Voltage() * 0.25f;
 ```
 
-[V6.1 修复] EMA 状态提升到模块级, 状态转移时 `Reset_Display_EMA()` 重置, 消除重启后的 ~800ms 收敛滞后。
+[V3.1.1 修复] EMA 状态提升到模块级, 状态转移时 `Reset_Display_EMA()` 重置, 消除重启后的 ~800ms 收敛滞后。
 
 **OneNET 遥测门控**: 仅在界面 >= 3 (READY) 时发送遥测, 界面 1/2 时设备在 OneNET 上**离线**。网页/小程序看到的"在线" = 用户已可操作。
 
@@ -652,7 +653,7 @@ void HardFault_Handler(void) {
 
 | 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | 说明 |
 |:---|:---|:---:|:---|:---|:---|
-| **`3.0ONENET`** ⬅ | `WPT_PWM_ONENET_V3.0` | **V6.2** | OneNET MQTT | 物模型 Dual-MCU | 当前活跃开发分支 |
+| **`3.0ONENET`** ⬅ | `WPT_PWM_ONENET_V3.0` | **V3.0.0** | OneNET MQTT | 物模型 Dual-MCU | 当前活跃开发分支 |
 | `master` | `WPT_PWM_V0.0` | V1.0 | 无 (纯本地) | 无 | 裸机固件基版 |
 | `1.0LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V3.3 | NetAssist TCP | PC 局域网 :8080 | 内网调试 |
 | `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V4.0 | 巴法云 TCP | tcp.bemfa.com :8344 | 远程控制 (历史) |
@@ -703,11 +704,11 @@ WPT_PWM/
 │   │   └── README.md                 # 图示目录说明
 │   └── tools/                        # ngrok 脚本 / DOCX 生成
 ├── 硬件原理图/                        # 硬件设计文件
-├── CLAUDE.md                         # AI 辅助开发规范 (V6.1)
+├── CLAUDE.md                         # AI 辅助开发规范 (V3.0.0)
 └── README.md                         # 本文件
 ```
 
-### 编码规范 (V6.0+)
+### 编码规范 (V3.0.0+)
 
 - **命名**: `Module_Name_Action_Object()` — 帕斯卡 + 下划线, 全模块统一
 - **状态机**: 必须用显式 `typedef enum`, 禁止隐式 bool/int 标志组合

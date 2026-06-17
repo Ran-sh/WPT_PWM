@@ -10,7 +10,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `3.0ONENET` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_ONENET_V3.0` |
 | **协议** | OneNET MQTT 物模型 (Dual-MCU 架构) |
-| **版本** | V6.2 |
+| **版本** | V3.0.0 |
+
+### 版本号规则 (Vx.y.z)
+
+本项目统一采用 `Vx.y.z` 三级版本号:
+
+| 字段 | 含义 | 递增规则 |
+|:---|:---|:---|
+| **x** (主版本) | 固定 `3` | 对应项目目录 `WPT_PWM_ONENET_V3.0`, 永不改变 |
+| **y** (中版本) | 大功能升级 | 新增模块/子系统 +1, z 重置为 0 |
+| **z** (小版本) | Bug 修复/文档更新 | 逻辑修复、代码优化、文档刷新 +1 |
+
+**历史版本映射**:
+
+| 旧版本 | 新版本 | 日期 | 变更摘要 |
+|:---|:---|:---|:---|
+| V5.0 | V3.0.0 | 2026-05 | 基线版本 — OneNET MQTT 物模型 + Dual-MCU 架构 |
+| V5.1 | V3.0.1 | 2026-05-25 | 7界面状态机 + 遥测门控 + 前缀匹配防协议误触发 |
+| V6.0 | V3.1.0 | 2026-05 | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
+| V6.1 | V3.1.1 | 2026-06-01 | 8项Bug修复: 频率斜坡容差 + PWM基线恢复 + 过流保护 |
+| V6.2 | V3.1.2 | 2026-06-04 | 12项代码质量优化 |
+
+当前开发基于 **V3.0.0**, 后续变更按规则自增中版本或小版本。
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云 TCP) → `WPT_PWM_Bemfa_WAN_V2.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
 
@@ -27,7 +49,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **执行期间**: 全部权限自动通过，不中断等待用户确认。
 
-## Naming Convention (V6.0)
+## Naming Convention (V3.1.0)
 
 全部模块统一采用 `Module_Name_Action_Object()` 帕斯卡+下划线命名:
 
@@ -163,7 +185,7 @@ cd Railway_Deploy && git add -A && git commit -m "..." && git push && cd ..
 - **File**: `Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`
 - **Libraries**: ESP8266WiFi, PubSubClient, ArduinoJson v7, WiFiManager
 
-## STM32 Module Map (V6.0)
+## STM32 Module Map (V3.1.0)
 
 ```
 Keil_Project/
@@ -200,12 +222,12 @@ void Some_Task(void) {
 ```
 `Sys_Timer_Delay_Ms()` is deprecated — use non-blocking state machines even for initialization sequences (see `Esp8266_Driver_Init_Task` for the CH_PD reset pattern). `System/Delay.c` is deleted, do not revive.
 
-### IWDG Watchdog + Power Saving (V6.0)
+### IWDG Watchdog + Power Saving (V3.1.0)
 
 IWDG: LSI 40kHz, prescaler 64, reload 1000 → ~1.6s timeout. `IWDG_ReloadCounter()` in main loop. Any task hang triggers auto-reset.
 `__WFI()` at loop end: idle current ~30mA → ~5mA. SysTick ISR wakes CPU every 1ms.
 
-### Display Smoothing (V6.0)
+### Display Smoothing (V3.1.0)
 
 OLED V/I/F use EMA (α=0.25, τ≈800ms) separate from fast ADC filter used for telemetry/protection. Display jitter eliminated without affecting measurement accuracy.
 
@@ -218,13 +240,13 @@ OLED V/I/F use EMA (α=0.25, τ≈800ms) separate from fast ADC filter used for 
 - `Inverter_SetState()` saves/restores PRIMASK (never unconditionally enables IRQ)
 - Fault handlers disable TIM1 outputs before infinite loop
 
-### HardFault Protection (V6.0)
+### HardFault Protection (V3.1.0)
 All fault handlers (`HardFault_Handler`, `MemManage_Handler`, `BusFault_Handler`, `UsageFault_Handler`) call `TIM_CtrlPWMOutputs(TIM1, DISABLE)` before `while(1)` to prevent bridge shoot-through on CPU crash.
 
-### Overcurrent Protection (V6.1)
+### Overcurrent Protection (V3.1.1)
 `Ui_Controller_Task` 在 SWEEPING/RUNNING 状态每 200ms 检测电流 > `UI_CONTROLLER_OVERCURRENT_THRESHOLD_A` (5.0A), 触发 `Inverter_Control_Soft_Start_Fault()` → MOE 关断 + SS_FAULT 锁存。仅 KEY0/KEY1 可复位。
 
-### V6.2 Code Quality Fixes (2026-06-04)
+### V3.1.2 Code Quality Fixes (2026-06-04)
 
 | 级别 | 文件 | 修复内容 |
 |:---|:---|:---|
@@ -241,14 +263,14 @@ All fault handlers (`HardFault_Handler`, `MemManage_Handler`, `BusFault_Handler`
 | LOW | `Ui_Controller.c` | 硬编码 `3` (max retries) → `App_Network_Get_Max_Retries()` |
 | LOW | `App_Network.h` | 新增 `App_Network_Get_Max_Retries()` 公开接口 |
 
-### V6.1 Key Fixes
+### V3.1.1 Key Fixes
 | 级别 | 文件 | 修复内容 |
 |:---|:---|:---|
 | CRITICAL | `Inverter_Control.c` | 频率斜坡: `current==target` → `\|diff\|≤1000Hz` 容差收敛 |
 | CRITICAL | `Pwm_Driver.c` | 恢复 V0.0 基线: Up 计数 + PartialRemap + PWM1/PWM2 + OCNPolarity_Low + OCNIdleState_Set |
 | HIGH | `Esp8266_Driver.c` | Start_Init 清空 RX 缓冲 (防止 ESP 复位后残留帧) |
 | HIGH | `Esp8266_Driver.c` `Key_Driver.c` | 裸 `__enable_irq()` → PRIMASK 保存/恢复 (3 处) |
-| MEDIUM | `Adc_Driver.c` | 编译期断言 `SystemCoreClock == 72MHz` → V6.2 改为注释 (ARMCC V5 不支持运行时变量数组) |
+| MEDIUM | `Adc_Driver.c` | 编译期断言 `SystemCoreClock == 72MHz` → V3.1.2 改为注释 (ARMCC V5 不支持运行时变量数组) |
 | MEDIUM | `Oled_Driver.c/h` | `double` → `float` (Cortex-M3 无硬件 FPU) |
 | MEDIUM | `Ui_Controller.c` | EMA 显示状态模块级 + `Reset_Display_EMA()` (消除重启收敛滞后) |
 | LOW | `App_Network.c` | 遥测门控: 嵌套 `return` → 单 `if(allow_telemetry)` 模式 |
@@ -281,7 +303,7 @@ All fault handlers (`HardFault_Handler`, `MemManage_Handler`, `BusFault_Handler`
 
 ESP8266 requires independent 3.3V LDO ≥500mA with 100μF+0.1μF decoupling. RST pin: 10kΩ pull-up to 3.3V. GPIO0: pull low during firmware upload.
 
-## Startup Flow (V6.1)
+## Startup Flow (V3.1.1)
 
 ```
 上电 → Pwm_Driver_Init(MOE=OFF) → Oled_Driver_Init → Led_Driver_Init
@@ -296,7 +318,7 @@ ESP8266 requires independent 3.3V LDO ≥500mA with 100μF+0.1μF decoupling. RS
          | IWDG_ReloadCounter | __WFI
 ```
 
-## ESP8266 Firmware (V5.1)
+## ESP8266 Firmware (V3.0.1)
 
 单文件 `ESP8266_MQTT_Firmware.ino`, 注释分段架构:
 
@@ -313,7 +335,7 @@ ESP8266 requires independent 3.3V LDO ≥500mA with 100μF+0.1μF decoupling. RS
 
 - 每个 `.md` 文档在 `Claude_Files/docs/` 有配对的 `.docx`
 - `.docx` 生成: `cd Claude_Files && npm install && node Claude_Files/tools/generate_docx.js "Claude_Files/docs/<name>.md"`
-- 代码变更后版本号自增 (逻辑改动 +0.1, 新模块 +1.0, 纯格式日期刷新)
+- 代码变更后版本号自增 (中版本 y: 新模块/子系统 +1; 小版本 z: Bug修复/代码优化/文档刷新 +1)
 - "更新文档"时先 diff 再决定是否重写; 无变更则输出 "没有任何文件变化，无需更新"
 
 ### Docs Directory

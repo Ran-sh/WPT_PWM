@@ -17,9 +17,9 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V6.2 |
-| **最后更新** | 2026-06-04 |
-| **对应固件版本** | V6.2 |
+| **文档版本** | V3.0.0 |
+| **最后更新** | 2026-06-17 |
+| **对应固件版本** | V3.0.0 |
 | **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) (分支 `3.0ONENET`) |
 | **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages 部署源) |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接) |
@@ -29,10 +29,12 @@
 
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
-| V6.2 | 2026-06-04 | 12项代码质量优化: MEDIUM-Oled写合并重复代码+删除Oled_Int_Pow(LUT/位位移替代), EMA魔法数字→Ui_Controller_EMA(), Ui重复状态检测合并, App_Network样板代码→Reset_Connect_State()+PROTO_*常量, Esp8266删除死代码HW_DONE; LOW-Adc删除无效编译期断言+稳态预计算缩放+双读DWT合并, Ui硬编码retry→App_Network_Get_Max_Retries(); 分支3.0ONENET |
-| V5.0 | 2026-05-24 | 全篇重构：新增调试避坑模块、配图标注、双主题小程序、频率渐变斜坡、网页端Cloudflare部署、1.6万字扩写 |
-| V6.1 | 2026-06-01 | 8项Bug修复: CRITICAL-PWM基线恢复V0.0(Up计数+PartialRemap+PWM1/PWM2), 频率斜坡容差收敛(|diff|≤1000Hz), 过流保护5A接入(Soft_Start_Fault调用); HIGH-RX缓冲清除+PRIMASK规范; MEDIUM-Adc静态断言HSE72MHz, double→float, EMA状态重置; LOW-遥测门控重构 |
-| V5.1 | 2026-05-25 | STM32: 7界面状态机(INIT→CONNECTING→READY→SWEEPING→RUNNING→FAULT), 上电自动连WiFi+3次重试, OneNET遥测门控(仅>=READY发送), 新LED逻辑。ESP8266: SetFreq防覆盖, Switch命令后跳变次遥测, DEBUG关。小程序: fetchAll合并轮询2s, 在线检测(10s超时), Swiper首次同步后锁定。网页: 修复SetFreq下发崩溃 |
+| V3.0.0 | 2026-06-17 | 全项目版本号统一为 V3.x.y 规则 (x=3固定, y=大功能, z=Bug修复); 文档基线重置 |
+| V3.1.2 | 2026-06-04 | 12项代码质量优化: Oled写合并重复代码+删除Oled_Int_Pow(LUT/位位移替代), EMA魔法数字→Ui_Controller_EMA(), Ui重复状态检测合并, App_Network样板代码→Reset_Connect_State()+PROTO_*常量, Esp8266删除死代码HW_DONE; LOW-Adc删除无效编译期断言+稳态预计算缩放+双读DWT合并, Ui硬编码retry→App_Network_Get_Max_Retries() |
+| V3.1.1 | 2026-06-01 | 8项Bug修复: CRITICAL-PWM基线恢复V0.0(Up计数+PartialRemap+PWM1/PWM2), 频率斜坡容差收敛(|diff|≤1000Hz), 过流保护5A接入(Soft_Start_Fault调用); HIGH-RX缓冲清除+PRIMASK规范; MEDIUM-double→float, EMA状态重置; LOW-遥测门控重构 |
+| V3.1.0 | 2026-05 | 全模块命名规范 + 显式状态枚举 + ESP 前缀匹配 |
+| V3.0.1 | 2026-05-25 | STM32: 7界面状态机(INIT→CONNECTING→READY→SWEEPING→RUNNING→FAULT), 上电自动连WiFi+3次重试, OneNET遥测门控, 新LED逻辑。ESP8266: SetFreq防覆盖, Switch命令后跳变次遥测。小程序: fetchAll合并轮询2s, 在线检测(10s超时), Swiper首次同步后锁定。网页: 修复SetFreq下发崩溃 |
+| V3.0.0 | 2026-05-24 | 全篇重构：新增调试避坑模块、配图标注、双主题小程序、频率渐变斜坡、网页端Cloudflare部署、1.6万字扩写 (基线版本) |
 
 ---
 
@@ -412,7 +414,7 @@ SSD1315 128×64, 软件模拟 I2C (PA11=SCL, PA12=SDA, 开漏+4.7k上拉), 8×16
 
 #### 4.3.8 App_Net — 网络层
 
-> **V5.1 重大重构**: 上电自动连 WiFi、3 次重试、UI 状态门控遥测
+> **V3.0.1 重大重构**: 上电自动连 WiFi、3 次重试、UI 状态门控遥测
 
 **启动流程** (`App_Net_StartConnect()`): `main.c` 直接调用 → 阻塞 ~3s (CH_PD 硬件复位) → 设 `s_connecting=1` → LED 慢闪。不再需要手动按 KEY0 触发联网。
 
@@ -440,9 +442,9 @@ CMD:CLEAR\n          → STM32→ESP8266: 清除WiFi配网凭据 (KEY0长按触�
 STATUS:ONLINE\n      → ESP8266→STM32: "我已联网" (STM32收到后切LED常亮)
 ```
 
-#### 4.3.9 UI — 7 界面状态机 (V5.1)
+#### 4.3.9 UI — 7 界面状态机 (V3.0.1)
 
-V5.1 重构为 7 界面状态机, 替代旧的三状态 (DISCONN/NoWiFi/Online):
+V3.0.1 重构为 7 界面状态机, 替代旧的三状态 (DISCONN/NoWiFi/Online):
 
 ```
 上电 → main.c 调用 App_Net_StartConnect() → 界面2(连接中)
@@ -461,7 +463,7 @@ V5.1 重构为 7 界面状态机, 替代旧的三状态 (DISCONN/NoWiFi/Online):
 | — | FAULT | "!!! Over Current !!!" | KEY0/KEY1=复位 |
 | 6/7 | 双击切换 | 控制面板/监测模式 | 在界面3/4/5均可双击 |
 
-**LED 逻辑 (V5.1)**:
+**LED 逻辑 (V3.0.1)**:
 | LED | 等待/失败 | 连接中 | 已连接/待机 | 扫频 | 运行中 | 故障 |
 |:---|:---|:---|:---|:---|:---|:---|
 | PB3 WiFi | 慢闪 | **快闪** | 常亮 | 常亮 | 常亮 | 常亮/慢闪 |
@@ -531,7 +533,7 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 
 `S=1` 或 `S=2` → `Switch=true` (运行中)。`S=0` 或 `S=3` → `Switch=false` (停止)。
 
-> #### V5.1 关键修复: 遥测覆盖命令问题
+> #### V3.0.1 关键修复: 遥测覆盖命令问题
 >
 > 旧版固件有两个严重的 bug:
 >
@@ -640,9 +642,9 @@ r.writeHead(200);r.end(d)})}).listen(4567,()=>console.log('http://localhost:4567
 
 ## 7. 微信小程序
 
-### 7.1 当前架构 (V5.1)
+### 7.1 当前架构 (V3.0.1)
 
-V5.0 起小程序**直连 OneNET HTTP API**，与网页端完全相同的后端逻辑：
+V3.0.0 起小程序**直连 OneNET HTTP API**，与网页端完全相同的后端逻辑：
 
 ```
 小程序 ──HTTPS── OneNET API (iot-api.heclouds.com) ──MQTT── ESP8266 ── STM32
@@ -657,15 +659,15 @@ V5.0 起小程序**直连 OneNET HTTP API**，与网页端完全相同的后端�
 
 | 数据类型 | 刷新间隔 | 说明 |
 |:---|:---|:---|
-| 全部数据 (V/I/F/Switch/SetFreq) | **2 秒** (单次请求) | V5.1合并为 fetchAll |
+| 全部数据 (V/I/F/Switch/SetFreq) | **2 秒** (单次请求) | V3.0.1合并为 fetchAll |
 | 在线检测 | 10 秒超时 | 数据时间戳 > 10s → 离线 |
 | Switch 命令验证 | 3 秒后验证 + 重发 | 防 MQTT 丢包 |
 | Swiper 同步 | 仅首次连接 | 之后永不被云端覆盖 |
 
-> #### V5.1 关键变更
+> #### V3.0.1 关键变更
 >
 > - **合并轮询**: 旧版 `fetchData`(5s) + `fetchControlState`(60s) 两次独立请求 → 新版 `fetchAll` 单次请求 2s 间隔, 减少 50% 的 API 调用同时刷新更快
-> - **在线检测**: 之前只判断 HTTP 请求成功与否 → V5.1 检查数据时间戳, 超过 10s 无新数据判定设备离线. 配合 STM32 固件 V5.1 的遥测门控 (UI>=READY 才发), 实现"设备在线=可操作"的准确判断
+> - **在线检测**: 之前只判断 HTTP 请求成功与否 → V3.0.1 检查数据时间戳, 超过 10s 无新数据判定设备离线. 配合 STM32 固件 V3.0.1 的遥测门控 (UI>=READY 才发), 实现"设备在线=可操作"的准确判断
 > - **Switch 命令验证重发**: `onSwitch` 发送命令后 3 秒验证 OneNET Switch 是否真的变化, 若未生效自动重发一次. 解决 ESP8266 MQTT 断连导致命令丢失的偶发问题
 > - **Swiper 永不自动跳**: Swiper 只在首次拿到在线数据时同步一次实际频率, 之后锁死仅受用户手指控制 (轮询/乐观锁过期/网络抖动都不会改变 swiper 位置)
 
@@ -679,7 +681,7 @@ V5.0 起小程序**直连 OneNET HTTP API**，与网页端完全相同的后端�
 
 ### 7.4 方案演进 (历史参考)
 
-V5.0 之前经历了两代架构：
+V3.0.0 之前经历了两代架构：
 
 | 阶段 | 方案 | 结果 | 放弃原因 |
 |:---|:---|:---|:---|
@@ -757,9 +759,9 @@ curl "https://iot-api.heclouds.com/thingmodel/query-device-property?product_id=�
 | 长按 KEY0 没反应 | STM32 固件版本 | 旧版 KEY FSM 没长按检测 |
 | 网页端 404 | Cloudflare 分支 | 推送到了 gh-pages 但 master 没同步 |
 | 控制页开关状态不对 | ESP8266 是否上报了 S 字段 | 需烧录最新 ESP8266 + STM32 固件 |
-| 网页/小程序设频率无效 | config.js toCloud 崩溃 | V5.1: FREQ_HZ/FREQ_LIST 未定义, 已修复 |
-| 小程序 Swiper 自动跳 | 云端 SetFreq 覆盖 | V5.1: swiper 锁定仅首连同步, 之后不受云影响 |
-| 设 Stop 硬件没反应 | ESP8266 MQTT 丢命令 | V5.1: Switch 带 3s 验证重发 |
+| 网页/小程序设频率无效 | config.js toCloud 崩溃 | V3.0.1: FREQ_HZ/FREQ_LIST 未定义, 已修复 |
+| 小程序 Swiper 自动跳 | 云端 SetFreq 覆盖 | V3.0.1: swiper 锁定仅首连同步, 之后不受云影响 |
+| 设 Stop 硬件没反应 | ESP8266 MQTT 丢命令 | V3.0.1: Switch 带 3s 验证重发 |
 
 ---
 

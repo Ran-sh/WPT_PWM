@@ -10,8 +10,8 @@ description: >
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
   Dual-MCU/双脑/JSON透传, Sys_Timer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师, OneNET, MQTT.
-  V6.2 naming convention: Module_Name_Action_Object — all public functions follow PascalCase+underscore.
-  V6.2 code quality: Oled_Driver uses LUT+bit-shift instead of Oled_Int_Pow; App_Network uses PROTO_* constants;
+  V3.0.0 naming convention: Module_Name_Action_Object — all public functions follow PascalCase+underscore.
+  V3.0.0 code quality: Oled_Driver uses LUT+bit-shift instead of Oled_Int_Pow; App_Network uses PROTO_* constants;
   ADC assertion changed from typedef char to comment (ARMCC V5 doesn't support variable-length arrays).
   Key modules: Sys_Timer, Oled_Driver, Led_Driver, Pwm_Driver, Inverter_Control, Adc_Driver,
   Key_Driver, Esp8266_Driver, Ui_Controller, App_Network.
@@ -287,24 +287,27 @@ float Get_Real_Voltage(void) {
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V1.0 |
-| **最后更新** | 2026-05-14 |
-| **对应固件版本** | V1.0 |
+| **文档版本** | V3.0.0 |
+| **最后更新** | 2026-06-17 |
+| **对应固件版本** | V3.0.0 |
 | **作者** | 嵌入式系统架构组 |
 
 ### 修改日志
 
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
+| V3.0.0 | 2026-06-17 | 全项目版本号统一为 V3.x.y 规则 (x=3固定, y=大功能, z=Bug修复); 技能定义基线重置 |
 | V1.0 | 2026-05-14 | 初始版本 — 完整架构白皮书 |
 ```
 
 **自动迭代规则** (每次输出文档时必须遵守):
 
 1. **逻辑变更 → 升版本号**:
-   - 修改了任何 `.c`/`.h` 代码逻辑 → 副版本号 +0.1 (如 V1.0 → V1.1)
-   - 新增外设驱动模块 → 次版本号 +1.0 (如 V1.3 → V2.0)
+   - 修改了任何 `.c`/`.h` 代码逻辑 → 小版本 +1 (z+1, 如 V3.0.0 → V3.0.1)
+   - 新增外设驱动模块 → 中版本 +1 (y+1, z 重置为 0, 如 V3.0.1 → V3.1.0)
    - 仅修正注释/格式化/排版 → 版本号不变, 更新日期即可
+
+2. **版本号格式**: 严格遵循 Vx.y.z (x=3 固定, 对应 WPT_PWM_ONENET_V3.0 项目)
 
 2. **日期刷新**: 无论版本号是否变更，**最后更新**字段必须改为当前日期 (YYYY-MM-DD)
 
@@ -315,16 +318,15 @@ float Get_Real_Voltage(void) {
 **示例 — 经过三次迭代后的文档控制头**:
 
 ```markdown
-| **文档版本** | V1.2 |
-| **最后更新** | 2026-05-20 |
+| **文档版本** | V3.0.1 |
+| **最后更新** | 2026-06-17 |
 
 ### 修改日志
 
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
-| V1.2 | 2026-05-20 | App_Net 新增心跳检测与 TCP 断连自动重连 |
-| V1.1 | 2026-05-17 | 修复 USART2 ORE 溢出中断锁死; PWM 防偏磁强制偶数周期 |
-| V1.0 | 2026-05-14 | 初始版本 — 完整架构白皮书 |
+| V3.0.1 | 2026-06-17 | 修复 USART2 ORE 溢出中断锁死; PWM 防偏磁强制偶数周期 |
+| V3.0.0 | 2026-05-14 | 初始版本 — 完整架构白皮书 |
 ```
 
 ### 3.4 .docx 生成规范
@@ -463,7 +465,7 @@ Step 8: 重新生成双份文件
 ```markdown
 ## 全局变更检测报告
 
-**基线版本**: V1.1 (2026-05-17)
+**基线版本**: V3.0.0 (2026-06-17)
 **扫描范围**: Hardware/ (8 文件), User/ (4 文件), System/ (2 文件)
 
 ### 检测到的变更
