@@ -27,19 +27,82 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > 触发词 `更新全部内容` 必须严格按以下 9 步执行，每步标注了 **【针对文件】**，禁止跳过、禁止处理不在列表中的文件。
 
-| 步骤 | 操作 | 针对文件 |
-|:---:|:---|:---|
-| 1 | 全局代码审查 — 对比 .c/.h 与 CLAUDE.md 是否一致 | 所有 `Keil_Project/Hardware/` `Keil_Project/User/` `Keil_Project/System/` |
-| 2 | 修复发现的问题 | 上一步检测到的差异文件 |
-| 3 | 更新 CLAUDE.md (版本号/文件结构+行数/审查历史) | `CLAUDE.md` |
-| 4 | 更新开发指南 (版本号/修改日志/架构章节与代码对齐) | `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` |
-| 5 | 更新技能文件 (版本号/审查历史/执行教训) | `Claude_Files/docs/embedded-architect-system-prompt.md` |
-| 6 | 重新生成 .docx | `Claude_Files/docs/*.md` → `node tools/generate_docx.js` 覆盖同名 .docx |
-| 7 | 清理 Keil 编译产物 (`keilkill.bat`) | `Keil_Project/` 下所有 `.obj` `.lst` `.axf` |
-| 8 | Git 提交 + 推送 | `git add -A && git commit && git push origin 4.0TFT` |
-| 9 | 追加执行教训到技能文件第 4 节 | `Claude_Files/docs/embedded-architect-system-prompt.md` |
+### 第 1 条 — 全局代码审查
 
-> **验证**: 第 7 步后必须 `git status` 确认零编译产物, 第 8 步禁止上传 `.obj` `.lst` `.axf` `.uvopt` `.uvgui.*`
+| 针对文件 | 检查内容 |
+|:---|:---|
+| `Keil_Project/Hardware/Adc_Driver.c/.h` | 函数签名、滤波窗口 (64样本)、ADC 通道 |
+| `Keil_Project/Hardware/Buzzer_Driver.c/.h` | 蜂鸣器状态枚举 |
+| `Keil_Project/Hardware/Esp8266_Driver.c/.h` | Try_Copy_Rx_Frame、USART2 参数 |
+| `Keil_Project/Hardware/Inverter_Control.c/.h` | SS 状态机 (IDLE/SWEEP/DONE/FAULT)、斜坡参数 |
+| `Keil_Project/Hardware/Key_Driver.c/.h` | 4键 FSM (F+/F-/ON/PAGE) |
+| `Keil_Project/Hardware/Led_Driver.c/.h` | 6 LED 闪烁状态 |
+| `Keil_Project/Hardware/Pwm_Driver.c/.h` | TIM1 频率范围 95-150kHz、死区 1000ns |
+| `Keil_Project/Hardware/TFT_Font_Data.h` | CN_INDEX/CN_FONT_16X16 76字对齐 |
+| `Keil_Project/Hardware/Tft_Driver.c/.h` | ST7735 SPI+DMA、CNLookup |
+| `Keil_Project/Hardware/Ui_Controller.c/.h` | 9页面枚举、底部栏宏、UI Phase |
+| `Keil_Project/System/Sys_Timer.c/.h` | SysTick 1ms、DWT |
+| `Keil_Project/User/App_Network.c/.h` | 指数退避、心跳超时 8s、遥测门控、CMD 指令 |
+| `Keil_Project/User/Sys_Core.c/.h` | 5状态枚举、Sys_Safety、EMA α=0.25 |
+| `Keil_Project/User/main.c` | 主循环结构 |
+| `Keil_Project/User/stm32f10x_it.c/.h` | ISR (SysTick + USART2 ORE) |
+| `Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino` | WiFiManager、双 MQTT、指令去抖 |
+| `ONENETapp/*.html` + `ONENETapp/js/*.js` | 网页端 6页面 + OneNET API |
+| `安卓app/app.*` + `安卓app/utils/*.js` | 小程序全局配置 + API 层 |
+| `安卓app/custom-tab-bar/*` | 底部栏 Component |
+| `安卓app/pages/*/` | 6 页面 (js/wxml/wxss/json) |
+
+### 第 2 条 — 修复发现的问题
+
+| 针对文件 | 操作 |
+|:---|:---|
+| 第 1 条检测到的所有差异文件 | 逐一修复，记录 diff |
+
+### 第 3 条 — 更新 CLAUDE.md
+
+| 针对文件 | 写入内容 |
+|:---|:---|
+| `CLAUDE.md` | 版本号、文件结构+精确行数、审查历史追加、新增/变更模块说明 |
+
+### 第 4 条 — 更新开发指南
+
+| 针对文件 | 写入内容 |
+|:---|:---|
+| `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` | 文档版本号、修改日志、引脚表、文件结构、UI 页面、EMA/Safety/网络协议等架构章节与当前代码对齐 |
+
+### 第 5 条 — 更新技能文件
+
+| 针对文件 | 写入内容 |
+|:---|:---|
+| `Claude_Files/docs/embedded-architect-system-prompt.md` | 版本号、审查历史、执行教训(第 4 节) |
+
+### 第 6 条 — 重新生成 .docx
+
+| 针对文件 | 命令 |
+|:---|:---|
+| `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.docx` | `cd Claude_Files && node tools/generate_docx.js "docs/WPT无线充电系统-从零搭建全指南.md"` |
+| `Claude_Files/docs/embedded-architect-system-prompt.docx` | `cd Claude_Files && node tools/generate_docx.js "docs/embedded-architect-system-prompt.md"` |
+
+### 第 7 条 — 清理 Keil 编译产物
+
+| 针对文件 | 命令 |
+|:---|:---|
+| `Keil_Project/` 下所有 `.obj` `.lst` `.axf` `.uvopt` `.uvgui.*` | `cmd.exe /c Keil_Project\keilkill.bat` |
+| **验证** | `git status` 确认零编译产物残留 |
+
+### 第 8 条 — Git 提交 + 推送
+
+| 命令 | 禁止上传 |
+|:---|:---|
+| `git add -A` | `.obj` `.lst` `.axf` `.uvopt` `.uvgui.*` |
+| `git commit -m "docs: Vxx — <变更摘要>"` | — |
+| `git push origin 4.0TFT` | — |
+
+### 第 9 条 — 追加执行教训
+
+| 针对文件 | 写入内容 |
+|:---|:---|
+| `Claude_Files/docs/embedded-architect-system-prompt.md` (第 4 节) | 本轮问题描述 + 根因 + 预防规则 |
 
 ## Build System
 
