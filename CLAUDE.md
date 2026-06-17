@@ -10,9 +10,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `WAN` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_Bemfa_WAN_V2.0` |
 | **协议** | 巴法云 TCP 创客云 (Bemfa Cloud) |
-| **版本** | V3.5 |
+| **版本** | V2.0.0 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `LAN` (NetAssist 局域网) → `WPT_PWM_NetAssistant_LAN_V1.0`
+
+### 版本号规则 (Version Numbering)
+
+项目遵循 **Vx.y.z** 三阶版本号规则，x 固定为 2（对应目录名 `WPT_PWM_Bemfa_WAN_V2.0`）。
+
+| 阶位 | 名称 | 触发条件 | 示例 |
+|:---|:---|:---|:---|
+| **x** | 大版本 | 固定为 2，对应目录名 V2.0 | V2.x.x |
+| **y** | 中版本 | 大功能升级（新增外设驱动模块、协议切换、架构重构） | V2.0.0 → V2.1.0 |
+| **z** | 小版本 | Bug 修复 / 代码逻辑修改 / 文档更新 | V2.1.0 → V2.1.1 |
+
+**历史版本映射**（旧格式 → Vx.y.z）:
+
+| 旧版本 | 新版本 | 日期 | 说明 |
+|:---|:---|:---|:---|
+| V2.0 | V2.0.0 | 2026-05-14 | 重构版: SysTimer 时基框架、App_Net 网络层剥离、main.c 极简化、三层架构分离 |
+| V2.1 | V2.0.1 | 2026-05-16 | 文档更新: 系统概述新增详细功能清单, 帧检测兼容 \r 分隔符 |
+| V2.2 | V2.0.2 | 2026-05-16 | 竞态修复: ClearRxBuffer/WaitResponse/CIPSEND ISR 临界区保护 |
+| V2.3 | V2.0.3 | 2026-05-16 | PWM 公开接口消除重复, App_Net/UI 统一调用, Delay 模块废弃 |
+| V2.4 | V2.0.4 | 2026-05-18 | 死区 500→1000ns, PWM 预装载使能, 空闲态极性修复 |
+| V3.0 | V2.1.0 | 2026-05-19 | 非阻塞软启动状态机 150→100kHz, MOE 安全上电, 95kHz 硬下限 |
+| V3.1 | V2.1.1 | 2026-05-19 | 联网重试 + ADC 2ms 独立滤波 + CLOSED 非阻塞 + 四灯状态 |
+| V3.2 | V2.2.0 | 2026-05-20 | 异步联网 9 态 AT 状态机 + 双重复位 + UDIS 原子更新 + SS_FAULT |
+| V3.3 | V2.2.1 | 2026-05-20 | ESP8266 静默看门狗 (LAN 分支保留) |
+| V3.4 | V2.3.0 | 2026-05-21 | 巴法云 TCP 创客云 WAN 接入, cmd=1 订阅 + cmd=2 遥测 + 删静默看门狗 |
+| V3.5 | V2.3.1 | 2026-05-22 | ADC 浮点精度修复 + OLED 性能优化 + WiFi LED 常亮 |
+
+**当前版本**: V2.0.0（版本号重置，以目录 V2.0 为准重新编号）。历史版本在修改日志中保留但不再作为当前版本号。
 
 ### 复合指令触发规则
 
@@ -118,9 +146,9 @@ All `static uint32_t last` variables in task functions are per-function private 
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking; `pow10_lut[10]` lookup table for fast number display |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers WiFi connect then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
 | LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle) + PB3 WiFi (slow→connecting, fast→connecting, **solid→connected**) + PB4 PWM (blink) + PB5 Ready (on/off); `LED_Init`/`LED_Task` |
-| App_Net | `User/App_Net.c` | **V3.5 Bemfa Cloud**: config macros in `App_Net.h` for branch diff; `Bemfa_Subscribe()` injected in both blocking + non-blocking connect paths; **cmd=2 telemetry** envelope at 2000ms (1Hz rate limit); CMD:ON/CMD:OFF protocol; CLOSED→immediate shutdown + wifi reset; **silent watchdog removed** (Bemfa is silent by default, CLOSED frame suffices); `snprintf` for buffer safety |
+| App_Net | `User/App_Net.c` | **V2.0.0 Bemfa Cloud**: config macros in `App_Net.h` for branch diff; `Bemfa_Subscribe()` injected in both blocking + non-blocking connect paths; **cmd=2 telemetry** envelope at 2000ms (1Hz rate limit); CMD:ON/CMD:OFF protocol; CLOSED→immediate shutdown + wifi reset; **silent watchdog removed** (Bemfa is silent by default, CLOSED frame suffices); `snprintf` for buffer safety |
 
-## Startup Flow (V3.5)
+## Startup Flow (V2.0.0)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA → KEY
@@ -176,7 +204,7 @@ All `static uint32_t last` variables in task functions are per-function private 
 
 All ISR-shared variables (`s_RxIndex`, `s_FrameReady`, `g_ESP8266_RxFrameFlag`) must be `volatile`.
 
-**Critical section pattern** — any function that reads `s_RxBuf` via `strstr` must wrap the access. **V3.2**: Use `ESP8266_CopyRxFrame()` (atomic copy + clear in single critical section, preserves tail bytes for TCP粘包) or `ESP8266_BufferContains(needle)` (critical section strstr). Never call `USART_ITConfig(USART2, ...)` from outside ESP8266.c — all USART register access is encapsulated.
+**Critical section pattern** — any function that reads `s_RxBuf` via `strstr` must wrap the access. **V2.2.0**: Use `ESP8266_CopyRxFrame()` (atomic copy + clear in single critical section, preserves tail bytes for TCP粘包) or `ESP8266_BufferContains(needle)` (critical section strstr). Never call `USART_ITConfig(USART2, ...)` from outside ESP8266.c — all USART register access is encapsulated.
 
 `ESP8266_SendString` waits for TXE only — the final TC check was removed because USART2 is full-duplex and TXE guarantees the byte is in the shift register.
 
@@ -244,7 +272,7 @@ Without preload, runtime ARR/CCR changes can cause cycle distortion and shoot-th
 
 `PWM_SetFrequency` uses `TIM_CR1_UDIS`→write ARR+CCR1+CCR2→`TIM_EGR_UG`→clear UDIS to atomically load all shadow registers. This prevents Update Event between writes causing new-period-with-old-duty-cycle magnetic saturation.
 
-### ESP8266 Connection Loss Detection (V3.4)
+### ESP8266 Connection Loss Detection (V2.3.0)
 
 **WAN branch**: Silent watchdog removed. Bemfa Cloud is silent by default (no keepalive, no periodic data). The `CLOSED` frame from ESP8266 on TCP disconnect is the sole offline detection mechanism.
 

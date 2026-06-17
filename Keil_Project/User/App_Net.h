@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    User/App_Net.h
  * @brief   网络应用层 —— 公开接口
- * @note    V3.4: 巴法云 TCP 创客云接入, 配置宏从 .c 移至 .h 实现分支差异化
+ * @note    V2.0.0: 巴法云 TCP 创客云接入, 配置宏从 .c 移至 .h 实现分支差异化
  ******************************************************************************
  */
 
@@ -38,7 +38,7 @@ uint8_t    App_Net_Init(void);            /* 阻塞联网 (保留兼容), 0=成�
 void       App_Net_Task(void);            /* JSON 遥测 + 指令解析 */
 uint8_t    App_Net_IsConnected(void);     /* WiFi 已连接? */
 
-/* V3.2: 非阻塞联网 */
+/* V2.0.0: 非阻塞联网 */
 void        App_Net_Connect_Trigger(void);     /* 触发联网 (仅 NET_IDLE 时有效) */
 void        App_Net_Connect_Cancel(void);      /* 取消联网 (KEY1) */
 void        App_Net_Connect_Task(void);        /* 主循环每轮调用, 非阻塞步进 */

@@ -3,7 +3,7 @@
 [![MCU](https://img.shields.io/badge/MCU-STM32F103C8T6-blue)]()
 [![Library](https://img.shields.io/badge/Library-SPL%20V3.5.0-green)]()
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
-[![Version](https://img.shields.io/badge/Firmware-V3.5-brightgreen)]()
+[![Version](https://img.shields.io/badge/Firmware-V2.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统，支持 OLED 本地控制与**巴法云 TCP 创客云 WAN 远程控制**。应用于植入式医疗设备无线充电。
@@ -45,8 +45,8 @@
 
 - **PFM 调功**: 95-150kHz 频率范围, 50% 固定占空比, 1000ns 可调死区 (DEADTIME_NS 宏)
 - **非阻塞软启动**: 150kHz → 100kHz 自动扫频, 200Hz/10ms 步进, ~2.5s, 防浪涌冲击
-- **V3.5 巴法云远程控制**: WAN 广域网接入, cmd=1 订阅 + cmd=2 遥测信封, 手机/PC 远程遥控; WiFi LED 连接后常亮
-- **V3.2 异步联网**: 9 态 AT 指令状态机, 支持 KEY1 取消, 3 次自动重试, 双重复位机制
+- **巴法云远程控制**: WAN 广域网接入, cmd=1 订阅 + cmd=2 遥测信封, 手机/PC 远程遥控; WiFi LED 连接后常亮
+- **异步联网**: 9 态 AT 指令状态机, 支持 KEY1 取消, 3 次自动重试, 双重复位机制
 - **双页 OLED UI**: 控制面板 (可操作) + 锁屏监控 (只读), KEY0 双击切换
 - **四灯状态**: PC13 心跳 + PB3 WiFi + PB4 PWM + PB5 Ready, 快闪/慢闪/常亮三级指示
 - **远程协议**: `CMD:ON` / `CMD:OFF` 指令, 巴法云 cmd=2 遥测 `{"V":x,"I":x,"F":x}` 每 2s 上报
@@ -101,8 +101,8 @@
 | 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | LED | 看门狗 | 适用场景 |
 |:---|:---|:---:|:---|:---|:---:|:---:|:---|
 | `master` | `WPT_PWM_V0.0` | V1.0 | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
-| `LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V3.3 | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 15s | 内网调试 |
-| **`WAN`** ⬅ | `WPT_PWM_Bemfa_WAN_V2.0` | **V3.5** | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
+| `LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V2.x | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 15s | 内网调试 |
+| **`WAN`** ⬅ | `WPT_PWM_Bemfa_WAN_V2.0` | **V2.0.0** | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
 
 **分支间关系**: `master` 是基版 → `LAN` 增加 ESP8266 + 局域网联网 → `WAN` 在 LAN 基础上改为巴法云协议  
 **差异文件**: `WAN` vs `LAN` 仅 `User/App_Net.h` 宏配置不同；`LAN` vs `master` 增加了 `ESP8266`/`App_Net`/`UI` 模块

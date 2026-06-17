@@ -2,13 +2,13 @@
  ******************************************************************************
  * @file    User/App_Net.c
  * @brief   网络应用层 —— 实现
- * @note    V3.4: 巴法云 TCP 创客云接入 — cmd=1 订阅 + cmd=2 遥测信封 + 删静默看门狗
+ * @note    V2.0.0: 巴法云 TCP 创客云接入 — cmd=1 订阅 + cmd=2 遥测信封 + 删静默看门狗
  *          存放路径: 项目根目录\User\
  *
  *          模块职责:
  *            1. 管理 WiFi / 巴法云 TCP 连接参数 (宏配置在 App_Net.h)
  *            2. App_Net_Init() — 阻塞式联网初始化 + 巴法云订阅
- *            3. App_Net_Task() — 非阻塞周期任务 (V3.4 巴法云协议)
+ *            3. App_Net_Task() — 非阻塞周期任务 (V2.0.0 巴法云协议)
  *               - 每 2000ms: 采集电压/频率 → cmd=2 信封 → ESP8266_SendString
  *               - 实时轮询: 解析 CMD:ON/CMD:OFF 指令 (兼容巴法云 cmd=2 下发)
  *
@@ -56,7 +56,7 @@ static void Net_Remote_On(void)
  */
 static uint8_t s_WiFiConnected = 0;  /* 联网状态唯一权威源, 同时用作 USART2 就绪门禁 */
 
-/* ── V3.2 非阻塞联网状态机 ── */
+/* ── V2.0.0 非阻塞联网状态机 ── */
 static NetState_t s_net_state   = NET_IDLE;
 static uint8_t    s_net_retry   = 0;
 static uint32_t   s_net_tstart  = 0;
@@ -168,7 +168,7 @@ uint8_t App_Net_Init(void)
 
     s_WiFiConnected = 1;   /* WiFi 状态唯一权威源 */
 
-    Bemfa_Subscribe();   /* V3.4: 透传通道就绪 → 巴法云订阅主题 */
+    Bemfa_Subscribe();   /* V2.0.0: 透传通道就绪 → 巴法云订阅主题 */
 
     return 0;
 }
@@ -255,7 +255,7 @@ uint8_t App_Net_IsConnected(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *              V3.2 非阻塞联网状态机
+ *              V2.0.0 非阻塞联网状态机
  * ═══════════════════════════════════════════════════════════════ */
 
 void App_Net_Connect_Trigger(void)
@@ -396,7 +396,7 @@ on_fail:
 on_success:
         ESP8266_SetWaitCallback(NULL);
         s_WiFiConnected = 1;
-        Bemfa_Subscribe();   /* V3.4: 透传通道就绪 → 巴法云订阅主题 */
+        Bemfa_Subscribe();   /* V2.0.0: 透传通道就绪 → 巴法云订阅主题 */
         LED_Update_WiFi(LED_OFF);
         return;
     }
