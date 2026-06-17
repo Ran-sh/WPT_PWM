@@ -85,16 +85,23 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 
 ## 分支
 
-| 分支 | 版本 | 显示 | 架构 |
-|:---|:---:|:---:|:---|
-| `4.0TFT` | V4.2.0 | TFT 彩屏 | 全局状态机 + 能量条仪表盘 |
+| 分支 | 本地目录 | 版本 | 显示 | 协议 | 说明 |
+|:---|:---|:---:|:---:|:---|:---|
+| `master` | `WPT_PWM_V0.0` | V0.0.0 | 无 | 无 | 裸机固件基版 |
+| `1.0LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V1.0.0 | OLED | NetAssist TCP | 局域网调试 |
+| `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V2.0.0 | OLED | 巴法云 TCP | 远程控制 |
+| `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V3.0.0 | OLED | OneNET MQTT | 物联网双脑架构 |
+| **`4.0TFT`** | `WPT_PWM_V4.0_ONENET_TFT` | **V4.2.0** | **TFT 彩屏** | **OneNET MQTT** | **当前主力分支** |
 
 ## 文档
 
 | 文档 | 说明 |
 |:---|:---|
 | [CLAUDE.md](CLAUDE.md) | AI 开发规范 (命名/注释/安全/架构/画面布局) |
+| [开发指南](Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md) | 完整开发者指南 (V4.2.0) |
 | [Keil_Project/](Keil_Project/) | STM32 固件源码 |
+| [ONENETapp/](ONENETapp/) | 网页控制台 (Cloudflare Pages) |
+| [安卓app/](安卓app/) | 微信小程序 |
 
 ## 许可
 
