@@ -72,10 +72,23 @@ void App_Network_Manual_Disconnect(void)
         || s_conn_state == APP_NETWORK_CONN_WIFI
         || s_conn_state == APP_NETWORK_CONN_MQTT) {
         Esp8266_Driver_Send_String("CMD:WIFI_DISC\n");
-        s_conn_state    = APP_NETWORK_CONN_OFFLINE_ACTIVE;
+    }
+    /* 无论当前状态如何, 强制进入主动离线 */
+    s_conn_state    = APP_NETWORK_CONN_OFFLINE_ACTIVE;
+    s_retry_count   = 0;
+    s_rssi          = -100;
+    Led_Driver_Set_WiFi(LED_DRIVER_STATE_OFF);
+}
+
+/** @brief 从被动离线恢复 — ESP 已在运行, 只切状态不发硬件 RST */
+void App_Network_Resume_From_Offline(void)
+{
+    if (s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE) {
+        s_conn_state    = APP_NETWORK_CONN_WIFI;
         s_retry_count   = 0;
-        s_rssi          = -100;
-        Led_Driver_Set_WiFi(LED_DRIVER_STATE_OFF);
+        s_connect_start = Sys_Timer_Get_Tick();
+        s_last_esp_ms   = Sys_Timer_Get_Tick();
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     }
 }
 
@@ -128,7 +141,19 @@ static void App_Network_Check_Retry(void)
 
         s_connect_start = Sys_Timer_Get_Tick();
         s_last_esp_ms   = Sys_Timer_Get_Tick();
-        Esp8266_Driver_Start_Init();
+        /* 不发硬件 RST: ESP 已在运行, STATUS:DISCONNECTED 后 ESP 会自动 WiFi.begin()
+         * 发硬件 RST 反而浪费 4s BOOT_WAIT, 5次重试全耗在等待上 */
+        Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
+    }
+
+    /* MQTT 状态额外超时保护: 超过 30s 无进展则回退 WIFI 重试
+     * 防止 WiFi 已连但 MQTT broker 不可达时的死锁 */
+    if (s_conn_state == APP_NETWORK_CONN_MQTT
+        && Sys_Timer_Get_Tick() - s_last_esp_ms >= 30000) {
+        s_conn_state    = APP_NETWORK_CONN_WIFI;
+        s_retry_count   = 0;
+        s_connect_start = Sys_Timer_Get_Tick();
+        s_last_esp_ms   = Sys_Timer_Get_Tick();
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     }
 }
@@ -184,7 +209,7 @@ void App_Network_Task(void)
         s_last_esp_ms   = Sys_Timer_Get_Tick();
         s_rssi          = -100;
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
-        Esp8266_Driver_Start_Init();
+        /* 不发硬件 RST: ESP 仍在运行, 自动 WiFi.begin() 尝试重连 */
     }
 
     /* ── 指令接收 ── */

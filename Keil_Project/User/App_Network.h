@@ -38,6 +38,8 @@ uint8_t App_Network_Is_Offline(void);
 void    App_Network_Manual_Connect(void);
 /** @brief 用户主动断开 (进入主动离线, 不自动重连) */
 void    App_Network_Manual_Disconnect(void);
+/** @brief 从被动离线恢复连接 (ESP 已在运行, 不发硬件 RST) */
+void    App_Network_Resume_From_Offline(void);
 /** @brief 获取 WIFI 信号强度 RSSI (dBm), 默认 -100 */
 int8_t  App_Network_Get_RSSI(void);
 /** @brief 判断是否正在连接中 (WIFI 或 MQTT) */

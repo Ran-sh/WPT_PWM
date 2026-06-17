@@ -1448,10 +1448,13 @@ static void Handle_Keys_by_Page(Ui_Page page,
                     /* 主动离线 → 手动恢复连接 */
                     s_no_wifi_mode = 0;
                     App_Network_Manual_Connect();
-                } else {
-                    /* IDLE 或被动离线 → 软复位后开始连接 */
+                } else if (cs == APP_NETWORK_CONN_OFFLINE_PASSIVE) {
+                    /* 被动离线 → 只切状态, ESP 已在运行, 不发硬件 RST */
                     s_no_wifi_mode = 0;
-                    App_Network_Soft_Reset();
+                    App_Network_Resume_From_Offline();
+                } else {
+                    /* IDLE → 完整初始化 (首次开机或软复位后) */
+                    s_no_wifi_mode = 0;
                     App_Network_Start_Connect();
                 }
                 break;
@@ -1479,7 +1482,8 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
         /* 清除配网凭证并重启 ESP — 发送 CMD:CLEAR 触发 ESP.restart() */
         Esp8266_Driver_Send_String("CMD:CLEAR\n");
-        App_Network_Soft_Reset();
+        /* 强制进入主动离线: Manual_Disconnect 已改为无条件设 OFFLINE_ACTIVE */
+        App_Network_Manual_Disconnect();
         s_no_wifi_mode = 1;
         if (s_page != UI_PAGE_WIFI_SETUP && s_page != UI_PAGE_FAULT) {
             s_page = UI_PAGE_WIFI_SETUP;
