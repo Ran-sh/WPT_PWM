@@ -45,8 +45,8 @@
 
 - **PFM 调功**: 95-150kHz 频率范围, 50% 固定占空比, 1000ns 可调死区 (DEADTIME_NS 宏)
 - **非阻塞软启动**: 150kHz → 100kHz 自动扫频, 200Hz/10ms 步进, ~2.5s, 防浪涌冲击
-- **V3.5 巴法云远程控制**: WAN 广域网接入, cmd=1 订阅 + cmd=2 遥测信封, 手机/PC 远程遥控; WiFi LED 连接后常亮
-- **V3.2 异步联网**: 9 态 AT 指令状态机, 支持 KEY1 取消, 3 次自动重试, 双重复位机制
+- **巴法云远程控制**: WAN 广域网接入, cmd=1 订阅 + cmd=2 遥测信封, 手机/PC 远程遥控; WiFi LED 连接后常亮
+- **异步联网**: 9 态 AT 指令状态机, 支持 KEY1 取消, 3 次自动重试, 双重复位机制
 - **双页 OLED UI**: 控制面板 (可操作) + 锁屏监控 (只读), KEY0 双击切换
 - **四灯状态**: PC13 心跳 + PB3 WiFi + PB4 PWM + PB5 Ready, 快闪/慢闪/常亮三级指示
 - **远程协议**: `CMD:ON` / `CMD:OFF` 指令, 巴法云 cmd=2 遥测 `{"V":x,"I":x,"F":x}` 每 2s 上报
@@ -100,11 +100,11 @@
 
 | 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | LED | 看门狗 | 适用场景 |
 |:---|:---|:---:|:---|:---|:---:|:---:|:---|
-| `master` | `WPT_PWM_V0.0` | V1.0 | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
-| `1.0LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V3.4 | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 15s | 内网调试 |
-| **`2.0WAN`** ⬅ | `WPT_PWM_Bemfa_WAN_V2.0` | V2.0.0 | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
-| `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V6.2 | OneNET MQTT | OneNET Studio | 4 LED | IWDG 1.6s | 物联网双脑架构 |
-| `4.0TFT` | `WPT_PWM_V4.0_ONENET_TFT` | V6.2 | OneNET MQTT | OneNET Studio | 6 LED | IWDG 1.6s | TFT彩屏升级版 |
+| `master` | `WPT_PWM_V0.0` | V0.0.0 | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
+| `1.0LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V1.0.0 | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 30s | 内网调试 |
+| **`2.0WAN`** ⬅ | `WPT_PWM_Bemfa_WAN_V2.0` | **V2.0.0** | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
+| `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V3.0.0 | OneNET MQTT | OneNET Studio | 4 LED | IWDG 1.6s | 物联网双脑架构 |
+| `4.0TFT` | `WPT_PWM_V4.0_ONENET_TFT` | V4.2.0 | OneNET MQTT | OneNET Studio | 6 LED | IWDG 1.6s | TFT彩屏升级版 |
 
 **分支间关系**: `master` 是基版 → `1.0LAN` 增加 ESP8266 + 局域网联网 → `2.0WAN` 在 LAN 基础上改为巴法云协议 → `3.0ONENET` 升级为 OneNET MQTT 双脑架构 → `4.0TFT` OLED→TFT 彩屏硬件升级
 
