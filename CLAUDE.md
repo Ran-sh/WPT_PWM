@@ -19,22 +19,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_TFT):
-  x — 大版本: 固定 4 (TFT 彩屏架构, 4.0TFT 分支)
+  x — 固定 4 (仅当整个仓库升级到下一代显示方案才变 5)
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
-  z — 小版本: Bug修复/字库修正/底部栏调整 时 +1
+  z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
 当前版本: V4.2.0
-  V4 = TFT 彩屏架构
-  .2 = 两次中版本升级
-  .0 = 当前小版本号
 
 涉及版本号的位置 (全项目必须统一):
-  文件头注释: 每个 .c/.h/.ino 的 @brief/@note 行
-  文档控制信息: 开发指南/技能文件的文档版本
-  CLAUDE.md: 版本号 + 审查历史
-  README.md: badge + 版本历史
-  操作手册/部署文档: 版本字段
-  小程序注释: wxss/wxml/js 头部
+  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.2.0
+  文档控制信息: 开发指南/技能文件的文档版本 → V4.2.0
+  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.2.0
+  README.md: badge + 版本历史 + 分支表 → V4.2.0
+  操作手册/部署文档: 版本字段 → V4.2.0
+  小程序: wxss/wxml/js 头部注释 → V4.2.0
+  其他文档: ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.2.0
+
+历史版本 → V4.x.x 完整映射:
+  旧 V0.0/V1.0 → V1.0.x | 旧 V3.0     → V2.0.0
+  旧 V5.0/V5.1/V5.2 → V2.x.x | 旧 V6.0/V6.4 → V2.4.0/V3.0.0
+  旧 V9/V10/V11/V12/V13 → V3.x.x | 旧 V14/V15/V16 → V4.0.0
+  旧 V25 → V4.1.0 | 旧 V26 → V4.2.0
+  (SPL V3.5.0、ARMCC V5.06、Keil V5 是外部工具版本, 不在此范围)
 
 禁止事项:
   禁止使用 V1~V26 等旧格式 (已全部映射到 V4.x.x)
