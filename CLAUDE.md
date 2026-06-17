@@ -10,9 +10,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `1.0LAN` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_NetAssistant_LAN_V1.0` |
 | **协议** | NetAssist TCP 局域网 |
-| **版本** | V3.4 |
+| **版本** | V1.3.4 |
 
-其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `2.0WAN` (巴法云 TCP V3.5) → `WPT_PWM_Bemfa_WAN_V2.0`, `3.0ONENET` (OneNET MQTT V6.1 OLED) → `WPT_PWM_ONENET_V3.0`, `4.0TFT` (OneNET MQTT V6.2 TFT彩屏) → `WPT_PWM_V4.0_ONENET_TFT`
+其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `2.0WAN` (巴法云 TCP V2.x.x) → `WPT_PWM_Bemfa_WAN_V2.0`, `3.0ONENET` (OneNET MQTT V3.x.x) → `WPT_PWM_ONENET_V3.0`, `4.0TFT` (OneNET MQTT V4.2.0 TFT彩屏) → `WPT_PWM_V4.0_ONENET_TFT`
+
+## 版本号规则 (全项目铁律)
+
+```
+Vx.y.z 三数字体系 (首位 x 固定为 1, 对应目录 WPT_PWM_NetAssistant_LAN_V1.0):
+  x — 固定 1 (NetAssist TCP 局域网架构)
+  y — 中版本: 大功能升级 时 +1
+  z — 小版本: Bug修复/文档更新 时 +1
+
+当前版本: V1.3.4 (对应旧 V3.4)
+
+涉及版本号的位置: CLAUDE.md、README.md、所有 .c/.h 文件头、文档控制信息
+SPL V3.5.0、ARMCC V5.06、Keil V5 是外部工具版本, 不在此范围
+```
 
 ### 复合指令触发规则
 
@@ -120,7 +134,7 @@ All `static uint32_t last` variables in task functions are per-function private 
 | LED | `Hardware/LED.c` | PC13 heartbeat + PB3 WiFi (connected=常亮, connecting=快闪, disconnected=慢闪) + PB4 PWM + PB5 Ready; `LED_Init`/`LED_Task`/`LED_Status_Task` |
 | App_Net | `User/App_Net.c` | V3.2 async 9-state AT FSM (NET_IDLE→NET_STEP_AT→...→NET_SUCCESS/FAIL), KEY1 cancelable, 3-retry auto-fallback; `s_WiFiConnected` single authority source + USART2 ready gate; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); **V3.3 silent watchdog**: 30s no RX data → `Inverter_SoftStart_Stop` + `s_WiFiConnected=0` + `s_net_state=NET_IDLE`; `ESP8266_RefreshLastRxTime` called at WiFi connect success to give fresh 30s window |
 
-## Startup Flow (V3.4)
+## Startup Flow (V1.3.4)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA → KEY
@@ -263,7 +277,7 @@ if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
 }
 ```
 
-`ESP8266_SILENT_TIMEOUT = 30000` (30 seconds, V3.4 从 15s 延长以适配人工操作)。 On Cortex-M3, aligned 32-bit `s_LastRxTick` read/write is atomic — no critical section needed. `ESP8266_Init()` seeds the timestamp so the first 15s window starts with a fresh value.
+`ESP8266_SILENT_TIMEOUT = 30000` (30 seconds, V1.3.4 从 15s 延长以适配人工操作)。 On Cortex-M3, aligned 32-bit `s_LastRxTick` read/write is atomic — no critical section needed. `ESP8266_Init()` seeds the timestamp so the first 15s window starts with a fresh value.
 
 **Coverage matrix**:
 
