@@ -1,0 +1,20 @@
+<!-- WPT Monitor — 自定义底部栏 Component V2 -->
+<view class="tab-bar">
+  <view class="tab-bar-glow"></view>
+  <view class="tab-bar-inner">
+    <view
+      wx:for="{{list}}"
+      wx:key="pagePath"
+      class="tab-item"
+      data-path="{{item.pagePath}}"
+      data-index="{{index}}"
+      bindtap="onSwitchTab"
+    >
+      <view class="tab-pill"></view>
+      <view class="tab-icon-box">
+        <text class="tab-icon">{{item.icon}}</text>
+      </view>
+      <text class="tab-label">{{item.text}}</text>
+    </view>
+  </view>
+</view>

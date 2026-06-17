@@ -1,5 +1,235 @@
-page {
-  background: #030712;
-  color: #fff;
-  font-family: -apple-system, system-ui, sans-serif;
+/* ═══════════════════════════════════════════
+   WPT Monitor — Global Design System
+   Industrial × Social-App Hybrid (V25)
+   设计参考: 小红书 / Douyin / TikTok
+   ═══════════════════════════════════════════ */
+
+/* ══ Dark Theme (默认) ══ */
+.theme-dark {
+  --bg: #06080E;
+  --bg-gradient: linear-gradient(175deg, #06080E 0%, #090C16 35%, #0C1020 100%);
+  --card-bg: linear-gradient(160deg, rgba(16,20,36,0.94) 0%, rgba(12,15,26,0.97) 100%);
+  --card-border: rgba(0, 229, 255, 0.05);
+  --card-border-hover: rgba(0, 229, 255, 0.1);
+  --bezel: inset 0 1px 0 rgba(255,255,255,0.025), inset 0 -1px 0 rgba(0,0,0,0.25);
+  --bezel-strong: inset 0 1px 0 rgba(255,255,255,0.035), inset 0 -1px 0 rgba(0,0,0,0.45), 0 0 0 1px rgba(0,229,255,0.03);
+  --text-primary: #E2E6F0;
+  --text-secondary: #8892A8;
+  --text-tertiary: #4B5268;
+  --accent: #00E5FF;
+  --accent-dim: #006878;
+  --accent-glow: 0 0 14rpx rgba(0,229,255,0.45), 0 0 36rpx rgba(0,229,255,0.12);
+  --accent-glow-soft: 0 0 8rpx rgba(0,229,255,0.25);
+  --accent-bg: rgba(0,229,255,0.06);
+  --accent-border: rgba(0,229,255,0.14);
+  --green: #22C55E;
+  --green-dim: #166534;
+  --green-glow: 0 0 12rpx rgba(34,197,94,0.5), 0 0 24rpx rgba(34,197,94,0.15);
+  --green-bg: rgba(34,197,94,0.07);
+  --yellow: #F59E0B;
+  --yellow-dim: #92400E;
+  --yellow-glow: 0 0 12rpx rgba(245,158,11,0.5), 0 0 24rpx rgba(245,158,11,0.12);
+  --yellow-bg: rgba(245,158,11,0.07);
+  --red: #EF4444;
+  --red-dim: #991B1B;
+  --red-glow: 0 0 14rpx rgba(239,68,68,0.6), 0 0 28rpx rgba(239,68,68,0.15);
+  --red-bg: rgba(239,68,68,0.07);
+  --gray: #6B7280;
+  --btn-bg: rgba(0,229,255,0.1);
+  --btn-border: rgba(0,229,255,0.22);
+  --btn-active: rgba(0,229,255,0.18);
+  --btn-text: #FFFFFF;
+  --btn-shadow: 0 0 20rpx rgba(0,229,255,0.2);
+  --toggle-bg: rgba(255,255,255,0.03);
+  --tab-bar-bg: rgba(255,255,255,0.015);
+  --tab-bar-pill: rgba(255,255,255,0.03);
+  --conn-on-bg: rgba(0,229,255,0.06);
+  --conn-on-border: rgba(0,229,255,0.18);
+  --conn-off-bg: rgba(245,158,11,0.06);
+  --conn-off-border: rgba(245,158,11,0.16);
+  --conn-err-bg: rgba(239,68,68,0.06);
+  --conn-err-border: rgba(239,68,68,0.18);
+  --fault-bg: rgba(239,68,68,0.04);
+  --fault-border: rgba(239,68,68,0.12);
+  --chart-grid: rgba(255,255,255,0.035);
+  --input-bg: rgba(0,0,0,0.35);
+  --input-border: rgba(255,255,255,0.05);
 }
+
+/* ══ Light Theme ══ */
+.theme-light {
+  --bg: #EAEDF2;
+  --bg-gradient: linear-gradient(175deg, #E6E9EE 0%, #EDF0F4 35%, #E0E3EA 100%);
+  --card-bg: linear-gradient(160deg, rgba(255,255,255,0.96) 0%, rgba(246,247,249,0.92) 100%);
+  --card-border: rgba(0,0,0,0.04);
+  --card-border-hover: rgba(0,0,0,0.08);
+  --bezel: inset 0 1px 0 rgba(255,255,255,0.85), inset 0 -1px 0 rgba(0,0,0,0.04);
+  --bezel-strong: inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.02);
+  --text-primary: #181B22;
+  --text-secondary: #565C6A;
+  --text-tertiary: #8E95A5;
+  --accent: #0891B2;
+  --accent-dim: #0E7490;
+  --accent-glow: 0 0 10rpx rgba(8,145,178,0.15), 0 0 24rpx rgba(8,145,178,0.06);
+  --accent-glow-soft: 0 0 6rpx rgba(8,145,178,0.12);
+  --accent-bg: rgba(8,145,178,0.06);
+  --accent-border: rgba(8,145,178,0.2);
+  --green: #16A34A;
+  --green-dim: #166534;
+  --green-glow: 0 0 8rpx rgba(22,163,74,0.2), 0 0 16rpx rgba(22,163,74,0.08);
+  --green-bg: rgba(22,163,74,0.08);
+  --yellow: #D97706;
+  --yellow-dim: #92400E;
+  --yellow-glow: 0 0 8rpx rgba(217,119,6,0.2), 0 0 16rpx rgba(217,119,6,0.08);
+  --yellow-bg: rgba(217,119,6,0.08);
+  --red: #DC2626;
+  --red-dim: #991B1B;
+  --red-glow: 0 0 10rpx rgba(220,38,38,0.25), 0 0 20rpx rgba(220,38,38,0.1);
+  --red-bg: rgba(220,38,38,0.08);
+  --gray: #6B7280;
+  --btn-bg: #0891B2;
+  --btn-border: rgba(8,145,178,0.4);
+  --btn-active: #0E7490;
+  --btn-text: #FFFFFF;
+  --btn-shadow: 0 0 16rpx rgba(8,145,178,0.18);
+  --toggle-bg: rgba(0,0,0,0.035);
+  --tab-bar-bg: rgba(0,0,0,0.015);
+  --tab-bar-pill: rgba(0,0,0,0.03);
+  --conn-on-bg: rgba(8,145,178,0.08);
+  --conn-on-border: rgba(8,145,178,0.2);
+  --conn-off-bg: rgba(217,119,6,0.08);
+  --conn-off-border: rgba(217,119,6,0.2);
+  --conn-err-bg: rgba(220,38,38,0.08);
+  --conn-err-border: rgba(220,38,38,0.2);
+  --fault-bg: rgba(220,38,38,0.05);
+  --fault-border: rgba(220,38,38,0.15);
+  --chart-grid: rgba(0,0,0,0.05);
+  --input-bg: #F3F4F6;
+  --input-border: rgba(0,0,0,0.08);
+}
+
+/* ══ 全局 ══ */
+page {
+  background: #06080E;
+  background: var(--bg, #06080E);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 防止底部滚动露出白色 */
+  overscroll-behavior: none;
+}
+
+.page {
+  min-height: 100vh;
+  background: #06080E;
+  background: var(--bg-gradient, #06080E);
+  background-attachment: fixed;
+}
+/* padding-bottom 由各页面 WXSS 独立控制, 使用 calc(156rpx + env(safe-area-inset-bottom, 0px)) */
+
+/* ══ 通用交互动效 ══ */
+.tappable {
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.12s ease;
+}
+.tappable:active {
+  transform: scale(0.95);
+  opacity: 0.8;
+}
+
+/* ══ 卡片入场动画 (小红书风格 - 交错淡入) ══ */
+@keyframes cardFadeUp {
+  from { opacity: 0; transform: translateY(20rpx); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card-enter {
+  animation: cardFadeUp 0.35s ease both;
+}
+.card-enter-0 { animation-delay: 0.00s; }
+.card-enter-1 { animation-delay: 0.06s; }
+.card-enter-2 { animation-delay: 0.12s; }
+.card-enter-3 { animation-delay: 0.18s; }
+.card-enter-4 { animation-delay: 0.24s; }
+
+/* ══ 脉冲 (在线状态指示器) ══ */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+.pulse-live {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════
+   底部选择栏 (内联在每个页面, 样式在此统一)
+   ═══════════════════════════════════════════ */
+
+.tab-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 999;
+  background: rgba(10,12,24,0.95);
+  border-top: 0.5px solid rgba(0,229,255,0.06);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tab-bar-glow {
+  position: absolute;
+  top: 0; left: 20rpx; right: 20rpx;
+  height: 1rpx;
+  background: linear-gradient(90deg, transparent, rgba(0,229,255,0.2), rgba(0,229,255,0.06), transparent);
+  opacity: 0.7;
+}
+
+.tab-bar-inner {
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  height: 100rpx;
+  position: relative;
+}
+
+.tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  position: relative;
+  min-height: 100rpx;
+}
+
+.tab-pill {
+  position: absolute;
+  top: 2rpx;
+  width: 28rpx; height: 5rpx;
+  border-radius: 3rpx;
+  background: var(--accent, #00E5FF);
+  opacity: 0;
+  transform: scaleX(0);
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 12rpx rgba(0,229,255,0.55);
+}
+.tab-pill.show { opacity: 1; transform: scaleX(1); }
+
+.tab-icon-box {
+  width: 48rpx; height: 48rpx;
+  border-radius: 14rpx;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.18s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tab-icon-box.active { background: var(--accent-bg, rgba(0,229,255,0.08)); transform: translateY(-2rpx); }
+
+.tab-icon {
+  font-size: 40rpx; line-height: 1;
+  color: var(--text-tertiary, #4B5268);
+  transition: color 0.18s ease, text-shadow 0.18s ease;
+}
+.tab-icon.active { color: var(--accent, #00E5FF); text-shadow: 0 0 14rpx rgba(0,229,255,0.5); }
+
+.tab-label {
+  font-size: 18rpx; font-weight: 600;
+  color: var(--text-tertiary, #4B5268);
+  transition: color 0.18s ease, font-weight 0.18s ease;
+}
+.tab-label.active { color: var(--accent, #00E5FF); font-weight: 800; }

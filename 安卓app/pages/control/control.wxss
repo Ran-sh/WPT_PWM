@@ -1,0 +1,53 @@
+/* ═══════════════════════════════════════════
+   WPT Monitor — 控制页
+   Social-app polished design
+   ═══════════════════════════════════════════ */
+
+.page { padding:0 24rpx calc(100rpx + env(safe-area-inset-bottom, 0px)); min-height:100vh; }
+/* background 由 app.wxss .page 统一提供 */
+
+.header-bar { display:flex; justify-content:space-between; align-items:center; padding:32rpx 4rpx 36rpx; }
+.header-title { font-size:40rpx; font-weight:900; color:var(--text-primary); letter-spacing:3rpx; text-shadow:0 0 28rpx rgba(0,229,255,0.12); }
+.state-badge { padding:8rpx 20rpx; border-radius:16rpx; font-size:22rpx; font-weight:800; display:flex; align-items:center; letter-spacing:1rpx; }
+.state-badge.DONE  { background:rgba(34,197,94,0.05);  color:var(--green);  border:1rpx solid rgba(34,197,94,0.1);  text-shadow:0 0 8rpx rgba(34,197,94,0.3); }
+.state-badge.SWEEP { background:rgba(245,158,11,0.05); color:var(--yellow); border:1rpx solid rgba(245,158,11,0.1); text-shadow:0 0 8rpx rgba(245,158,11,0.3); }
+.state-badge.IDLE  { background:rgba(255,255,255,0.015); color:var(--text-tertiary); border:1rpx solid rgba(255,255,255,0.03); }
+.state-badge.FAULT { background:rgba(239,68,68,0.05);   color:var(--red);    border:1rpx solid rgba(239,68,68,0.1);   text-shadow:0 0 8rpx rgba(239,68,68,0.3); }
+
+.card { background:var(--card-bg); border:1rpx solid var(--card-border); border-radius:28rpx; margin-bottom:20rpx; box-shadow:var(--bezel-strong); position:relative; overflow:hidden; }
+.card:after { content:''; position:absolute; top:0; left:0; right:0; height:1rpx; background:linear-gradient(90deg,transparent,rgba(0,229,255,0.08),transparent); opacity:0.5; }
+
+/* ══ Controls ══ */
+.ctrl-card { padding:26rpx 30rpx; display:flex; justify-content:space-between; align-items:center; }
+.ctrl-left { display:flex; align-items:center; gap:20rpx; }
+.ctrl-icon { width:54rpx; height:54rpx; border-radius:16rpx; display:flex; align-items:center; justify-content:center; font-size:26rpx; }
+.ctrl-icon.power { background:rgba(239,68,68,0.05); border:1rpx solid rgba(239,68,68,0.1); }
+.ctrl-icon.freq  { background:var(--accent-bg); border:1rpx solid var(--accent-border); }
+.ctrl-name { font-size:26rpx; font-weight:800; color:var(--text-primary); display:block; letter-spacing:0.5rpx; }
+.ctrl-hint { font-size:20rpx; color:var(--text-tertiary); letter-spacing:1rpx; }
+.ctrl-hint.on { color:var(--green); text-shadow:0 0 6rpx rgba(34,197,94,0.3); }
+
+.freq-row { display:flex; align-items:center; gap:10rpx; }
+.freq-swiper-wrap { width:120rpx; height:64rpx; overflow:hidden; }
+.freq-swiper { width:100%; height:100%; }
+.swipe-num { display:flex; align-items:center; justify-content:center; height:100%; font-size:32rpx; font-weight:900; color:var(--accent); text-shadow:var(--accent-glow-soft); }
+.swipe-num.sel { text-shadow:var(--accent-glow); }
+.freq-unit { font-size:22rpx; color:var(--text-tertiary); font-weight:700; }
+
+.btn-confirm { padding:24rpx; border-radius:18rpx; background:#00E5FF; text-align:center; margin-bottom:24rpx; box-shadow:0 0 28rpx rgba(0,229,255,0.4); transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.12s; }
+.btn-confirm:active { opacity:0.82; transform:scale(0.96); }
+.btn-confirm text { font-size:28rpx; font-weight:900; color:#06080E; letter-spacing:2rpx; }
+.btn-confirm.disabled { opacity:0.15; pointer-events:none; }
+
+/* ══ Logs ══ */
+.log-card { padding:24rpx 28rpx; }
+.log-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16rpx; }
+.log-title { font-size:24rpx; font-weight:800; color:var(--text-primary); letter-spacing:1rpx; }
+.btn-clear { padding:8rpx 18rpx; border-radius:10rpx; background:rgba(239,68,68,0.04); border:1rpx solid rgba(239,68,68,0.1); transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.btn-clear:active { transform: scale(0.95); }
+.btn-clear text { font-size:20rpx; color:var(--red); font-weight:700; }
+.log-empty { text-align:center; padding:44rpx; font-size:22rpx; color:var(--text-tertiary); }
+.log-row { display:flex; align-items:center; padding:14rpx 0; border-bottom:1rpx solid var(--chart-grid); }
+.log-time { flex:1.5; font-size:20rpx; color:var(--text-tertiary); font-family:monospace; }
+.log-action { flex:1; font-size:22rpx; color:var(--text-primary); font-weight:700; }
+.log-ok { font-size:20rpx; color:var(--green); font-weight:700; }

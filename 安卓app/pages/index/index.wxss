@@ -1,345 +1,100 @@
 /* ═══════════════════════════════════════════
-   WPT Monitor — 双主题系统
-   ═══════════════════════════════════════════ */
-
-/* ── 深色主题 (默认) ── */
-.theme-dark {
-  --bg: #0A0C15;
-  --bg-gradient: linear-gradient(180deg, #0A0C15 0%, #0F111A 100%);
-  --card-bg: #13151F;
-  --card-border: rgba(255, 255, 255, 0.06);
-  --text-primary: #E8ECF1;
-  --text-secondary: #6B7280;
-  --text-tertiary: #4B5563;
-  --accent: #00E5FF;
-  --accent-glow: rgba(0, 229, 255, 0.2);
-  --accent-bg: rgba(0, 229, 255, 0.08);
-  --accent-border: rgba(0, 229, 255, 0.2);
-  --green: #22C55E;
-  --green-glow: rgba(34, 197, 94, 0.5);
-  --yellow: #EAB308;
-  --yellow-glow: rgba(234, 179, 8, 0.5);
-  --red: #EF4444;
-  --red-glow: rgba(239, 68, 68, 0.5);
-  --gray: #9CA3AF;
-  --btn-confirm-bg: rgba(0, 229, 255, 0.18);
-  --btn-confirm-border: rgba(0, 229, 255, 0.45);
-  --btn-confirm-active: rgba(0, 229, 255, 0.35);
-  --btn-confirm-color: #FFFFFF;
-  --btn-confirm-shadow: 0 0 20rpx rgba(0, 229, 255, 0.2);
-  --btn-start-from: #DC2626;
-  --btn-start-to: #B91C1C;
-  --btn-start-active-from: #EF4444;
-  --btn-start-active-to: #DC2626;
-  --btn-start-border: rgba(220, 38, 38, 0.3);
-  --btn-start-shadow: rgba(220, 38, 38, 0.25);
-  --btn-stop-from: #16A34A;
-  --btn-stop-to: #15803D;
-  --btn-stop-active-from: #22C55E;
-  --btn-stop-active-to: #16A34A;
-  --btn-stop-border: rgba(22, 163, 74, 0.3);
-  --btn-stop-shadow: rgba(22, 163, 74, 0.25);
-  --conn-on-bg: rgba(0, 229, 255, 0.08);
-  --conn-on-border: rgba(0, 229, 255, 0.2);
-  --conn-off-bg: rgba(239, 68, 68, 0.08);
-  --conn-off-border: rgba(239, 68, 68, 0.2);
-  --toggle-bg: rgba(255, 255, 255, 0.08);
-  --fault-bg: #1F2937;
-  --fault-border: rgba(107, 114, 128, 0.3);
-}
-
-/* ── 浅色主题 ── */
-.theme-light {
-  --bg: #F4F5F7;
-  --bg-gradient: linear-gradient(180deg, #F0F1F4 0%, #F4F5F7 100%);
-  --card-bg: #FFFFFF;
-  --card-border: rgba(0, 0, 0, 0.06);
-  --text-primary: #1A1A1A;
-  --text-secondary: #555555;
-  --text-tertiary: #777777;
-  --accent: #0A66C2;
-  --accent-glow: rgba(10, 102, 194, 0.12);
-  --accent-bg: rgba(10, 102, 194, 0.06);
-  --accent-border: rgba(10, 102, 194, 0.3);
-  --green: #15803D;
-  --green-glow: rgba(21, 128, 61, 0.25);
-  --yellow: #A16207;
-  --yellow-glow: rgba(161, 98, 7, 0.25);
-  --red: #DC2626;
-  --red-glow: rgba(220, 38, 38, 0.25);
-  --gray: #666666;
-  --btn-confirm-bg: #0A66C2;
-  --btn-confirm-border: rgba(10, 102, 194, 0.4);
-  --btn-confirm-active: #085299;
-  --btn-confirm-color: #FFFFFF;
-  --btn-confirm-shadow: 0 0 20rpx rgba(10, 102, 194, 0.2);
-  --btn-start-from: #DC2626;
-  --btn-start-to: #B91C1C;
-  --btn-start-active-from: #EF4444;
-  --btn-start-active-to: #DC2626;
-  --btn-start-border: rgba(220, 38, 38, 0.3);
-  --btn-start-shadow: rgba(220, 38, 38, 0.12);
-  --btn-stop-from: #16A34A;
-  --btn-stop-to: #15803D;
-  --btn-stop-active-from: #22C55E;
-  --btn-stop-active-to: #16A34A;
-  --btn-stop-border: rgba(22, 163, 74, 0.3);
-  --btn-stop-shadow: rgba(22, 163, 74, 0.12);
-  --conn-on-bg: rgba(10, 102, 194, 0.08);
-  --conn-on-border: rgba(10, 102, 194, 0.25);
-  --conn-off-bg: rgba(220, 38, 38, 0.08);
-  --conn-off-border: rgba(220, 38, 38, 0.25);
-  --toggle-bg: rgba(0, 0, 0, 0.06);
-  --fault-bg: #E5E7EB;
-  --fault-border: rgba(156, 163, 175, 0.5);
-}
-
-/* ═══════════════════════════════════════════
-   通用样式 (使用 CSS 变量)
+   WPT Monitor — Home Dashboard
+   对齐 Web index.html 布局
    ═══════════════════════════════════════════ */
 
 .page {
   min-height: 100vh;
-  background: var(--bg-gradient);
-  padding: 0 20rpx 40rpx;
+  padding: 0 24rpx calc(100rpx + env(safe-area-inset-bottom, 0px));
 }
 
-/* ── 顶部状态栏 ── */
+/* ══ Header ══ */
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 32rpx 8rpx 24rpx;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 32rpx 4rpx 36rpx;
 }
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
+.header-left { display: flex; align-items: center; gap: 14rpx; }
 .header-title {
-  font-size: 36rpx;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: 2rpx;
+  font-size: 40rpx; font-weight: 900; color: var(--text-primary);
+  letter-spacing: 3rpx;
+  text-shadow: 0 0 28rpx rgba(0,229,255,0.12);
 }
 
-/* 刷新按钮 */
-.btn-refresh {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 60rpx;
-  height: 60rpx;
-  border-radius: 50%;
-  background: var(--toggle-bg);
-  font-size: 28rpx;
-  font-weight: 700;
-  color: var(--accent);
-  transition: all 0.15s;
-}
-.btn-refresh:active { transform: scale(0.9); }
-.spin { animation: spin 0.8s linear infinite; }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-/* 主题切换按钮 */
 .toggle-theme {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 60rpx;
-  height: 60rpx;
-  border-radius: 50%;
-  background: var(--toggle-bg);
-  font-size: 30rpx;
-  transition: all 0.3s;
+  width: 64rpx; height: 64rpx; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--toggle-bg); border: 1rpx solid rgba(255,255,255,0.05);
+  font-size: 24rpx; color: var(--text-secondary);
+  box-shadow: var(--bezel);
+  vertical-align: middle;
 }
-.toggle-theme:active {
-  transform: scale(0.9);
-}
+.toggle-theme:active { transform: scale(0.92); }
 
+/* ══ Connection Badge ══ */
 .conn-badge {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  padding: 8rpx 20rpx;
-  border-radius: 20rpx;
-  font-size: 22rpx;
-  font-weight: 600;
+  display: flex; align-items: center; gap: 10rpx;
+  padding: 12rpx 24rpx; border-radius: 24rpx;
+  font-size: 23rpx; font-weight: 700; letter-spacing: 0.5rpx;
 }
-.conn-on {
-  background: var(--conn-on-bg);
-  color: var(--accent);
-  border: 1rpx solid var(--conn-on-border);
-}
-.conn-off {
-  background: var(--conn-off-bg);
-  color: var(--red);
-  border: 1rpx solid var(--conn-off-border);
-}
-.conn-dot {
-  width: 12rpx;
-  height: 12rpx;
-  border-radius: 50%;
-}
-.conn-on .conn-dot {
-  background: var(--accent);
-  box-shadow: 0 0 12rpx var(--accent-glow);
-}
-.conn-off .conn-dot {
-  background: var(--red);
-  box-shadow: 0 0 12rpx var(--red-glow);
+.conn-on  { background: var(--conn-on-bg);  color: var(--accent); border: 1rpx solid var(--conn-on-border);  box-shadow: var(--bezel), 0 0 16rpx rgba(0,229,255,0.06); }
+.conn-off { background: var(--conn-off-bg); color: var(--yellow); border: 1rpx solid var(--conn-off-border); box-shadow: var(--bezel); }
+.conn-err { background: var(--conn-err-bg); color: var(--red);    border: 1rpx solid var(--conn-err-border); box-shadow: var(--bezel); }
+.conn-init{ background: rgba(255,255,255,0.015); color: var(--text-tertiary); border: 1rpx solid rgba(255,255,255,0.03); box-shadow: var(--bezel); }
+.conn-dot { width: 14rpx; height: 14rpx; border-radius: 50%; }
+.conn-on  .conn-dot { background: var(--accent); box-shadow: var(--accent-glow); animation: pulse-dot 2s ease-in-out infinite; }
+.conn-off .conn-dot { background: var(--yellow); box-shadow: var(--yellow-glow); }
+.conn-err .conn-dot { background: var(--red);    box-shadow: var(--red-glow); }
+.conn-init.conn-dot { background: var(--text-tertiary); }
+
+/* ══ 告警横幅 ══ */
+.alert-banner {
+  margin-bottom: 20rpx; padding: 16rpx 24rpx;
+  background: rgba(239,68,68,0.04); border: 1rpx solid rgba(239,68,68,0.1);
+  border-radius: 14rpx; font-size: 24rpx; color: var(--red);
+  text-align: center; font-weight: 600;
 }
 
-/* ── 通用卡片 ── */
-.card {
+/* ══ 传感器卡片列表 ══ */
+.card-list { display: flex; flex-direction: column; gap: 18rpx; margin-bottom: 28rpx; }
+.sensor-card {
   background: var(--card-bg);
   border: 1rpx solid var(--card-border);
-  border-radius: 20rpx;
-  padding: 24rpx 28rpx;
-  margin-bottom: 16rpx;
-  box-shadow: 0 2rpx 16rpx rgba(0, 0, 0, 0.04);
+  border-radius: 28rpx; padding: 30rpx 34rpx;
+  box-shadow: var(--bezel-strong);
+  position: relative; overflow: hidden;
+}
+.sensor-card:after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1rpx;
+  background: linear-gradient(90deg, transparent, rgba(0,229,255,0.08), transparent);
+  opacity: 0.5;
 }
 .card-label {
-  font-size: 24rpx;
-  color: var(--text-secondary);
-  font-weight: 500;
-  letter-spacing: 1rpx;
-  margin-bottom: 12rpx;
-  display: block;
+  font-size: 22rpx; font-weight: 700; color: var(--text-tertiary);
+  letter-spacing: 4rpx; text-transform: uppercase;
+  margin-bottom: 14rpx; display: block;
 }
+.sensor-value-row { display: flex; align-items: baseline; gap: 8rpx; }
+.sensor-value {
+  font-size: 64rpx; font-weight: 900; color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--accent-glow);
+}
+.sensor-unit { font-size: 28rpx; color: var(--text-tertiary); font-weight: 700; }
 
-/* ── 系统状态卡片 ── */
-.state-row {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
-.state-dot {
-  width: 20rpx;
-  height: 20rpx;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.state-dot.DONE  { background: var(--green); box-shadow: 0 0 16rpx var(--green-glow); }
-.state-dot.SWEEP { background: var(--yellow); box-shadow: 0 0 16rpx var(--yellow-glow); }
-.state-dot.IDLE  { background: var(--gray); }
-.state-dot.FAULT { background: var(--red); box-shadow: 0 0 16rpx var(--red-glow); }
-.state-text {
-  font-size: 36rpx;
-  font-weight: 700;
-}
-.state-text.DONE  { color: var(--green); }
-.state-text.SWEEP { color: var(--yellow); }
-.state-text.IDLE  { color: var(--gray); }
-.state-text.FAULT { color: var(--red); }
+/* 传感器状态 */
+.sensor-status { display: flex; align-items: center; gap: 8rpx; margin-top: 16rpx; padding: 10rpx 16rpx; border-radius: 10rpx; font-size: 22rpx; font-weight: 700; }
+.sensor-status.normal { background: var(--green-bg); color: var(--green); border: 1rpx solid rgba(34,197,94,0.08); }
+.sensor-status.alert  { background: var(--red-bg);  color: var(--red);   border: 1rpx solid rgba(239,68,68,0.08); }
+.status-dot { width: 10rpx; height: 10rpx; border-radius: 50%; }
+.sensor-status.normal .status-dot { background: var(--green); box-shadow: 0 0 6rpx rgba(34,197,94,0.4); }
+.sensor-status.alert  .status-dot { background: var(--red);   box-shadow: 0 0 6rpx rgba(239,68,68,0.4); }
 
-/* ── 数据卡片双列 ── */
-.cards-row {
-  display: flex;
-  gap: 16rpx;
+/* ══ 控制卡片 ══ */
+.ctrl-card {
+  background: var(--card-bg);
+  border: 1rpx solid var(--card-border);
+  border-radius: 28rpx; padding: 30rpx 34rpx;
+  box-shadow: var(--bezel-strong);
+  display: flex; justify-content: space-between; align-items: center;
 }
-.cards-row .data-card { flex: 1; }
-.data-value-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6rpx;
-}
-.data-value {
-  font-size: 52rpx;
-  font-weight: 800;
-  color: var(--accent);
-  letter-spacing: -1rpx;
-  text-shadow: 0 0 30rpx var(--accent-glow);
-}
-.data-unit {
-  font-size: 26rpx;
-  color: var(--text-tertiary);
-  font-weight: 600;
-}
-
-/* ── 启停开关 ── */
-.switch-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-direction: row;
-}
-.switch-row {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  flex-shrink: 0;
-}
-.switch-text {
-  font-size: 26rpx;
-  font-weight: 700;
-}
-.switch-on  { color: var(--green); }
-.switch-off { color: var(--text-tertiary); }
-
-/* ── 频率卡片 (当前/目标统一布局) ── */
-.freq-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-direction: row;
-}
-.freq-card-label {
-  font-size: 26rpx;
-  color: var(--text-secondary);
-  font-weight: 500;
-  flex-shrink: 0;
-}
-.freq-card-right {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  flex-shrink: 0;
-}
-.freq-card-value {
-  font-size: 44rpx;
-  font-weight: 800;
-  color: var(--accent);
-  text-shadow: 0 0 24rpx var(--accent-glow);
-}
-.freq-card-unit {
-  font-size: 24rpx;
-  color: var(--text-tertiary);
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.freq-swiper {
-  width: 120rpx;
-  height: 64rpx;
-}
-.swipe-num {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  font-size: 32rpx;
-  font-weight: 800;
-  color: var(--accent);
-}
-.swipe-sel {
-  text-shadow: 0 0 16rpx var(--accent-glow);
-}
-.btn-confirm {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 56rpx;
-  padding: 0 28rpx;
-  background: var(--btn-confirm-bg);
-  border: 1rpx solid var(--btn-confirm-border);
-  border-radius: 14rpx;
-  color: var(--btn-confirm-color, var(--accent));
-  font-size: 26rpx;
-  font-weight: 800;
-  box-shadow: var(--btn-confirm-shadow);
-  transition: all 0.15s;
-}
-.btn-confirm:active { background: var(--btn-confirm-active); }
-.btn-disabled { opacity: 0.3; pointer-events: none; }
-
+.ctrl-value { font-size: 28rpx; font-weight: 800; color: var(--text-primary); }

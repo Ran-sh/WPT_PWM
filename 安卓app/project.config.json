@@ -1,7 +1,12 @@
 {
   "description": "WPT Monitor 微信小程序",
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "value": "/minitest",
+        "type": "folder"
+      }
+    ],
     "include": []
   },
   "setting": {
@@ -30,7 +35,7 @@
     }
   },
   "compileType": "miniprogram",
-  "libVersion": "2.30.0",
+  "libVersion": "3.16.1",
   "appid": "wx5e5478a2c780d10a",
   "projectname": "wpt-monitor",
   "simulatorPluginLibVersion": {},

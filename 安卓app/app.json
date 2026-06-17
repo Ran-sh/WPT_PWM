@@ -1,12 +1,27 @@
 {
   "pages": [
-    "pages/index/index"
+    "pages/index/index",
+    "pages/monitoring/monitoring",
+    "pages/control/control",
+    "pages/history/history",
+    "pages/alerts/alerts",
+    "pages/settings/settings"
   ],
   "window": {
     "navigationBarTitleText": "WPT Monitor",
-    "navigationBarBackgroundColor": "#030712",
+    "navigationBarBackgroundColor": "#06080E",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#030712"
+    "backgroundColor": "#06080E"
+  },
+  "tabBar": {
+    "custom": true,
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页" },
+      { "pagePath": "pages/monitoring/monitoring", "text": "监测" },
+      { "pagePath": "pages/control/control", "text": "控制" },
+      { "pagePath": "pages/history/history", "text": "历史" },
+      { "pagePath": "pages/settings/settings", "text": "设置" }
+    ]
   },
   "sitemapLocation": "sitemap.json"
 }

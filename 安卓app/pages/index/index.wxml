@@ -1,79 +1,42 @@
+<!-- WPT Monitor — 首页仪表盘 (对齐 Web index.html) -->
 <view class="page {{currentTheme}}">
-  <!-- 顶部状态栏 -->
+  <!-- Header -->
   <view class="header">
     <view class="header-left">
-      <text class="header-title">WPT Monitor</text>
-      <view class="btn-refresh {{spinning ? 'spin' : ''}}" bindtap="onRefresh">⟳</view>
-      <view class="toggle-theme" bindtap="onToggleTheme">{{currentTheme === 'theme-dark' ? '🌙' : '☀'}}</view>
+      <text class="header-title">{{dashTitle}}</text>
+      <view class="toggle-theme" bindtap="onToggleTheme"><text>{{currentTheme === 'theme-dark' ? '🌙' : '☀'}}</text></view>
     </view>
-    <view class="conn-badge {{connected ? 'conn-on' : 'conn-off'}}">
+    <view class="conn-badge {{connState === 0 ? 'conn-on' : (connState === 1 ? 'conn-off' : (connState === 2 ? 'conn-err' : 'conn-init'))}}" bindtap="onConnTap">
       <view class="conn-dot"></view>
-      <text>{{connected ? '已连接' : '未连接'}}</text>
+      <text>{{connLabel}}</text>
     </view>
   </view>
 
-  <!-- 系统状态卡片 -->
-  <view class="card">
-    <text class="card-label">系统状态</text>
-    <view class="state-row">
-      <view class="state-dot {{systemState}}"></view>
-      <text class="state-text {{systemState}}">{{stateLabel}}</text>
-    </view>
+  <!-- 告警横幅 -->
+  <view wx:if="{{alertVisible}}" class="alert-banner" bindtap="onAlertTap">
+    <text wx:for="{{alertMessages}}" wx:key="*this" wx:for-item="msg">⚠ {{msg}}  </text>
   </view>
 
-  <!-- 数据卡片行: 电压 | 电流 -->
-  <view class="cards-row">
-    <view class="card data-card">
-      <text class="card-label">电压</text>
-      <view class="data-value-row">
-        <text class="data-value">{{voltage}}</text>
-        <text class="data-unit">V</text>
+  <!-- 传感器卡片 (动态渲染, 对齐 Web renderDashboard) -->
+  <view class="card-list">
+    <view class="sensor-card" wx:for="{{sensors}}" wx:key="id">
+      <text class="card-label">{{item.name}}</text>
+      <view class="sensor-value-row">
+        <text class="sensor-value">{{item.value}}</text>
+        <text class="sensor-unit">{{item.unit}}</text>
       </view>
-    </view>
-    <view class="card data-card">
-      <text class="card-label">电流</text>
-      <view class="data-value-row">
-        <text class="data-value">{{current}}</text>
-        <text class="data-unit">A</text>
+      <view class="sensor-status {{item.status}}">
+        <view class="status-dot"></view>
+        <text>{{item.statusText}}</text>
       </view>
     </view>
   </view>
 
-  <!-- 当前频率 -->
-  <view class="card freq-card">
-    <text class="freq-card-label">当前频率</text>
-    <view class="freq-card-right">
-      <text class="freq-card-value">{{frequency}}</text>
-      <text class="freq-card-unit">kHz</text>
-    </view>
-  </view>
-
-  <!-- 目标频率 -->
-  <view class="card freq-card">
-    <text class="freq-card-label">频率设置</text>
-    <view class="freq-card-right">
-      <swiper
-        class="freq-swiper"
-        current="{{freqIdx}}"
-        bindchange="onSwiperChange"
-      >
-        <swiper-item wx:for="{{freqList}}" wx:key="*this">
-          <view class="swipe-num {{index === freqIdx ? 'swipe-sel' : ''}}">{{item}}</view>
-        </swiper-item>
-      </swiper>
-      <text class="freq-card-unit">kHz</text>
-      <view class="btn-confirm {{isOn ? '' : 'btn-disabled'}}" bindtap="onSetFreq">
-        <text>确认</text>
-      </view>
-    </view>
-  </view>
-
-  <!-- 启停开关 — 与网页端一致 -->
-  <view class="card switch-card">
-    <text class="freq-card-label">启停控制</text>
-    <view class="switch-row">
-      <text class="switch-text {{isOn ? 'switch-on' : 'switch-off'}}">{{isOn ? '运行中' : '已停止'}}</text>
-      <switch checked="{{isOn}}" bindchange="onSwitch" color="#22C55E"/>
+  <!-- 控制卡片 (动态渲染) -->
+  <view class="card-list">
+    <view class="ctrl-card" wx:for="{{controls}}" wx:key="id">
+      <text class="card-label">{{item.name}}</text>
+      <text class="ctrl-value">{{item.value}}</text>
     </view>
   </view>
 </view>

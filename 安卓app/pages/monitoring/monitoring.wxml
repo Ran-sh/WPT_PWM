@@ -1,0 +1,21 @@
+<view class="page {{currentTheme}}">
+  <view class="header-bar">
+    <view><text class="header-title">实时监测</text>
+      <view class="header-badge"><view class="badge-dot green"></view><text class="badge-text">每10s刷新</text></view>
+    </view>
+    <view bindtap="onToggleTheme" style="width:64rpx;height:64rpx;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--toggle-bg);border:1rpx solid rgba(255,255,255,0.06);font-size:24rpx;">{{currentTheme === 'theme-dark' ? '🌙' : '☀'}}</view>
+  </view>
+  <view class="card-list">
+    <view class="sensor-card {{item.status}}" wx:for="{{sensors}}" wx:key="id">
+      <view class="sensor-top"><text class="sensor-name">{{item.name}}</text></view>
+      <view class="sensor-val-row"><text class="sensor-val">{{item.value}}</text><text class="sensor-unit">{{item.unit}}</text></view>
+      <view class="sensor-status {{item.status}}"><view class="status-dot"></view><text>{{item.statusText}}</text></view>
+    </view>
+  </view>
+  <view class="chart-card">
+    <view class="chart-header"><text class="chart-title">近7分钟趋势</text>
+      <view class="chart-tabs"><view class="chart-tab {{currentMetric === m ? 'active' : ''}}" wx:for="{{metricTabs}}" wx:key="*this" data-metric="{{item}}" bindtap="onTabTap"><text>{{tabLabels[item]}}</text></view></view>
+    </view>
+    <canvas type="2d" id="trendCanvas" class="trend-canvas"></canvas>
+  </view>
+</view>

@@ -1,0 +1,75 @@
+/* custom-tab-bar 样式 */
+.tab-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 999;
+  background: rgba(10,12,24,0.95);
+  border-top: 0.5px solid rgba(0,229,255,0.06);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tab-bar-glow {
+  position: absolute;
+  top: 0; left: 20rpx; right: 20rpx;
+  height: 1rpx;
+  background: linear-gradient(90deg, transparent, rgba(0,229,255,0.2), rgba(0,229,255,0.06), transparent);
+  opacity: 0.7;
+}
+
+.tab-bar-inner {
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  height: 100rpx;
+  position: relative;
+}
+
+.tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  position: relative;
+  min-height: 100rpx;
+}
+
+.tab-pill {
+  position: absolute;
+  top: 2rpx;
+  width: 28rpx; height: 5rpx;
+  border-radius: 3rpx;
+  background: var(--accent, #00E5FF);
+  opacity: 0;
+  transform: scaleX(0);
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 12rpx rgba(0,229,255,0.55);
+}
+.tab-pill.show { opacity: 1; transform: scaleX(1); }
+
+.tab-icon-box {
+  display: flex; align-items: center; justify-content: center;
+  width: 64rpx; height: 56rpx;
+  border-radius: 14rpx;
+  transition: background 0.18s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tab-icon-box.active { background: var(--accent-bg, rgba(0,229,255,0.08)); transform: translateY(-2rpx); }
+
+.tab-icon {
+  font-size: 36rpx; line-height: 1;
+  display: block;
+  text-align: center;
+  width: 100%;
+  color: var(--text-tertiary, #4B5268);
+  transition: color 0.18s ease, text-shadow 0.18s ease;
+}
+.tab-icon.active { color: var(--accent, #00E5FF); text-shadow: 0 0 14rpx rgba(0,229,255,0.5); }
+
+.tab-label {
+  font-size: 18rpx; font-weight: 600;
+  text-align: center;
+  width: 100%;
+  color: var(--text-tertiary, #4B5268);
+  transition: color 0.18s ease, font-weight 0.18s ease;
+}
+.tab-label.active { color: var(--accent, #00E5FF); font-weight: 800; }

@@ -1,0 +1,17 @@
+<view class="page {{currentTheme}}">
+  <view class="header-bar"><text class="header-title">报警记录</text>
+    <view style="display:flex;align-items:center;gap:12rpx;">
+      <view bindtap="onToggleTheme" style="font-size:30rpx;width:52rpx;height:52rpx;border-radius:50%;background:var(--toggle-bg);display:flex;align-items:center;justify-content:center;">{{currentTheme === 'theme-dark' ? '🌙' : '☀'}}</view>
+      <view class="btn btn-blue" bindtap="onMarkAllRead"><text>一键已读</text></view>
+      <view class="btn btn-red" bindtap="onClearAll"><text>清空</text></view>
+    </view>
+  </view>
+  <view class="filter-tabs"><view class="filter-tab {{filter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="onFilter"><text>全部</text></view><view class="filter-tab {{filter === 'unread' ? 'active' : ''}}" data-filter="unread" bindtap="onFilter"><text>未读</text></view><view class="filter-tab {{filter === 'read' ? 'active' : ''}}" data-filter="read" bindtap="onFilter"><text>已处理</text></view></view>
+  <view wx:if="{{alerts.length === 0}}" class="empty"><text class="empty-icon">🔔</text><text class="empty-text">暂无报警记录</text></view>
+  <view class="alert-card {{item.isUnread ? 'unread' : 'read'}}" wx:for="{{alerts}}" wx:key="id">
+    <view class="alert-top"><view class="alert-status {{item.isUnread ? (item.isCritical ? 'critical' : 'warn') : 'done'}}"><view class="status-dot"></view><text>{{item.isUnread ? '未读' : '已处理'}}</text></view><text class="alert-time">{{item.time}}</text></view>
+    <text class="alert-title">{{item.title}}</text>
+    <view class="alert-values"><text class="alert-val {{item.isUnread ? (item.isCritical ? 'val-bad' : 'val-warn') : ''}}">{{item.currentValue}}{{item.unit}}</text><text class="alert-threshold">阈值 {{item.threshold}}{{item.unit}}</text></view>
+    <view wx:if="{{item.isUnread}}" class="alert-actions"><view bindtap="onViewDetail" data-type="{{item.type}}" style="font-size:22rpx;font-weight:600;color:var(--accent);padding:6rpx 16rpx;border-radius:8rpx;background:var(--accent-bg);margin-right:8rpx;">查看详情</view><view bindtap="onIgnore" data-id="{{item.id}}" style="font-size:22rpx;font-weight:600;color:var(--text-tertiary);padding:6rpx 16rpx;border-radius:8rpx;background:rgba(0,0,0,0.04);">忽略</view></view>
+  </view>
+</view>

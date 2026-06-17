@@ -1,0 +1,24 @@
+<view class="page {{currentTheme}}">
+  <view class="header-bar"><text class="header-title">设置</text><view bindtap="onToggleTheme" style="font-size:30rpx;width:52rpx;height:52rpx;border-radius:50%;background:var(--toggle-bg);display:flex;align-items:center;justify-content:center;">{{currentTheme === 'theme-dark' ? '🌙' : '☀'}}</view></view>
+  <view class="section"><text class="section-title">OneNET 云平台</text>
+    <view class="card"><view class="form-item"><text class="label">Product ID</text><input class="input" value="{{productId}}" placeholder="产品ID" bindinput="onProductIdInput"/></view>
+      <view class="form-item"><text class="label">Device Name</text><input class="input" value="{{deviceName}}" placeholder="设备名称" bindinput="onDeviceNameInput"/></view>
+      <view class="form-item"><text class="label">Token</text><input class="input mono" value="{{token}}" placeholder="鉴权Token" bindinput="onTokenInput"/></view>
+      <view class="form-footer"><text wx:if="{{configured}}" class="status-ok">● 已配置</text><text wx:else class="status-no">○ 未配置 — 保存后生效</text><view class="btn-save" bindtap="onSaveConfig"><text>保存</text></view></view>
+    </view>
+  </view>
+  <view class="section"><text class="section-title">系统名称</text>
+    <view class="card"><view class="form-item row"><input class="input flex-1" value="{{dashboardTitle}}" placeholder="WPT Monitor" bindinput="onTitleInput"/><view class="btn-save" bindtap="onSaveTitle"><text>保存</text></view></view></view>
+  </view>
+  <view class="section"><text class="section-title">警报与通知</text>
+    <view class="card row-card"><text class="label">异常声音警报</text><switch checked="{{soundAlert}}" bindchange="onToggleSound" color="#22C55E"/></view>
+  </view>
+  <view class="section"><text class="section-title">系统</text>
+    <view class="card row-card" bindtap="onClearCache"><view><text class="label">恢复默认/清除缓存</text><text class="hint">清除数据模型、历史记录、配置等本地数据</text></view><text class="arrow">›</text></view>
+  </view>
+  <view class="section"><text class="section-title">关于</text>
+    <view class="card about-card"><text class="about-title">WPT 无线充电</text><view class="about-row"><text class="about-key">作者</text><text class="about-val">Rssss</text></view>
+      <view class="disclaimer"><text>免责声明：本软件为开源工具，仅供学习参考使用，不承担任何因使用引起的直接或间接责任。</text></view>
+    </view>
+  </view>
+</view>

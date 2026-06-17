@@ -8,8 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V16 (8轮审查后稳定版) |
+| **版本** | V26 |
 | **语言** | 中文交流，代码注释中英混合 |
+
+> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V9, 1.6万字)
+> **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
+> **频率斜坡设计**: `Claude_Files/docs/superpowers/specs/2026-05-24-freq-ramp-design.md`
 
 ## Git 推送前置钩子
 
@@ -31,7 +35,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### ESP8266 (Arduino IDE)
 
-- **Board**: Generic ESP8266 Module, Flash 1M, 80MHz CPU, `Arduino_Project/...ino`
+- **Board**: Generic ESP8266 Module, Flash 1M, 80MHz CPU
+- **Project**: `Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino`
 - **烧录**: GPIO0 接 GND → 上电 → 上传 → 断开 GPIO0-GND → 重新上电
 - **配网**: 首次上电开热点 `STM32_WPT_Config` → 手机连上输 WiFi 密码 → 自动连 OneNET
 
@@ -47,9 +52,9 @@ Sys_Safety 独立安全监测      USART2 115200 纯文本 JSON
         └────── USART2 JSON ───────┘
 ```
 
-**Iron rule**: STM32 不发 AT 指令, ESP 不碰 PWM/ADC。开机自动联网。
+**铁律**: STM32 不发 AT 指令, ESP 不碰 PWM/ADC。开机自动联网。
 
-## 系统全局状态机 (V14)
+## 系统全局状态机
 
 ```
 SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
@@ -65,55 +70,49 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 | RUNNING | 开 | + Freq_Ramp |
 | FAULT | 关 | + FAULT UI, 取消所有斜坡 |
 
-## 文件结构 (V16 稳定版)
-
-### 完整目录树 + 行数
+## 文件结构
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/                        ← 总计 ~8250 行逻辑代码
-├── Keil_Project/                    ← STM32 固件 (Keil MDK) — 3942 行
-│   ├── Project.uvprojx              ← 工程入口, F7编译→F8下载
-│   ├── keilkill.bat                 ← 清理编译产物 (push前必执行)
-│   ├── Hardware/ (12源文件)
-│   │   ├── Ui_Controller.c/h      ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1708+39行)
-│   │   ├── Tft_Driver.c/h         ← ST7735 SPI+DMA 彩屏 (606+76行)
-│   │   ├── TFT_Font_Data.h        ← ASCII 95字 + 中文 76字 + 图标 (356行)
-│   │   ├── Esp8266_Driver.c/h     ← USART2 + Try_Copy_Rx_Frame 原子接收 (247+49行)
-│   │   ├── App_Network.c/h        ← WiFi+心跳+帧快照+遥测 (251+41行)
-│   │   ├── Adc_Driver.c/h         ← ADC1 双通道 + 64样本滑动窗口 (162+20行)
-│   │   ├── Inverter_Control.c/h   ← 软启动 + 频率斜坡 (146+67行)
-│   │   ├── Key_Driver.c/h         ← 4键 FSM (137+38行)
-│   │   ├── Pwm_Driver.c/h         ← TIM1 全桥 PWM 95-150kHz (113+33行)
-│   │   ├── Led_Driver.c/h         ← 6 LED 闪烁 (135+42行)
-│   │   └── Buzzer_Driver.c/h      ← 蜂鸣器 (68+30行)
-│   ├── User/ (4源文件)
-│   │   ├── Sys_Core.c/h           ← 状态枚举+初始化+安全+Sys_Safety_Reset_EMA (203+44行)
-│   │   ├── main.c                 ← 程序入口 50行
-│   │   └── stm32f10x_it.c/h       ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
-│   ├── System/ → Sys_Timer.c/h    ← SysTick 1ms + DWT (48+36行)
+WPT_PWM_V4.0_ONENET_TFT/                        ← ~5300 行逻辑代码
+├── Keil_Project/                               ← STM32 固件 — ~4558 行
+│   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
+│   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
+│   ├── Hardware/
+│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1703+39行)
+│   │   ├── Tft_Driver.c/h                      ← ST7735 SPI+DMA 彩屏 + CN_Lookup (606+76行)
+│   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (356行)
+│   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (247+49行)
+│   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (162+20行)
+│   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡 (146+67行)
+│   │   ├── Key_Driver.c/h                      ← 4键 FSM (137+38行)
+│   │   ├── Led_Driver.c/h                      ← 6 LED 闪烁 (135+42行)
+│   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (113+33行)
+│   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (68+30行)
+│   ├── User/
+│   │   ├── App_Network.c/h                     ← WiFi+心跳+帧快照+遥测 (251+41行)
+│   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全 (203+44行)
+│   │   ├── main.c                              ← 程序入口 (50行)
+│   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
+│   ├── System/ → Sys_Timer.c/h                 ← SysTick 1ms + DWT (48+36行)
 │   ├── Start/  → CMSIS + system_stm32f10x
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
-├── Arduino_Project/                ← ESP8266 固件 (Arduino IDE) — 494 行
-│   └── ESP8266_MQTT_Firmware.ino  ← WiFiManager+双MQTT+指令去抖+Mqtt_Task_Publish_Telemetry
-├── ONENETapp/                      ← 网页控制台 (Cloudflare Pages, 纯JS) — 3507 行
-│   ├── settings.html              ← 系统设置 (803行)
-│   ├── history.html               ← 历史查询 (531行)
-│   ├── control.html               ← 设备控制+5s同步+Switch防抖 (458行)
-│   ├── index.html                 ← 主页+连接指示+指数退避轮询 (419行)
-│   ├── monitoring.html            ← 实时监测+趋势图 (394行)
-│   ├── alerts.html                ← 报警记录 (325行)
-│   ├── login.html                 ← 登录页 (150行)
-│   ├── js/onenet.js               ← OneNET API+乐观更新+setProperty重试3次 (327行)
-│   ├── js/config.js               ← 数据模型+颜色映射 (67行)
-│   ├── js/mobile-nav.js           ← 移动端底部导航栏 (33行)
-│   └── service-worker.js          ← PWA Service Worker v2 (离线回退)
-├── 安卓app/                        ← 微信小程序 — 307 行
-│   ├── pages/index/index.js       ← OneNET直连+频率映射+指令验证重发 (227行)
-│   ├── pages/index/index.wxml     ← UI 模板 (79行)
-│   └── pages/index/index.wxss     ← 双主题样式系统 (345行)
-└── Claude_Files/                   ← AI 生成文档
+├── Arduino_Project/                            ← ESP8266 固件 — 494 行
+│   └── ESP8266_MQTT_Firmware.ino               ← WiFiManager+双MQTT+指令去抖+遥测
+├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages, 纯JS)
+│   ├── index.html / control.html               ← 主页+控制+乐观更新+轮询
+│   ├── monitoring.html / history.html          ← 监测+历史趋势图
+│   ├── alerts.html / settings.html / login.html
+│   ├── js/onenet.js                            ← OneNET API 核心
+│   └── js/config.js                            ← 数据模型+颜色映射
+├── 安卓app/                                    ← 微信小程序 (V25, 6页面+Component)
+│   ├── utils/config.js                         ← 数据模型单一来源 (DEFAULT_DATA_MODEL)
+│   ├── utils/onenet.js                         ← API 层 (双请求并行+细化错误+Mock)
+│   ├── custom-tab-bar/                         ← 底部导航 Component (无高亮)
+│   └── pages/{index,monitoring,control,history,alerts,settings}/
+└── Claude_Files/docs/                          ← 开发者指南 + 架构师技能文件
+```
 
-## 主循环 (V14 状态机)
+## 主循环
 
 ```c
 int main(void) {
@@ -146,51 +145,49 @@ int main(void) {
 | 显示级 | `Ui_Controller_Update_EMA()` | Sys_Safety 输出 | UI 仪表盘 + 综合监测页 |
 | 数字量 | `Pwm_Driver_Get_Frequency()` | 无滤波 | 频率（零迟滞, 保证调频跟手） |
 
-## App_Network WiFi 重试 (V16)
+## App_Network WiFi 重试
 
 - **指数退避**: 0-2次 3s → 3-7次 15s → 8-13次 30s → 14-21次 60s → 22-31次 2min → 32-46次 5min → 47+次 30min，永不 FAILED
-- **心跳超时**: 8s 无 ESP 帧 → 判定离线 → 自动重连 (`s_last_esp_ms` + `Esp8266_Driver_Start_Init()`)
-- **远程指令**: CMD:ON/OFF 同步更新 `g_sys_state` + `Ui_Controller_Force_Page()`
-- **帧处理安全**: `Try_Copy_Rx_Frame` 消除 check-then-act 丢帧窗口; `ss_cmd`/`conn_cs` 帧内快照防 ELSE-IF 链间 TOCTOU
+- **心跳超时**: 8s 无 ESP 帧 → 判定离线 → 自动重连
+- **远程指令**: CMD:ON/OFF → `Ui_Controller_Force_Page_And_Reset()` 同步复位页面+光标
+- **帧处理安全**: `Try_Copy_Rx_Frame` 消除 TOCTOU; `ss_cmd`/`conn_cs` 帧内快照防 ELSE-IF 链竞态
 - **热点加速**: RSSI ≥ -35 → 直接重置退避级别为 3s 级快速直连
-- **MQTT 超时修复**: 计时器仅在首次进入 MQTT 状态时重置一次 (非每圈)
 
-## ESP8266 固件 (V16)
+## ESP8266 固件
 
 - **指令去抖**: Mqtt_Task_Parse_Command 2s 窗口内相同 payload 直接丢弃
-- **Switch 状态**: 仅 `s==2` (SS_DONE) 上报 true, `s==1` (SWEEP) 为过渡态不上报运行
-- **遥测频率**: 仅在 running 时上报真实 F 值, 否则上报 0
-- **SetFreq 量化**: `(val/1000)*1000`, 与 STM32 PMW 1kHz 步进一致
-- **公共 Broker 透传**: `wpt/20260001/data` 接收原始 STM32 JSON, `wpt/20260001/cmd` 透传 CMD 指令
+- **Switch 状态**: 仅 `s==2` (SS_DONE) 上报 true, `s==1` (SWEEP) 为过渡态不上报
+- **遥测频率**: 仅在 running 时上报真实 F 值, 否则上报 0 (完全透传 STM32)
+- **SetFreq 量化**: `(val/1000)*1000`, 与 STM32 PWM 1kHz 步进一致
 
-## 网页端 (Cloudflare Pages) 关键设计
+## 网页端 (Cloudflare Pages)
 
-- **乐观更新**: `setProperty` 成功后立即写 localStorage 缓存 + 3s 乐观锁, 轮询同步时忽略云端旧值
-- **重试机制**: `setProperty` 网络/业务错误各重试 3 次 (500ms/800ms 间隔)
-- **连接指示**: 同步失败 → 红色"连接失败"; 设备离线 → 黄色"离线"; 在线 → 绿色"在线"
-- **控制页同步**: 5s 间隔 (与首页一致), 非 60s
-- **数据模型**: `config.js` DEFAULT_DATA_MODEL 定义 sensors(V/I/F) + controls(Switch/SetFreq)
+- **乐观更新**: `setProperty` 成功后立即写 localStorage + 3s 乐观锁
+- **重试**: `setProperty` 网络/业务错误各重试 3 次 (500ms/800ms)
+- **连接指示**: 在线(绿) / 离线(黄) / 失败(红)
+- **数据模型**: `config.js` DEFAULT_DATA_MODEL → sensors(V/I/F) + controls(Switch/SetFreq)
 - **频率映射**: `fromCloud: v => Math.floor(v/1000)` / `toCloud: v => v*1000`, Web 显示 kHz
 
-## 微信小程序 关键设计
+## 微信小程序
 
-- **频率查表**: `buildFreqMap()` 预计算 STM32 硬件分频后的有效 kHz 值 (匹配 PMW 偶数 ticks 约束)
-- **停机显示**: F=0 时频率显示 0 (灰色), 保持最近已知频率供用户选频 (`s_last_display_freq`)
-- **指令重试**: `_sendCmd` 内置 3 次重试 (600ms/800ms), onSwitch 额外 3s 后验证重发
-- **双主题**: CSS 变量 `theme-dark` / `theme-light` 完整调色板
+- **架构**: 6 页面 + `custom-tab-bar` Component + `utils/` (单数据模型来源)
+- **API 层**: `getLatestData()` 双请求并行, HTTP 细化错误 (401/403/404/429/503), Mock fallback
+- **键盘**: Component 方法名 `onSwitchTab` (不能叫 `switchTab` 与 `wx.switchTab` 冲突)
+- **底部栏**: 无高亮 (selected=-1), 5 tab: ⌂ ◉ ⊛ 🗂 ⚙, `templates/` 已删除
+- **存储键**: `wpt_latest`, `wpt_history`(1440max), `wpt_alerts`(50max), `wpt_alarm_states`, `wpt_control_locks`, `wpt_onenet_config`, `wpt_data_model`
 
-## 全链路数据一致性 (V16 铁律)
+## 全链路数据一致性铁律
 
-| 状态 | STM32 遥测 | ESP 上报 OneNET | Web/小程序显示 |
+| 状态 | STM32 遥测 | ESP 上报 | Web/小程序显示 |
 |:---|:---|:---|:---|
 | IDLE | V=真实,I=真实,F=0,S=0 | Switch=false, V/I=真实, F=0 | 停机/V/I 正常/F=0 |
 | SWEEP | 不发送遥测 | (无数据) | (上一帧缓存) |
 | RUNNING | V=EMA,I=EMA,F=真实Hz,S=2 | Switch=true, V/I/F=真实 | 运行中/实时值 |
 | FAULT | V=真实,I=真实,F=0,S=3 | Switch=false, V/I=真实, F=0 | 故障/实时V/I/F=0 |
 
-**核心原则**: V/I 始终上报真实物理量 (任何状态下 ADC 均可采集), 仅 F (频率) 在 PWM 未运行时强制为 0 (物理上无输出)。ESP 侧不再二次判断 F 值, 完全透传 STM32 的决策。
+**核心**: V/I 始终上报真实物理量 (任何状态 ADC 均可采), 仅 F 在 PWM 未运行时强制为 0。
 
-Telemetry JSON 全链路格式不变: `{"V":xx,"I":xx,"F":xx,"S":x}\n`
+Telemetry JSON 全链路格式: `{"V":xx,"I":xx,"F":xx,"S":x}\n`
 
 ## Pin Mapping (STM32F103C8 LQFP-48)
 
@@ -215,7 +212,7 @@ JTAG 禁用释放 PB3/PB4/PB5/PA15。
 
 ## 编码规范
 
-### 命名 (V14 零容忍)
+### 命名 (零容忍)
 
 | 层次 | 规则 | 正确 | 违规 |
 |:---|:---|:---|:---|
@@ -242,16 +239,18 @@ JTAG 禁用释放 PB3/PB4/PB5/PA15。
 - 禁止 `extern` 访问模块私有变量, 禁止 `#include ".c"`
 - 分层单向: Hardware → System → Application
 
-## TFT 驱动 (ST7735 Green Tab, 不可改)
+## TFT 驱动 (ST7735 Green Tab)
 
 | 参数 | 值 |
 |:---|:---|
 | SPI | Mode 3, 18MHz, DMA1_Channel3, 只写不读 |
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 |
-| 字库 | 8×16 ASCII (95) + 16×16 中文 (78) + 5×10 微数字 (12) |
+| 字库 | 8×16 ASCII (95) + 16×16 中文 (76) + 5×10 微数字 (12) |
 | 字库位序 | 全部 LSB-first, 统一在 `TFT_Font_Data.h` |
 | 图标 | WIFI(4+动画6帧), MQTT(3态+动画6帧), ICON_STAR |
+
+CN_INDEX 与 CN_FONT_16X16 严格一一对应 (76字, 索引 0-75), 末尾为 综(74)+合(75)。
 
 ## PWM 基线 (不可改)
 
@@ -259,17 +258,17 @@ JTAG 禁用释放 PB3/PB4/PB5/PA15。
 - 死区 1000ns, 95-150kHz, UDIS 原子更新
 - 开机: TIM_Cmd(DISABLE) + MOE(DISABLE), 零输出
 
-## 圆弧能量条仪表盘 (V15)
+## 圆弧能量条仪表盘
 
 | 参数 | 值 |
 |:---|:---|
 | 圆心 | G_CX=80, G_CY=84 |
 | 半径 | R_TICK=56 (外), R_BIG=50 (主6px), R_FINE=53 (细3px) |
-| 绘制 | 1px Bres_Line, 高亮色/暗灰槽(0x18C3), 无弧无Fill加粗 |
+| 绘制 | 1px Bres_Line, 高亮色/暗灰槽(0x18C3) |
 | **信息舱** | Row 4(Y=64): 状态 OK/WRN/HI/SWP/DON/IDL 居中 |
-| | Row 5(Y=80): 纯数值 12.45 居中黄色 (电流 3位小数) |
-| | Row 6(Y=96): 标签 电压 V/电流 A/频率 kHz 居中青色 |
-| Phase 0 | WIFI@128 + MQTT@144, cs/frame/page 四因子触发 |
+| | Row 5(Y=80): 纯数值居中黄色 |
+| | Row 6(Y=96): 标签居中青色 |
+| Phase 0 | WIFI@X=128 + MQTT@X=144 |
 
 ### GaugeConfig 三表
 
@@ -294,29 +293,20 @@ JTAG 禁用释放 PB3/PB4/PB5/PA15。
 | 6 | Cursor boundary clamp |
 | 7 | Draw — full page only when s_page_drawn==0 |
 
-安全逻辑 (PB10/过流) 已从 UI 剥离到 Sys_Safety。
+### 底部栏 (V26 简化)
+
+所有页面统一: 左侧 `ON:确定` + 右侧 `PAGE:返回`。
+SUB_MENU 和 FAULT 页面仅右侧 `PAGE:返回`。
 
 ## Safety
 
 - **过流**: Sys_Safety 每圈检测 >5.0A → SYS_FAULT + Buzzer BEEP
 - **FAULT 恢复**: ON/OFF 单击 → `Soft_Start_Reset()` + `Sys_Safety_Reset_EMA()` → MAIN_MENU
-- **FAULT 防重触发**: EMA 电流清零 + 重新初始化, 防止 EMA 残留值立即再触发
-- **远程启停 UI 同步**: CMD:ON/OFF → `Ui_Controller_Force_Page_And_Reset()` 同时复位页面+光标
+- **FAULT 防重触发**: EMA 电流清零 + 重新初始化
+- **远程启停 UI 同步**: CMD:ON/OFF → `Ui_Controller_Force_Page_And_Reset()`
 - **上电**: TIM1 全关, PB10 拉低关 12V
 - **看门狗**: IWDG 1.6s, 调试自动暂停
-- **HardFault/MemManage/BusFault/UsageFault**: 先关 PWM 再死循环
-
-## 审查历史 (V15→V16)
-
-V16 经 8 轮全链路审查 (STM32+ESP8266+Web+小程序), 累计修复 30+ 项:
-
-| 轮次 | 重点 | 关键修复 |
-|:---|:---|:---|
-| 1-2 | STM32 逻辑 | MQTT超时+心跳+TOCTOU快照+FAULT防重触 (21项) |
-| 3-4 | 硬件+全链路 | ESP去抖+遥测F=0+Switch仅DONE+Web setProperty重试 |
-| 5 | 全链路验证 | 数据一致性铁律 (遥测始终上报V/I, 仅F停机为0) |
-| 6-7 | 遗漏+根因 | CN_INDEX去重+在线检测重构+重试间隔5s+SW离线+429/503 |
-| 8 | 设备端+编译 | Ui_Controller_Force_Page_And_Reset+字库76字精准对齐 |
+- **HardFault/...**: 先关 PWM 再死循环
 
 ## 环形仪表盘速查
 
@@ -327,8 +317,8 @@ V16 经 8 轮全链路审查 (STM32+ESP8266+Web+小程序), 累计修复 30+ 项
 
 Bres_Line(x0,y0,x1,y1,color);              /* 1px 能量条刻度 */
 Gauge_Polar(angle_deg, radius, &x, &y);     /* sin 查表极坐标 */
-Draw_Gauge_Full(cfg, val);                   /* 入场全绘 */  
-Gauge_Dynamic_Update(cfg, val, old_val);     /* 200ms 增量差分 */  
+Draw_Gauge_Full(cfg, val);                   /* 入场全绘 */
+Gauge_Dynamic_Update(cfg, val, old_val);     /* 200ms 增量差分 */
 Draw_TopRight_Icons();                       /* WIFI@128 MQTT@144 */
 
 /* 三表配置 */
@@ -338,3 +328,11 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 /* 信息舱: 状态(Row4) → 数值(Row5,黄) → 标签(Row6,青) */
 ```
+
+## 审查历史
+
+| 版本 | 重点修复 |
+|:---|:---|
+| V16 | 8 轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 (30+项) |
+| V25 | 小程序全重写: 单数据模型源+双API并行+动态卡片+底部栏Component+HTTP细化错误 |
+| V26 | TFT字库修复: CN_FONT[74..75] 失败→综合字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |

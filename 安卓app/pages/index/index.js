@@ -1,227 +1,133 @@
-/* OneNET 直连 — 与网页端完全相同的后端逻辑 */
-const ONENET = {
-  PRODUCT_ID: '1iS397oJFL',
-  DEVICE_NAME: '20260001',
-  TOKEN: 'version=2018-10-31&res=products%2F1iS397oJFL%2Fdevices%2F20260001&et=2063362960&method=md5&sign=phYCE26jNI80tiXEeMxxRA%3D%3D',
-  BASE_URL: 'https://iot-api.heclouds.com'
-};
-const POLL_MS = 2000;
-const TIM1_CLK = 72000000;
+/* ═══════════════════════════════════════════
+   WPT Monitor — 首页仪表盘
+   完全对齐 Web index.html: renderDashboard + updateUI
+   ═══════════════════════════════════════════ */
 
-function buildFreqMap() {
-  const map = new Map();
-  for (let hz = 95000; hz <= 150000; hz += 1000) {
-    let ticks = Math.floor(TIM1_CLK / hz);
-    if (ticks % 2 !== 0) ticks += 1;
-    const displayKHz = Math.floor(TIM1_CLK / ticks / 1000);
-    if (displayKHz < 95) continue;
-    if (!map.has(displayKHz)) map.set(displayKHz, hz);
-  }
-  const entries = Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
-  return { list: entries.map(e => e[0]), hzMap: entries.map(e => e[1]) };
+var OneNet = require('../../utils/onenet.js');
+
+function formatValue(val, dataType, step) {
+  var n = Number(val);
+  if (isNaN(n)) return '--';
+  return n.toFixed(OneNet.getDecimals(dataType, step));
 }
-const FREQ = buildFreqMap();
-const FREQ_LIST = FREQ.list;
-const FREQ_HZ   = FREQ.hzMap;
-const INIT_IDX  = FREQ_LIST.indexOf(100);
-/* PWM 停机时当前频率回零, 复位需从值域快照恢复 */
-let s_last_display_freq = 100;
+
+function buildCards(model, data) {
+  var sensors = [], controls = [];
+  /* 传感器 */
+  (model.sensors || []).forEach(function(s) {
+    var val = '--', status = 'normal', stxt = '等待数据';
+    if (data && data[s.id] !== undefined) {
+      val = formatValue(data[s.id], s.dataType, s.step);
+      var n = Number(val);
+      if (!isNaN(n)) {
+        if (n > s.max) { status = 'alert'; stxt = '过高'; }
+        else if (n < s.min && s.min > 0) { status = 'alert'; stxt = '过低'; }
+        else { status = 'normal'; stxt = '正常'; }
+      }
+    }
+    sensors.push({ id: s.id, name: s.name, unit: s.unit, value: val, status: status, statusText: stxt, min: s.min, max: s.max });
+  });
+  /* 控制 */
+  (model.controls || []).forEach(function(c) {
+    var displayVal = '--';
+    if (data && data[c.id] !== undefined) {
+      if (c.dataType === 'bool') {
+        displayVal = data[c.id] === true ? '已开启' : '已关闭';
+      } else {
+        displayVal = formatValue(data[c.id], c.dataType, c.step);
+      }
+    }
+    controls.push({ id: c.id, name: c.name, value: displayVal });
+  });
+  return { sensors: sensors, controls: controls };
+}
 
 Page({
   data: {
-    voltage: '--', current: '--', frequency: '--',
-    systemState: 'IDLE', stateLabel: '待机',
-    isOn: false, isFault: false, connected: true,  /* 默认在线: 避免启动瞬间闪现"未连接", API 错误时再切离线 */
-    freqList: FREQ_LIST, selectedFreq: 100, freqIdx: INIT_IDX,
-    currentTheme: 'theme-dark',
-    spinning: false
+    dashTitle: 'WPT Monitor', sensors: [], controls: [],
+    connState: 3, connLabel: '连接中',
+    currentTheme: 'theme-dark', alertVisible: false, alertMessages: []
   },
 
-  onRefresh() {
-    if (this.data.spinning) return;
-    this.setData({ spinning: true });
-    this.fetchAll();
-    setTimeout(() => this.setData({ spinning: false }), 1000);
+  onLoad: function() {
+    this.setData({ currentTheme: wx.getStorageSync('wpt_theme') || 'theme-dark' });
+    var title = wx.getStorageSync('wpt_dashboard_title');
+    if (title) this.setData({ dashTitle: title });
+    /* 首次渲染用默认模型 */
+    var model = OneNet.getDataModel();
+    this.setData(buildCards(model, null));
+    /* 缓存 */
+    var cached = wx.getStorageSync('wpt_latest');
+    if (cached) this._applyData(cached, true);
+    this._pollTimer = null; this._retryTimer = null; this._active = true;
+    this._pollFailures = 0;
+    this._fetchAndSchedule();
   },
 
-  onLoad() {
-    const saved = wx.getStorageSync('wpt_theme');
-    if (saved) this.setData({ currentTheme: saved });
-    this.fetchAll();
-    this._pollTimer = setInterval(() => this.fetchAll(), POLL_MS);
-  },
-  onToggleTheme() {
-    const next = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark';
-    this.setData({ currentTheme: next });
-    wx.setStorageSync('wpt_theme', next);
-  },
-  onUnload() {
-    if (this._pollTimer) clearInterval(this._pollTimer);
-  },
-
-  /* ── 合并轮询: V/I/F + Switch/SetFreq + 在线判断 (单次请求, 2s 间隔) ── */
-  fetchAll() {
-    const that = this;
-    wx.request({
-      url: ONENET.BASE_URL + '/thingmodel/query-device-property?product_id=' + ONENET.PRODUCT_ID + '&device_name=' + ONENET.DEVICE_NAME,
-      method: 'GET',
-      header: { 'Authorization': ONENET.TOKEN },
-      success(res) {
-        if (res.statusCode !== 200 || res.data.code !== 0) {
-          that.setData({ connected: false });
-          return;
-        }
-        const raw = {};
-        let latestTime = 0;
-        (res.data.data || []).forEach(item => {
-          let v = item.value;
-          if (v === 'true') v = true; else if (v === 'false') v = false;
-          else if (!isNaN(v) && v !== '' && v !== undefined) v = Number(v);
-          raw[item.identifier] = v;
-          if (item.time && item.time > latestTime) latestTime = item.time;
-        });
-
-        /* 在线判断: 数据成功返回非空 → 在线; time 字段仅作辅助参考 */
-        let online = (res.data.data && res.data.data.length > 0);
-        if (online && latestTime > 0) {
-          /* time 可能是数字(秒/毫秒)或 ISO 字符串, 统一转数字安全比较 */
-          const t = Number(latestTime);
-          if (!isNaN(t) && t > 0) {
-            const nowMs = Date.now();
-            const latestMs = (t > 9999999999) ? t : (t * 1000);
-            online = (nowMs - latestMs) < 120000;  /* 2min 内有数据 → 在线 */
-          }
-          /* t 为 NaN (ISO 字符串等非标准格式) → 保持数据兜底的 online=true */
-        }
-        const now = Date.now();
-        const lock = that._cmdLock || {};
-
-        /* 数据 */
-        const v = raw.V !== undefined ? Number(raw.V).toFixed(2) : that.data.voltage;
-        const i = raw.I !== undefined ? Number(raw.I).toFixed(2) : that.data.current;
-        const fHz = raw.F;
-        const rawFreq = fHz !== undefined ? Math.floor(fHz / 1000) : 0;
-        /* PWM 停机 → F=0 (STM32 遥测 S<DONE 时 V/I=0, 频率也显示 0), 停机期间保持最近已知频率供用户选频 */
-        const isRunning = (raw.Switch === true);
-        const fNum = isRunning ? (rawFreq > 0 ? rawFreq : that.data.frequency) : 0;
-        if (isRunning && fNum > 0) s_last_display_freq = fNum;
-        const displayFreq = isRunning ? fNum : 0;
-        const fIdx = isRunning ? ((fNum > 0 && fNum >= 95) ? FREQ_LIST.indexOf(fNum) : -1) : -1;
-
-        /* 控制状态 (乐观锁仅保护 Switch) */
-        const sw = (lock.switch && (now - lock.switch < 5000)) ? that.data.isOn : (raw.Switch === true);
-
-        let state, label;
-        if (sw === true) { state = 'DONE';  label = '运行中'; }
-        else             { state = 'IDLE';  label = '待机'; }
-
-        /* 首次成功拿到数据 → 同步一次 swiper，之后永不再自动改 */
-        if (!that._freqInited && online && fIdx >= 0 && isRunning) {
-          that._freqInited = true;
-          that.setData({ selectedFreq: fNum, freqIdx: fIdx });
-        }
-
-        that.setData({
-          voltage: v, current: i, frequency: displayFreq, connected: online,
-          isOn: isRunning, systemState: state, stateLabel: label
-        });
-      },
-      fail() { that.setData({ connected: false }); }
-    });
-  },
-
-  /* ── 发送命令 (通用, 支持网络抖动重试) ── */
-  _sendCmd(params, cb, retry) {
-    if (!retry) retry = 0;
-    const that = this;
-    const payload = JSON.stringify({
-      product_id: ONENET.PRODUCT_ID,
-      device_name: ONENET.DEVICE_NAME,
-      params: params
-    });
-    wx.request({
-      url: ONENET.BASE_URL + '/thingmodel/set-device-property',
-      method: 'POST',
-      header: { 'Authorization': ONENET.TOKEN, 'Content-Type': 'application/json' },
-      data: payload,
-      success(res) {
-        if (res.statusCode === 200 && res.data.code === 0) {
-          if (cb) cb();
-        } else if (retry < 2) {
-          setTimeout(() => that._sendCmd(params, cb, retry + 1), 600);
-        } else {
-          wx.showToast({ title: '下发失败', icon: 'none' });
-        }
-      },
-      fail() {
-        if (retry < 2) {
-          setTimeout(() => that._sendCmd(params, cb, retry + 1), 800);
-        } else {
-          wx.showToast({ title: '发送失败', icon: 'none' });
-        }
-      }
-    });
-  },
-
-  /* ── 启停开关 — 带验证重发 ── */
-  onSwitch(e) {
-    const on = e.detail.value;
-    if (!this._cmdLock) this._cmdLock = {};
-    this._cmdLock.switch = Date.now();
-    const that = this;
-    this._sendCmd({ Switch: on }, function() {
-      that.setData({ isOn: on, systemState: on ? 'SWEEP' : 'IDLE', stateLabel: on ? '扫频中' : '待机' });
-      /* 下发后 3s 只验证一次, 失败则弹 toast 提示而非静默忽略 */
-      setTimeout(() => {
-        wx.request({
-          url: ONENET.BASE_URL + '/thingmodel/query-device-property?product_id=' + ONENET.PRODUCT_ID + '&device_name=' + ONENET.DEVICE_NAME,
-          method: 'GET',
-          header: { 'Authorization': ONENET.TOKEN },
-          success(res) {
-            const raw = {};
-            (res.data.data || []).forEach(item => {
-              let v = item.value;
-              if (v === 'true') v = true; else if (v === 'false') v = false;
-              raw[item.identifier] = v;
-            });
-            if (raw.Switch !== on) {
-              that._sendCmd({ Switch: on });  /* 自动重发一次 */
-              wx.showToast({ title: '指令未生效, 已重发', icon: 'none', duration: 1500 });
-            }
-          }
-        });
-      }, 3000);
-    });
-  },
-
-  _debounce(ts) {
-    const now = Date.now();
-    if (now - (this._lastTap || 0) < ts) return true;
-    this._lastTap = now; return false;
-  },
-
-  /* ── 滑动选频 — 与网页端一致 ── */
-  onSwiperChange(e) {
-    const idx = e.detail.current;
-    if (idx !== this.data.freqIdx) {
-      this.setData({ freqIdx: idx, selectedFreq: FREQ_LIST[idx] });
+  onShow: function() {
+    var saved = wx.getStorageSync('wpt_theme') || 'theme-dark';
+    if (saved !== this.data.currentTheme) this.setData({ currentTheme: saved });
+    /* 检查数据模型变更 (对齐 Web visibilitychange) */
+    var model = OneNet.getDataModel();
+    if (JSON.stringify(model) !== this._lastModel) {
+      this._lastModel = JSON.stringify(model);
+      this.setData(buildCards(model, wx.getStorageSync('wpt_latest')));
     }
+    if (!this._active) { this._active = true; this._pollFailures = 0; this._fetchAndSchedule(); }
   },
 
-  /* ── 确认设置 — 与网页端 toCloud 一致: kHz × 1000 ── */
-  onSetFreq() {
-    if (!this.data.isOn) { wx.showToast({ title: '请先启动设备', icon: 'none' }); return; }
-    if (!this._cmdLock) this._cmdLock = {};
-    this._cmdLock.freq = Date.now();
-    const kHz = this.data.selectedFreq;
-    const that = this;
-    wx.request({
-      url: ONENET.BASE_URL + '/thingmodel/set-device-property',
-      method: 'POST',
-      header: { 'Authorization': ONENET.TOKEN, 'Content-Type': 'application/json' },
-      data: { product_id: ONENET.PRODUCT_ID, device_name: ONENET.DEVICE_NAME, params: { SetFreq: kHz * 1000 } },
-      success() { wx.showToast({ title: 'Set ' + kHz + 'kHz', icon: 'none', duration: 800 }); },
-      fail() { wx.showToast({ title: '发送失败', icon: 'none' }); }
+  onUnload: function() { this._active = false; clearTimeout(this._pollTimer); clearTimeout(this._retryTimer); },
+
+  _fetchAndSchedule: function() {
+    var that = this;
+    if (!this._active) return;
+    this._doFetch().then(function(data) {
+      that._pollFailures = 0;
+      if (that._active && data) {
+        var online = data._isOnline !== false;
+        that.setData({ connState: online ? 0 : 1, connLabel: online ? '在线' : '离线' });
+      }
+    }).catch(function() {
+      that._pollFailures++;
+      if (that._pollFailures === 1 && that._active) {
+        clearTimeout(that._retryTimer);
+        that._retryTimer = setTimeout(function() {
+          if (!that._active) return;
+          that._doFetch().then(function(data) {
+            that._pollFailures = 0;
+            if (that._active && data) that.setData({ connState: data._isOnline !== false ? 0 : 1, connLabel: data._isOnline !== false ? '在线' : '离线' });
+          }).catch(function() {});
+        }, 2000);
+      } else { if (that._active) that.setData({ connState: 2, connLabel: '连接失败' }); }
+    }).then(function() {
+      if (!that._active) return;
+      clearTimeout(that._pollTimer);
+      that._pollTimer = setTimeout(function() { that._fetchAndSchedule(); }, OneNet.getPollInterval(that._pollFailures));
     });
-  }
+  },
+
+  _doFetch: function() {
+    var that = this;
+    return OneNet.getLatestData().then(function(data) {
+      if (that._active) that._applyData(data, false);
+      return data;
+    });
+  },
+
+  /* 对齐 Web updateUI() — 传感器阈值检测 + 告警 */
+  _applyData: function(data, fromCache) {
+    var model = OneNet.getDataModel();
+    var cards = buildCards(model, data);
+    var newAlerts = OneNet.checkAlerts(data, fromCache);
+    this.setData({
+      sensors: cards.sensors, controls: cards.controls,
+      alertVisible: newAlerts.length > 0, alertMessages: newAlerts
+    });
+    this._lastModel = JSON.stringify(model);
+  },
+
+  onToggleTheme: function() { var n = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark'; this.setData({ currentTheme: n }); wx.setStorageSync('wpt_theme', n); },
+  onPullDownRefresh: function() { var that = this; this._doFetch().then(function() { wx.stopPullDownRefresh(); }, function() { wx.stopPullDownRefresh(); }); },
+  onAlertTap: function() { wx.switchTab({ url: '/pages/alerts/alerts' }); },
+  onConnTap: function() { this._doFetch().catch(function(){}); }
 });

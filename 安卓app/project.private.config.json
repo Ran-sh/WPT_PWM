@@ -1,6 +1,6 @@
 {
   "libVersion": "3.16.1",
-  "projectname": "wpt-monitor",
+  "projectname": "%E5%AE%89%E5%8D%93app",
   "setting": {
     "urlCheck": false,
     "coverView": false,

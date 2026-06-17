@@ -1,0 +1,14 @@
+<view class="page {{currentTheme}}">
+  <view class="header-bar"><view><text class="header-title">历史数据</text><text class="header-sub">近24小时</text></view>
+    <view style="display:flex;align-items:center;gap:16rpx;">
+      <view bindtap="onExport" style="font-size:24rpx;font-weight:700;color:var(--accent);padding:12rpx 24rpx;background:var(--accent-bg);border-radius:14rpx;border:1rpx solid var(--accent-border);box-shadow:0 0 14rpx rgba(0,229,255,0.08);">导出</view>
+      <view bindtap="onToggleTheme" style="width:64rpx;height:64rpx;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--toggle-bg);border:1rpx solid rgba(255,255,255,0.06);font-size:24rpx;">{{currentTheme === 'theme-dark' ? '🌙' : '☀'}}</view>
+    </view>
+  </view>
+  <view class="filter-tabs"><view class="filter-tab {{currentMetric === m ? 'active' : ''}}" wx:for="{{metricTabs}}" wx:key="*this" data-metric="{{item}}" bindtap="onTabTap"><text>{{tabLabels[item]}}</text></view></view>
+  <view class="chart-card"><canvas type="2d" id="historyCanvas" class="history-canvas"></canvas></view>
+  <view class="table-card"><view class="table-header"><text class="th th-time">时间</text><text class="th th-val">数值</text><text class="th th-status">状态</text></view>
+    <view wx:if="{{records.length === 0}}" class="empty">暂无历史数据</view>
+    <view class="table-row" wx:for="{{records}}" wx:key="time"><view class="td td-time"><view class="time-date">{{item.fullTime ? item.fullTime.split(' ')[0] : ''}}</view><view class="time-hm">{{item.fullTime ? (item.fullTime.split(' ')[1] || item.time) : item.time}}</view></view><text class="td td-val {{item.ok ? '' : 'val-bad'}}">{{item.value}}</text><view class="td td-status"><view class="status-circle {{item.ok ? 'pass' : 'bad'}}">{{item.ok ? '✓' : '✕'}}</view></view></view>
+  </view>
+</view>
