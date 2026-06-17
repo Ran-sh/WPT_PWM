@@ -32,11 +32,12 @@
     </view>
   </view>
 
-  <!-- 控制卡片 (动态渲染) -->
+  <!-- 控制卡片 -->
   <view class="card-list">
     <view class="ctrl-card" wx:for="{{controls}}" wx:key="id">
       <text class="card-label">{{item.name}}</text>
-      <text class="ctrl-value">{{item.value}}</text>
+      <switch wx:if="{{item.dataType === 'bool'}}" checked="{{item.boolValue}}" bindchange="onCtrlSwitch" data-id="{{item.id}}" color="#22C55E"/>
+      <text wx:else class="ctrl-value">{{item.value}}</text>
     </view>
   </view>
 </view>
