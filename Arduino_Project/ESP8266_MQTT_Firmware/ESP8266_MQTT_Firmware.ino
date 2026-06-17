@@ -387,7 +387,7 @@ static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
         tx["params"]["Switch"]["value"] = running;
     }
 
-    /* Switch_WIFI: 上报 ESP 连接状态 (ONLINE/WIFI/MQTT=在线, OFFLINE_*/IDLE=离线) */
+    /* Switch_WIFI: 上报 ESP 连接状态 (ONLINE/WIFI/MQTT 为在线, OFFLINE/IDLE 为离线) */
     tx["params"]["Switch_WIFI"]["value"] = (s_conn_state == MQTT_CONN_STATE_ONLINE
                                          || s_conn_state == MQTT_CONN_STATE_WIFI_CONN
                                          || s_conn_state == MQTT_CONN_STATE_MQTT_CONN);
