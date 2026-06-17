@@ -15,9 +15,46 @@ description: >
   Key_Driver, Esp8266_Driver, App_Network, Ui_Controller, Tft_Driver, Led_Driver, Buzzer_Driver.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
   scan all .c/.h, diff vs documented state, auto-increment version, regenerate .md+.docx.
-  CRITICAL composite trigger for "更新全部内容": execute in order —
-  1. code review → 2. update CLAUDE.md → 3. update this skill file →
-  4. update all docs (.md+.docx) → 5. git push. Run autonomously, no user prompts.
+  CRITICAL composite trigger for "更新全部内容": execute in order, each step targets
+  SPECIFIC files listed below. DO NOT skip any step. DO NOT process files not listed.
+  Run autonomously, no user prompts.
+
+  第1条 — 全局代码审查
+    【针对文件】所有 .c/.h — 对比 CLAUDE.md 中记录的文件结构/行数/函数签名是否一致
+    【输出】变更检测报告 (哪些文件变了、哪些模块新增/删除)
+
+  第2条 — 修复发现的问题
+    【针对文件】上一步检测到的所有差异文件
+    【输出】每个修复的 diff + 验证结果
+
+  第3条 — 更新 CLAUDE.md
+    【针对文件】D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT\CLAUDE.md
+    【写入内容】版本号、文件结构+行数、审查历史、新增模块说明
+
+  第4条 — 更新开发指南
+    【针对文件】Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md
+    【写入内容】版本号、修改日志、架构章节 (引脚/文件结构/UI/协议) 与当前代码对齐
+
+  第5条 — 更新技能文件
+    【针对文件】Claude_Files/docs/embedded-architect-system-prompt.md
+    【写入内容】版本号、审查历史、执行教训
+
+  第6条 — 更新所有 .docx
+    【命令】cd Claude_Files && node tools/generate_docx.js "docs/WPT无线充电系统-从零搭建全指南.md" "docs/embedded-architect-system-prompt.md"
+    【针对文件】上述 2 个 .md → 覆盖生成同名 .docx
+
+  第7条 — 清理 Keil 编译产物
+    【命令】cmd.exe /c Keil_Project\keilkill.bat
+    【针对文件】Keil_Project/ 下所有 .obj .lst .axf 中间文件
+    【验证】git status 确认无编译产物残留
+
+  第8条 — Git 提交 + 推送
+    【命令】git add -A && git commit -m "docs: Vxx — <变更摘要>" && git push origin 4.0TFT
+    【禁止上传】.obj .lst .axf .uvopt .uvgui.* 等编译/IDE临时文件
+
+  第9条 — 追加执行教训
+    【针对文件】Claude_Files/docs/embedded-architect-system-prompt.md
+    【写入内容】本轮遇到的问题 + 根因 + 预防规则, 追加到第 4 节
   SKIP this skill entirely if the user specifically mentions: HAL库, CubeMX,
   Arduino, non-STMicro MCUs, or any MCU without SPL (ESP32/ESP-IDF, nRF, MSP430, PIC).
 ---
