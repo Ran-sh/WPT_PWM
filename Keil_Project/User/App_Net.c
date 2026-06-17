@@ -62,7 +62,7 @@ static void Net_Remote_On(void)
  */
 static uint8_t s_WiFiConnected = 0;  /* 联网状态唯一权威源, 同时用作 USART2 就绪门禁 */
 
-/* ── V3.2 非阻塞联网状态机 ── */
+/* ── V1.0.0 非阻塞联网状态机 ── */
 static NetState_t s_net_state   = NET_IDLE;
 static uint8_t    s_net_retry   = 0;
 static uint32_t   s_net_tstart  = 0;
@@ -255,7 +255,7 @@ uint8_t App_Net_IsConnected(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *              V3.2 非阻塞联网状态机
+ *              V1.0.0 非阻塞联网状态机
  * ═══════════════════════════════════════════════════════════════ */
 
 void App_Net_Connect_Trigger(void)

@@ -3,7 +3,7 @@
 [![MCU](https://img.shields.io/badge/MCU-STM32F103C8T6-blue)]()
 [![Library](https://img.shields.io/badge/Library-SPL%20V3.5.0-green)]()
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
-[![Version](https://img.shields.io/badge/Firmware-V1.3.4-brightgreen)]()
+[![Version](https://img.shields.io/badge/Firmware-V1.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
 基于 STM32F103C8T6 + ESP8266-01 的 100kHz LCC-S 谐振全桥无线供电系统，支持 OLED 本地控制与 WiFi 远程遥测。应用于植入式医疗设备无线充电。
@@ -45,8 +45,8 @@
 
 - **PFM 调功**: 95-150kHz 频率范围, 50% 固定占空比, 1000ns 可调死区 (DEADTIME_NS 宏)
 - **非阻塞软启动**: 150kHz → 100kHz 自动扫频, 200Hz/10ms 步进, ~2.5s, 防浪涌冲击
-- **异步联网**: 9 态 AT 指令状态机, 支持 KEY1 取消, 3 次自动重试, 全程非阻塞
-- **静默看门狗**: ESP8266 掉电/卡死 30s 后自动关断 PWM, 无需依赖 CLOSED 帧 (联网成功新 30s 窗口)
+- **V1.0.0 异步联网**: 9 态 AT 指令状态机, 支持 KEY1 取消, 3 次自动重试, 全程非阻塞
+- **V1.0.0 静默看门狗**: ESP8266 掉电/卡死 30s 后自动关断 PWM, 无需依赖 CLOSED 帧 (联网成功新 30s 窗口)
 - **双页 OLED UI**: 控制面板 (可操作) + 锁屏监控 (只读), KEY0 双击切换
 - **四灯状态**: PC13 心跳 + PB3 WiFi + PB4 PWM + PB5 Ready, 快闪/慢闪/常亮三级指示
 - **远程协议**: `CMD:ON` / `CMD:OFF` 指令, JSON 遥测 `{"V":x,"I":x,"F":x}`
@@ -92,11 +92,11 @@
 
 | 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | LED | 看门狗 | 适用场景 |
 |:---|:---|:---:|:---|:---|:---:|:---:|:---|
-| `master` | `WPT_PWM_V0.0` | V0.0.0 | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
-| **`1.0LAN`** ⬅ | `WPT_PWM_NetAssistant_LAN_V1.0` | **V1.3.4** | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 30s | 内网调试 |
-| `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V2.x.x | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
-| `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V3.x.x | OneNET MQTT | OneNET Studio | 4 LED | IWDG 1.6s | 物联网双脑架构 |
-| `4.0TFT` | `WPT_PWM_V4.0_ONENET_TFT` | V4.2.0 | OneNET MQTT | OneNET Studio | 6 LED | IWDG 1.6s | TFT彩屏升级版 |
+| `master` | `WPT_PWM_V0.0` | V1.0 | 无 (纯本地) | 无 | 4 灯 | 无 | 裸机固件基版 |
+| **`1.0LAN`** ⬅ | `WPT_PWM_NetAssistant_LAN_V1.0` | **V1.0.0** | NetAssist TCP | PC 局域网 :8080 | 4 灯 | 30s | 内网调试 |
+| `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V2.0.0 | 巴法云 TCP | tcp.bemfa.com :8344 | 4 灯 | 无 | 远程控制 |
+| `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V3.0.0 | OneNET MQTT | OneNET Studio | 4 LED | IWDG 1.6s | 物联网双脑架构 |
+| `4.0TFT` | `WPT_PWM_V4.0_ONENET_TFT` | V4.0.0 | OneNET MQTT | OneNET Studio | 6 LED | IWDG 1.6s | TFT彩屏升级版 |
 
 **分支间关系**: `master` 是基版 → `1.0LAN` 增加 ESP8266 + 局域网联网 → `2.0WAN` 在 LAN 基础上改为巴法云协议 → `3.0ONENET` 升级为 OneNET MQTT 双脑架构 → `4.0TFT` OLED→TFT 彩屏硬件升级
 

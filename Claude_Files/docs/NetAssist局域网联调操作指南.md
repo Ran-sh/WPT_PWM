@@ -192,7 +192,7 @@ ipconfig
 | `CMD:ON` | OLED 显示 `CMD: Remote ON`，触发软启动扫频 150k→100kHz (~2.5s) |
 | `CMD:OFF` | OLED 显示 `CMD: Remote OFF`，PWM 输出关闭，全桥安全关断 |
 
-> 📌 **V3.2 指令注意**:
+> 📌 **V1.0.0 指令注意**:
 > - 必须使用 **`CMD:ON`** / **`CMD:OFF`** (旧版 `ON`/`OFF` 已废弃, 会误匹配 "JSON"/"CONNECT")
 > - 联网成功后需先 `CMD:ON` 触发扫频, 扫频完成后方可遥控
 > - KEY1 可在联网期间取消联网
@@ -237,7 +237,7 @@ graph TD
 - 推荐方案: 独立 AMS1117-3.3 + 100μF 电解电容并联 0.1μF 陶瓷电容
 - ESP8266 VCC 引脚与 GND 之间就近焊接 100μF 钽电容/电解电容滤除 WiFi 突发电流
 
-### 6.3 ESP8266 掉电自动保护 (V3.3)
+### 6.3 ESP8266 掉电自动保护 (V1.0.0)
 
 - ESP8266 模块单独断电或卡死时，单片机 15 秒内自动关断 PWM 输出
 - OLED 回到 "WiFi: DISCONN / Press KEY0 WiFi" 界面
@@ -265,6 +265,6 @@ graph TD
 
 ---
 
-> 📅 文档版本: v1.3  
-> 📝 最后更新: 2026-05-22  
+> 📅 文档版本: V1.0.0  
+> 📝 最后更新: 2026-06-17  
 > 🔗 关联文件: `Hardware/ESP8266.c`, `Hardware/ESP8266.h`, `User/App_Net.c`, `Tools/deploy_netassist.ps1`
