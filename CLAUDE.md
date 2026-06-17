@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.2.0 |
+| **版本** | V4.2.1 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.2.0)
@@ -23,16 +23,16 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.2.0
+当前版本: V4.2.1
 
 涉及版本号的位置 (全项目必须统一):
-  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.2.0
-  文档控制信息: 开发指南/技能文件的文档版本 → V4.2.0
-  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.2.0
-  README.md: badge + 版本历史 + 分支表 → V4.2.0
-  操作手册/部署文档: 版本字段 → V4.2.0
-  小程序: wxss/wxml/js 头部注释 → V4.2.0
-  其他文档: ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.2.0
+  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.2.1
+  文档控制信息: 开发指南/技能文件的文档版本 → V4.2.1
+  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.2.1
+  README.md: badge + 版本历史 + 分支表 → V4.2.1
+  操作手册/部署文档: 版本字段 → V4.2.1
+  小程序: wxss/wxml/js 头部注释 → V4.2.1
+  其他文档: ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.2.1
 
 历史版本 → V4.x.x 完整映射:
   旧 V0.0/V1.0 → V1.0.x | 旧 V3.0     → V2.0.0
@@ -444,6 +444,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V4.2.1 | 全项目 README 重写(4分支统一分支表) + CLAUDE.md 版本号规则流程扩展到全部文档 |
 | V4.2.0 | TFT字库修复: CN_FONT[74..75] 失败→综合字模替换 + 底部栏简化 + 全平台版本号统一为 Vx.x.x |
 | V4.1.0 | 小程序全重写: 单数据模型源+双API并行+动态卡片+底部栏Component+HTTP细化错误 |
 | V4.0.0 | 9页面TFT UI + 全局状态机 + Sys_Safety独立安全 + EMA双级滤波 + 圆弧能量条仪表盘 + 16轮全链路审查 |

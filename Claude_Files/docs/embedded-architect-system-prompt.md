@@ -10,7 +10,7 @@ description: >
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
   Dual-MCU/双脑/JSON透传, Sys_Timer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, 技术白皮书, 开发者指南, 嵌入式架构师, OneNET, MQTT, TFT/ST7735.
-  V4.2.0 naming convention: Module_Name_Verb_Noun — all public functions follow PascalCase+underscore.
+  V4.2.1 naming convention: Module_Name_Verb_Noun — all public functions follow PascalCase+underscore.
   Key modules: Sys_Timer, Sys_Core, Pwm_Driver, Inverter_Control, Adc_Driver,
   Key_Driver, Esp8266_Driver, App_Network, Ui_Controller, Tft_Driver, Led_Driver, Buzzer_Driver.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
@@ -59,7 +59,7 @@ description: >
   Arduino, non-STMicro MCUs, or any MCU without SPL (ESP32/ESP-IDF, nRF, MSP430, PIC).
 ---
 
-# 资深嵌入式系统架构师技能包 (V4.2.0)
+# 资深嵌入式系统架构师技能包 (V4.2.1)
 
 ## 1. 角色设定
 
@@ -217,7 +217,7 @@ int main(void) {
 | 字库位序 | LSB-first, `TFT_Font_Data.h` 统一管理 |
 | CN_INDEX/CN_FONT | 严格 76 字对齐, 末尾: 综(74)+合(75) |
 
-### 2.10 工程目录约定 (V4.2.0)
+### 2.10 工程目录约定 (V4.2.1)
 
 ```
 WPT_PWM_V4.0_ONENET_TFT/
@@ -234,13 +234,13 @@ WPT_PWM_V4.0_ONENET_TFT/
 └── CLAUDE.md         ← 项目指南
 ```
 
-## 3. 审查历史速查 (V4.0.0→V4.2.0)
+## 3. 审查历史速查 (V4.0.0→V4.2.1)
 
 | 版本 | 关键修复 |
 |:---|:---|
 | V4.0.0 | 8轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 |
 | V4.1.0 | 小程序全重写: 单数据模型+双API并行+动态卡片+底部栏Component |
-| V4.2.0 | CN_FONT[74..75] 失败→综合 字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |
+| V4.2.1 | CN_FONT[74..75] 失败→综合 字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |
 
 ## 4. "更新全部内容"执行教训 (每次更新后追加)
 
@@ -255,20 +255,20 @@ Vx.y.z 三数字体系：
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.2.0
+当前版本: V4.2.1
   V4 = 固定大版本 (TFT 彩屏架构)
   .2 = 两次中版本升级
   .0 = 当前小版本号
 
 涉及版本号的位置 (全项目必须统一):
-  【文件头注释】每个 .c/.h/.ino/.py 的 @brief/@note/@version 行 → V4.2.0
-  【文档控制信息】开发指南 文档版本+固件版本 → V4.2.0
-  【技能文件 frontmatter】name/description 中的版本引用 → V4.2.0
-  【CLAUDE.md】版本号+审查历史+文件结构行数注释 → V4.2.0
-  【README.md】badge + 版本历史表 + 分支表 → V4.2.0
-  【操作手册/部署文档】版本字段 → V4.2.0
-  【小程序注释】wxss/wxml/js 头部 → V4.2.0
-  【其他文档】ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.2.0
+  【文件头注释】每个 .c/.h/.ino/.py 的 @brief/@note/@version 行 → V4.2.1
+  【文档控制信息】开发指南 文档版本+固件版本 → V4.2.1
+  【技能文件 frontmatter】name/description 中的版本引用 → V4.2.1
+  【CLAUDE.md】版本号+审查历史+文件结构行数注释 → V4.2.1
+  【README.md】badge + 版本历史表 + 分支表 → V4.2.1
+  【操作手册/部署文档】版本字段 → V4.2.1
+  【小程序注释】wxss/wxml/js 头部 → V4.2.1
+  【其他文档】ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.2.1
 
 历史版本 → V4.x.x 完整映射表:
   旧 V0.0  → V1.0.0 (初始原型, 用 V1 起始以便后续回填)
@@ -288,7 +288,7 @@ Vx.y.z 三数字体系：
   旧 V15   → V4.0.0
   旧 V16   → V4.0.0
   旧 V25   → V4.1.0
-  旧 V26   → V4.2.0
+  旧 V26   → V4.2.1
   (SPL V3.5.0、ARMCC V5.06、Keil MDK V5 是外部工具版本, 不在映射范围)
 
 禁止事项:
@@ -299,7 +299,7 @@ Vx.y.z 三数字体系：
   - 历史版本在修改日志中保留，但不作为当前版本号出现在代码/文档正文
 ```
 
-### 4.1 2026-06-17: V4.2.0 更新教训
+### 4.1 2026-06-17: V4.2.1 更新教训
 
 | # | 问题 | 根因 | 预防规则 |
 |:---|:---|:---|:---|
@@ -315,7 +315,7 @@ Vx.y.z 三数字体系：
 | 10 | `更新全部内容` 漏掉生成 .docx 就直接 commit 了 | 看到 md 更新完就以为完成了，技能里写了步骤 4 是 "update all docs (.md+.docx)" 但没执行 | **技能触发词流程必须逐条打勾执行**，每步完成后 checkpoint 再下一步 |
 | 11 | Git push 时 `keilkill.bat` 用 `cmd.exe /c` 调用但没验证清理效果 | keilkill.bat 在 bash 环境下用 cmd.exe /c 调用后没检查 .obj/.lst 是否真的被删除 | **push 前 `git status` 确认零编译产物**，发现 .obj/.lst 立即停止 |
 
-### 4.2 2026-06-17 (#2): V4.2.0 全量同步教训
+### 4.2 2026-06-17 (#2): V4.2.1 全量同步教训
 
 | # | 问题 | 根因 | 预防规则 |
 |:---|:---|:---|:---|

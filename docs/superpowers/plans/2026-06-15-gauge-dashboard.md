@@ -6,7 +6,7 @@
 
 **架构:** 在 `Ui_Controller.c` 中新增 `sin_table[181]` + `GaugeConfig` 结构体 + 通用渲染函数 `Draw_Gauge_Full()` / `Gauge_Dynamic_Update()`，三个 `_Full`/`_Dynamic` 函数改为薄封装调用通用函数。保持 V11 增量刷新架构。
 
-**技术栈:** C, STM32F103 SPL V3.5, ST7735 160×128 SPI DMA, PCtoLCD2002 4×8 微型字库. V4.2.0
+**技术栈:** C, STM32F103 SPL V3.5, ST7735 160×128 SPI DMA, PCtoLCD2002 4×8 微型字库. V4.2.1
 
 ---
 

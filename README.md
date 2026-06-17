@@ -5,11 +5,11 @@
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![Display](https://img.shields.io/badge/Display-ST7735%20160×128%20TFT-red)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-purple)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V4.2.0-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V4.2.1-brightgreen)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V4.2.0** (2026-06-17) — STM32F103C8T6 + ESP8266-01 的 LCC-S 谐振全桥无线供电系统。**Dual-MCU 双脑架构** + **系统全局状态机** + **圆弧能量条仪表盘** + OneNET MQTT 多端控制。应用场景：植入式医疗设备无线充电。
+> **V4.2.1** (2026-06-17) — STM32F103C8T6 + ESP8266-01 的 LCC-S 谐振全桥无线供电系统。**Dual-MCU 双脑架构** + **系统全局状态机** + **圆弧能量条仪表盘** + OneNET MQTT 多端控制。应用场景：植入式医疗设备无线充电。
 
 ---
 
@@ -30,6 +30,7 @@
 
 | 版本 | 日期 | 主要变更 |
 |:---|:---|:---|
+| V4.2.1 | 2026-06-17 | 全项目 README 重写 + 4分支统一分支表 |
 | V4.2.0 | 2026-06-17 | 全平台版本号统一 + TFT字库修复 + 底部栏简化 + 16轮全链路审查 |
 | V4.1.0 | 2026-06-11 | TFT 彩屏 9 页面 + 圆弧能量条仪表盘 + Sys_Safety 独立安全 + EMA双级滤波 |
 | V4.0.0 | 2026-06-01 | 系统全局状态机 + Sys_Core 模块化 + 全链路数据一致性 |
@@ -91,7 +92,7 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 | `1.0LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V1.0.0 | OLED | NetAssist TCP | 局域网调试 |
 | `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V2.0.0 | OLED | 巴法云 TCP | 远程控制 |
 | `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V3.0.0 | OLED | OneNET MQTT | 物联网双脑架构 |
-| **`4.0TFT`** | `WPT_PWM_V4.0_ONENET_TFT` | **V4.2.0** | **TFT 彩屏** | **OneNET MQTT** | **当前主力分支** |
+| **`4.0TFT`** | `WPT_PWM_V4.0_ONENET_TFT` | **V4.2.1** | **TFT 彩屏** | **OneNET MQTT** | **当前主力分支** |
 
 ## 文档
 
