@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    Hardware/UI.c
  * @brief   人机交互界面 —— OLED 显示 + 按键事件分发 + LED 状态驱动
- * @note    V3.1: 拆分为 UI_UpdateLEDs / UI_TryConnectWiFi / UI_HandleKeys
+ * @note    V1.0.0: 拆分为 UI_UpdateLEDs / UI_TryConnectWiFi / UI_HandleKeys
  *          UI_DrawPage0 / UI_DrawPage1, 每函数 ≤ 2 层嵌套
  ******************************************************************************
  */
@@ -281,7 +281,7 @@ void UI_Task(void)
 
 void UI_SetBridgeState(uint8_t on_off)
 {
-    (void)on_off;  /* V3.1: 由 Inverter_SoftStart_GetState 推导 */
+    (void)on_off;  /* V1.0.0: 由 Inverter_SoftStart_GetState 推导 */
 }
 
 uint8_t UI_GetBridgeState(void)
@@ -292,5 +292,5 @@ uint8_t UI_GetBridgeState(void)
 
 void UI_SetWiFiConnected(uint8_t on_off)
 {
-    (void)on_off;  /* V3.1: 由 App_Net_IsConnected() 权威持有 */
+    (void)on_off;  /* V1.0.0: 由 App_Net_IsConnected() 权威持有 */
 }

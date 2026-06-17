@@ -3,20 +3,15 @@ name: embedded-architect
 description: >
   This skill MUST be used for any task involving STM32/STM32F103 embedded C development
   with the Standard Peripheral Library (SPL). Trigger aggressively for: SPL firmware,
-  modular driver architecture, IoT WiFi (ESP8266 AT commands / transparent mode),
+  modular driver architecture, IoT WiFi (ESP8266 AT commands / Dual-MCU MQTT on other branches),
   power electronics (full-bridge PWM, inverter, resonant converter, dead-time, PFM,
   soft-start frequency sweep), non-blocking scheduling (SysTimer timestamp-diff pattern,
-  SysTick refactoring), and PC-side automated deployment (PowerShell, NetAssist TCP testing).
+  SysTick refactoring), and PC-side automated deployment (PowerShell, MQTT testing).
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
-  AT指令/透传, SysTimer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
+  Dual-MCU/双脑/JSON透传, SysTimer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, /simplify, 技术白皮书, 开发者指南, 嵌入式架构师.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
   scan all .c/.h, diff vs documented state, auto-increment version, regenerate .md+.docx.
-  CRITICAL composite trigger for "更新全部内容": execute in order —
-  1. /simplify (three-way code review) → 2. /init (regenerate CLAUDE.md) →
-  3. update this skill file + installed copy → 4. update all docs (.md+.docx) →
-  5. beautify GitHub README → 6. git push current branch.
-  Run autonomously, no user prompts.
   SKIP this skill entirely if the user specifically mentions: HAL库, CubeMX,
   Arduino, non-STMicro MCUs, or any MCU without SPL (ESP32/ESP-IDF, nRF, MSP430, PIC).
 ---
@@ -100,7 +95,7 @@ void USART2_IRQHandler(void) {
 }
 ```
 
-**临界区保护 — 首选模式 (V3.1)**: 在临界区内将共享缓冲区 `strncpy` 到局部栈数组, 恢复中断后再解析局部副本。彻底消除 ISR 并发修改风险:
+**临界区保护 — 首选模式 (V1.0.0)**: 在临界区内将共享缓冲区 `strncpy` 到局部栈数组, 恢复中断后再解析局部副本。彻底消除 ISR 并发修改风险:
 
 ```c
 char localBuf[128];
@@ -124,7 +119,7 @@ uint8_t cmd_off = (strstr(localBuf, "OFF") != NULL);
 - `extern g_ESP8266_RxFrameFlag` 不得出现在 `.h` 中——外部通过 `ESP8266_GetRxFlag()` 访问
 - `ESP8266_ClearRxBuffer` 和 `ESP8266_ClearRxFlag` 均完整清空 buffer (`s_RxBuf[0]='\0'`)、重置游标 (`s_RxIndex=0`) 并清除两个帧标志, 全部在临界区内执行。杜绝 `ClearRxFlag` 只清标志不清 buffer 的幽灵指令残留
 
-### 2.5 main.c 极简原则 (V3.3: KEY 触发联网 + 静默看门狗)
+### 2.5 main.c 极简原则 (V1.0.0: KEY 触发联网 + 静默看门狗)
 
 ```c
 int main(void) {
@@ -145,7 +140,7 @@ int main(void) {
 
 **联网流程**: 上电不自动联网。KEY0 单击触发 `App_Net_Init()` (阻塞 20~30s, 返回 uint8_t: 0=成功, 1~6=错误码)。成功→IDLE 待机; 失败→OLED 显示错误码 3 秒→自动回待联网界面→KEY0 可重试, 无需复位 MCU。联网成功后再次 KEY0 单击触发软启动扫频。App_Net_Task 内部 `s_WiFiConnected` 标志门禁, 同时包含 15s 静默看门狗检测 ESP8266 离线。
 
-**按键映射 (V3.1)**:
+**按键映射 (V1.0.0)**:
 - KEY0 单击: 未联网→联网 / SS_IDLE→Trigger 扫频 / SS_DONE→Stop 关断
 - KEY0 双击: 切页 (控制面板↔锁屏)
 - KEY1 单击: SS_SWEEP→Stop 关断 / SS_DONE→频率 +1kHz (循环 100k~150k)
@@ -174,7 +169,7 @@ uint32_t           Inverter_SoftStart_GetCurrentFreq(void);
 
 App_Net 和 UI 模块**禁止**直接操作 `TIM_Cmd`/`TIM_CtrlPWMOutputs`/`TIM1->ARR`——必须通过上述接口。
 
-### 2.7 PWM 安全红线 (V3.1 新增, 炸机防护)
+### 2.7 PWM 安全红线 (V1.0.0 新增, 炸机防护)
 
 **死区宏定义**:
 ```c
@@ -209,7 +204,7 @@ static void Inverter_SetState(SoftStart_State_t new_state) {
 
 **上电安全态**: `PWM_Init` 配置完成后 MOE 关断 (`TIM_CtrlPWMOutputs(DISABLE)`), 全桥无输出。仅 `Inverter_SoftStart_Trigger()` 才开启 MOE。
 
-### 2.8 ADC 滑动平均滤波 (V3.1)
+### 2.8 ADC 滑动平均滤波 (V1.0.0)
 
 100kHz 强磁场下 DMA 瞬时值噪声严重。`Get_Real_Voltage()` 和 `Get_Real_Current()` 内部实现 16 样本滑动平均:
 ```c
@@ -225,7 +220,7 @@ float Get_Real_Voltage(void) {
 ```
 响应延迟 = 16 × DMA 半周期 ≈ 400μs, 不影响控制带宽。
 
-### 2.9 工程目录约定 (V3.1)
+### 2.9 工程目录约定 (V1.0.0)
 
 ```
 无线充电PWM/
@@ -282,23 +277,23 @@ float Get_Real_Voltage(void) {
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V1.0 |
-| **最后更新** | 2026-05-14 |
-| **对应固件版本** | V1.0 |
+| **文档版本** | V0.0.0 |
+| **最后更新** | 2026-06-17 |
+| **对应固件版本** | V0.0.0 |
 | **作者** | 嵌入式系统架构组 |
 
 ### 修改日志
 
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
-| V1.0 | 2026-05-14 | 初始版本 — 完整架构白皮书 |
+| V0.0.0 | 2026-06-17 | 初始版本 — 完整架构白皮书 |
 ```
 
 **自动迭代规则** (每次输出文档时必须遵守):
 
 1. **逻辑变更 → 升版本号**:
-   - 修改了任何 `.c`/`.h` 代码逻辑 → 副版本号 +0.1 (如 V1.0 → V1.1)
-   - 新增外设驱动模块 → 次版本号 +1.0 (如 V1.3 → V2.0)
+   - 修改了任何 `.c`/`.h` 代码逻辑 → 小版本号 +0.0.1 (如 V0.0.0 → V0.0.1)
+   - 新增外设驱动模块 → 中版本号 +0.1.0 (如 V0.0.3 → V0.1.0)
    - 仅修正注释/格式化/排版 → 版本号不变, 更新日期即可
 
 2. **日期刷新**: 无论版本号是否变更，**最后更新**字段必须改为当前日期 (YYYY-MM-DD)
@@ -310,16 +305,16 @@ float Get_Real_Voltage(void) {
 **示例 — 经过三次迭代后的文档控制头**:
 
 ```markdown
-| **文档版本** | V1.2 |
-| **最后更新** | 2026-05-20 |
+| **文档版本** | V0.0.2 |
+| **最后更新** | 2026-06-20 |
 
 ### 修改日志
 
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
-| V1.2 | 2026-05-20 | App_Net 新增心跳检测与 TCP 断连自动重连 |
-| V1.1 | 2026-05-17 | 修复 USART2 ORE 溢出中断锁死; PWM 防偏磁强制偶数周期 |
-| V1.0 | 2026-05-14 | 初始版本 — 完整架构白皮书 |
+| V0.0.2 | 2026-06-20 | App_Net 新增心跳检测与 TCP 断连自动重连 |
+| V0.0.1 | 2026-06-17 | 修复 USART2 ORE 溢出中断锁死; PWM 防偏磁强制偶数周期 |
+| V0.0.0 | 2026-06-14 | 初始版本 — 完整架构白皮书 |
 ```
 
 ### 3.4 .docx 生成规范
@@ -346,7 +341,7 @@ float Get_Real_Voltage(void) {
 - 观察 JSON 数据上报 → 下发 ON/OFF 验证闭环
 - 常见故障速查表
 
-### 2.10 ADC 独立滤波任务 (V3.1)
+### 2.10 ADC 独立滤波任务 (V1.0.0)
 
 `ADC_Filter_Task` 以 2ms 周期独立运行, 与 UI/App_Net 调用频率完全解耦:
 
@@ -364,14 +359,14 @@ float Get_Real_Voltage(void) { return s_voltage; }  // O(1) 直接返回
 
 **ADC 校准时序**: `ADC_Cmd(ENABLE)` 后须等待 t_STAB ≥ 2 ADC 周期才能校准, 否则基准漂移。
 
-### 2.11 远程指令协议 (V3.1)
+### 2.11 远程指令协议 (V1.0.0)
 
 - **CMD:ON / CMD:OFF** 严格格式, 防 "JSON"/"CONNECT" 子串误触发
-- **CLOSED 处理 (V3.2)**: 检测到断线立即 `Inverter_SoftStart_Stop()` → `s_WiFiConnected=0`, 全程非阻塞
-- **静默看门狗 (V3.3)**: `ESP8266_RxChar` 每字节记录 `s_LastRxTick`, `App_Net_Task` 检测 15s 无数据 (`ESP8266_SILENT_TIMEOUT`) → `Inverter_SoftStart_Stop()` + `s_WiFiConnected=0`, 覆盖 ESP8266 掉电/卡死不发 CLOSED 的场景。Cortex-M3 上 uint32_t 对齐读写原子, 无需临界区
+- **CLOSED 处理 (V1.0.0)**: 检测到断线立即 `Inverter_SoftStart_Stop()` → `s_WiFiConnected=0`, 全程非阻塞
+- **静默看门狗 (V1.0.0)**: `ESP8266_RxChar` 每字节记录 `s_LastRxTick`, `App_Net_Task` 检测 30s 无数据 (`ESP8266_SILENT_TIMEOUT`) → `Inverter_SoftStart_Stop()` + `s_WiFiConnected=0` + `s_net_state=NET_IDLE`, 覆盖 ESP8266 掉电/卡死不发 CLOSED 的场景。Cortex-M3 上 uint32_t 对齐读写原子, 无需临界区。联网成功时 `ESP8266_RefreshLastRxTime` 给予全新 30s 窗口
 - **AT 进度点动画**: `ESP8266_SetWaitCallback(AT_DotAnim)` 注册回调, WaitResponse 轮询时每 10ms 触发, 回调内 200ms 节流更新 OLED 点动画
 
-### 2.12 OLED 性能优化 (V3.1)
+### 2.12 OLED 性能优化 (V1.0.0)
 
 软件 I2C 全屏清屏 `OLED_Clear` 耗时 ~100ms (1024 bytes), 会阻塞所有保护任务。优化策略:
 - 状态迁移/切页: 仍用 `OLED_Clear` (罕见, 可接受)
@@ -419,8 +414,8 @@ Step 3: 差异比对
 
 Step 4: 变更分类 & 版本决策
         ├─ 无实质性代码变更 → 不升版本, 仅刷新日期
-        ├─ 代码逻辑修改 → +0.1 (V1.1 → V1.2)
-        └─ 新增外设模块 → +1.0 (V1.2 → V2.0)
+        ├─ 代码逻辑修改 → +0.0.1 (V0.0.0 → V0.0.1)
+        └─ 新增外设模块 → +0.1.0 (V0.0.2 → V0.1.0)
 
 Step 5: 生成变更摘要
         └─ 用 1-3 句话概括所有变更 (中文)
@@ -458,7 +453,7 @@ Step 8: 重新生成双份文件
 ```markdown
 ## 全局变更检测报告
 
-**基线版本**: V1.1 (2026-05-17)
+**基线版本**: V0.0.0 (2026-06-17)
 **扫描范围**: Hardware/ (8 文件), User/ (4 文件), System/ (2 文件)
 
 ### 检测到的变更
@@ -471,7 +466,7 @@ Step 8: 重新生成双份文件
 
 ### 版本决策
 
-**V1.1 → V1.2** (副版本号递增: 代码逻辑修改)
+**V0.0.0 → V0.0.1** (小版本号递增: 代码逻辑修改)
 
 是否继续更新文档? (y/n)
 ```

@@ -10,9 +10,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **分支** | `LAN` |
 | **本地目录** | `D:\Claude Code Project\WPT_PWM_NetAssistant_LAN_V1.0` |
 | **协议** | NetAssist TCP 局域网 |
-| **版本** | V3.4 |
+| **版本** | V1.0.0 |
 
 其他分支: `master` (V0.0 基版) → `WPT_PWM_V0.0`, `WAN` (巴法云) → `WPT_PWM_Bemfa_WAN_V2.0`
+
+## 版本号规则 (Version Numbering)
+
+本项目采用 `Vx.y.z` 语义化版本号:
+
+| 字段 | 含义 | 递增条件 |
+|:---|:---|:---|
+| **x** (主版本) | 项目大版本, **固定为 `1`** | 对应目录名 `WPT_PWM_NetAssistant_LAN_V1.0` |
+| **y** (中版本) | 大功能升级 | 新增外设驱动模块 / 新通信协议 / 架构重构 |
+| **z** (小版本) | Bug 修复 / 文档更新 | 代码逻辑修改、bug 修复、注释/文档修订 |
+
+**当前版本: V1.0.0**
+
+### 历史版本映射
+
+旧版本号 (V3.x) 是开发早期未规范化的临时命名。全部历史版本按时间顺序重映射:
+
+| 旧版本号 | 新版本号 | 日期 | 核心变更 |
+|:---|:---|:---|:---|
+| V2.0 | V1.0.0-dev1 | 2026-05-14 | 重构: SysTimer + App_Net + main.c 极简化 + 三层架构 |
+| V2.1 | V1.0.0-dev2 | 2026-05-16 | 文档: 功能清单、流程图、\r 分隔符兼容 |
+| V2.2 | V1.0.0-dev3 | 2026-05-16 | 竞态修复: 临界区保护、SendString 优化 |
+| V2.3 | V1.0.0-dev4 | 2026-05-16 | PWM 接口统一、ISR 封装加固 |
+| V2.4 | V1.0.0-dev5 | 2026-05-18 | 死区 1000ns、PWM 预装载、极性修复 |
+| V3.0 | V1.0.0-dev6 | 2026-05-19 | 软启动非阻塞状态机、扫频 API、MOE 安全态 |
+| V3.1 | V1.0.0-dev7 | 2026-05-19 | 联网重试、ADC 独立滤波、CMD 防误触发、OLED 优化、四灯系统 |
+| V3.2 | V1.0.0-dev8 | 2026-05-20 | 异步联网、双重复位、UDIS 原子更新、TCP 粘包 |
+| V3.3 | V1.0.0-dev9 | 2026-05-20 | 静默看门狗、ESP8266 掉电自动关断 |
+| V3.4 | **V1.0.0** | 2026-05-22 | 致命 Bug 修复、看门狗 30s、CopyRxFrame、OLED 性能 |
+
+**规则**: 任何新代码/文档中的版本标记必须使用 `V1.x.x` 格式, 禁止使用旧 `V2.x`/`V3.x` 格式。历史版本仅在修改日志中保留。
 
 ### 复合指令触发规则
 
@@ -118,9 +149,9 @@ All `static uint32_t last` variables in task functions are per-function private 
 | OLED | `Hardware/OLED.c` | SSD1315 128x64 0.96" 4-pin over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); daily refresh uses 16-char full-line overwrite to avoid ~100ms I2C blocking |
 | UI | `Hardware/UI.c` | Dual-page UI (control panel + monitor mode); KEY0 triggers WiFi connect then soft-start; KEY1 stops; soft-start real-time frequency + progress bar display; state-change auto-clear |
 | LED | `Hardware/LED.c` | PC13 heartbeat + PB3 WiFi (connected=常亮, connecting=快闪, disconnected=慢闪) + PB4 PWM + PB5 Ready; `LED_Init`/`LED_Task`/`LED_Status_Task` |
-| App_Net | `User/App_Net.c` | V3.2 async 9-state AT FSM (NET_IDLE→NET_STEP_AT→...→NET_SUCCESS/FAIL), KEY1 cancelable, 3-retry auto-fallback; `s_WiFiConnected` single authority source + USART2 ready gate; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); **V3.3 silent watchdog**: 30s no RX data → `Inverter_SoftStart_Stop` + `s_WiFiConnected=0` + `s_net_state=NET_IDLE`; `ESP8266_RefreshLastRxTime` called at WiFi connect success to give fresh 30s window |
+| App_Net | `User/App_Net.c` | V1.0.0 async 9-state AT FSM (NET_IDLE→NET_STEP_AT→...→NET_SUCCESS/FAIL), KEY1 cancelable, 3-retry auto-fallback; `s_WiFiConnected` single authority source + USART2 ready gate; JSON telemetry (1s, skipped during SS_SWEEP); **CMD:ON/CMD:OFF** protocol (not bare ON/OFF); CLOSED→immediate `Inverter_SoftStart_Stop` + reset wifi state (non-blocking); **V1.0.0 silent watchdog**: 30s no RX data → `Inverter_SoftStart_Stop` + `s_WiFiConnected=0` + `s_net_state=NET_IDLE`; `ESP8266_RefreshLastRxTime` called at WiFi connect success to give fresh 30s window |
 
-## Startup Flow (V3.4)
+## Startup Flow (V1.0.0)
 
 ```
 上电 → PWM_Init(MOE=OFF) → OLED_Init → LED_Init → ADC_DMA → KEY
@@ -181,7 +212,7 @@ All `static uint32_t last` variables in task functions are per-function private 
 
 All ISR-shared variables (`s_RxIndex`, `s_FrameReady`, `g_ESP8266_RxFrameFlag`) must be `volatile`.
 
-**Critical section pattern** — any function that reads `s_RxBuf` via `strstr` must wrap the access. **V3.2**: Use `ESP8266_CopyRxFrame()` (atomic copy + clear in single critical section, preserves tail bytes for TCP粘包) or `ESP8266_BufferContains(needle)` (critical section strstr). Never call `USART_ITConfig(USART2, ...)` from outside ESP8266.c — all USART register access is encapsulated.
+**Critical section pattern** — any function that reads `s_RxBuf` via `strstr` must wrap the access. **V1.0.0**: Use `ESP8266_CopyRxFrame()` (atomic copy + clear in single critical section, preserves tail bytes for TCP粘包) or `ESP8266_BufferContains(needle)` (critical section strstr). Never call `USART_ITConfig(USART2, ...)` from outside ESP8266.c — all USART register access is encapsulated.
 
 `ESP8266_SendString` waits for TXE only — the final TC check was removed because USART2 is full-duplex and TXE guarantees the byte is in the shift register.
 
@@ -249,7 +280,7 @@ Without preload, runtime ARR/CCR changes can cause cycle distortion and shoot-th
 
 `PWM_SetFrequency` uses `TIM_CR1_UDIS`→write ARR+CCR1+CCR2→`TIM_EGR_UG`→clear UDIS to atomically load all shadow registers. This prevents Update Event between writes causing new-period-with-old-duty-cycle magnetic saturation.
 
-### ESP8266 Silent Watchdog (V3.3)
+### ESP8266 Silent Watchdog (V1.0.0)
 
 **Problem**: When ESP8266 module loses power independently (MCU still running), USART2 goes silent — no `CLOSED` frame is sent. PWM continues outputting with no remote shutdown capability.
 
@@ -263,7 +294,7 @@ if (SysTimer_GetTick() - ESP8266_GetLastRxTime() > ESP8266_SILENT_TIMEOUT) {
 }
 ```
 
-`ESP8266_SILENT_TIMEOUT = 30000` (30 seconds, V3.4 从 15s 延长以适配人工操作)。 On Cortex-M3, aligned 32-bit `s_LastRxTick` read/write is atomic — no critical section needed. `ESP8266_Init()` seeds the timestamp so the first 15s window starts with a fresh value.
+`ESP8266_SILENT_TIMEOUT = 30000` (30 seconds, V1.0.0 从 15s 延长以适配人工操作)。 On Cortex-M3, aligned 32-bit `s_LastRxTick` read/write is atomic — no critical section needed. `ESP8266_Init()` seeds the timestamp so the first 15s window starts with a fresh value.
 
 **Coverage matrix**:
 
