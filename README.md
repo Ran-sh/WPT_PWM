@@ -653,13 +653,13 @@ void HardFault_Handler(void) {
 
 | 分支 | 本地目录 | 版本 | 网络协议 | 服务器 | 说明 |
 |:---|:---|:---:|:---|:---|:---|
-| **`3.0ONENET`** ⬅ | `WPT_PWM_ONENET_V3.0` | **V3.0.0** | OneNET MQTT | 物模型 Dual-MCU | 当前活跃开发分支 |
-| `master` | `WPT_PWM_V0.0` | V1.0 | 无 (纯本地) | 无 | 裸机固件基版 |
-| `1.0LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V3.3 | NetAssist TCP | PC 局域网 :8080 | 内网调试 |
-| `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V4.0 | 巴法云 TCP | tcp.bemfa.com :8344 | 远程控制 (历史) |
-| `4.0TFT` | `WPT_PWM_TFT_V4.0` | — | — | — | 待开发 (TFT 显示升级) |
+| `master` | `WPT_PWM_V0.0` | V0.0.0 | 无 (纯本地) | 无 | 裸机固件基版 |
+| `1.0LAN` | `WPT_PWM_NetAssistant_LAN_V1.0` | V1.0.0 | NetAssist TCP | PC 局域网 :8080 | 内网调试 |
+| `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V2.0.0 | 巴法云 TCP | tcp.bemfa.com :8344 | 远程控制 |
+| **`3.0ONENET`** ⬅ | `WPT_PWM_ONENET_V3.0` | **V3.0.0** | OneNET MQTT | OneNET Studio | 物联网双脑架构 |
+| `4.0TFT` | `WPT_PWM_V4.0_ONENET_TFT` | V4.2.0 | OneNET MQTT | OneNET Studio | TFT彩屏升级版 |
 
-**分支间演进关系**: `master` (基版) → `1.0LAN` (局域网) → `2.0WAN` (巴法云) → `3.0ONENET` (OneNET MQTT 当前版)
+**分支间演进关系**: `master` (基版) → `1.0LAN` (局域网) → `2.0WAN` (巴法云) → `3.0ONENET` (OneNET MQTT) → `4.0TFT` (TFT 彩屏)
 
 ---
 
