@@ -45,8 +45,7 @@ function getLatestData(cfg) {
 
     function trySettle() {
       if (!dataDone || !statusDone) return;  /* 必须等两个请求都完成 */
-      /* 在线判定: /device/detail 优先, 失败/超时则兜底 data 非空 */
-      if (!isOnline) isOnline = (dataResult && dataResult._raw && Object.keys(dataResult._raw).length > 0);
+      /* 在线判定: 优先 /device/detail, 失败时兜底 data 非空 (对齐 Web) */
       dataResult._isOnline = isOnline;
       if (_newData) { _newData._isOnline = isOnline; wx.setStorageSync('wpt_latest', _newData); }
       resolve(dataResult);
@@ -75,6 +74,8 @@ function getLatestData(cfg) {
         model.sensors.forEach(function(s) { if (rawData[s.cloudKey] !== undefined) { var v = rawData[s.cloudKey]; if (s.fromCloud) v = s.fromCloud(v); data[s.id] = v; } });
         model.controls.forEach(function(c) { if (rawData[c.cloudKey] !== undefined) { var v = rawData[c.cloudKey]; if (c.fromCloud) v = c.fromCloud(v); data[c.id] = v; } });
         data._raw = rawData;
+        /* 兜底: 数据非空＝可能在线, /device/detail 后续会覆写 */
+        isOnline = (res.data.data && res.data.data.length > 0);
 
         /* 乐观锁: 3s 内下发过的属性不覆盖 */
         var cachedData = safeStorageGet('wpt_latest', {});
