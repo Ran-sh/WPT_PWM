@@ -359,6 +359,18 @@ Vx.y.z 三数字体系：
 | 31 | Sys_Safety_Task 在非 RUNNING 状态仍执行 EMA 更新+过流检测 | 安全模块设计时假定了"只有 RUNNING 才可能过流", 但忘了远程 OFF | **安全监测入口加状态守卫: 仅 RUNNING 执行, 其余 return** |
 | 32 | 4 键读取连续 4 次 IRQ 禁用 | 按键驱动只有单个 `Get_Event`, UI 层调用 4 次 | **批量 API 合并临界区: 一次锁定批量读写, 减少中断抖动** |
 
+### 4.7 2026-06-18: V4.2.4 离线守卫修复教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 33 | 小程序始终显示在线 + 有数据 | `getLatestData` 里数据请求先返回→直接 `resolve(data)` 不经过 `trySettle`, `_isOnline` 永远=`data.length>0`(OneNET 离线也返回历史数据) | **双请求 Promise 必须等两路都就绪才 resolve, 不能任一路提前返回** |
+| 34 | 缓存里的 `_isOnline` 永远是 `undefined` | 缓存 `localStorage.setItem`/`wx.setStorageSync` 在 `_isOnline` 赋值之前执行 | **带 `_isOnline` 的缓存写入必须延迟到在线状态确认后** |
+| 35 | 设备已连上但小程序始终显示离线 | `isOnline` 初始值为 `false`, 状态请求 `fail` 不会改写, `trySettle` 双就绪后 `isOnline` 仍是 `false` | **数据请求成功后设兜底 `isOnline = data.length > 0`, 状态请求成功再覆写 (对齐 Web 三层判定)** |
+| 36 | Web index.html `throw` 导致永远显示"连接失败" | 编辑在线分支时 `} else {` 后残留 `throw new Error`, 每次正常数据都进 catch | **编辑控制流代码后必须检查所有分支出口, 尤其是 `if/else` 末端的 `throw` 残留** |
+| 37 | control.html 在线指示器代码重复 | 编辑合并时旧代码未清干净, `} else {` 后新旧两段共存 | **每次 Edit 后 Read 验证最终文件, 确认无残留代码块** |
+| 38 | 小程序后台切出后定时器继续跑 | monitoring/control/history 三个页面只有 `onUnload` 无 `onHide`, 小程序切后台时 `onUnload` 不触发 | **所有带轮询的页面必须同时实现 `onHide` + `onUnload` 双向清理** |
+| 39 | `_isOnline === false` 漏判 `undefined` | 多处用严格等于判断离线, `undefined`(Mock/未配置) 时不走离线分支 | **改用 `!data._isOnline` 统一判定: falsy(=false/undefined/null)→离线, truthy→在线** |
+
 ### 4.5 "更新全部内容"执行检查清单
 
 以后每次触发"更新全部内容"，**必须逐条执行并打勾**:
