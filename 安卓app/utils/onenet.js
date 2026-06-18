@@ -38,30 +38,33 @@ function getLatestData(cfg) {
     return Promise.resolve(getMockData());
 
   return new Promise(function(resolve, reject) {
-    var settled = false;
-    function settle(fn, val) { if (!settled) { settled = true; fn(val); } }
+    var dataDone = false, statusDone = false;
+    var dataResult = null, isOnline = false;
 
-    /* 并行获取在线状态 (先发, 等数据回来再判断) */
-    var onlineChecked = false, isOnline = false;
-    wx.request({
-      url: cfg.BASE_URL + '/device/detail?product_id=' + cfg.PRODUCT_ID + '&device_name=' + cfg.DEVICE_NAME,
-      method: 'GET', header: { 'Authorization': cfg.TOKEN },
-      success: function(r) {
-        if (r.statusCode === 200 && r.data.code === 0 && r.data.data) {
-          var st = r.data.data.status;
-          isOnline = (st === 1 || st === 2 || st === '在线');
-        }
-        onlineChecked = true;
-      },
-      fail: function() { onlineChecked = true; }
-    });
+    function trySettle() {
+      if (!dataDone) return;
+      /* 离线: 不缓存旧数据, 直接返回 */
+      if (!dataResult._isOnline) { resolve(dataResult); return; }
+      /* 在线: 缓存 + 返回 */
+      var cachedData = safeStorageGet('wpt_latest', {});
+      var controlLocks = safeStorageGet('wpt_control_locks', {});
+      var now = Date.now();
+      for (var k in dataResult) { if (dataResult.hasOwnProperty(k) && controlLocks[k] && (now - controlLocks[k] < LOCK_MS)) dataResult[k] = cachedData[k]; }
+      var newData = extend({}, cachedData, dataResult);
+      wx.setStorageSync('wpt_latest', newData);
+      saveHistory(newData);
+      resolve(dataResult);
+    }
 
+    /* 数据请求 */
     wx.request({
       url: cfg.BASE_URL + '/thingmodel/query-device-property?product_id=' + cfg.PRODUCT_ID + '&device_name=' + cfg.DEVICE_NAME,
       method: 'GET', header: { 'Authorization': cfg.TOKEN },
       success: function(res) {
         if (res.statusCode !== 200 || res.data.code !== 0) {
-          settle(reject, new Error(httpErrorMessage(res.statusCode, res.data)));
+          dataResult = { _isOnline: false, _error: httpErrorMessage(res.statusCode, res.data) };
+          dataDone = true;
+          reject(new Error(httpErrorMessage(res.statusCode, res.data)));
           return;
         }
         var rawData = {};
@@ -75,25 +78,29 @@ function getLatestData(cfg) {
         var data = {};
         model.sensors.forEach(function(s) { if (rawData[s.cloudKey] !== undefined) { var v = rawData[s.cloudKey]; if (s.fromCloud) v = s.fromCloud(v); data[s.id] = v; } });
         model.controls.forEach(function(c) { if (rawData[c.cloudKey] !== undefined) { var v = rawData[c.cloudKey]; if (c.fromCloud) v = c.fromCloud(v); data[c.id] = v; } });
-
-        /* 在线状态判定: 优先 /device/detail, 兜底用数据非空 */
-        data._isOnline = onlineChecked ? isOnline : (res.data.data && res.data.data.length > 0);
-
-        /* 离线: 不缓存旧数据, 直接返回 */
-        if (!data._isOnline) { settle(resolve, data); return; }
-
-        /* 乐观锁 + 缓存 (仅在线时) */
-        var cachedData = safeStorageGet('wpt_latest', {});
-        var controlLocks = safeStorageGet('wpt_control_locks', {});
-        var now = Date.now();
-        for (var k in data) { if (data.hasOwnProperty(k) && controlLocks[k] && (now - controlLocks[k] < LOCK_MS)) data[k] = cachedData[k]; }
-        var newData = extend({}, cachedData, data);
-        wx.setStorageSync('wpt_latest', newData);
-        saveHistory(newData);
         data._raw = rawData;
-        settle(resolve, data);
+        data._isOnline = isOnline;
+        dataResult = data;
+        dataDone = true;
+        if (statusDone) trySettle();
+        else resolve(data);
       },
-      fail: function() { settle(reject, new Error('网络请求失败, 请检查网络连接')); }
+      fail: function() { reject(new Error('网络请求失败, 请检查网络连接')); }
+    });
+
+    /* 并行: /device/detail 获取在线状态 */
+    wx.request({
+      url: cfg.BASE_URL + '/device/detail?product_id=' + cfg.PRODUCT_ID + '&device_name=' + cfg.DEVICE_NAME,
+      method: 'GET', header: { 'Authorization': cfg.TOKEN },
+      success: function(r) {
+        if (r.statusCode === 200 && r.data.code === 0 && r.data.data) {
+          var st = r.data.data.status;
+          isOnline = (st === 1 || st === 2 || st === '在线');
+        }
+        statusDone = true;
+        if (dataDone && dataResult) dataResult._isOnline = isOnline;
+      },
+      fail: function() { statusDone = true; }
     });
   });
 }
