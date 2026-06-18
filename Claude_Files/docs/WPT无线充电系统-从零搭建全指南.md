@@ -17,9 +17,9 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V4.2.2 |
-| **最后更新** | 2026-06-17 |
-| **对应固件版本** | V4.2.2 (分支 `4.0TFT`) |
+| **文档版本** | V4.2.4 |
+| **最后更新** | 2026-06-18 |
+| **对应固件版本** | V4.2.4 (分支 `4.0TFT`) |
 | **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) |
 | **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages) |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接, 备选) |
@@ -30,7 +30,7 @@
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
 | V2.2.0 | 2026-05-24 | 全篇重构: 调试避坑模块、配图标注、双主题小程序、频率渐变斜坡、Cloudflare部署 |
-| V4.2.2 | 2026-06-17 | WiFi OFFLINE 双模式(被动自动嗅探/主动手动恢复) + 5次有限重试 + BOOT_WAIT提前加速 + MQTT超时保护 + 8项bug修复 + App_Network状态枚举扩展 |
+| V4.2.4 | 2026-06-18 | 离线守卫全平台修复: _isOnline 三层判定(兜底data非空→/device/detail覆写→cache延写) + Web throw误触发 + 重复代码块 + 生命周期onHide/pagehide清理 + 全平台代码审查 |
 | V4.2.1 | 2026-06-17 | 全项目 README 重写(4分支统一分支表) + 版本号规则全文档对齐 |
 | V4.2.0 | 2026-06-17 | 全平台版本号统一为 Vx.x.x 体系 + TFT字库 76字精准对齐(综/合字模修复) + 底部栏简化(仅ON:确定+PAGE:返回) + EMA双级滤波链 |
 | V4.1.0 | 2026-06-11 | OLED→TFT彩屏 + 9页面UI + 动态能量条 + 4键6LED蜂鸣器 + 37项审查修复 |

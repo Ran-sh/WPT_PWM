@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.2.3 |
+| **版本** | V4.2.4 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.2.2)
@@ -23,7 +23,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.2.3
+当前版本: V4.2.4
 
 涉及版本号的位置 (全项目必须统一):
   文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.2.2
@@ -38,7 +38,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   旧 V0.0/V1.0 → V1.0.x | 旧 V3.0     → V2.0.0
   旧 V5.0/V5.1/V5.2 → V2.x.x | 旧 V6.0/V6.4 → V2.4.0/V3.0.0
   旧 V9/V10/V11/V12/V13 → V3.x.x | 旧 V14/V15/V16 → V4.0.0
-  旧 V25 → V4.1.0 | 旧 V26 → V4.2.3
+  旧 V25 → V4.1.0 | 旧 V26 → V4.2.4
   (SPL V3.5.0、ARMCC V5.06、Keil V5 是外部工具版本, 不在此范围)
 
 禁止事项:
@@ -178,7 +178,7 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 ## 文件结构
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/                        ← ~10041 行逻辑代码 (全平台)
+WPT_PWM_V4.0_ONENET_TFT/                        ← ~10031 行逻辑代码 (全平台)
 ├── Keil_Project/                               ← STM32 固件 — 5065 行 (含 User/System, 不含 Library/Start)
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
@@ -203,7 +203,7 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~10041 行逻辑代码 (全�
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
 ├── Arduino_Project/                            ← ESP8266 固件 — 522 行
 │   └── ESP8266_MQTT_Firmware/...ino            ← WiFiManager+双MQTT+指令去抖+遥测+OFFLINE
-├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3416 行
+├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3406 行
 │   ├── index.html(410)/control.html(495)       ← 主页+控制+乐观更新+连接指示器
 │   ├── monitoring.html(394)/history.html(527)  ← 监测+历史趋势图
 │   ├── alerts.html(325)/settings.html(804)/login.html(149)
@@ -457,6 +457,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V4.2.4 | 离线守卫全平台修复: Web+小程序 _isOnline 判定统一 + 缓存时序修正(延后到在线确认) + 在线兜底(data非空)+/device/detail覆写 + Web throw误触发修复 + 重复代码块清理 + 生命周期onHide/pagehide清理 |
 | V4.2.3 | 全平台安全审查修复: 删除硬编码凭证+console清理+定时器泄漏修复+setInterval防重叠+小程序并行在线检测+STM32 Sys_Safety仅RUNNING+Key批量读取+login SHA-256 |
 | V4.2.2 | WiFi OFFLINE 双模式(被动自动嗅探/主动手动恢复)+5次有限重试+BOOT_WAIT提前+MQTT超时+Bug修复8项 |
 | V4.2.1 | 全项目 README 重写(4分支统一分支表) + CLAUDE.md 版本号规则流程扩展到全部文档 |
