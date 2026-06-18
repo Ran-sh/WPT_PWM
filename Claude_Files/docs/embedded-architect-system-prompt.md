@@ -344,6 +344,20 @@ Vx.y.z 三数字体系：
 | 22 | 审查报告 CLAUDE.md 只列了 3 行 change summary, 行数还是旧的 | 写审查报告时只看了 App_Network.c 没跑 `wc -l` 全平台统计 | **每次"更新全部内容"第 1 条必须先 `wc -l` 全平台行数**, 不能靠记忆 |
 | 23 | `git add -A` 每次把 `.claude/settings.local.json` 和 `Target 1.BAT` 也 stage | 这两个文件有本地修改但不应提交 | **`git add` 前先 `git diff --name-only` 过滤**, 或用 `git add <specific-files>` 替代 `-A` |
 
+### 4.6 2026-06-18: V4.2.3 安全审查教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 24 | Web onenet.js 每请求 console.log Token 等 8 处调试输出 | 开发阶段写 console 未清理 | **提交前 `grep -rn console\.` 全项目扫描**, 确认零残留 |
+| 25 | login.html 明文密码 "123456789" | 纯前端登录验证认为密码无所谓 | **密码验证必须哈希, 前端最低标准 SHA-256** |
+| 26 | 小程序硬编码 product_id + device_name + token | 以为自己要用, dev 和 prod 凭证没分离 | **禁止在源码硬编码凭证, 始终从配置/storage 读取** |
+| 27 | 重构删除 /device/detail 并行请求但保留 `_isOnline` 判定逻辑不变 | 重写 getLatestData 精简代码时把在线检测路径丢失 | **重构 API 层必须保留原始请求拓扑, 不能减少 API 调用** |
+| 28 | `setInterval(async fn)` 慢网下任务堆积 | setInterval 不关心回调是否完成 | **setInterval 回调内加 `_busy` 标志防止重叠, 或改用 setTimeout 链** |
+| 29 | Web index.html `_scheduleNextPoll` 嵌套 setTimeout 链无 pagehide 清理 | 自定义递归定时器忘了页面卸载场景 | **所有定时器注册时必须同时注册 pagehide/unload 清理** |
+| 30 | 小程序 `_isOnline` 竞态: 数据先到→`onlineChecked=false`→兜底判在线 | 知道用并行请求, 但未正确处理两个回调的到达顺序 | **双请求 trySettle: 数据先 resolve(兜底), 在线检测后覆写 _isOnline** |
+| 31 | Sys_Safety_Task 在非 RUNNING 状态仍执行 EMA 更新+过流检测 | 安全模块设计时假定了"只有 RUNNING 才可能过流", 但忘了远程 OFF | **安全监测入口加状态守卫: 仅 RUNNING 执行, 其余 return** |
+| 32 | 4 键读取连续 4 次 IRQ 禁用 | 按键驱动只有单个 `Get_Event`, UI 层调用 4 次 | **批量 API 合并临界区: 一次锁定批量读写, 减少中断抖动** |
+
 ### 4.5 "更新全部内容"执行检查清单
 
 以后每次触发"更新全部内容"，**必须逐条执行并打勾**:
