@@ -45,6 +45,8 @@ function getLatestData(cfg) {
 
     function trySettle() {
       if (!dataDone || !statusDone) return;  /* 必须等两个请求都完成 */
+      /* 在线判定: /device/detail 优先, 失败/超时则兜底 data 非空 */
+      if (!isOnline) isOnline = (dataResult && dataResult._raw && Object.keys(dataResult._raw).length > 0);
       dataResult._isOnline = isOnline;
       if (_newData) { _newData._isOnline = isOnline; wx.setStorageSync('wpt_latest', _newData); }
       resolve(dataResult);
