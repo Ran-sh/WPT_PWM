@@ -43,16 +43,9 @@ function getLatestData(cfg) {
 
     function trySettle() {
       if (!dataDone) return;
-      /* 离线: 不缓存旧数据, 直接返回 */
-      if (!dataResult._isOnline) { resolve(dataResult); return; }
-      /* 在线: 缓存 + 返回 */
-      var cachedData = safeStorageGet('wpt_latest', {});
-      var controlLocks = safeStorageGet('wpt_control_locks', {});
-      var now = Date.now();
-      for (var k in dataResult) { if (dataResult.hasOwnProperty(k) && controlLocks[k] && (now - controlLocks[k] < LOCK_MS)) dataResult[k] = cachedData[k]; }
-      var newData = extend({}, cachedData, dataResult);
-      wx.setStorageSync('wpt_latest', newData);
-      saveHistory(newData);
+      /* 在线状态优先 /device/detail, 兜底数据非空 */
+      if (statusDone) dataResult._isOnline = isOnline;
+      else if (!dataResult._isOnline) dataResult._isOnline = false;
       resolve(dataResult);
     }
 
@@ -79,7 +72,17 @@ function getLatestData(cfg) {
         model.sensors.forEach(function(s) { if (rawData[s.cloudKey] !== undefined) { var v = rawData[s.cloudKey]; if (s.fromCloud) v = s.fromCloud(v); data[s.id] = v; } });
         model.controls.forEach(function(c) { if (rawData[c.cloudKey] !== undefined) { var v = rawData[c.cloudKey]; if (c.fromCloud) v = c.fromCloud(v); data[c.id] = v; } });
         data._raw = rawData;
-        data._isOnline = isOnline;
+        data._isOnline = (res.data.data && res.data.data.length > 0);
+
+        /* 乐观锁 + 缓存 + 历史 */
+        var cachedData = safeStorageGet('wpt_latest', {});
+        var controlLocks = safeStorageGet('wpt_control_locks', {});
+        var now = Date.now();
+        for (var k in data) { if (data.hasOwnProperty(k) && controlLocks[k] && (now - controlLocks[k] < LOCK_MS)) data[k] = cachedData[k]; }
+        var newData = extend({}, cachedData, data);
+        wx.setStorageSync('wpt_latest', newData);
+        saveHistory(newData);
+
         dataResult = data;
         dataDone = true;
         if (statusDone) trySettle();
@@ -98,7 +101,10 @@ function getLatestData(cfg) {
           isOnline = (st === 1 || st === 2 || st === '在线');
         }
         statusDone = true;
-        if (dataDone && dataResult) dataResult._isOnline = isOnline;
+        if (dataDone && dataResult) {
+          dataResult._isOnline = isOnline || dataResult._isOnline;
+          trySettle();
+        }
       },
       fail: function() { statusDone = true; }
     });
