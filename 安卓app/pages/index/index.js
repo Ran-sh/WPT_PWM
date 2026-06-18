@@ -11,12 +11,12 @@ function formatValue(val, dataType, step) {
   return n.toFixed(OneNet.getDecimals(dataType, step));
 }
 
-function buildCards(model, data) {
+function buildCards(model, data, isOffline) {
   var sensors = [], controls = [];
-  /* 传感器 */
+  /* 传感器: 离线时全部显示 "--" */
   (model.sensors || []).forEach(function(s) {
     var val = '--', status = 'normal', stxt = '等待数据';
-    if (data && data[s.id] !== undefined) {
+    if (!isOffline && data && data[s.id] !== undefined) {
       val = formatValue(data[s.id], s.dataType, s.step);
       var n = Number(val);
       if (!isNaN(n)) {
@@ -27,15 +27,12 @@ function buildCards(model, data) {
     }
     sensors.push({ id: s.id, name: s.name, unit: s.unit, value: val, status: status, statusText: stxt, min: s.min, max: s.max });
   });
-  /* 控制 */
+  /* 控制: 离线时全部显示 "--" */
   (model.controls || []).forEach(function(c) {
     var displayVal = '--';
-    if (data && data[c.id] !== undefined) {
-      if (c.dataType === 'bool') {
-        displayVal = data[c.id] === true ? '已开启' : '已关闭';
-      } else {
-        displayVal = formatValue(data[c.id], c.dataType, c.step);
-      }
+    if (!isOffline && data && data[c.id] !== undefined) {
+      if (c.dataType === 'bool') displayVal = data[c.id] === true ? '已开启' : '已关闭';
+      else displayVal = formatValue(data[c.id], c.dataType, c.step);
     }
     controls.push({ id: c.id, name: c.name, value: displayVal });
   });
@@ -54,7 +51,7 @@ Page({
     var title = wx.getStorageSync('wpt_dashboard_title');
     if (title) this.setData({ dashTitle: title });
     var model = OneNet.getDataModel();
-    this.setData(buildCards(model, null));
+    this.setData(buildCards(model, null, true));  /* 无数据 → 离线条 */
     var cached = wx.getStorageSync('wpt_latest');
     if (cached) this._applyData(cached, true);
     this._pollTimer = null; this._retryTimer = null; this._active = true;
@@ -68,7 +65,8 @@ Page({
     var model = OneNet.getDataModel();
     if (JSON.stringify(model) !== this._lastModelJson) {
       this._lastModelJson = JSON.stringify(model);
-      this.setData(buildCards(model, wx.getStorageSync('wpt_latest')));
+      var cached2 = wx.getStorageSync('wpt_latest');
+      this.setData(buildCards(model, cached2, !(cached2 && cached2._isOnline)));
     }
     if (!this._active) { this._active = true; this._pollFailures = 0; this._fetchAndSchedule(); }
   },
@@ -89,14 +87,14 @@ Page({
     if (!this._active) return;
     this._doFetch().then(function(data) {
       that._pollFailures = 0;
-      if (that._active && data) that.setData({ connState: data._isOnline !== false ? 0 : 1, connLabel: data._isOnline !== false ? '在线' : '离线' });
+      if (that._active && data) { var on = !!data._isOnline; that.setData({ connState: on ? 0 : 1, connLabel: on ? '在线' : '离线' }); }
     }).catch(function() {
       that._pollFailures++;
       if (that._pollFailures === 1 && that._active) {
         clearTimeout(that._retryTimer);
         that._retryTimer = setTimeout(function() {
           if (!that._active) return;
-          that._doFetch().then(function(data) { that._pollFailures = 0; if (that._active && data) that.setData({ connState: data._isOnline !== false ? 0 : 1, connLabel: data._isOnline !== false ? '在线' : '离线' }); }).catch(function() {});
+          that._doFetch().then(function(data) { that._pollFailures = 0; if (that._active && data) { var on2 = !!data._isOnline; that.setData({ connState: on2 ? 0 : 1, connLabel: on2 ? '在线' : '离线' }); } }).catch(function() {});
         }, 2000);
       } else if (that._active) { that.setData({ connState: 2, connLabel: '连接失败' }); }
     }).then(function() {
@@ -116,9 +114,10 @@ Page({
 
   _applyData: function(data, fromCache) {
     var model = OneNet.getDataModel();
-    var cards = buildCards(model, data);
+    var isOffline = !data._isOnline;  /* true=在线, false/undefined=离线 */
+    var cards = buildCards(model, data, isOffline);
     var newAlerts = OneNet.checkAlerts(data, fromCache);
-    var online = data._isOnline !== false;
+    var online = !isOffline;
     this.setData({
       sensors: cards.sensors, controls: cards.controls,
       alertVisible: newAlerts.length > 0, alertMessages: newAlerts,

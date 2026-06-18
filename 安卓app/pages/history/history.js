@@ -42,6 +42,7 @@ Page({
   },
 
   _checkTheme: function() { var t = wx.getStorageSync('wpt_theme') || 'theme-dark'; if (t !== this.data.currentTheme) this.setData({ currentTheme: t }); },
+  onHide: function() { this._active = false; clearInterval(this._pollTimer); },
   onUnload: function() { this._active = false; clearInterval(this._pollTimer); },
   onToggleTheme: function() { var n = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark'; this.setData({ currentTheme: n }); wx.setStorageSync('wpt_theme', n); },
   onPullDownRefresh: function() { this._allHistory = wx.getStorageSync('wpt_history') || []; this._loadAndRender(); wx.stopPullDownRefresh(); },

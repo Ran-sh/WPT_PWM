@@ -41,11 +41,12 @@ function getLatestData(cfg) {
     var dataDone = false, statusDone = false;
     var dataResult = null, isOnline = false;
 
+    var _newData = null;  /* 缓存写入延迟到在线状态确认后 */
+
     function trySettle() {
-      if (!dataDone) return;
-      /* 在线状态优先 /device/detail, 兜底数据非空 */
-      if (statusDone) dataResult._isOnline = isOnline;
-      else if (!dataResult._isOnline) dataResult._isOnline = false;
+      if (!dataDone || !statusDone) return;  /* 必须等两个请求都完成 */
+      dataResult._isOnline = isOnline;
+      if (_newData) { _newData._isOnline = isOnline; wx.setStorageSync('wpt_latest', _newData); }
       resolve(dataResult);
     }
 
@@ -72,23 +73,20 @@ function getLatestData(cfg) {
         model.sensors.forEach(function(s) { if (rawData[s.cloudKey] !== undefined) { var v = rawData[s.cloudKey]; if (s.fromCloud) v = s.fromCloud(v); data[s.id] = v; } });
         model.controls.forEach(function(c) { if (rawData[c.cloudKey] !== undefined) { var v = rawData[c.cloudKey]; if (c.fromCloud) v = c.fromCloud(v); data[c.id] = v; } });
         data._raw = rawData;
-        data._isOnline = (res.data.data && res.data.data.length > 0);
 
-        /* 乐观锁 + 缓存 + 历史 */
+        /* 乐观锁: 3s 内下发过的属性不覆盖 */
         var cachedData = safeStorageGet('wpt_latest', {});
         var controlLocks = safeStorageGet('wpt_control_locks', {});
         var now = Date.now();
         for (var k in data) { if (data.hasOwnProperty(k) && controlLocks[k] && (now - controlLocks[k] < LOCK_MS)) data[k] = cachedData[k]; }
-        var newData = extend({}, cachedData, data);
-        wx.setStorageSync('wpt_latest', newData);
-        saveHistory(newData);
+        _newData = extend({}, cachedData, data);
+        saveHistory(_newData);
 
         dataResult = data;
         dataDone = true;
-        if (statusDone) trySettle();
-        else resolve(data);
+        trySettle();
       },
-      fail: function() { reject(new Error('网络请求失败, 请检查网络连接')); }
+      fail: function() { dataDone = true; reject(new Error('网络请求失败, 请检查网络连接')); }
     });
 
     /* 并行: /device/detail 获取在线状态 */
@@ -101,12 +99,9 @@ function getLatestData(cfg) {
           isOnline = (st === 1 || st === 2 || st === '在线');
         }
         statusDone = true;
-        if (dataDone && dataResult) {
-          dataResult._isOnline = isOnline || dataResult._isOnline;
-          trySettle();
-        }
+        trySettle();
       },
-      fail: function() { statusDone = true; }
+      fail: function() { statusDone = true; trySettle(); }
     });
   });
 }

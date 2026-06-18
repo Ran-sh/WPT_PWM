@@ -6,10 +6,10 @@
 var OneNet = require('../../utils/onenet.js');
 
 function buildSensorList(model, data) {
-  var list = [];
+  var list = [], isOffline = !(data && data._isOnline);
   model.sensors.forEach(function(s) {
     var val = '--', status = 'normal', stxt = '等待数据';
-    if (data && data[s.id] !== undefined) {
+    if (!isOffline && data && data[s.id] !== undefined) {
       val = Number(data[s.id]).toFixed(OneNet.getDecimals(s.dataType, s.step));
       var n = Number(val);
       if (!isNaN(n)) {
@@ -17,7 +17,7 @@ function buildSensorList(model, data) {
         else if (n < s.min) { status = 'alert'; stxt = '异常 (偏低)'; }
         else { status = 'normal'; stxt = '正常 (' + s.min + '-' + s.max + s.unit + ')'; }
       }
-    }
+    } else if (isOffline) { stxt = '设备离线, 无实时数据'; }
     list.push({ id: s.id, name: s.name, unit: s.unit, min: s.min, max: s.max, value: val, status: status, statusText: stxt, colorHex: s.colorHex, colorBg: s.colorBg });
   });
   return list;
@@ -43,7 +43,8 @@ Page({
     setTimeout(function() { that._drawChart(); }, 600);
   },
 
-  onShow: function() { this._checkTheme(); },
+  onShow: function() { this._checkTheme(); if (!this._active) { this._active = true; this._syncData(); } },
+  onHide: function() { this._active = false; clearInterval(this._pollTimer); },
 
   onUnload: function() { this._active = false; clearInterval(this._pollTimer); },
 

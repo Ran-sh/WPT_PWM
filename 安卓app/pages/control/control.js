@@ -26,7 +26,8 @@ Page({
     this._pollTimer = setInterval(function() { that._syncStatus(); }, 5000);
   },
 
-  onShow: function() { this._checkTheme(); },
+  onShow: function() { this._checkTheme(); if (!this._active) { this._active = true; this._syncStatus(); } },
+  onHide: function() { this._active = false; clearInterval(this._pollTimer); },
 
   _checkTheme: function() { var t = wx.getStorageSync('wpt_theme') || 'theme-dark'; if (t !== this.data.currentTheme) this.setData({ currentTheme: t }); },
   onUnload: function() { this._active = false; clearInterval(this._pollTimer); },
@@ -39,7 +40,7 @@ Page({
     OneNet.getLatestData().then(function(data) {
       if (!that._active) return;
       /* 设备离线: 强制安全默认值, 忽略 OneNET 缓存的旧数据 */
-      if (data._isOnline === false) {
+      if (!data._isOnline) {
         that.setData({ isOn: false, isFault: false, systemState: 'IDLE', stateLabel: '离线' });
         return;
       }
