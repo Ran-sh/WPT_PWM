@@ -96,7 +96,7 @@ function getLatestData(cfg) {
       success: function(r) {
         if (r.statusCode === 200 && r.data.code === 0 && r.data.data) {
           var st = r.data.data.status;
-          isOnline = (st === 1 || st === 2 || st === '在线');
+          isOnline = (st == 1 || st == 2 || st === '在线');
         }
         statusDone = true;
         trySettle();
