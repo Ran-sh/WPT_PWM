@@ -118,9 +118,11 @@ Page({
     var model = OneNet.getDataModel();
     var cards = buildCards(model, data);
     var newAlerts = OneNet.checkAlerts(data, fromCache);
+    var online = data._isOnline !== false;
     this.setData({
       sensors: cards.sensors, controls: cards.controls,
-      alertVisible: newAlerts.length > 0, alertMessages: newAlerts
+      alertVisible: newAlerts.length > 0, alertMessages: newAlerts,
+      connState: online ? 0 : 1, connLabel: online ? '在线' : '离线'
     });
     this._lastModelJson = JSON.stringify(model);
   },

@@ -41,6 +41,21 @@ function getLatestData(cfg) {
     var settled = false;
     function settle(fn, val) { if (!settled) { settled = true; fn(val); } }
 
+    /* 并行获取在线状态 (先发, 等数据回来再判断) */
+    var onlineChecked = false, isOnline = false;
+    wx.request({
+      url: cfg.BASE_URL + '/device/detail?product_id=' + cfg.PRODUCT_ID + '&device_name=' + cfg.DEVICE_NAME,
+      method: 'GET', header: { 'Authorization': cfg.TOKEN },
+      success: function(r) {
+        if (r.statusCode === 200 && r.data.code === 0 && r.data.data) {
+          var st = r.data.data.status;
+          isOnline = (st === 1 || st === 2 || st === '在线');
+        }
+        onlineChecked = true;
+      },
+      fail: function() { onlineChecked = true; }
+    });
+
     wx.request({
       url: cfg.BASE_URL + '/thingmodel/query-device-property?product_id=' + cfg.PRODUCT_ID + '&device_name=' + cfg.DEVICE_NAME,
       method: 'GET', header: { 'Authorization': cfg.TOKEN },
@@ -60,7 +75,14 @@ function getLatestData(cfg) {
         var data = {};
         model.sensors.forEach(function(s) { if (rawData[s.cloudKey] !== undefined) { var v = rawData[s.cloudKey]; if (s.fromCloud) v = s.fromCloud(v); data[s.id] = v; } });
         model.controls.forEach(function(c) { if (rawData[c.cloudKey] !== undefined) { var v = rawData[c.cloudKey]; if (c.fromCloud) v = c.fromCloud(v); data[c.id] = v; } });
-        /* 乐观锁 */
+
+        /* 在线状态判定: 优先 /device/detail, 兜底用数据非空 */
+        data._isOnline = onlineChecked ? isOnline : (res.data.data && res.data.data.length > 0);
+
+        /* 离线: 不缓存旧数据, 直接返回 */
+        if (!data._isOnline) { settle(resolve, data); return; }
+
+        /* 乐观锁 + 缓存 (仅在线时) */
         var cachedData = safeStorageGet('wpt_latest', {});
         var controlLocks = safeStorageGet('wpt_control_locks', {});
         var now = Date.now();
@@ -69,7 +91,6 @@ function getLatestData(cfg) {
         wx.setStorageSync('wpt_latest', newData);
         saveHistory(newData);
         data._raw = rawData;
-        data._isOnline = (res.data.data && res.data.data.length > 0);
         settle(resolve, data);
       },
       fail: function() { settle(reject, new Error('网络请求失败, 请检查网络连接')); }
