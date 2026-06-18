@@ -1595,14 +1595,12 @@ void Ui_Controller_Task(void)
         }
     }
 
-    /* ── Phase 3: Key scan + dispatch ── */
+    /* ── Phase 3: Key scan + dispatch (单次临界区批量读取) ── */
     old_cursor = s_menu_cursor;
     {
-        Key_Driver_Event k0 = Key_Driver_Get_Event(KEY_DRIVER_ID_ON_OFF);
-        Key_Driver_Event k1 = Key_Driver_Get_Event(KEY_DRIVER_ID_FREQ_UP);
-        Key_Driver_Event k2 = Key_Driver_Get_Event(KEY_DRIVER_ID_FREQ_DOWN);
-        Key_Driver_Event k3 = Key_Driver_Get_Event(KEY_DRIVER_ID_PAGE);
-        Handle_Keys_by_Page(s_page, k0, k1, k2, k3);
+        Key_Driver_Event ke[4];
+        Key_Driver_Get_All_Events(ke);
+        Handle_Keys_by_Page(s_page, ke[0], ke[1], ke[2], ke[3]);
     }
     if (s_menu_cursor != old_cursor) cursor_changed = 1;
 

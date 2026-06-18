@@ -38,6 +38,11 @@ Page({
     if (!that._active) return;
     OneNet.getLatestData().then(function(data) {
       if (!that._active) return;
+      /* 设备离线: 强制安全默认值, 忽略 OneNET 缓存的旧数据 */
+      if (data._isOnline === false) {
+        that.setData({ isOn: false, isFault: false, systemState: 'IDLE', stateLabel: '离线' });
+        return;
+      }
       var raw = data._raw || {}, sState = raw.S, isRunning, isFault, systemState, stateLabel;
       if (sState === 3)      { isRunning=false; isFault=true;  systemState='FAULT'; stateLabel='故障'; }
       else if (sState === 2) { isRunning=true;  isFault=false; systemState='DONE';  stateLabel='运行中'; }
@@ -50,7 +55,23 @@ Page({
         var idx = FREQ_LIST.indexOf(freqKHz); if (idx >= 0) that.setData({ selectedFreq: freqKHz, freqIdx: idx });
       }
       that.setData({ isOn: swOn, isFault: isFault, systemState: systemState, stateLabel: stateLabel });
-    }).catch(function(){});
+    }).catch(function(){
+      /* API 失败 → 从缓存回填, 避免显示安全默认值 (OFF/100) */
+      var cached = wx.getStorageSync('wpt_latest') || {};
+      var raw = cached._raw || {};
+      var sState = raw.S, isRunning, isFault, systemState, stateLabel;
+      if (sState === 3)      { isRunning=false; isFault=true;  systemState='FAULT'; stateLabel='故障'; }
+      else if (sState === 2) { isRunning=true;  isFault=false; systemState='DONE';  stateLabel='运行中'; }
+      else if (sState === 1) { isRunning=true;  isFault=false; systemState='SWEEP'; stateLabel='扫频中'; }
+      else                   { isRunning=false; isFault=false; systemState='IDLE';  stateLabel='待机'; }
+      var swOn = cached.switch !== undefined ? cached.switch : isRunning;
+      var fRaw = raw.F !== undefined ? Math.floor(raw.F / 1000) : undefined;
+      var upd = { isOn: swOn, isFault: isFault, systemState: systemState, stateLabel: stateLabel };
+      if (fRaw !== undefined && fRaw >= 95 && fRaw <= 150) {
+        var idx = FREQ_LIST.indexOf(fRaw); if (idx >= 0) { upd.selectedFreq = fRaw; upd.freqIdx = idx; }
+      }
+      if (that._active) that.setData(upd);
+    });
   },
 
   onSwiperChange: function(e) { var idx = e.detail.current; this.setData({ freqIdx: idx, selectedFreq: FREQ_LIST[idx] }); },

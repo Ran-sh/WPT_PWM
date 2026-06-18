@@ -34,5 +34,7 @@ void             Key_Driver_Task(void);
  *  @return 事件类型 (NONE/CLICK/DOUBLE_CLICK/LONG_PRESS)
  */
 Key_Driver_Event Key_Driver_Get_Event(uint8_t key_id);
+/** @brief 批量获取 4 键事件 (单次临界区, 减少 IRQ 抖动) */
+void             Key_Driver_Get_All_Events(Key_Driver_Event out[4]);
 
 #endif /* KEY_DRIVER_H */

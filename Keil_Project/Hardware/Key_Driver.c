@@ -122,16 +122,16 @@ void Key_Driver_Task(void)
     }
 }
 
-Key_Driver_Event Key_Driver_Get_Event(uint8_t key_id)
+void Key_Driver_Get_All_Events(Key_Driver_Event out[4])
 {
-    Key_Driver_Event evt;
-    uint32_t primask;
-    if (key_id >= KEY_DRIVER_COUNT) return KEY_DRIVER_EVENT_NONE;
-
-    primask = __get_PRIMASK();
+    uint32_t primask = __get_PRIMASK();
     __disable_irq();
-    evt = (Key_Driver_Event)s_keys[key_id].event;
-    s_keys[key_id].event = KEY_DRIVER_EVENT_NONE;
+    {
+        uint8_t i;
+        for (i = 0; i < 4; i++) {
+            out[i] = (Key_Driver_Event)s_keys[i].event;
+            s_keys[i].event = KEY_DRIVER_EVENT_NONE;
+        }
+    }
     __set_PRIMASK(primask);
-    return evt;
 }

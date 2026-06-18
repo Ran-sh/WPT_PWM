@@ -53,10 +53,8 @@ Page({
     this.setData({ currentTheme: wx.getStorageSync('wpt_theme') || 'theme-dark' });
     var title = wx.getStorageSync('wpt_dashboard_title');
     if (title) this.setData({ dashTitle: title });
-    /* 首次渲染用默认模型 */
     var model = OneNet.getDataModel();
     this.setData(buildCards(model, null));
-    /* 缓存 */
     var cached = wx.getStorageSync('wpt_latest');
     if (cached) this._applyData(cached, true);
     this._pollTimer = null; this._retryTimer = null; this._active = true;
@@ -67,41 +65,43 @@ Page({
   onShow: function() {
     var saved = wx.getStorageSync('wpt_theme') || 'theme-dark';
     if (saved !== this.data.currentTheme) this.setData({ currentTheme: saved });
-    /* 检查数据模型变更 (对齐 Web visibilitychange) */
     var model = OneNet.getDataModel();
-    if (JSON.stringify(model) !== this._lastModel) {
-      this._lastModel = JSON.stringify(model);
+    if (JSON.stringify(model) !== this._lastModelJson) {
+      this._lastModelJson = JSON.stringify(model);
       this.setData(buildCards(model, wx.getStorageSync('wpt_latest')));
     }
     if (!this._active) { this._active = true; this._pollFailures = 0; this._fetchAndSchedule(); }
   },
 
-  onUnload: function() { this._active = false; clearTimeout(this._pollTimer); clearTimeout(this._retryTimer); },
+  onHide: function() { this._active = false; clearTimeout(this._pollTimer); clearTimeout(this._retryTimer); },
+  onUnload: function() {
+    this._active = false;
+    this._clearTimers();
+  },
+
+  _clearTimers: function() {
+    if (this._pollTimer) { clearTimeout(this._pollTimer); this._pollTimer = null; }
+    if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
+  },
 
   _fetchAndSchedule: function() {
     var that = this;
     if (!this._active) return;
     this._doFetch().then(function(data) {
       that._pollFailures = 0;
-      if (that._active && data) {
-        var online = data._isOnline !== false;
-        that.setData({ connState: online ? 0 : 1, connLabel: online ? '在线' : '离线' });
-      }
+      if (that._active && data) that.setData({ connState: data._isOnline !== false ? 0 : 1, connLabel: data._isOnline !== false ? '在线' : '离线' });
     }).catch(function() {
       that._pollFailures++;
       if (that._pollFailures === 1 && that._active) {
         clearTimeout(that._retryTimer);
         that._retryTimer = setTimeout(function() {
           if (!that._active) return;
-          that._doFetch().then(function(data) {
-            that._pollFailures = 0;
-            if (that._active && data) that.setData({ connState: data._isOnline !== false ? 0 : 1, connLabel: data._isOnline !== false ? '在线' : '离线' });
-          }).catch(function() {});
+          that._doFetch().then(function(data) { that._pollFailures = 0; if (that._active && data) that.setData({ connState: data._isOnline !== false ? 0 : 1, connLabel: data._isOnline !== false ? '在线' : '离线' }); }).catch(function() {});
         }, 2000);
-      } else { if (that._active) that.setData({ connState: 2, connLabel: '连接失败' }); }
+      } else if (that._active) { that.setData({ connState: 2, connLabel: '连接失败' }); }
     }).then(function() {
       if (!that._active) return;
-      clearTimeout(that._pollTimer);
+      that._clearTimers();
       that._pollTimer = setTimeout(function() { that._fetchAndSchedule(); }, OneNet.getPollInterval(that._pollFailures));
     });
   },
@@ -114,7 +114,6 @@ Page({
     });
   },
 
-  /* 对齐 Web updateUI() — 传感器阈值检测 + 告警 */
   _applyData: function(data, fromCache) {
     var model = OneNet.getDataModel();
     var cards = buildCards(model, data);
@@ -123,7 +122,7 @@ Page({
       sensors: cards.sensors, controls: cards.controls,
       alertVisible: newAlerts.length > 0, alertMessages: newAlerts
     });
-    this._lastModel = JSON.stringify(model);
+    this._lastModelJson = JSON.stringify(model);
   },
 
   onToggleTheme: function() { var n = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark'; this.setData({ currentTheme: n }); wx.setStorageSync('wpt_theme', n); },

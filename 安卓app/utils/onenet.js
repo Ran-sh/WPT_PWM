@@ -2,6 +2,7 @@
    WPT Monitor — OneNET Service
    完全对齐 Web ONENETapp/js/onenet.js OneNetService
    数据模型从 utils/config.js 读取 (单一来源)
+   安全: 无硬编码凭证, 无 console 输出
    ═══════════════════════════════════════════ */
 
 var Config = require('./config.js');
@@ -10,60 +11,42 @@ var POLL_BASE = 5000;
 var POLL_MAX  = 30000;
 var LOCK_MS   = 3000;
 
+/* 安全: 凭证从 app 全局实例获取, 不硬编码在源码 */
 function getOneNetConfig() {
   try {
     var app = getApp();
     if (app && app.getOneNetConfig) return app.getOneNetConfig();
   } catch (e) {}
-  return {
-    PRODUCT_ID: '1iS397oJFL', DEVICE_NAME: '20260001',
-    TOKEN: 'version=2018-10-31&res=products%2F1iS397oJFL%2Fdevices%2F20260001&et=2063362960&method=md5&sign=phYCE26jNI80tiXEeMxxRA%3D%3D',
-    BASE_URL: 'https://iot-api.heclouds.com'
-  };
+  return { PRODUCT_ID: '', DEVICE_NAME: '', TOKEN: '', BASE_URL: 'https://iot-api.heclouds.com' };
 }
 
 function getDataModel() { return Config.getDataModel(); }
 function getDecimals(dataType, step) { return Config.getDecimals(dataType, step); }
 function getPollInterval(fail) { return Math.min(POLL_BASE * Math.pow(2, fail || 0), POLL_MAX); }
 
+/* ══ safeStorage ══ */
+function safeStorageGet(key, fallback) { try { var v = wx.getStorageSync(key); return (v !== '' && v !== undefined && v !== null) ? v : fallback; } catch (e) { return fallback; } }
+
 /* ═══════════════════════════════════════════
    getLatestData — 对齐 Web OneNetService.getLatestData()
-   - HTTP 状态码细化错误信息
-   - /device/detail 并行请求在线状态
-   - Mock data fallback (未配置时)
    ═══════════════════════════════════════════ */
 function getLatestData(cfg) {
   if (!cfg) cfg = getOneNetConfig();
 
-  /* Mock data: Token 未配置时返回预览数据 */
-  if (cfg.TOKEN.indexOf('YOUR_') !== -1) {
+  /* Mock data: 未配置 Token 时返回预览数据 */
+  if (!cfg.TOKEN || cfg.TOKEN.indexOf('YOUR_') !== -1)
     return Promise.resolve(getMockData());
-  }
 
   return new Promise(function(resolve, reject) {
-    /* 数据请求 */
-    var dataDone = false, statusDone = false;
-    var dataResult = null, statusResult = null;
-    var isOnline = false;
-
-    function checkDone() {
-      if (!dataDone) return;
-      /* 数据到达后判断在线 */
-      if (dataResult._isOnline !== undefined) {
-        dataResult._isOnline = isOnline || dataResult._isOnline;
-      }
-      resolve(dataResult);
-    }
+    var settled = false;
+    function settle(fn, val) { if (!settled) { settled = true; fn(val); } }
 
     wx.request({
       url: cfg.BASE_URL + '/thingmodel/query-device-property?product_id=' + cfg.PRODUCT_ID + '&device_name=' + cfg.DEVICE_NAME,
       method: 'GET', header: { 'Authorization': cfg.TOKEN },
       success: function(res) {
         if (res.statusCode !== 200 || res.data.code !== 0) {
-          var errMsg = httpErrorMessage(res.statusCode, res.data);
-          dataResult = { _isOnline: false, _error: errMsg };
-          dataDone = true;
-          reject(new Error(errMsg));
+          settle(reject, new Error(httpErrorMessage(res.statusCode, res.data)));
           return;
         }
         var rawData = {};
@@ -77,37 +60,19 @@ function getLatestData(cfg) {
         var data = {};
         model.sensors.forEach(function(s) { if (rawData[s.cloudKey] !== undefined) { var v = rawData[s.cloudKey]; if (s.fromCloud) v = s.fromCloud(v); data[s.id] = v; } });
         model.controls.forEach(function(c) { if (rawData[c.cloudKey] !== undefined) { var v = rawData[c.cloudKey]; if (c.fromCloud) v = c.fromCloud(v); data[c.id] = v; } });
-        /* 乐观锁保护 */
-        var cachedData = wx.getStorageSync('wpt_latest') || {};
-        var controlLocks = wx.getStorageSync('wpt_control_locks') || {};
+        /* 乐观锁 */
+        var cachedData = safeStorageGet('wpt_latest', {});
+        var controlLocks = safeStorageGet('wpt_control_locks', {});
         var now = Date.now();
-        for (var k in data) { if (data.hasOwnProperty(k) && controlLocks[k] && (now - controlLocks[k] < LOCK_MS)) { data[k] = cachedData[k]; } }
+        for (var k in data) { if (data.hasOwnProperty(k) && controlLocks[k] && (now - controlLocks[k] < LOCK_MS)) data[k] = cachedData[k]; }
         var newData = extend({}, cachedData, data);
         wx.setStorageSync('wpt_latest', newData);
         saveHistory(newData);
         data._raw = rawData;
         data._isOnline = (res.data.data && res.data.data.length > 0);
-        dataResult = data;
-        dataDone = true;
-        if (statusDone) checkDone();
-        else resolve(data);
+        settle(resolve, data);
       },
-      fail: function() { reject(new Error('网络请求失败, 请检查网络连接')); }
-    });
-
-    /* 并行: /device/detail 获取在线状态 */
-    wx.request({
-      url: cfg.BASE_URL + '/device/detail?product_id=' + cfg.PRODUCT_ID + '&device_name=' + cfg.DEVICE_NAME,
-      method: 'GET', header: { 'Authorization': cfg.TOKEN },
-      success: function(res) {
-        if (res.statusCode === 200 && res.data.code === 0 && res.data.data) {
-          var st = res.data.data.status;
-          isOnline = (st === 1 || st === 2 || st === '在线');
-        }
-        statusDone = true;
-        if (dataDone && dataResult) dataResult._isOnline = isOnline || dataResult._isOnline;
-      },
-      fail: function() { statusDone = true; }
+      fail: function() { settle(reject, new Error('网络请求失败, 请检查网络连接')); }
     });
   });
 }
@@ -138,8 +103,8 @@ function setProperty(cfg, params) {
         success: function(res) {
           if (UNRECOVERABLE.indexOf(res.statusCode) !== -1) { resolve(false); return; }
           if (res.statusCode === 200 && res.data.code === 0) {
-            var cached = wx.getStorageSync('wpt_latest') || {};
-            var locks = wx.getStorageSync('wpt_control_locks') || {};
+            var cached = safeStorageGet('wpt_latest', {});
+            var locks = safeStorageGet('wpt_control_locks', {});
             var n = Date.now();
             for (var k2 in params) { if (!params.hasOwnProperty(k2)) continue; cached[k2] = params[k2]; locks[k2] = n; }
             wx.setStorageSync('wpt_latest', cached);
@@ -155,14 +120,13 @@ function setProperty(cfg, params) {
 }
 
 /* ═══════════════════════════════════════════
-   checkAlerts — 使用 sensor.min/max 做阈值
-   (不用 ALERT_CONFIG, 与 Web index.html checkAlert() 一致)
+   checkAlerts
    ═══════════════════════════════════════════ */
 function checkAlerts(data, isFromCache) {
   if (isFromCache || data._isOnline === false) return [];
   var model = getDataModel();
-  var alerts = wx.getStorageSync('wpt_alerts') || [];
-  var alarmStates = wx.getStorageSync('wpt_alarm_states') || {};
+  var alerts = safeStorageGet('wpt_alerts', []);
+  var alarmStates = safeStorageGet('wpt_alarm_states', {});
   var now = new Date(), timeStr = ('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
   var newAlerts = [];
 
@@ -203,7 +167,7 @@ function checkAlerts(data, isFromCache) {
 }
 
 /* ═══════════════════════════════════════════
-   saveHistory — 每分钟一条, 最多 1440 条
+   saveHistory
    ═══════════════════════════════════════════ */
 function saveHistory(data) {
   var model = getDataModel();
@@ -213,7 +177,7 @@ function saveHistory(data) {
   var rec = {};
   model.sensors.forEach(function(s) { if (data[s.id] !== undefined) rec[s.id] = data[s.id]; });
   model.controls.forEach(function(c) { if (data[c.id] !== undefined) rec[c.id] = data[c.id]; });
-  var h = wx.getStorageSync('wpt_history') || [];
+  var h = safeStorageGet('wpt_history', []);
   if (h.length === 0 || h[h.length - 1].time !== timeStr) {
     h.push({ time: timeStr, fullTime: fullTimeStr, timestamp: now.getTime(), data: rec });
     if (h.length > 1440) h.shift();
@@ -233,25 +197,24 @@ function buildFreqList() {
   return FREQ_CACHE;
 }
 
-/* ══ Mock Data (未配置时预览用) ══ */
+/* ══ Mock Data ══ */
 function getMockData() {
   var model = getDataModel();
   var data = { _isMock: true };
   model.sensors.forEach(function(s) {
-    var range = s.max - s.min;
-    var mid = s.min + range / 2;
+    var range = s.max - s.min, mid = s.min + range / 2;
     var rawVal = mid + (Math.random() * (range * 0.2) - (range * 0.1));
     data[s.id] = Number(rawVal.toFixed(getDecimals(s.dataType, s.step)));
   });
   model.controls.forEach(function(c) {
-    if (c.dataType === 'int32') { data[c.id] = Math.floor(Math.random() * 100); }
-    else if (c.dataType === 'bool') { data[c.id] = Math.random() > 0.5; }
-    else { data[c.id] = Number((Math.random() * 100).toFixed(2)); }
+    if (c.dataType === 'int32') data[c.id] = 100;
+    else if (c.dataType === 'bool') data[c.id] = false;
+    else data[c.id] = Number((Math.random() * 100).toFixed(2));
   });
   return data;
 }
 
-/* ══ HTTP 错误信息细化 ══ */
+/* ══ HTTP 错误信息 ══ */
 function httpErrorMessage(code, body) {
   if (code === 401) return '鉴权失败(401): 请检查 Token';
   if (code === 403) return '拒绝访问(403): 检查产品/设备名';

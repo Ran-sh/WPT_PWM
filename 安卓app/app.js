@@ -1,16 +1,12 @@
 /* ═══════════════════════════════════════════
    WPT Monitor — 全局 App
    数据模型从 utils/config.js 读取 (单一来源)
+   安全: 无硬编码凭证
    ═══════════════════════════════════════════ */
 
 var Config = require('./utils/config.js');
 
-var DEFAULT_CONFIG = {
-  PRODUCT_ID: '1iS397oJFL',
-  DEVICE_NAME: '20260001',
-  TOKEN: 'version=2018-10-31&res=products%2F1iS397oJFL%2Fdevices%2F20260001&et=2063362960&method=md5&sign=phYCE26jNI80tiXEeMxxRA%3D%3D',
-  BASE_URL: 'https://iot-api.heclouds.com'
-};
+function safeStorageGet(key, fallback) { try { var v = wx.getStorageSync(key); return (v !== '' && v !== undefined && v !== null) ? v : fallback; } catch (e) { return fallback; } }
 
 App({
   globalData: {
@@ -29,14 +25,15 @@ App({
   },
 
   getOneNetConfig: function() {
-    var user = wx.getStorageSync('wpt_onenet_config') || {};
+    var user = safeStorageGet('wpt_onenet_config', {});
     if (user.productId && user.deviceName && user.token) {
       return {
         PRODUCT_ID: user.productId, DEVICE_NAME: user.deviceName,
         TOKEN: user.token, BASE_URL: 'https://iot-api.heclouds.com'
       };
     }
-    return DEFAULT_CONFIG;
+    /* 安全: 未配置时返回空 Token, 触发 Mock 模式 */
+    return { PRODUCT_ID: '', DEVICE_NAME: '', TOKEN: '', BASE_URL: 'https://iot-api.heclouds.com' };
   },
 
   getDataModel: function() {

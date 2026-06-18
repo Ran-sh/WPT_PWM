@@ -126,6 +126,8 @@ void Sys_Safety_Reset_EMA(void)
 
 void Sys_Safety_Task(void)
 {
+    /* 仅 RUNNING 状态执行安全监测: 非运行状态 PWM 已关, 无过流可能 */
+    if (g_sys_state != SYS_STATE_RUNNING) return;
     Sys_Safety_Update_EMA();
 
     /* PB10 电源控制 */
