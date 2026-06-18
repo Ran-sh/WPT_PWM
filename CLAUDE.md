@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.2.2 |
+| **版本** | V4.2.3 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.2.2)
@@ -23,7 +23,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.2.2
+当前版本: V4.2.3
 
 涉及版本号的位置 (全项目必须统一):
   文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.2.2
@@ -38,7 +38,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   旧 V0.0/V1.0 → V1.0.x | 旧 V3.0     → V2.0.0
   旧 V5.0/V5.1/V5.2 → V2.x.x | 旧 V6.0/V6.4 → V2.4.0/V3.0.0
   旧 V9/V10/V11/V12/V13 → V3.x.x | 旧 V14/V15/V16 → V4.0.0
-  旧 V25 → V4.1.0 | 旧 V26 → V4.2.0
+  旧 V25 → V4.1.0 | 旧 V26 → V4.2.3
   (SPL V3.5.0、ARMCC V5.06、Keil V5 是外部工具版本, 不在此范围)
 
 禁止事项:
@@ -178,24 +178,24 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 ## 文件结构
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/                        ← ~11053 行逻辑代码 (全平台)
-├── Keil_Project/                               ← STM32 固件 — 5063 行 (含 User/System, 不含 Library/Start)
+WPT_PWM_V4.0_ONENET_TFT/                        ← ~10041 行逻辑代码 (全平台)
+├── Keil_Project/                               ← STM32 固件 — 5065 行 (含 User/System, 不含 Library/Start)
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
-│   ├── Hardware/                               ← 硬件驱动 — 4140 行
-│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1724+39行)
+│   ├── Hardware/                               ← 硬件驱动 — 4065 行
+│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1722+39行)
 │   │   ├── Tft_Driver.c/h                      ← ST7735 SPI+DMA 彩屏 + CN_Lookup (606+76行)
 │   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (356行)
 │   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (257+49行)
 │   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (162+20行)
 │   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡 (146+67行)
-│   │   ├── Key_Driver.c/h                      ← 4键 FSM (137+38行)
+│   │   ├── Key_Driver.c/h                      ← 4键 FSM + 批量事件读取 (137+40行)
 │   │   ├── Led_Driver.c/h                      ← 6 LED 闪烁 (135+42行)
 │   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (113+33行)
 │   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (68+30行)
-│   ├── User/                                   ← 应用层 — 875 行
+│   ├── User/                                   ← 应用层 — 876 行
 │   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (336+51行)
-│   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全 (203+44行)
+│   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全(仅RUNNING) (205+44行)
 │   │   ├── main.c                              ← 程序入口 (50行)
 │   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
 │   ├── System/ → Sys_Timer.c/h                 ← SysTick 1ms + DWT (48+36行)
@@ -203,15 +203,15 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~11053 行逻辑代码 (全�
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
 ├── Arduino_Project/                            ← ESP8266 固件 — 522 行
 │   └── ESP8266_MQTT_Firmware/...ino            ← WiFiManager+双MQTT+指令去抖+遥测+OFFLINE
-├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3529 行
-│   ├── index.html(419)/control.html(458)       ← 主页+控制+乐观更新+轮询
-│   ├── monitoring.html(394)/history.html(531)  ← 监测+历史趋势图
-│   ├── alerts.html(325)/settings.html(803)/login.html(150)
-│   ├── js/onenet.js(327)                       ← OneNET API 核心
-│   ├── js/config.js(67)/mobile-nav.js(33)      ← 数据模型+导航
-│   └── service-worker.js(22)                   ← PWA 离线回退
-├── 安卓app/                                    ← 微信小程序 — 1939 行 (6页面+Component)
-│   ├── utils/config.js(47)/onenet.js(274)      ← 数据模型单一来源 + API层
+├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3416 行
+│   ├── index.html(410)/control.html(495)       ← 主页+控制+乐观更新+连接指示器
+│   ├── monitoring.html(394)/history.html(527)  ← 监测+历史趋势图
+│   ├── alerts.html(325)/settings.html(804)/login.html(149)
+│   ├── js/onenet.js(188)                       ← OneNET API 核心 (安全: 无console/无Token泄露)
+│   ├── js/config.js(65)/mobile-nav.js(31)      ← 数据模型+移动端导航
+│   └── service-worker.js(28)                   ← PWA 离线回退 v3
+├── 安卓app/                                    ← 微信小程序 — 1038 行 (6页面+Component)
+│   ├── utils/config.js(47)/onenet.js(271)      ← 数据模型单一来源 + API层 (双请求在线检测)
 │   ├── custom-tab-bar/                         ← 底部导航 Component (无高亮)
 │   ├── pages/{index,monitoring,control,history,alerts,settings}/
 │   ├── 操作手册.md / 部署文档.md               ← 小程序文档
@@ -243,9 +243,10 @@ int main(void) {
 
 ## Sys_Safety (安全监测, 独立于 UI)
 
-- **EMA 滤波**: α=0.25, τ≈800ms, 每圈主循环更新 V/I
+- **EMA 滤波**: α=0.25, τ≈800ms, 仅 SYS_STATE_RUNNING 时每圈主循环更新 V/I
 - **PB10 电源**: 电压 >12V → 拉高使能, ≤12V → 拉低关断
 - **过流检测**: `s_safety_ema_i > 5.0A` → `Inverter_Control_Soft_Start_Fault()` + `Buzzer BEEP` + `g_sys_state = SYS_FAULT`
+- **防误触发**: 非 RUNNING 状态跳过安全检测 (PWM 已关, 无过流可能)
 
 ## EMA 双级滤波链
 
@@ -283,15 +284,19 @@ int main(void) {
 
 - **乐观更新**: `setProperty` 成功后立即写 localStorage + 3s 乐观锁
 - **重试**: `setProperty` 网络/业务错误各重试 3 次 (500ms/800ms)
-- **连接指示**: 在线(绿) / 离线(黄) / 失败(红)
+- **连接指示**: 在线(绿) / 离线(黄) / 失败(红) / 未配置(灰), `/device/detail` 优先 + 数据非空兜底
 - **数据模型**: `config.js` DEFAULT_DATA_MODEL → sensors(V/I/F) + controls(Switch/SetFreq)
 - **频率映射**: `fromCloud: v => Math.floor(v/1000)` / `toCloud: v => v*1000`, Web 显示 kHz
+- **安全**: 零 console 输出, 零硬编码 Token, login.html SHA-256 哈希验证
+- **轮询**: 5s 间隔 setInterval + pagehide 清理, 无嵌套泄漏; 慢网下防重叠
 
 ## 微信小程序
 
 - **架构**: 6 页面 + `custom-tab-bar` Component + `utils/` (单数据模型来源)
-- **API 层**: `getLatestData()` 双请求并行, HTTP 细化错误 (401/403/404/429/503), Mock fallback
-- **键盘**: Component 方法名 `onSwitchTab` (不能叫 `switchTab` 与 `wx.switchTab` 冲突)
+- **API 层**: `getLatestData()` 双请求并行 (`/thingmodel` + `/device/detail`), 在线判定优先 /device/detail + 数据非空兜底, HTTP 细化错误
+- **安全**: 零硬编码凭证, 配置从 app.js getOneNetConfig() 获取
+- **控制页**: 离线→强制安全默认值(OFF/100); API 失败→wx.getStorageSync 缓存回填
+- **首页**: `_applyData` 统一更新连接状态, `onHide` 清理定时器, `_clearTimers` 防泄漏
 - **底部栏**: 无高亮 (selected=-1), 5 tab: ⌂ ◉ ⊛ 🗂 ⚙, `templates/` 已删除
 - **存储键**: `wpt_latest`, `wpt_history`(1440max), `wpt_alerts`(50max), `wpt_alarm_states`, `wpt_control_locks`, `wpt_onenet_config`, `wpt_data_model`
 
@@ -419,9 +424,9 @@ SUB_MENU 和 FAULT 页面仅右侧 `PAGE:返回`。
 
 ## Safety
 
-- **过流**: Sys_Safety 每圈检测 >5.0A → SYS_FAULT + Buzzer BEEP
+- **过流**: Sys_Safety 仅在 RUNNING 状态检测 >5.0A → SYS_FAULT + Buzzer BEEP
 - **FAULT 恢复**: ON/OFF 单击 → `Soft_Start_Reset()` + `Sys_Safety_Reset_EMA()` → MAIN_MENU
-- **FAULT 防重触发**: EMA 电流清零 + 重新初始化
+- **FAULT 防重触发**: EMA 电流清零 + 重新初始化; 非 RUNNING 状态跳过安全检测
 - **远程启停 UI 同步**: CMD:ON/OFF → `Ui_Controller_Force_Page_And_Reset()`
 - **上电**: TIM1 全关, PB10 拉低关 12V
 - **看门狗**: IWDG 1.6s, 调试自动暂停
@@ -452,6 +457,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V4.2.3 | 全平台安全审查修复: 删除硬编码凭证+console清理+定时器泄漏修复+setInterval防重叠+小程序并行在线检测+STM32 Sys_Safety仅RUNNING+Key批量读取+login SHA-256 |
 | V4.2.2 | WiFi OFFLINE 双模式(被动自动嗅探/主动手动恢复)+5次有限重试+BOOT_WAIT提前+MQTT超时+Bug修复8项 |
 | V4.2.1 | 全项目 README 重写(4分支统一分支表) + CLAUDE.md 版本号规则流程扩展到全部文档 |
 | V4.2.0 | TFT字库修复: CN_FONT[74..75] 失败→综合字模替换 + 底部栏简化 + 全平台版本号统一为 Vx.x.x |
