@@ -796,6 +796,26 @@
               <FilePath>.\User\App_Network.h</FilePath>
             </File>
             <File>
+              <FileName>W25Q_Driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\W25Q_Driver.c</FilePath>
+            </File>
+            <File>
+              <FileName>W25Q_Driver.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\W25Q_Driver.h</FilePath>
+            </File>
+            <File>
+              <FileName>App_Storage.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\App_Storage.c</FilePath>
+            </File>
+            <File>
+              <FileName>App_Storage.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\User\App_Storage.h</FilePath>
+            </File>
+            <File>
               <FileName>Sys_Core.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\User\Sys_Core.c</FilePath>
