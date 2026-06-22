@@ -18,6 +18,7 @@
 
 #include "W25Q_Driver.h"
 #include "Sys_Core.h"       /* g_sys_state */
+#include "Sys_Timer.h"      /* Sys_Timer_Get_Tick */
 
 /* ═══════════════════════════════════════════════
  *  引脚宏 (行内高聚合: 拉低→操作→拉高 压缩在单行)

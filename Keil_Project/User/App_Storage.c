@@ -187,7 +187,7 @@ static void Blackbox_Pack(float v, float i, uint16_t freq, uint8_t state,
 
 void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
 {
-    uint32_t addr, page_start, pos_in_page;
+    uint32_t addr, pos_in_page;
     Blackbox_Entry_Packed entry;
 
     /* 仅 SWEEP + RUNNING 记录 (设计文档 §3.4 触发条件) */
@@ -198,8 +198,7 @@ void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
 
     /* Page Program 跨页保护 */
     addr = W25Q_ADDR_BLACKBOX + s_log_wr_ptr;
-    page_start  = addr & ~(W25Q_PAGE_SIZE - 1U);             /* 本页基址 */
-    pos_in_page = addr & (W25Q_PAGE_SIZE - 1U);              /* 页内偏移 */
+    pos_in_page = addr & (W25Q_PAGE_SIZE - 1U);
     if (pos_in_page + BLACKBOX_ENTRY_SIZE > W25Q_PAGE_SIZE) {
         /* 跨页 → 跳到下页头部 */
         s_log_wr_ptr = (s_log_wr_ptr & ~(W25Q_PAGE_SIZE - 1U)) + W25Q_PAGE_SIZE;
@@ -219,15 +218,15 @@ void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
 
 void Blackbox_Lock_Fault_Snapshot(void)
 {
-    uint32_t i, block_start, lock_addr;
-    Blackbox_Entry_Packed entry;
+    uint32_t i, lock_addr;
+    uint32_t block_start;
 
     /* 在锁存保护区分配一个新块 (每块 64KB = 4680 条) */
     lock_addr = W25Q_ADDR_BLACKBOX_END -
                 (BLACKBOX_LOCK_BLOCKS * 65536U) +
                 (s_fault_lock_addr % (BLACKBOX_LOCK_BLOCKS * 65536U));
 
-    /* 擦除目标保护块 → 写入前后各 25 条 (共 50条) */
+    /* 擦除目标保护块 */
     block_start = lock_addr & ~(65536U - 1U);
     W25Q_Driver_Erase_Sector(block_start);                   /* 块头 4KB (L4: 不在发波态) */
 
