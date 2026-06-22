@@ -86,21 +86,22 @@ void Sys_Startup_Screen(void)
 
 void Sys_Post_Init(void)
 {
+    uint8_t cfg_valid;
     Sys_Timer_Init();
     Led_Driver_Set_System(1);
 
-    /* V4.3.0: 从 Flash 加载参数配置 (WiFi凭证 + ADC校准 + 系统偏好)
-     * 配置加载在 W25Q_Driver_Init + App_Storage_Init 之后 */
-    App_Storage_Load_Config(&s_sys_config);
+    /* V4.3.0: Flash 加载参数配置, 双副本 CRC32 闭锁回退 */
+    cfg_valid = App_Storage_Load_Config(&s_sys_config);
 
-    /* ADC 校准值: Flash 优先 → 本地自测算降级 (设计文档 §9.3)
-     * Adc_Driver_Calibrate_Offset 含 s_calibrated 守卫, 仅首次调用执行 */
-    if (s_sys_config.adc_i_offset != 0.0f) {
+    /* ADC 校准: Flash 优先 → 强制解锁冷启动自测算降级 (设计文档 §9.3) */
+    if (cfg_valid && s_sys_config.adc_i_offset != 0.0f) {
         Adc_Driver_Set_Calibration(s_sys_config.adc_i_offset,
                                     s_sys_config.adc_v_gain,
-                                    s_sys_config.freq_trim_hz);   /* Flash 固化值 */
+                                    s_sys_config.freq_trim_hz);   /* Flash 固化直达 */
     } else {
-        Adc_Driver_Calibrate_Offset();               /* 降级: 上电自测算 */
+        extern uint8_t s_calibrated; extern uint8_t s_cal_count; extern float s_cal_accum;
+        s_calibrated = 0; s_cal_count = 0; s_cal_accum = 0.0f;   /* 强制解锁状态机 */
+        Adc_Driver_Calibrate_Offset();                            /* 冷启动自测算 */
         s_sys_config.adc_i_offset = Adc_Driver_Get_Current_Offset();
     }
 

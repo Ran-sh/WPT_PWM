@@ -214,27 +214,20 @@ void App_Network_Task(void)
         /* 不发硬件 RST: ESP 仍在运行, 自动 WiFi.begin() 尝试重连 */
     }
 
-    /* ── 指令接收 ── */
+    /* ── 指令接收 (原子闭环: Try_Copy 一次性完成判定+复制+清零, 防 ISR 抢断丢帧) ── */
     {
-        char local_buf[128];
-        const char* p;
-        Inverter_Control_Soft_Start_State ss_cmd;
-        uint8_t conn_cs;
+        char local_buf[128]; const char* p;
+        Inverter_Control_Soft_Start_State ss_cmd; uint8_t conn_cs;
 
         if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
-            goto skip_frame;
+            goto skip_frame;                             /* 无完整帧 → 跳过 */
 
         s_last_esp_ms = Sys_Timer_Get_Tick();
 
-        ss_cmd  = Inverter_Control_Soft_Start_Get_State();
-        conn_cs = s_conn_state;
-
-        /* 离线状态下收到 STATUS 帧 → 忽略 (由 App_Network_Check_Offline_Recovery 统一处理)
-         * 主动离线时 ESP 回显的 STATUS:DISCONNECTED 也在此吞掉, 防止意外状态转移 */
+        ss_cmd  = Inverter_Control_Soft_Start_Get_State(); conn_cs = s_conn_state; /* 帧内快照 */
         if (s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE
-         || s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE) {
-            goto skip_frame;
-        }
+         || s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE)
+            goto skip_frame;                             /* 离线态吞帧, 防 STATUS 回显转移状态 */
 
         if (strstr(local_buf, "STATUS:DISCONNECTED")) {
             s_conn_state    = APP_NETWORK_CONN_WIFI;

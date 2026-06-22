@@ -123,12 +123,14 @@ void Adc_Driver_Init(void)
 void Adc_Driver_Filter_Task(void)
 {
     static uint32_t last_cyc = 0;
+    uint32_t now, delta;
 
-    {
-        uint32_t now = Sys_Timer_Get_Cycles();
-        if (now - last_cyc < ADC_DRIVER_FILTER_PERIOD_CYCLES) return;
-        last_cyc = now;
+    now = Sys_Timer_Get_Cycles(); delta = now - last_cyc;            /* uint32 回绕安全 */
+    if (delta < ADC_DRIVER_FILTER_PERIOD_CYCLES) return;             /* 距上次采样不足 */
+    if (delta > ADC_DRIVER_FILTER_PERIOD_CYCLES * 2) {
+        last_cyc = now; return;                                      /* 时基剥夺 >2倍, 弃样护窗 */
     }
+    last_cyc = now;
 
     Adc_Driver_Filter_Push(&s_v_filter, s_adc_raw[1]);
     s_voltage = Adc_Driver_Filter_To_Voltage(&s_v_filter) * ADC_DRIVER_VOLTAGE_DIVIDER;
