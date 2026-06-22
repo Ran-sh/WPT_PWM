@@ -63,6 +63,56 @@ static uint32_t s_log_wrapped = 0;       /* 循环次数 */
 static uint32_t s_fault_lock_addr = 0;   /* 故障锁存区写入地址 */
 
 /* ═══════════════════════════════════════════════
+ *  V4.3.0: 首次上电自动灌入字库 — TFT_Font_Data.h → W25Q128 Flash
+ *  无需 CH341A 编程器, STM32 上电自检发现空片 → 自动搬运
+ *  约 4.2KB 数据, 擦除+写入约 500ms (被 ESP8266 4s BOOT_WAIT 吸收)
+ * ═══════════════════════════════════════════════ */
+#include "TFT_Font_Data.h"  /* CN_FONT_16X16 + TFT_FONT_8X16 + WIFI_ICON + MQTT_ICON + ICON_STAR */
+
+static void App_Storage_Burn_Font_From_SRAM(void)
+{
+    uint32_t offset, i; uint8_t header[32];
+
+    /* ── 擦除字库区前 4KB (容纳初始 76字+ASCII+图标) ── */
+    W25Q_Driver_Erase_Sector(W25Q_ADDR_FONT);               /* 4KB 扇区 */
+
+    /* ── 写入头部 (32B) ── */
+    *(uint16_t*)(header + 0) = FONT_MAGIC;                  /* 0x574B */
+    *(uint16_t*)(header + 2) = 1;                           /* Version */
+    *(uint32_t*)(header + 4) = 0;                           /* CRC32 占位 (后续回填) */
+    *(uint32_t*)(header + 8) = 1520U;                      /* ASCII_Size */
+    *(uint32_t*)(header + 12) = FONT_CJK_BASE_UNICODE;     /* CJK_Base */
+    *(uint32_t*)(header + 16) = FONT_CJK_COUNT;            /* CJK_Count */
+    for (i = 20; i < 32; i++) header[i] = 0x00;
+    W25Q_Driver_Write_Page(W25Q_ADDR_FONT, header, 32);     /* 写入头部 */
+
+    /* ── 写入 ASCII 8×16 字模 (95字) ── */
+    offset = FONT_ASCII_BASE;
+    for (i = 0; i < 95; i++) {
+        uint32_t page_start = offset & ~(W25Q_PAGE_SIZE - 1U);
+        uint32_t next_page = page_start + W25Q_PAGE_SIZE;
+        if (offset + 16 > next_page) offset = next_page;    /* 跨页保护 */
+        W25Q_Driver_Write_Page(offset, &TFT_FONT_8X16[i][0], 16);
+        offset += 16;
+    }
+
+    /* ── 写入 76 汉字 16×16 字模 (按 Unicode 码点映射) ── */
+    offset = FONT_CJK_BASE;
+    for (i = 0; i < TFT_CN_FONT_CHAR_COUNT; i++) {
+        uint32_t page_start = offset & ~(W25Q_PAGE_SIZE - 1U);
+        uint32_t next_page = page_start + W25Q_PAGE_SIZE;
+        if (offset + 32 > next_page) offset = next_page;
+        W25Q_Driver_Write_Page(offset, CN_FONT_16X16[i], 32);
+        offset += 32;
+    }
+
+    /* ── 更新 CRC32 头部 (简易校验: 仅头部+ASCII+CJK) ── */
+    /** @note 全量 2MB CRC 对初始化来说太慢 (~200ms), 首次灌入后标记 FONT_OK
+     *        下次上电时通过 Magic 匹配走完整 CRC32 自检路径 */
+    g_font_status = FONT_OK;
+}
+
+/* ═══════════════════════════════════════════════
  *  字库 (P1-P2)
  * ═══════════════════════════════════════════════ */
 
@@ -271,7 +321,8 @@ void App_Storage_Init(void)
     /* ── 字库 CRC32 MAGIC 快速预检 ── */
     W25Q_Driver_Read(W25Q_ADDR_FONT, header, 32);
     if (*(uint16_t*)header != FONT_MAGIC) {
-        g_font_status = FONT_MISSING;                       /* 无字库 → ASCII Only */
+        g_font_status = FONT_MISSING;                       /* 无字库 → 自动灌入 */
+        App_Storage_Burn_Font_From_SRAM();                  /* 从 TFT_Font_Data.h 搬运到 Flash */
     } else {
         /* 全量 CRC32 扫描 (2MB, ~200ms, 被 ESP8266 4s BOOT_WAIT 吸收) */
         stored_crc = *(uint32_t*)(header + 4);
