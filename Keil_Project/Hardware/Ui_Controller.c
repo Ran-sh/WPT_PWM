@@ -1441,21 +1441,13 @@ static void Handle_Keys_by_Page(Ui_Page page,
             case UI_PAGE_WIFI_SETUP: {
                 uint8_t cs = App_Network_Get_Connect_Status();
                 if (cs == APP_NETWORK_CONN_ONLINE || App_Network_Is_Connecting()) {
-                    /* 在线或连接中 → 主动断开, 进入主动离线 */
-                    App_Network_Manual_Disconnect();
-                    s_no_wifi_mode = 1;
+                    App_Network_Manual_Disconnect(); s_no_wifi_mode = 1;  /* 在线→主动离线 */
                 } else if (cs == APP_NETWORK_CONN_OFFLINE_ACTIVE) {
-                    /* 主动离线 → 手动恢复连接 */
-                    s_no_wifi_mode = 0;
-                    App_Network_Manual_Connect();
+                    s_no_wifi_mode = 0; App_Network_Manual_Connect();    /* 主动离线→重连 */
                 } else if (cs == APP_NETWORK_CONN_OFFLINE_PASSIVE) {
-                    /* 被动离线 → 只切状态, ESP 已在运行, 不发硬件 RST */
-                    s_no_wifi_mode = 0;
-                    App_Network_Resume_From_Offline();
+                    s_no_wifi_mode = 0; App_Network_Resume_From_Offline(); /* 被动离线→嗅探恢复 */
                 } else {
-                    /* IDLE → 完整初始化 (首次开机或软复位后) */
-                    s_no_wifi_mode = 0;
-                    App_Network_Start_Connect();
+                    s_no_wifi_mode = 0; App_Network_Start_Connect();     /* IDLE→完整初始化 */
                 }
                 break;
             }
