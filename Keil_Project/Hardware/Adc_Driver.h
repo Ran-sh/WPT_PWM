@@ -10,6 +10,8 @@
 #ifndef ADC_DRIVER_H
 #define ADC_DRIVER_H
 
+#include "stm32f10x.h"
+
 void  Adc_Driver_Init(void);
 void  Adc_Driver_Filter_Task(void);
 /* 电流零点校准 (偏移默认 1.65V = CC6920BSO 零电流中点) */

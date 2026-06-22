@@ -181,6 +181,7 @@ void Sys_Safety_Task(void)
         Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
         g_sys_state = SYS_STATE_FAULT;               /* 先切状态, Inverter已停波 */
         Blackbox_Lock_Fault_Snapshot();              /* L4 放行: 非 SWEEP/RUNNING */
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════
