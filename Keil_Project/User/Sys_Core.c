@@ -99,8 +99,7 @@ void Sys_Post_Init(void)
                                     s_sys_config.adc_v_gain,
                                     s_sys_config.freq_trim_hz);   /* Flash 固化直达 */
     } else {
-        extern uint8_t s_calibrated; extern uint8_t s_cal_count; extern float s_cal_accum;
-        s_calibrated = 0; s_cal_count = 0; s_cal_accum = 0.0f;   /* 强制解锁状态机 */
+        Adc_Driver_Force_Recalibrate();                           /* 强制解锁状态机 */
         Adc_Driver_Calibrate_Offset();                            /* 冷启动自测算 */
         s_sys_config.adc_i_offset = Adc_Driver_Get_Current_Offset();
     }

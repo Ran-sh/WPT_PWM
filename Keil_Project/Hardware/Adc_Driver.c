@@ -179,3 +179,9 @@ void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
 
 /** @brief V4.3.0: 获取当前 ADC 电流零点值 (用于回写 Flash 配置) */
 float Adc_Driver_Get_Current_Offset(void) { return s_i_offset; }
+
+/** @brief V4.3.0: 强制解锁校准状态机 (双副本全损→冷启动自测算) */
+void Adc_Driver_Force_Recalibrate(void)
+{
+    s_calibrated = 0; s_cal_count = 0; s_cal_accum = 0.0f; /* 原子解锁 */
+}
