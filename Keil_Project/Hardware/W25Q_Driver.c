@@ -209,8 +209,7 @@ void W25Q_Driver_Read(uint32_t addr, uint8_t *buf, uint16_t len)
     while (len--) *buf++ = W25Q_SPI_Transfer(0xFF);      /* 哑写收数据 */
 
     /* L2: 退出边界 — 硬卡 Busy 清零 (读操作正常不会 Busy, 但防护必须到位) */
-    FLASH_CS_HIGH(); GPIOA->CRL &= ~(0x0FU<<24); GPIOA->CRL |= (0x03U<<24);
-    /* W25Q_Leave_Mode 的内联等价 — 消除函数调用 */
+    W25Q_Leave_Mode();                                   /* CS=H, PA6→DC */
 }
 
 void W25Q_Driver_Write_Page(uint32_t addr, const uint8_t *buf, uint16_t len)
