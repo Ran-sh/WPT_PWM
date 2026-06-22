@@ -85,11 +85,27 @@ static uint8_t W25Q_SPI_Transfer(uint8_t tx)
 }
 
 /* ═══════════════════════════════════════════════
+ *  SPI1 DFF 原子闪切 (必须在 Wait_Busy_Timeout 之前定义)
+ * ═══════════════════════════════════════════════ */
+
+/** @brief SPI1 → 8位帧 (Flash 通信专用) */
+static void W25Q_SPI_8bit(void)
+{
+    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 &= ~SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE); /* 原子清 DFF */
+}
+
+#ifdef W25Q_DRIVER_USE_16BIT_MODE
+static void W25Q_SPI_16bit(void)
+{
+    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 |= SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE);
+}
+#endif /* W25Q_DRIVER_USE_16BIT_MODE */
+
+/* ═══════════════════════════════════════════════
  *  L2: Busy 阻塞死等 (高聚合, 上/下边界强制调用)
  * ═══════════════════════════════════════════════ */
 
-/** @brief 死等 W25Q128 Busy 位清零 (SR1 BIT0), 超时护底
- *  @note  任何读/写/擦除的 if-else 进入和退出边界必须调用 */
+/** @brief 死等 W25Q128 Busy 位清零 (SR1 BIT0), 超时护底 */
 static void W25Q_Wait_Busy_Timeout(void)
 {
     uint32_t deadline; uint8_t sr1;
@@ -99,7 +115,7 @@ static void W25Q_Wait_Busy_Timeout(void)
     do {
         W25Q_SPI_Transfer(CMD_RDSR1);                    /* 0x05 读 SR1 */
         sr1 = W25Q_SPI_Transfer(0xFF);                   /* 哑写收 SR1 */
-        FLASH_CS_HIGH(); FLASH_CS_LOW();                 /* CS 脉冲 (无需 Leave/Enter) */
+        FLASH_CS_HIGH(); FLASH_CS_LOW();                 /* CS 脉冲 */
         if ((sr1 & BUSY_BIT) == 0) break;                /* Busy=0 释放 */
     } while (Sys_Timer_Get_Tick() - deadline < 0x80000000U); /* uint32 回绕安全 */
     W25Q_Leave_Mode();                                   /* CS=H, PA6→DC, 归还总线 */
@@ -115,28 +131,6 @@ static void W25Q_Write_Enable(void)
 {
     FLASH_CS_LOW(); W25Q_SPI_Transfer(CMD_WREN); FLASH_CS_HIGH(); /* 0x06 锁存 */
 }
-
-/* ═══════════════════════════════════════════════
- *  L3: SPI1 DFF 原子闪切 (CR1 bit11)
- *
- *  TFT DMA 发送时将 SPI1 设为 16位帧 (DFF=1), 对 Flash 操作必须闪切为 8位。
- *  直接寄存器操作, 零函数调用开销, 禁止在切帧期间被 ISR 打断 (理论上不会,
- *  因为 W25Q 访问期间 TFT_CS=High, TIM1 发波完全独立于 SPI 帧格式)。
- * ═══════════════════════════════════════════════ */
-
-/** @brief SPI1 → 8位帧 (Flash 通信专用) */
-static void W25Q_SPI_8bit(void)
-{
-    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 &= ~SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE); /* 原子清 DFF */
-}
-
-/** @brief SPI1 → 16位帧 (reserved for future use — TFT DMA 恢复由 Tft_SPI_16bit 处理) */
-#ifdef W25Q_DRIVER_USE_16BIT_MODE
-static void W25Q_SPI_16bit(void)
-{
-    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 |= SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE);
-}
-#endif /* W25Q_DRIVER_USE_16BIT_MODE */
 
 /* ═══════════════════════════════════════════════
  *  公开接口实现
