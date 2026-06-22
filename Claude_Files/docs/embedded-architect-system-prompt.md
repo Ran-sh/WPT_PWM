@@ -238,6 +238,7 @@ WPT_PWM_V4.0_ONENET_TFT/
 
 | 版本 | 关键修复 |
 |:---|:---|
+| V4.3.0 | SPI1 分时复用(TFT+W25Q128, PA6动态切DC/MISO, 双CS门控) + W25Q128 16MB 四分区+三级校验 + L1-L4四大硬件防线 + 黑匣子14B紧凑日志+跨页保护+故障锁存 + CRC32 final XOR修复 + 过流快照L4自相矛盾修复 + 启动画面时序修正 |
 | V4.0.0 | 8轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 |
 | V4.1.0 | 小程序全重写: 单数据模型+双API并行+动态卡片+底部栏Component |
 | V4.2.1 | CN_FONT[74..75] 失败→综合 字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |
@@ -370,6 +371,18 @@ Vx.y.z 三数字体系：
 | 37 | control.html 在线指示器代码重复 | 编辑合并时旧代码未清干净, `} else {` 后新旧两段共存 | **每次 Edit 后 Read 验证最终文件, 确认无残留代码块** |
 | 38 | 小程序后台切出后定时器继续跑 | monitoring/control/history 三个页面只有 `onUnload` 无 `onHide`, 小程序切后台时 `onUnload` 不触发 | **所有带轮询的页面必须同时实现 `onHide` + `onUnload` 双向清理** |
 | 39 | `_isOnline === false` 漏判 `undefined` | 多处用严格等于判断离线, `undefined`(Mock/未配置) 时不走离线分支 | **改用 `!data._isOnline` 统一判定: falsy(=false/undefined/null)→离线, truthy→在线** |
+
+### 4.8 2026-06-22: V4.3.0 W25Q128 集成教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 40 | 过流快照 L4 自相矛盾: Blackbox_Lock_Fault_Snapshot 调用栈经过 Sys_Safety_Task 时 g_sys_state 仍为 RUNNING, 擦除被禁 | 代码顺序: 先锁存→后切状态, L4 防线在 Erase_Sector 入口检测到 RUNNING 后 return | **调用禁擦函数的路径必须在 call site 验证状态, 先切状态再调函数** |
+| 41 | CRC32 缺少 final XOR: 标准 CRC32 需要 `crc ^ 0xFFFFFFFFU`, 但函数直接返回中间值 | 注释声称与 STM32 CRC 外设一致, 但 STM32 CRC 含 final XOR | **任何声称"对齐标准XX"的代码必须逐位校验输出值, 不能单靠数学推导** |
+| 42 | Blackbox_Read_Entry 寻址不兼容写逻辑的 wrap gap: 写指针在换行后从 256 开始, 读公式从 0 开始 | 写逻辑在换行后重置为 256(跳过 Block 0 头部), 读逻辑未跟踪 s_log_wrapped | **数据结构的读写逻辑必须成对审查: 写完后的读公式要与写逻辑对照验证** |
+| 43 | 启动画面时序错位: Sys_Startup_Screen 在 W25Q_Driver_Init 之前显示, 含 Flash 字模的渲染全被静默跳过 | main.c 的 Init 顺序沿用 V4.2.x 布局, 新加的 Flash Init 插在 StartScreen 之后 | **新增 init 模块后必须验证所有依赖该模块的调用在时序上是否在前** |
+| 44 | 写指针不持久化: App_Storage_Init 读回 s_log_wr_ptr 但整个代码无写入 Flash Block 0 头部的逻辑 | Blackbox_Log_Tick 只更新内存变量, 从未写回 Flash | **需要掉电保持的运行时变量必须在每次变更后回写 Flash 或至少定期刷新** |
+| 45 | ADC 校准空 if: Flash 配置加载后 s_sys_config.adc_i_offset != 0 分支为空 | Adc_Driver 缺少公开 setter 函数, 当时设计只想到"读取"忘了"写入" | **新增 Flash 读取配置时, 必须同步检查目标模块是否有对应的公开写入接口** |
+| 46 | Tft_Driver_Init 将 SPI1 从 1Line_Tx 改为 2Lines_FullDuplex 后 TFT 全屏填充可能异常: SPI_CR1_BIDIMODE/BIDIOE 默认 0 即可 | 全双工模式下 MOSI 在 Master 接收时仍由 MCU 驱动, TFT 不回发数据 | **SPI 模式变更后必须验证: TFT DMA 发帧→正常, Flash 读→正常, 时序毛刺→无** |
 
 ### 4.5 "更新全部内容"执行检查清单
 

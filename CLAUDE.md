@@ -8,12 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.2.4 |
+| **版本** | V4.3.0 |
 | **语言** | 中文交流，代码注释中英混合 |
 
-> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.2.2)
+> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
-> **频率斜坡设计**: `Claude_Files/docs/superpowers/specs/2026-05-24-freq-ramp-design.md`
+> **频率斜坡设计**: `Claude_Files/docs/2026-05-24-freq-ramp-design.md`
+> **W25Q128 Flash 集成设计**: `Claude_Files/docs/2026-06-22-w25q128-flash-integration-design.md`
 
 ## 版本号规则 (全项目铁律)
 
@@ -87,7 +88,8 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
 
 | 针对文件 | 写入内容 |
 |:---|:---|
-| `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` | 文档版本号、修改日志、引脚表、文件结构、UI 页面、EMA/Safety/网络协议等架构章节与当前代码对齐 |
+| `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` | 文档版本号、修改日志、引脚表（含W25Q128接线）、文件结构、UI 页面、EMA/Safety/网络协议等架构章节与当前代码对齐 |
+| `Claude_Files/docs/2026-06-22-w25q128-flash-integration-design.md` | [V4.3.0] W25Q128 硬件接线/分区表/校验体系/软件架构/PC工具链 当前代码对齐 |
 
 ### 第 5 条 — 更新技能文件
 
@@ -152,12 +154,14 @@ STM32 (物理脑)               ESP8266 (联网脑)
 TIM1 PWM 95~150kHz          WiFi + MQTT 自动联网
 ADC 双通道 + 64样本滑动窗口   STATUS:ONLINE 心跳
 TFT/KEY/LED 人机交互        CMD:ON/OFF/SETFREQ 控制
-Sys_Safety 独立安全监测      USART2 115200 纯文本 JSON
+W25Q128 16MB Flash 外挂      USART2 115200 纯文本 JSON
+Sys_Safety 独立安全监测
         │                          │
         └────── USART2 JSON ───────┘
 ```
 
 **铁律**: STM32 不发 AT 指令, ESP 不碰 PWM/ADC。开机自动联网。
+**V4.3.0 新增**: SPI1 分时复用 (TFT + W25Q128), PA5=SCK PA7=MOSI PA6=DC/MISO 动态切, PA4=TFT_CS PA12=FLASH_CS 双门控。
 
 ## 系统全局状态机
 
@@ -178,14 +182,15 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 ## 文件结构
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/                        ← ~10031 行逻辑代码 (全平台)
-├── Keil_Project/                               ← STM32 固件 — 5065 行 (含 User/System, 不含 Library/Start)
+WPT_PWM_V4.0_ONENET_TFT/                        ← ~10957 行逻辑代码 (全平台)
+├── Keil_Project/                               ← STM32 固件 — 5829 行 (含 User/System, 不含 Library/Start)
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
-│   ├── Hardware/                               ← 硬件驱动 — 4065 行
+│   ├── Hardware/                               ← 硬件驱动 — 4398 行
 │   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1722+39行)
-│   │   ├── Tft_Driver.c/h                      ← ST7735 SPI+DMA 彩屏 + CN_Lookup (606+76行)
-│   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (356行)
+│   │   ├── Tft_Driver.c/h                      ← ST7735 SPI1 全双工+DMA + Flash字库 (564+77行)
+│   │   ├── W25Q_Driver.c/h                     ← [V4.3.0] 16MB SPI Flash 驱动 + L1-L4 四大防线 (258+62行)
+│   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (356行, 待迁移至Flash)
 │   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (257+49行)
 │   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (162+20行)
 │   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡 (146+67行)
@@ -193,8 +198,9 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~10031 行逻辑代码 (全�
 │   │   ├── Led_Driver.c/h                      ← 6 LED 闪烁 (135+42行)
 │   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (113+33行)
 │   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (68+30行)
-│   ├── User/                                   ← 应用层 — 876 行
-│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (336+51行)
+│   ├── User/                                   ← 应用层 — 1347 行
+│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (338+51行)
+│   │   ├── App_Storage.c/h                     ← [V4.3.0] 字库索引+参数双副本+黑匣子日志 (309+101行)
 │   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全(仅RUNNING) (205+44行)
 │   │   ├── main.c                              ← 程序入口 (50行)
 │   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
@@ -457,6 +463,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V4.3.0 | W25Q128 16MB SPI Flash 集成: SPI1 分时复用(PA6动态切DC/MISO) + GB2312全字库(668KB)+开机画面区(1MB)+参数双副本CRC32(8KB)+黑匣子循环日志(4MB)+故障锁存前后5s + 四大硬件防线(L1写使能/L2 Busy死等/L3 DFF原子闪切/L4 发波禁擦) + ADC校准Flash固化+本地自测算B方案 + config.js getDataModel() undefined修复 + control.html clearInterval修复 + 遥测S字段对齐g_sys_state |
 | V4.2.4 | 离线守卫全平台修复: Web+小程序 _isOnline 判定统一 + 缓存时序修正(延后到在线确认) + 在线兜底(data非空)+/device/detail覆写 + Web throw误触发修复 + 重复代码块清理 + 生命周期onHide/pagehide清理 |
 | V4.2.3 | 全平台安全审查修复: 删除硬编码凭证+console清理+定时器泄漏修复+setInterval防重叠+小程序并行在线检测+STM32 Sys_Safety仅RUNNING+Key批量读取+login SHA-256 |
 | V4.2.2 | WiFi OFFLINE 双模式(被动自动嗅探/主动手动恢复)+5次有限重试+BOOT_WAIT提前+MQTT超时+Bug修复8项 |

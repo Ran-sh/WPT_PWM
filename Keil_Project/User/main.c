@@ -1,14 +1,11 @@
 /**
  ******************************************************************************
  * @file    User/main.c
- * @brief   WPT_PWM V4.2.0 — 程序入口
- * @note    V4.2.0: 全局系统状态机, main() 极度简洁
- *
+ * @brief   WPT_PWM V4.3.0 — 程序入口 (W25Q128 Flash 集成)
+ * @note    V4.3.0: 新增 W25Q_Driver + App_Storage 初始化
  *          状态: INIT → IDLE → SWEEP → RUNNING
  *                          ↑        │        │
  *                          └── FAULT ←───────┘
- *
- *          模块化: Sys_Init.h (初始化) + Sys_Safety.h (安全) + Sys_Run.h (运行)
  ******************************************************************************
  */
 
@@ -17,6 +14,8 @@
 #include "Key_Driver.h"
 #include "Adc_Driver.h"
 #include "App_Network.h"
+#include "W25Q_Driver.h"
+#include "App_Storage.h"
 
 int main(void)
 {
@@ -25,7 +24,12 @@ int main(void)
     /* ── 初始化阶段 ── */
     Sys_Clamp_ESP();
     Sys_Hardware_Init();
-    Sys_Startup_Screen();
+
+    /* V4.3.0: W25Q128 + 字库自检 (在 Sys_Startup_Screen 之前, 确保字库就绪) */
+    W25Q_Driver_Init();
+    App_Storage_Init();                              /* 字库 CRC + 恢复黑匣子指针 + 加载参数 */
+
+    Sys_Startup_Screen();                            /* 字库就绪后显示启动画面 */
     Sys_Post_Init();
     g_sys_state = SYS_STATE_IDLE;
 

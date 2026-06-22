@@ -1,17 +1,20 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 1.8寸 128x160 TFT — SPI1+DMA 全硬件加速版 V4.2.0
- *          PA5=SCK PA7=MOSI PA4=CS PA6=DC PA0=RST PB6=BL
+ * @brief   ST7735 128×160 TFT — SPI1+DMA V4.3.0 (字模来源切换至 W25Q128 Flash)
+ *          PA5=SCK PA7=MOSI PA4=CS PA6=DC PA0=RST PB6=BL PA12=FLASH_CS
  *          SPI1 Mode3 (CPOL=High, CPHA=2Edge), 横屏 160x128, MADCTL=0xA0
  *          DMA1_Channel3 用于全部像素传输 (Fill + Blit), WrCmd/WrDat 8位轮询
- * @note    V4.2.0: 字符/图标全部改为 buffer-build → DMA 发送, 消除逐像素 WrD16
- *              填充=MINC=0(同色泵送), 位图=MINC=1(缓冲区自增)
+ * @note    V4.3.0: 字模来源切换至外挂 W25Q128 SPI Flash (SPI1 分时复用)
+ *                 解码器 Decode_Char_Row/Decode_CN_Row 保持不变 (LSB-first)
+ *                 保留 FONT_5X10 在片内 (120B, 高频仪表盘数字, 零等待)
+ *                 TFT_Font_Data.h 字库数据已迁移至 Flash, 本文件不再依赖
  ******************************************************************************
  */
 
 #include "Tft_Driver.h"
-#include "TFT_Font_Data.h"
+#include "W25Q_Driver.h"       /* 字模从 Flash 读取 */
+#include "App_Storage.h"       /* App_Storage_Read_ASCII / Read_Glyph */
 
 #define TFT_DRIVER_CS_PIN   GPIO_Pin_4
 #define TFT_DRIVER_DC_PIN   GPIO_Pin_6
@@ -23,7 +26,6 @@
 #define TFT_DC_CMD()   GPIO_ResetBits(GPIOA, TFT_DRIVER_DC_PIN)
 #define TFT_DC_DATA()  GPIO_SetBits(GPIOA, TFT_DRIVER_DC_PIN)
 
-/* DMA 传输上限: 单次最多 65535 个 16位像素 (约 128KB), ST7735 160x128=20480 足够 */
 #define TFT_DMA_MAX_PIXELS  65535
 
 /* ── DMA 状态 ── */
@@ -79,7 +81,7 @@ static void Tft_SPI_16bit(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  DMA 一次性初始化 (只配 RCC + 外设基地址, CCR 按传输模式配置)
+ *  DMA 一次性初始化
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Tft_DMA_Init(void)
@@ -94,7 +96,7 @@ static void Tft_DMA_Init(void)
     dma.DMA_DIR                = DMA_DIR_PeripheralDST;
     dma.DMA_BufferSize         = 0;               /* 运行时动态设置 */
     dma.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-    dma.DMA_MemoryInc          = DMA_MemoryInc_Enable;   /* 默认自增, Fill 时覆盖 */
+    dma.DMA_MemoryInc          = DMA_MemoryInc_Enable;
     dma.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
     dma.DMA_MemoryDataSize     = DMA_MemoryDataSize_HalfWord;
     dma.DMA_Mode               = DMA_Mode_Normal;
@@ -106,9 +108,7 @@ static void Tft_DMA_Init(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  DMA 核心传输 — DC=DATA, CS=LOW, 等 TC3, 拉高 CS
- *  inc_mem=0 → 同色填充 (CMAR 指向单色变量)
- *  inc_mem=1 → 缓冲区自增 (CMAR 指向像素数组)
+ *  DMA 核心传输
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_mem)
@@ -172,7 +172,7 @@ static void SetWin(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
     Tft_Driver_WrCmd(0x2C);
 }
 
-/** ═══════════════════════════════════════════════
+/* ═══════════════════════════════════════════════
  *  ST7735 Green Tab 已验证初始化
  * ═══════════════════════════════════════════════ */
 
@@ -187,13 +187,13 @@ void Tft_Driver_Init(void)
                            RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
 
-    /* SCK=PA5, MOSI=PA7 */
+    /* SCK=PA5, MOSI=PA7 (SPI1 共享: TFT + W25Q128) */
     gpio.GPIO_Pin   = GPIO_Pin_5 | GPIO_Pin_7;
     gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &gpio);
 
-    /* CS=PA4, DC=PA6, RST=PA0 */
+    /* CS=PA4, DC=PA6, RST=PA0 (PA6 动态切换: TFT=GPIO_Out DC, Flash=Input MISO) */
     gpio.GPIO_Pin  = TFT_DRIVER_CS_PIN | TFT_DRIVER_DC_PIN | TFT_DRIVER_RST_PIN;
     gpio.GPIO_Mode = GPIO_Mode_Out_PP;
     GPIO_Init(GPIOA, &gpio);
@@ -205,9 +205,9 @@ void Tft_Driver_Init(void)
 
     TFT_CS_HIGH();
 
-    /* SPI1: Mode 3 (CPOL=High, CPHA=2Edge), 18MHz (72M/4) — 中景园 ST7735 */
+    /* SPI1: Mode 3 (CPOL=High, CPHA=2Edge), 18MHz, 8位初始 */
     SPI_StructInit(&spi);
-    spi.SPI_Direction  = SPI_Direction_1Line_Tx;
+    spi.SPI_Direction  = SPI_Direction_2Lines_FullDuplex; /* V4.3.0: 全双工 (MISO 用于 Flash) */
     spi.SPI_Mode       = SPI_Mode_Master;
     spi.SPI_DataSize   = SPI_DataSize_8b;
     spi.SPI_CPOL       = SPI_CPOL_High;
@@ -232,18 +232,18 @@ void Tft_Driver_Init(void)
 
     /* ── 硬件复位 ── */
     GPIO_ResetBits(GPIOA, TFT_DRIVER_RST_PIN);
-Tft_Driver_Dly(100000);   /* 100ms */
+    Tft_Driver_Dly(100000);   /* 100ms */
     GPIO_SetBits(GPIOA, TFT_DRIVER_RST_PIN);
-Tft_Driver_Dly(120000);   /* 120ms */
+    Tft_Driver_Dly(120000);   /* 120ms */
 
     /* ═══════════════════════════════════════════
      *  ST7735 Green Tab 已验证 init
      * ═══════════════════════════════════════════ */
 
     Tft_Driver_WrCmd(0x11);   /* SLPOUT */
-Tft_Driver_Dly(120000);   /* 120ms */
+    Tft_Driver_Dly(120000);   /* 120ms */
 
-    Tft_Driver_WrCmd(0x3A);   /* COLMOD: RGB565 — 中景园放在 NORON 之后 */
+    Tft_Driver_WrCmd(0x3A);   /* COLMOD: RGB565 */
     Tft_Driver_WrDat(0x05);
 
     Tft_Driver_WrCmd(0xB1);   /* FRMCTR1 */
@@ -270,15 +270,8 @@ Tft_Driver_Dly(120000);   /* 120ms */
     Tft_Driver_WrCmd(0xC5);   /* VMCTR1 */
     Tft_Driver_WrDat(0x1A);
 
-    /* ═══════════════════════════════════════════════════════════════
-     *  MADCTL (0x36): 横屏 160x128, (0,0)=左上角
-     *
-     *  当前: 0xA0 (MY=1,MX=0,MV=1) — 方向3 反向横屏
-     *  备选: 0x70 (MY=0,MX=1,MV=1) — 方向1 横屏 (若上下颠倒可用)
-     *  BGR注意: 设0x08后红蓝颠倒, 保持bit3=0, 不用BGR
-     *  ═══════════════════════════════════════════════════════════════ */
     Tft_Driver_WrCmd(0x36);
-    Tft_Driver_WrDat(0xA0);
+    Tft_Driver_WrDat(0xA0);   /* MADCTL: 横屏160x128 */
 
     /* Gamma (+) */
     Tft_Driver_WrCmd(0xE0);
@@ -300,7 +293,7 @@ Tft_Driver_Dly(120000);   /* 120ms */
     Tft_Driver_WrDat(0x05);
 
     Tft_Driver_WrCmd(0x29);   /* DISPON */
-Tft_Driver_Dly(50000);    /* 50ms */
+    Tft_Driver_Dly(50000);    /* 50ms */
 
     Tft_Driver_Clear(TFT_COLOR_BLACK);
 }
@@ -332,27 +325,17 @@ void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16
     Tft_DMA_Fill(total, color);
 }
 
-/**
- * @brief  用背景色擦除指定像素区域 (DMA 单色填充)
- * @param  x, y  左上角像素坐标
- * @param  w, h  宽度/高度
- */
 void Tft_Driver_Erase_Pixel_Area(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
     Tft_Driver_Fill_Rect(x, y, w, h, TFT_COLOR_BLACK);
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  位图→缓冲区解码辅助函数
- *  字体格式: 8x16 ASCII LSB-first, 16x16 中文 LSB-first, 每字节 bit0=左
+ *  位图→缓冲区解码辅助函数 (V4.3.0: 解码器原样保留, 与设计文档 §6.1 一致)
+ *  字模已在 PC 端 bit_reverse (HZK16 MSB→LSB), 与现有解码器完全兼容
  * ═══════════════════════════════════════════════════════════════ */
 
-/**
- * @brief 将 8x16 LSB-first 字模的一行解码为 8 个 RGB565 像素
- * @param byte_val  字模行字节 (bit0=最左像素)
- * @param fg, bg    前景色/背景色
- * @param out       输出缓冲区 (至少 8 个 uint16_t)
- */
+/** @brief 8x16 LSB-first 字模一行 → 8 个 RGB565 (不变) */
 static void Decode_Char_Row(uint8_t byte_val, uint16_t fg, uint16_t bg, uint16_t* out)
 {
     uint8_t b;
@@ -360,12 +343,7 @@ static void Decode_Char_Row(uint8_t byte_val, uint16_t fg, uint16_t bg, uint16_t
         out[b] = (byte_val & (0x01 << b)) ? fg : bg;
 }
 
-/**
- * @brief 将 16x16 LSB-first 字模的 2 字节行解码为 16 个 RGB565 像素
- * @param lo, hi    字模行低字节/高字节 (lo=左8列, hi=右8列)
- * @param fg, bg    前景色/背景色
- * @param out       输出缓冲区 (至少 16 个 uint16_t)
- */
+/** @brief 16x16 LSB-first 字模一行 → 16 个 RGB565 (不变) */
 static void Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16_t bg, uint16_t* out)
 {
     uint8_t b;
@@ -375,15 +353,15 @@ static void Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16_t bg, uint
     }
 }
 
-/* ═══════════════════════════════════
- *  ASCII 8x16 字符 — DMA 版
- * ═══════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+ *  V4.3.0: 字模来源切换 — Flash Read 替代内存数组
+ * ═══════════════════════════════════════════════════════════════ */
 
+/* ── ASCII 8x16 渲染 — Flash 读字模 ── */
 void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
                           uint16_t fg, uint16_t bg)
 {
-    uint8_t r;
-    uint16_t* p;
+    uint8_t r, glyph_row[16]; uint16_t* p;
     uint16_t x0, y0;
 
     if (line >= TFT_LINE_COUNT || col >= TFT_CHAR_PER_LINE) return;
@@ -393,18 +371,17 @@ void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
     y0 = line * TFT_FONT_HEIGHT;
     SetWin(x0, y0, x0 + TFT_FONT_WIDTH - 1, y0 + TFT_FONT_HEIGHT - 1);
 
-    /* 逐行解码 → s_dma_buf, 16行 × 8像素 = 128 半字 */
+    /* V4.3.0: 从 Flash 读 16B 字模 (替代 TFT_FONT_8X16 内存数组) */
+    App_Storage_Read_ASCII((uint8_t)ch, glyph_row);
+
     p = s_dma_buf;
     for (r = 0; r < 16; r++)
-        Decode_Char_Row(TFT_FONT_8X16[(uint8_t)ch - 32][r], fg, bg, p + r * 8);
+        Decode_Char_Row(glyph_row[r], fg, bg, p + r * 8);  /* 解码器不变 */
 
     Tft_DMA_Send(s_dma_buf, 128);
 }
 
-/* ═══════════════════════════════════
- *  ASCII 字符串 — 逐字 DMA (统一 fg/bg, 每字 128px DMA 一次)
- * ═══════════════════════════════════ */
-
+/* ── ASCII 字符串 — 逐字 DMA ── */
 void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
                             uint16_t fg, uint16_t bg)
 {
@@ -414,10 +391,7 @@ void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
     }
 }
 
-/* ═══════════════════════════════════
- *  数字 — 委托 Show_Char
- * ═══════════════════════════════════ */
-
+/* ── 数字 — 委托 Show_Char ── */
 static uint32_t Tft_Driver_Pw(uint32_t e) { uint32_t r = 1; while (e--) r *= 10; return r; }
 
 void Tft_Driver_Show_Num(uint8_t ln, uint8_t col, uint32_t v,
@@ -447,35 +421,42 @@ void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
             (char)('0' + (fp / Tft_Driver_Pw(fl - 1 - i)) % 10), fg, bg);
 }
 
-/* ═══════════════════════════════════
- *  中英文混合 — DMA 版
- * ═══════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+ *  V4.3.0 中文渲染: UTF-8 索引全字库 (Unicode 码点直接计算 Flash 偏移)
+ *
+ *  旧 CN_INDEX 字符遍历查找表 (76字 O(n)) 已废弃。
+ *  新方案: UTF-8 → Unicode 码点 → Flash 连续索引 (O(1), 零 RAM)
+ *  查字公式 (设计文档 §3.1):
+ *    cp = ((utf8[0]&0x0F)<<12) | ((utf8[1]&0x3F)<<6) | (utf8[2]&0x3F)
+ *    flash_addr = FONT_CJK_BASE + (cp - 0x4E00) * 32
+ * ═══════════════════════════════════════════════════════════════ */
 
-static uint8_t Tft_Driver_CNLookup(const char* u8)
+/** @brief UTF-8 3字节 → Unicode 码点 (纯位运算) */
+static uint16_t Tft_UTF8_To_Unicode(const uint8_t *u8)
 {
-    uint8_t i;
-    for (i = 0; i < TFT_CN_FONT_CHAR_COUNT; i++)
-        if (CN_INDEX[i*3]==u8[0] && CN_INDEX[i*3+1]==u8[1] && CN_INDEX[i*3+2]==u8[2])
-            return i;
-    return 0xFF;
+    return (uint16_t)(((uint16_t)(u8[0] & 0x0F) << 12) |
+                      ((uint16_t)(u8[1] & 0x3F) << 6)  |
+                       (uint16_t)(u8[2] & 0x3F));
 }
 
-/**
- * @brief  绘制 16x16 中文字符 — DMA 版
- * @note   字模 32 字节/字, 2字节/行×16行, LSB-first
- *         每行: lo(左8列) + hi(右8列) → 16 像素, 16行×16px=256 像素, DMA 一次
- */
-static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, uint8_t idx, uint16_t fg, uint16_t bg)
+/** @brief 判断是否为 UTF-8 3字节中文 (>0xE0) */
+static uint8_t Tft_Is_UTF8_CN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
+
+/** @brief V4.3.0 中文绘制 — Flash 全字库 (GB2312 6763字 + 全 Unicode CJK) */
+static void Tft_Driver_CN_Draw_Flash(uint8_t ln, uint8_t col, const uint8_t *utf8,
+                                     uint16_t fg, uint16_t bg)
 {
-    uint8_t row;
-    uint16_t* p;
-    const uint8_t* glyph;  /* 32 字节字模 */
+    uint8_t row, glyph[32]; uint16_t* p;
+    uint16_t cp;
 
     if (ln >= TFT_LINE_COUNT || col + 1 >= TFT_CHAR_PER_LINE) return;
 
+    cp = Tft_UTF8_To_Unicode(utf8);
     SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
 
-    glyph = CN_FONT_16X16[idx];
+    /* V4.3.0: 从 Flash 读取 32B 字模 (PC 端已 bit_reverse) */
+    App_Storage_Read_Glyph(cp, glyph);
+
     p = s_dma_buf;
     for (row = 0; row < 16; row++)
         Decode_CN_Row(glyph[row * 2], glyph[row * 2 + 1], fg, bg, p + row * 16);
@@ -483,16 +464,14 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, uint8_t idx, uint16_t fg
     Tft_DMA_Send(s_dma_buf, 256);
 }
 
-static uint8_t Tft_Driver_IsCN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
-
+/* ── 中英文混合字符串 V4.3.0 ── */
 void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
                                 uint16_t fg, uint16_t bg)
 {
     while (*s && col < TFT_CHAR_PER_LINE) {
-        if (Tft_Driver_IsCN((uint8_t)*s)) {
-            uint8_t idx = Tft_Driver_CNLookup(s);
-            if (idx != 0xFF) { Tft_Driver_CN_Draw(ln, col, idx, fg, bg); col += 2; s += 3; }
-            else { col += 2; s += 3; }
+        if (Tft_Is_UTF8_CN((uint8_t)*s) && *(s+1) && *(s+2)) {
+            Tft_Driver_CN_Draw_Flash(ln, col, (const uint8_t*)s, fg, bg);
+            col += 2; s += 3;
         } else {
             Tft_Driver_Show_Char(ln, col, *s, fg, bg);
             col++; s++;
@@ -501,39 +480,35 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  WIFI 信号图标 — DMA 版 (16x16, 256 像素一次 DMA)
+ *  V4.3.0: WiFi 图标 — Flash 读取 (替代片内 WIFI_ICON 数组)
  * ═══════════════════════════════════════════════════════════════ */
 
 void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t fg, uint16_t bg)
 {
-    uint8_t row;
-    const uint8_t* data;
-    uint16_t* p;
-
+    uint8_t row, icon_buf[32]; uint16_t* p;
     if (frame > 3) frame = 3;
-    data = WIFI_ICON[frame];
 
     SetWin(x, y, x + 15, y + 15);
 
+    /* V4.3.0: Flash 图标区读取 (基址 + frame×32B), PC 端已 bit_reverse */
+    W25Q_Driver_Read(FONT_CJK_BASE + (FONT_CJK_COUNT * FONT_CHAR_BYTES)
+                     + ((uint32_t)frame * 32U), icon_buf, 32);
     p = s_dma_buf;
     for (row = 0; row < 16; row++)
-        Decode_CN_Row(data[row * 2], data[row * 2 + 1], fg, bg, p + row * 16);
+        Decode_CN_Row(icon_buf[row * 2], icon_buf[row * 2 + 1], fg, bg, p + row * 16);
 
     Tft_DMA_Send(s_dma_buf, 256);
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  单帧图标 — DMA 版 (16x16, 256 像素一次 DMA)
- * ═══════════════════════════════════════════════════════════════ */
-
+/* ── 单帧图标 V4.3.0: Flash 读取 ── */
 void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
                                   uint16_t fg, uint16_t bg)
 {
-    uint8_t row;
-    uint16_t* p;
+    uint8_t row; uint16_t* p;
 
     SetWin(x, y, x + 15, y + 15);
 
+    /* 图标 data 可能来自 Flash 预读或片内保留, 此处直接解码 */
     p = s_dma_buf;
     for (row = 0; row < 16; row++)
         Decode_CN_Row(data[row * 2], data[row * 2 + 1], fg, bg, p + row * 16);
@@ -542,55 +517,40 @@ void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
 }
 
 /* ════════════════════════════════════════════════════════
- *  5×10 微型数字字库 — PCtoLCD2002 行主序 LSB-first 宋体
- *  仅含 0-9 . 共 12 字符 × 10 字节 = 120 字节
- *  字符宽 5px × 10px 高, 比 4×8 大一倍
+ *  5×10 微型数字字库 — 保留片内 (120B, 仪表盘高频, 零 Flash 等待)
  * ════════════════════════════════════════════════════════ */
 static const uint8_t FONT_5X10[12][10] = {
-    /* [0] '0' idx15 */ {0x00,0x00,0x06,0x09,0x09,0x09,0x09,0x09,0x06,0x00},
-    /* [1] '1' idx16 */ {0x00,0x00,0x04,0x06,0x04,0x04,0x04,0x04,0x0E,0x00},
-    /* [2] '2' idx17 */ {0x00,0x00,0x0E,0x0A,0x08,0x04,0x04,0x02,0x0E,0x00},
-    /* [3] '3' idx18 */ {0x00,0x00,0x0E,0x0A,0x08,0x04,0x08,0x0A,0x0E,0x00},
-    /* [4] '4' idx19 */ {0x00,0x00,0x08,0x0C,0x0A,0x09,0x1F,0x08,0x1C,0x00},
-    /* [5] '5' idx20 */ {0x00,0x00,0x0E,0x02,0x0E,0x08,0x08,0x0A,0x06,0x00},
-    /* [6] '6' idx21 */ {0x00,0x00,0x0E,0x01,0x07,0x09,0x09,0x09,0x06,0x00},
-    /* [7] '7' idx22 */ {0x00,0x00,0x0E,0x08,0x08,0x04,0x04,0x04,0x04,0x00},
-    /* [8] '8' idx23 */ {0x00,0x00,0x06,0x09,0x09,0x06,0x09,0x09,0x06,0x00},
-    /* [9] '9' idx24 */ {0x00,0x00,0x06,0x09,0x09,0x09,0x0F,0x0C,0x07,0x00},
-    /*[10] '.' idx13 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x02,0x00},
-    /*[11] ' '        */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
+    {0x00,0x00,0x06,0x09,0x09,0x09,0x09,0x09,0x06,0x00}, /* '0' */
+    {0x00,0x00,0x04,0x06,0x04,0x04,0x04,0x04,0x0E,0x00}, /* '1' */
+    {0x00,0x00,0x0E,0x0A,0x08,0x04,0x04,0x02,0x0E,0x00}, /* '2' */
+    {0x00,0x00,0x0E,0x0A,0x08,0x04,0x08,0x0A,0x0E,0x00}, /* '3' */
+    {0x00,0x00,0x08,0x0C,0x0A,0x09,0x1F,0x08,0x1C,0x00}, /* '4' */
+    {0x00,0x00,0x0E,0x02,0x0E,0x08,0x08,0x0A,0x06,0x00}, /* '5' */
+    {0x00,0x00,0x0E,0x01,0x07,0x09,0x09,0x09,0x06,0x00}, /* '6' */
+    {0x00,0x00,0x0E,0x08,0x08,0x04,0x04,0x04,0x04,0x00}, /* '7' */
+    {0x00,0x00,0x06,0x09,0x09,0x06,0x09,0x09,0x06,0x00}, /* '8' */
+    {0x00,0x00,0x06,0x09,0x09,0x09,0x0F,0x0C,0x07,0x00}, /* '9' */
+    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x02,0x00}, /* '.' */
+    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, /* ' ' */
 };
 
-/**
- * @brief  将 ASCII 字符映射到 FONT_5X10 索引
- */
 static uint8_t Map_5x10_Idx(char ch)
 {
     if (ch >= '0' && ch <= '9') return (uint8_t)(ch - '0');
     if (ch == '.') return 10;
-    return 11; /* space */
+    return 11;
 }
 
-/**
- * @brief  在 TFT 像素坐标绘制 5×10 微型字符串
- * @param  x,y   像素坐标
- * @param  s     字符串 (仅数字和小数点)
- * @param  fg,bg 前景色/背景色
- * @note   每字符 5px宽×10px高, 间距2px → 7px步进
- */
 void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
                                         const char* s,
                                         uint16_t fg, uint16_t bg)
 {
-    uint8_t row, b, idx;
-    uint16_t* p;
+    uint8_t row, b, idx; uint16_t* p;
 
     while (*s && x + 5 <= TFT_WIDTH) {
         idx = Map_5x10_Idx(*s);
-
         SetWin(x, y, x + 4, y + 9);
 
-        /* 逐行解码 → s_dma_buf: 10行 × 5像素 = 50 半字 */
         p = s_dma_buf;
         for (row = 0; row < 10; row++) {
             uint8_t byte_val = FONT_5X10[idx][row];
@@ -599,8 +559,6 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
         }
 
         Tft_DMA_Send(s_dma_buf, 50);
-
-        x += 7;  /* 5px char + 2px spacing */
-        s++;
+        x += 7; s++;
     }
 }

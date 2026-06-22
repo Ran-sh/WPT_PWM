@@ -157,7 +157,17 @@
       "WebFetch(domain:github.com)",
       "Bash(powershell *)",
       "Bash(cmd.exe /c Keil_Project\\\\keilkill.bat)",
-      "Bash(Push to *)"
+      "Bash(Push to *)",
+      "Bash(cmd.exe /c \"Keil_Project\\\\keilkill.bat\")",
+      "Bash(findstr /n \"4\\\\.2\" \"Claude_Files\\\\docs\\\\embedded-architect-system-prompt.md\")",
+      "Bash(findstr *)",
+      "Bash(cmd.exe *)",
+      "Bash(dir /s /b *.obj *.lst *.axf)",
+      "Bash(gh search *)",
+      "Bash(git diff *)",
+      "Bash(rm -f \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/Objects/\"*.obj \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/Objects/\"*.lst \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/Listings/\"*.lst \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/Listings/\"*.m51)",
+      "Bash(rm -f \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/\"*.axf \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/\"*.hex \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/\"*.bin)",
+      "Bash(xargs rm -f)"
     ]
   }
 }

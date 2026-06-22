@@ -1,8 +1,9 @@
 /**
  ******************************************************************************
  * @file    User/App_Network.c
- * @brief   网络应用层 — 实现
- * @note    V4.2.1: OFFLINE 双模式 (被动自动嗅探 / 主动手动恢复) + 5次有限重试
+ * @brief   网络应用层 — 实现 (V4.3.0: 黑匣子日志 + Flash 配置集成)
+ * @note    V4.3.0: 离线时写入黑匣子 (循环日志不丢失)
+ *          V4.2.1: OFFLINE 双模式 + 5次有限重试
  ******************************************************************************
  */
 
@@ -15,6 +16,7 @@
 #include "Ui_Controller.h"
 #include "Led_Driver.h"
 #include "Sys_Timer.h"
+#include "App_Storage.h"       /* V4.3.0: 黑匣子日志 */
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -325,7 +327,7 @@ void App_Network_Task(void)
                          (ss == INVERTER_CONTROL_SS_STATE_DONE)
                             ? (unsigned long)Pwm_Driver_Get_Frequency()
                             : 0UL,
-                         (int)ss);
+                         (int)g_sys_state);  /* 对齐全链路数据一致性: 遥测S字段用系统状态 */
                 if (written > 0 && (uint16_t)written < sizeof(json_buf))
                     Esp8266_Driver_Send_String(json_buf);
             }

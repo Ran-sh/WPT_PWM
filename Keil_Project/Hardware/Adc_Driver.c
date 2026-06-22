@@ -160,3 +160,20 @@ void Adc_Driver_Calibrate_Offset(void)
 
 float Adc_Driver_Get_Voltage(void) { return s_voltage; }
 float Adc_Driver_Get_Current(void) { return s_current; }
+
+/** @brief V4.3.0: 从 Flash 固化值写入校准参数 (W25Q128 参数区加载后调用) */
+void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
+{
+    if (i_offset > 0.5f && i_offset < 2.8f) {            /* 合理性守卫: 1.65V 附近 */
+        s_i_offset   = i_offset;
+        s_calibrated = 1;                                /* 锁定, 禁止自测算覆盖 */
+    }
+    if (v_gain > 0.0f) {
+        /** @note s_v_gain 当前在 filter 中使用硬编码 20:1 分压比,
+         *        后续可扩展为可变增益 */
+    }
+    /** @note freq_trim_hz 保留给 Inverter_Control 适配 */
+}
+
+/** @brief V4.3.0: 获取当前 ADC 电流零点值 (用于回写 Flash 配置) */
+float Adc_Driver_Get_Current_Offset(void) { return s_i_offset; }

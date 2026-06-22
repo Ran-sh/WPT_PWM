@@ -1,8 +1,10 @@
 /**
  ******************************************************************************
  * @file    User/Sys_Core.c
- * @brief   系统核心模块 — 实现 (状态枚举 + 初始化 + 安全 + 调度)
- * @note    V4.2.0: 合并 8 个 Sys_* 文件为 2 个 (Sys_Core.h/.c)
+ * @brief   系统核心模块 — 实现 (V4.3.0: W25Q128 + 字库自检集成)
+ * @note    V4.3.0: Sys_Post_Init 中加载 Flash 参数配置 (WiFi/校准/偏好)
+ *          Sys_Startup_Screen 在字库 CRC 自检前显示"启动中..."
+ *          V4.2.0: 合并 8 个 Sys_* 文件为 2 个
  ******************************************************************************
  */
 
@@ -17,8 +19,13 @@
 #include "Ui_Controller.h"
 #include "Sys_Timer.h"
 #include "App_Network.h"
+#include "W25Q_Driver.h"
+#include "App_Storage.h"
 
 volatile Sys_State g_sys_state = SYS_STATE_INIT;
+
+/* ── 全局配置实例 ── */
+static App_Storage_Config s_sys_config;
 
 /* ═══════════════════════════════════════════════════════════════
  *  1. 初始化 (原 Sys_Init.c)
@@ -64,8 +71,16 @@ void Sys_Startup_Screen(void)
 {
     Tft_Driver_Clear(TFT_COLOR_BLACK);
     Tft_Driver_Show_CN_String(3, 3, "WPT-PWM", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
-    Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...",
-                              TFT_COLOR_WHITE, TFT_COLOR_BLACK);
+    /* V4.3.0: 启动中 + 字库状态指示 */
+    if (g_font_status == FONT_OK)
+        Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...",
+                                  TFT_COLOR_WHITE, TFT_COLOR_BLACK);
+    else if (g_font_status == FONT_CORRUPT)
+        Tft_Driver_Show_CN_String(5, 3, "\xe5\xad\x97\xe5\xba\x93\xe6\x8d\x9f\xe5\x9d\x8f" "!",
+                                  TFT_COLOR_RED, TFT_COLOR_BLACK);    /* 字库损坏! */
+    else
+        Tft_Driver_Show_CN_String(5, 3, "ASCII Only",
+                                  TFT_COLOR_CYAN, TFT_COLOR_BLACK);   /* 无字库, ASCII模式 */
     Tft_Driver_Set_Backlight(255);
 }
 
@@ -73,6 +88,25 @@ void Sys_Post_Init(void)
 {
     Sys_Timer_Init();
     Led_Driver_Set_System(1);
+
+    /* V4.3.0: 从 Flash 加载参数配置 (WiFi凭证 + ADC校准 + 系统偏好)
+     * 配置加载在 W25Q_Driver_Init + App_Storage_Init 之后 */
+    App_Storage_Load_Config(&s_sys_config);
+
+    /* ADC 校准值: Flash 优先 → 本地自测算降级 (设计文档 §9.3)
+     * Adc_Driver_Calibrate_Offset 含 s_calibrated 守卫, 仅首次调用执行 */
+    if (s_sys_config.adc_i_offset != 0.0f) {
+        Adc_Driver_Set_Calibration(s_sys_config.adc_i_offset,
+                                    s_sys_config.adc_v_gain,
+                                    s_sys_config.freq_trim_hz);   /* Flash 固化值 */
+    } else {
+        Adc_Driver_Calibrate_Offset();               /* 降级: 上电自测算 */
+        s_sys_config.adc_i_offset = Adc_Driver_Get_Current_Offset();
+    }
+
+    /* 背光: 从配置加载 */
+    if (s_sys_config.backlight > 0)
+        Tft_Driver_Set_Backlight(s_sys_config.backlight);
 
     IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);
     IWDG_SetPrescaler(IWDG_Prescaler_64);
@@ -141,12 +175,12 @@ void Sys_Safety_Task(void)
         }
     }
 
-    /* 过流检测 → FAULT */
+    /* 过流检测 → FAULT (先切状态再锁存: L4 禁擦需要 FAULT 而非 RUNNING) */
     if (s_safety_ema_i > SYS_SAFETY_OVERCURRENT_A) {
         Inverter_Control_Soft_Start_Fault();
         Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
-        g_sys_state = SYS_STATE_FAULT;
-    }
+        g_sys_state = SYS_STATE_FAULT;               /* 先切状态, Inverter已停波 */
+        Blackbox_Lock_Fault_Snapshot();              /* L4 放行: 非 SWEEP/RUNNING */
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -180,18 +214,32 @@ void Sys_Run_Idle(void)
 
 void Sys_Run_Sweep(void)
 {
+    static uint32_t last_bb_s = 0; uint32_t now_s = Sys_Timer_Get_Tick();
     Ui_Controller_Task();
     Inverter_Control_Soft_Start_Task();
     if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE)
         g_sys_state = SYS_STATE_RUNNING;
+
+    /* V4.3.0: 黑匣子 200ms 日志 (SWEEP 也记录) */
+    if (now_s - last_bb_s >= 200) { last_bb_s = now_s;
+        Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(), Sys_Safety_Get_EMA_Current(),
+                          Pwm_Driver_Get_Frequency(), (uint8_t)g_sys_state);
+    }
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
 }
 
 void Sys_Run_Running(void)
 {
+    static uint32_t last_bb = 0; uint32_t now = Sys_Timer_Get_Tick();
     Ui_Controller_Task();
     Inverter_Control_Freq_Ramp_Task();
+
+    /* V4.3.0: 黑匣子 200ms 日志 (仅 RUNNING) */
+    if (now - last_bb >= 200) { last_bb = now;
+        Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(), Sys_Safety_Get_EMA_Current(),
+                          Pwm_Driver_Get_Frequency(), (uint8_t)g_sys_state);
+    }
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
 }
