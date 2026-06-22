@@ -26,6 +26,9 @@
 *.rpt
 *.__i
 *.tra
+*.scvd
+*.dbgconf
+/build_log.htm
 JLinkLog.txt
 
 # Node
