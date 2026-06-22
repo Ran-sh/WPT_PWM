@@ -94,7 +94,7 @@ static void W25Q_Wait_Busy_Timeout(void)
 {
     uint32_t deadline; uint8_t sr1;
     deadline = Sys_Timer_Get_Tick() + BUSY_TIMEOUT_MS;   /* 超时护底 */
-    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 &= ~SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE); /* 原子切8bit */
+    SPI1->CR1 &= ~SPI_CR1_DFF;                           /* 原子切8bit (SPI已开启, 直接清DFF) */
     W25Q_Enter_Mode();                                   /* PA6→MISO, CS=L, 防对灌短路 */
     do {
         W25Q_SPI_Transfer(CMD_RDSR1);                    /* 0x05 读 SR1 */
