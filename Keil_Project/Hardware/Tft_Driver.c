@@ -144,6 +144,7 @@ static void Tft_DMA_Fill(uint32_t pixel_count, uint16_t color)
 
     Tft_SPI_16bit();
     Tft_DMA_Transfer(&color, pixel_count, 0);
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));  /* 死等末帧泵完, 防切帧地雷 */
     Tft_SPI_8bit();
 }
 
@@ -155,6 +156,7 @@ static void Tft_DMA_Send(const uint16_t* buf, uint32_t pixel_count)
 
     Tft_SPI_16bit();
     Tft_DMA_Transfer(buf, pixel_count, 1);
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));  /* 死等末帧泵完, 防切帧地雷 */
     Tft_SPI_8bit();
 }
 

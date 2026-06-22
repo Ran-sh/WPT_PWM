@@ -76,21 +76,19 @@ void App_Storage_Read_ASCII(uint8_t ascii_code, uint8_t *buf_16b)
 
 void App_Storage_Read_Glyph(uint16_t unicode_cp, uint8_t *buf_32b)
 {
-    uint32_t offset;
     if (unicode_cp < 0x80U) {
-        /* ASCII: 直算偏移 */
-        offset = FONT_ASCII_BASE + (uint32_t)unicode_cp * 16U;
-        W25Q_Driver_Read(offset, buf_32b, 16);
+        W25Q_Driver_Read(FONT_ASCII_BASE + (uint32_t)unicode_cp * 16U, buf_32b, 16);
+        { uint8_t i; for (i = 16; i < 32; i++) buf_32b[i] = 0x00; } /* 补齐32B空白 */
         return;
     }
-    if (unicode_cp >= FONT_CJK_BASE_UNICODE &&
-        unicode_cp <  FONT_CJK_BASE_UNICODE + FONT_CJK_COUNT) {
-        /* CJK: Unicode 码点连续索引, 零查表 */
-        offset = FONT_CJK_BASE + (uint32_t)(unicode_cp - FONT_CJK_BASE_UNICODE) * FONT_CHAR_BYTES;
-        W25Q_Driver_Read(offset, buf_32b, FONT_CHAR_BYTES);  /* 32B 已 bit_reverse */
+    if (unicode_cp >= FONT_CJK_BASE_UNICODE && unicode_cp <= 0x9FFFU) {
+        /* 穿透映射: (码点-0x4E00)*32 → Flash 偏移, 零下溢风险 */
+        W25Q_Driver_Read(FONT_CJK_BASE +
+                         (uint32_t)(unicode_cp - FONT_CJK_BASE_UNICODE) * FONT_CHAR_BYTES,
+                         buf_32b, FONT_CHAR_BYTES);
         return;
     }
-    /* 不在字库 → 填充空格 */
+    /* 非法码点一律安全截断刷黑 — 防无符号下溢出击穿 16MB 物理悬崖 */
     { uint8_t i; for (i = 0; i < 32; i++) buf_32b[i] = 0x00; }
 }
 

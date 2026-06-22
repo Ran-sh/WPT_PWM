@@ -94,13 +94,15 @@ static void W25Q_Wait_Busy_Timeout(void)
 {
     uint32_t deadline; uint8_t sr1;
     deadline = Sys_Timer_Get_Tick() + BUSY_TIMEOUT_MS;   /* 超时护底 */
+    W25Q_SPI_8bit();                                     /* L3: 确保 8bit 帧 */
+    W25Q_Enter_Mode();                                   /* PA6→MISO, CS=L, 防对灌短路 */
     do {
-        FLASH_CS_LOW();
         W25Q_SPI_Transfer(CMD_RDSR1);                    /* 0x05 读 SR1 */
         sr1 = W25Q_SPI_Transfer(0xFF);                   /* 哑写收 SR1 */
-        FLASH_CS_HIGH();
+        FLASH_CS_HIGH(); FLASH_CS_LOW();                 /* CS 脉冲 (无需 Leave/Enter) */
         if ((sr1 & BUSY_BIT) == 0) break;                /* Busy=0 释放 */
     } while (Sys_Timer_Get_Tick() - deadline < 0x80000000U); /* uint32 回绕安全 */
+    W25Q_Leave_Mode();                                   /* CS=H, PA6→DC, 归还总线 */
 }
 
 /* ═══════════════════════════════════════════════
