@@ -2,8 +2,8 @@
  ******************************************************************************
  * @file    Hardware/Led_Driver.h
  * @brief   LED 指示灯驱动 — 公开接口 (V4.2.0 6 LED 版)
- * @note    V4.2.0: 6 LED
- *          PA15=SYSTEM心跳, PB4=WiFi, PB3=PWM, PA10=COM, PA11=POWER, PA12=TEMP
+ * @note    V4.3.0: PA12 已让给 W25Q128 Flash CS, LED_TEMP 禁用 (5 LED)
+ *          PA15=SYSTEM心跳, PB4=WiFi, PB3=PWM, PA10=COM, PA11=POWER
  ******************************************************************************
  */
 
@@ -19,7 +19,7 @@ typedef enum {
     LED_DRIVER_STATE_FAST = 3    /* 200ms 周期快闪 */
 } Led_Driver_State;
 
-/** @brief 初始化 6 LED GPIO + 禁用 JTAG 释放 PB3/PB4 */
+/** @brief 初始化 5 LED GPIO + 禁用 JTAG 释放 PB3/PB4 (PA12 已让给 Flash CS) */
 void Led_Driver_Init(void);
 /** @brief 周期驱动所有 LED (根据状态自动快闪/慢闪/常亮/灭) */
 void Led_Driver_Task(void);

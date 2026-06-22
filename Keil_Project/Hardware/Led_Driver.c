@@ -1,10 +1,10 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.c
- * @brief   LED 指示灯驱动 — 实现 (V4.2.0 6 LED 版)
+ * @brief   LED 指示灯驱动 — 实现 (V4.3.0 5 LED 版, PA12→Flash CS)
  * @note    PA15=LED_SYSTEM (黄色系统心跳), PB4=LED_WIFI (蓝色WiFi),
  *          PB3=LED_PWM (绿色PWM), PA10=LED_COM (蓝色通信),
- *          PA11=LED_POWER (绿色电源), PA12=LED_TEMP (红色温度)
+ *          PA11=LED_POWER (绿色电源), PA12=FLASH_CS (W25Q128 片选)
  *          JTAG 禁用释放 PB3/PB4 + PA15 作为 GPIO
  ******************************************************************************
  */
@@ -16,7 +16,7 @@
 #define LED_DRIVER_PWM_PIN     GPIO_Pin_3   /* PB3 — PWM运行灯 */
 #define LED_DRIVER_COM_PIN     GPIO_Pin_10  /* PA10 — 通信灯 */
 #define LED_DRIVER_POWER_PIN   GPIO_Pin_11  /* PA11 — 供电状态灯 */
-#define LED_DRIVER_TEMP_PIN    GPIO_Pin_12  /* PA12 — 温度告警灯 */
+#define LED_DRIVER_TEMP_PIN    GPIO_Pin_12  /* PA12 — 已让给 W25Q128 Flash CS, LED_TEMP 禁用 */
 #define LED_DRIVER_SYSTEM_PIN  GPIO_Pin_15  /* PA15 — 系统心跳灯 */
 
 #define LED_DRIVER_PORT_A      GPIOA
@@ -78,13 +78,13 @@ void Led_Driver_Init(void)
     cfg.GPIO_Mode  = GPIO_Mode_Out_PP;
     cfg.GPIO_Speed = GPIO_Speed_50MHz;
 
-    /* GPIOA: PA10=COM, PA11=POWER, PA12=TEMP, PA15=SYSTEM */
+    /* GPIOA: PA10=COM, PA11=POWER, PA15=SYSTEM (PA12 已让给 W25Q128 Flash CS) */
     cfg.GPIO_Pin = LED_DRIVER_COM_PIN | LED_DRIVER_POWER_PIN |
-                   LED_DRIVER_TEMP_PIN | LED_DRIVER_SYSTEM_PIN;
+                   LED_DRIVER_SYSTEM_PIN;
     GPIO_Init(LED_DRIVER_PORT_A, &cfg);
     GPIO_ResetBits(LED_DRIVER_PORT_A,
         LED_DRIVER_COM_PIN | LED_DRIVER_POWER_PIN |
-        LED_DRIVER_TEMP_PIN | LED_DRIVER_SYSTEM_PIN);
+        LED_DRIVER_SYSTEM_PIN);
 
     /* GPIOB: PB3=PWM, PB4=WiFi */
     cfg.GPIO_Pin = LED_DRIVER_PWM_PIN | LED_DRIVER_WIFI_PIN;
@@ -95,13 +95,13 @@ void Led_Driver_Init(void)
     /* 上电自检: 全亮 500ms (SysTimer 尚未初始化, 使用粗略 busy-wait) */
     GPIO_SetBits(LED_DRIVER_PORT_A,
         LED_DRIVER_COM_PIN | LED_DRIVER_POWER_PIN |
-        LED_DRIVER_TEMP_PIN | LED_DRIVER_SYSTEM_PIN);
+        LED_DRIVER_SYSTEM_PIN);
     GPIO_SetBits(LED_DRIVER_PORT_B,
         LED_DRIVER_PWM_PIN | LED_DRIVER_WIFI_PIN);
     { volatile uint32_t i; for (i = 0; i < 175000; i++) __NOP(); }  /* ~500ms @72MHz */
     GPIO_ResetBits(LED_DRIVER_PORT_A,
         LED_DRIVER_COM_PIN | LED_DRIVER_POWER_PIN |
-        LED_DRIVER_TEMP_PIN | LED_DRIVER_SYSTEM_PIN);
+        LED_DRIVER_SYSTEM_PIN);
     GPIO_ResetBits(LED_DRIVER_PORT_B,
         LED_DRIVER_PWM_PIN | LED_DRIVER_WIFI_PIN);
 }
@@ -112,7 +112,7 @@ void Led_Driver_Task(void)
     Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_PWM_PIN,   s_pwm_state,   &s_pwm_last);
     Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_COM_PIN,   s_com_state,   &s_com_last);
     Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_POWER_PIN, s_power_state, &s_power_last);
-    Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_TEMP_PIN,  s_temp_state,  &s_temp_last);
+    /* PA12=TEMP 已禁用 — 让给 W25Q128 Flash CS */
 
     /* SYSTEM: 心跳闪烁 (500ms) */
     {

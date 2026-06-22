@@ -30,9 +30,11 @@ Page({
   onShow: function() {
     this._checkTheme();
     this.setData({ _tabSelected: getApp().globalData.tabBarSelected });
-    /* 每次进入都刷新数据 */
     this._allHistory = wx.getStorageSync('wpt_history') || [];
     this._loadAndRender();
+    /* 恢复轮询 (onHide 已清除) */
+    if (!this._active) { var that = this; this._active = true;
+      this._pollTimer = setInterval(function() { that._syncData(); }, 30000); }
     /* 报警跳转 metric 处理 */
     var metric = wx.getStorageSync('wpt_history_metric');
     if (metric && this.data.metricTabs.indexOf(metric) !== -1 && metric !== this.data.currentMetric) {
