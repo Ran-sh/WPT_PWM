@@ -29,14 +29,13 @@ static Led_Driver_State s_wifi_state  = LED_DRIVER_STATE_OFF;
 static Led_Driver_State s_pwm_state   = LED_DRIVER_STATE_OFF;
 static Led_Driver_State s_com_state   = LED_DRIVER_STATE_OFF;
 static Led_Driver_State s_power_state = LED_DRIVER_STATE_ON;   /* 电源正常默认亮 */
-static Led_Driver_State s_temp_state  = LED_DRIVER_STATE_OFF;
 static uint8_t          s_system_on   = 0;
+/* PA12→Flash CS, s_temp_state/s_temp_last 废弃 */
 
 static uint32_t s_wifi_last  = 0;
 static uint32_t s_pwm_last   = 0;
 static uint32_t s_com_last   = 0;
 static uint32_t s_power_last = 0;
-static uint32_t s_temp_last  = 0;
 
 static void Drive_Pin(GPIO_TypeDef* port, uint16_t pin,
                       Led_Driver_State state, uint32_t* p_last)
@@ -131,5 +130,5 @@ void Led_Driver_Set_WiFi(Led_Driver_State state)   { s_wifi_state  = state; }
 void Led_Driver_Set_Pwm(Led_Driver_State state)    { s_pwm_state   = state; }
 void Led_Driver_Set_Com(Led_Driver_State state)    { s_com_state   = state; }
 void Led_Driver_Set_Power(Led_Driver_State state)  { s_power_state = state; }
-void Led_Driver_Set_Temp(Led_Driver_State state)   { s_temp_state  = state; }
+void Led_Driver_Set_Temp(Led_Driver_State state)   { /* PA12→Flash CS, 函数保留占位 */ }
 void Led_Driver_Set_System(uint8_t on_off)          { s_system_on   = on_off; }
