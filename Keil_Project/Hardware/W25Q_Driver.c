@@ -128,11 +128,8 @@ static void W25Q_SPI_8bit(void)
     SPI_Cmd(SPI1, DISABLE); SPI1->CR1 &= ~SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE); /* 原子清 DFF */
 }
 
-/** @brief SPI1 → 16位帧 (TFT DMA 恢复) */
-static void W25Q_SPI_16bit(void)
-{
-    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 |= SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE);  /* 原子置 DFF */
-}
+/** @brief SPI1 → 16位帧 (reserved for future use — TFT DMA 恢复由 Tft_SPI_16bit 处理) */
+static void W25Q_SPI_16bit(void) {}  /* reserved for future use */
 
 /* ═══════════════════════════════════════════════
  *  公开接口实现
