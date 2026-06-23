@@ -89,7 +89,11 @@ def _extract_c_array(text, name):
 # ---------------------------------------------------------------------------
 
 def crc32_bytes(data):
-    """Compute uint32 CRC32 (big-endian representation in Flash header)."""
+    """Compute uint32 CRC32 -- matches ``CRC32_Compute()`` in App_Storage.c.
+
+    Polynomial 0x04C11DB7, init=0xFFFFFFFF, final XOR=0xFFFFFFFF.
+    Used for pre-computing/verifying the font-binary header CRC field.
+    """
     crc = 0xFFFFFFFF
     for b in data:
         crc ^= (b & 0xFF) << 24
@@ -98,7 +102,7 @@ def crc32_bytes(data):
                 crc = ((crc << 1) ^ 0x04C11DB7) & 0xFFFFFFFF
             else:
                 crc = (crc << 1) & 0xFFFFFFFF
-    return crc
+    return crc ^ 0xFFFFFFFF
 
 
 # ---------------------------------------------------------------------------
@@ -208,20 +212,31 @@ class OTAFontPusher:
         self.sock.sendall((s + '\n').encode('ascii'))
 
     def _recv_line(self):
-        """Read one \\n-terminated line (strip CR, return str or None)."""
+        """Read one newline-terminated line with a hard deadline.
+
+        The per-byte ``recv(1)`` calls share a cumulative deadline so the
+        total wait never exceeds ``self.timeout`` seconds, preventing
+        indefinite hangs when the peer is connected but silent.
+        Returns a decoded string or ``None`` on timeout with no data.
+        """
         data = b''
+        deadline = time.monotonic() + self.timeout
         while len(data) < 512:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
             try:
+                self.sock.settimeout(remaining)
                 ch = self.sock.recv(1)
             except socket.timeout:
-                return data.decode('ascii', errors='replace').strip() if data else None
+                break
             if not ch:
                 break
             if ch == b'\n':
                 break
             if ch != b'\r':
                 data += ch
-        return data.decode('ascii', errors='replace').strip()
+        return data.decode('ascii', errors='replace').rstrip('\r\n') if data else None
 
     def push(self, bin_data, total_pages):
         """Push *bin_data* as PAGE_SIZE-pages.  Return True on success."""
