@@ -240,13 +240,14 @@ void App_Network_Task(void)
             /* PC → Public MQTT → ESP → STM32: 启动 OTA 字库推送 */
             if (g_sys_state == SYS_STATE_IDLE) App_Storage_OTA_Begin();
         }
-        else if (strstr(local_buf, "OTA:END")) {
-            /* OTA:END → 完成校验, 标记 FONT_OK (OTA:DONE 别名兼容) */
+        else if (strstr(local_buf, "OTA:DONE")) {
+            /* OTA:DONE → 完成校验, 标记 FONT_OK
+               必须在 OTA:<seq>, 之前, 否则 strstr("OTA:") 会误匹配 */
             if (g_sys_state == SYS_STATE_IDLE) App_Storage_OTA_End();
         }
         else if (strstr(local_buf, "OTA:") == local_buf) {
             /* OTA:<seq>,<base64> 数据帧 → 写入 Flash (仅 IDLE 态有效)
-               必须在 OTA:START/OTA:END 之后, 否则 strstr 会误匹配 */
+               必须在 OTA:START/OTA:DONE 之后, 否则 strstr 会误匹配 */
             if (g_sys_state == SYS_STATE_IDLE) App_Storage_OTA_Handler(local_buf);
         }
         else if (strstr(local_buf, "STATUS:MQTT")) {

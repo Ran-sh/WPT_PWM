@@ -276,7 +276,7 @@ class OTAFontPusher:
             return False
 
         # --- final handshake -------------------------------------------------
-        self._send_frame("OTA:END")
+        self._send_frame("OTA:DONE")
         reply = self._recv_line()
         if reply and 'OTA:DONE' in reply:
             print(f"[Done]   font updated  ({total_pages} pages, {ok} acknowledged)")
