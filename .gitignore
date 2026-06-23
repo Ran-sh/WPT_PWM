@@ -48,3 +48,13 @@ Thumbs.db
 
 # Brainstorming visual companion
 .superpowers/
+
+# CH341 flashrom — binary artifacts (keep README/source)
+/ch341/flashrom-1.4.zip
+/ch341/flashrom-1.4/
+/ch341/flashrom_ch341a/
+/ch341/zadig-*.exe
+/ch341/font_data.bin
+/ch341/backup_16MB.bin
+/ch341/verify_readback.bin
+/ch341/merged_flash.bin

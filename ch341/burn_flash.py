@@ -25,7 +25,9 @@ FONT_SIZE    = 2 * 1024 * 1024       # 字库分区 2MB
 CHIP_SIZE    = 16 * 1024 * 1024      # W25Q128 全片 16MB
 VERIFY_LEN   = 248 * 1024            # 校验范围: 前 248KB (字库有效数据区)
 ERASE_BLOCKS = 62                    # 248KB = 62 * 4KB sectors
-FLASHROM     = "flashrom"
+# 优先级: 本地 flashrom 目录 > PATH
+_FLASHROM_LOCAL = os.path.join(SCRIPT_DIR, "flashrom-1.4", "flashrom.exe")
+FLASHROM = _FLASHROM_LOCAL if os.path.exists(_FLASHROM_LOCAL) else "flashrom"
 
 # Windows 子进程窗口抑制标志
 _NO_WIN = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
