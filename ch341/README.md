@@ -218,7 +218,9 @@ ch341\flashrom-1.4\zadig-2.8.exe
 ```
 1. 启动 VS Code
 2. 文件 → 打开文件夹 → 选择 D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT
-3. VS Code 自动读取 .vscode/settings.json → 左下角应显示 "Python 3.10.20 ('skill-opt310')"
+3. VS Code 自动读取 .vscode/settings.json
+   → 终端 PATH 自动注入 Python 3.10 (skill-opt310) 到最前面
+   → 无需 conda activate
 ```
 
 **第 2 步: 确认 Python 解释器**
@@ -226,21 +228,22 @@ ch341\flashrom-1.4\zadig-2.8.exe
 ```
 1. 按 Ctrl+Shift+P → 输入 "Python: Select Interpreter"
 2. 选择 "Python 3.10.20 ('skill-opt310') — E:\Anaconda3\envs\skill-opt310\python.exe"
-   (此步骤通常不需要手动操作 — .vscode/settings.json 已自动指定)
+   (.vscode/settings.json 已通过 "python.defaultInterpreterPath" 预指定, 通常自动选中)
 ```
 
-**第 3 步: 确认 Pillow 已安装**
+**第 3 步: 确认环境正常**
 
 ```
 1. 按 Ctrl+` 打开 VS Code 内置终端
-2. 确认终端开头显示 (skill-opt310) 环境标识
+2. 输入 python --version
+   预期输出: Python 3.10.20
 3. 输入 python -c "import PIL; print('Pillow OK')"
    预期输出: Pillow OK
 ```
 
-如果没有输出或报错，手动安装:
+如果步骤 3 报错 `No module named 'PIL'`:
 ```bash
-pip install -r ch341/requirements.txt
+E:\Anaconda3\envs\skill-opt310\python.exe -m pip install Pillow
 ```
 
 **第 4 步: 运行脚本**
@@ -248,13 +251,13 @@ pip install -r ch341/requirements.txt
 方式 A — 调试面板 (推荐):
 ```
 1. 左侧点击 "运行和调试" 图标 (Ctrl+Shift+D)
-2. 顶部下拉选择 "generate_font.py — 生成字库" 或 "burn_flash.py — 烧录字库"
+2. 顶部下拉选择脚本名称
 3. 按 F5 启动
 ```
 
 方式 B — 终端直接运行:
-```bash
-cd D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT\ch341
+```
+cd ch341
 python generate_font.py    # 仅测试字库生成
 python burn_flash.py       # 完整烧录 (需 CH341A 已接线)
 ```
@@ -263,10 +266,10 @@ python burn_flash.py       # 完整烧录 (需 CH341A 已接线)
 
 | 症状 | 解决 |
 |:---|:---|
-| 左下角显示 Python 版本不对 | Ctrl+Shift+P → Python: Select Interpreter → 选 `skill-opt310` |
-| 终端报错 `No module named 'PIL'` | `pip install Pillow` |
-| `import` 下有红色波浪线 | Ctrl+Shift+P → Python: Select Interpreter → 重新选择 (触发 pylance 重载) |
-| 终端未激活 conda 环境 | 关闭终端面板 → Ctrl+` 重新打开 → 等待自动激活 |
+| 终端 `python --version` 不是 3.10 | 关闭终端 → Ctrl+` 重新打开 (settings.json 已配置 PATH 注入, 新终端会自动生效) |
+| `No module named 'PIL'` | `E:\Anaconda3\envs\skill-opt310\python.exe -m pip install Pillow` |
+| `import` 下有红色波浪线 | Ctrl+Shift+P → Python: Select Interpreter → 选 `skill-opt310` |
+| 终端报 `conda activate` 失败 | **不需要 conda activate** — 配置已通过 PATH 注入绕过 conda 初始化 |
 | 文件保存后中文乱码 | 文件 → 首选项 → 设置 → 搜索 "files.encoding" → 设为 `utf8` |
 
 ---
