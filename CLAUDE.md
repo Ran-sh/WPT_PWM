@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > **频率斜坡设计**: `Claude_Files/docs/2026-05-24-freq-ramp-design.md`
 > **W25Q128 Flash 集成设计**: `Claude_Files/docs/2026-06-22-w25q128-flash-integration-design.md`
 > **OTA 字库推送设计**: `docs/superpowers/specs/2026-06-23-ota-font-push-design.md`
+> **OTA 操作指南 (小白版)**: `Claude_Files/docs/OTA字库推送-小白操作指南.md`
 
 ## 版本号规则 (全项目铁律)
 
