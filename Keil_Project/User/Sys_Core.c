@@ -1,9 +1,9 @@
 /**
  ******************************************************************************
  * @file    User/Sys_Core.c
- * @brief   系统核心模块 — 实现 (V4.3.0: W25Q128 + 字库自检集成)
- * @note    V4.3.0: Sys_Post_Init 中加载 Flash 参数配置 (WiFi/校准/偏好)
- *          Sys_Startup_Screen 在字库 CRC 自检前显示"启动中..."
+ * @brief   系统核心模块 — 实现 (V4.3.0: W25Q128 配置+黑匣子集成)
+ * @note    V4.3.0r3: 字库回退片内 ROM, W25Q128 仅配置+黑匣子
+ *          Sys_Post_Init 中加载 Flash 参数配置 (WiFi/校准/偏好)
  *          V4.2.0: 合并 8 个 Sys_* 文件为 2 个
  ******************************************************************************
  */
@@ -71,16 +71,8 @@ void Sys_Startup_Screen(void)
 {
     Tft_Driver_Clear(TFT_COLOR_BLACK);
     Tft_Driver_Show_CN_String(3, 3, "WPT-PWM", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
-    /* V4.3.0: 启动中 + 字库状态指示 */
-    if (g_font_status == FONT_OK)
-        Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...",
-                                  TFT_COLOR_WHITE, TFT_COLOR_BLACK);
-    else if (g_font_status == FONT_CORRUPT)
-        Tft_Driver_Show_CN_String(5, 3, "\xe5\xad\x97\xe5\xba\x93\xe6\x8d\x9f\xe5\x9d\x8f" "!",
-                                  TFT_COLOR_RED, TFT_COLOR_BLACK);    /* 字库损坏! */
-    else
-        Tft_Driver_Show_CN_String(5, 3, "ASCII Only",
-                                  TFT_COLOR_CYAN, TFT_COLOR_BLACK);   /* 无字库, ASCII模式 */
+    Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...",
+                              TFT_COLOR_WHITE, TFT_COLOR_BLACK);
     Tft_Driver_Set_Backlight(255);
 }
 

@@ -1,9 +1,9 @@
 /**
  ******************************************************************************
  * @file    User/App_Storage.h
- * @brief   应用存储层 — 字库索引 + 参数双副本 + 黑匣子日志 (公开接口)
+ * @brief   应用存储层 — 参数双副本 + 黑匣子日志 (公开接口)
  * @note    底层全部委托 W25Q_Driver, 本层负责分区逻辑、CRC32/CRC8 校验、
- *          页面跨页保护、故障锁存、Unicode 码点→Flash 物理地址换算
+ *          页面跨页保护、故障锁存
  ******************************************************************************
  */
 
@@ -51,28 +51,10 @@ typedef struct {
     uint32_t crc32;          /* 4B  CRC32 (不含自身) */
 } App_Storage_Config;         /* 总计 252+4=256B */
 
-/* ══ 字库状态 ══ */
-typedef enum {
-    FONT_OK      = 0,
-    FONT_MISSING = 1,
-    FONT_CORRUPT = 2
-} Font_Status;
-
-extern volatile Font_Status g_font_status;
-
 /* ══ 公开接口 ══ */
 
-/** @brief 上电初始化: 校验字库 CRC32 + 加载配置 + 恢复黑匣子写指针 */
+/** @brief 上电初始化: 恢复黑匣子写指针 */
 void App_Storage_Init(void);
-
-/* ── 字库 (P1-P2) ── */
-/** @brief 从 Flash 字库区读取一个字模 (32B) → 送入 TFT Decode_CN_Row
- *  @param unicode_cp  Unicode 码点 (UTF-8 3字节解码结果)
- *  @param buf_32b     输出 32 字节 (已 bit_reverse, 与现有解码器兼容) */
-void App_Storage_Read_Glyph(uint16_t unicode_cp, uint8_t *buf_32b);
-
-/** @brief 读 ASCII 字模 (16B) → 送入 TFT Decode_Char_Row */
-void App_Storage_Read_ASCII(uint8_t ascii_code, uint8_t *buf_16b);
 
 /* ── 参数配置 (P3) ── */
 /** @brief 上电加载配置: A→B→出厂默认 三级回退, 返回 0=用了默认 */
@@ -97,13 +79,5 @@ uint32_t Blackbox_Get_Entry_Count(void);
 
 /** @brief 按序号读单条日志 (0=最旧), 返回值 1=有效 0=CRC坏 */
 uint8_t Blackbox_Read_Entry(uint32_t index, Blackbox_Entry_Packed *out);
-
-/* ── OTA 字库推送 ── */
-/** @brief 进入 OTA 模式: 擦除字库区前4KB + 显示进度 */
-void App_Storage_OTA_Begin(void);
-/** @brief 处理单帧 OTA 数据: 解析 + Base64 解码 + 写页 + 回 ACK */
-void App_Storage_OTA_Handler(const char *frame);
-/** @brief 完成 OTA: CRC32 校验 → FONT_OK/CORRUPT → 发 DONE/FAIL */
-void App_Storage_OTA_End(void);
 
 #endif /* APP_STORAGE_H */

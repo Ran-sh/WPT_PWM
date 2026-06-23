@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    User/App_Network.c
  * @brief   网络应用层 — 实现 (V4.3.0: 黑匣子日志 + Flash 配置集成)
- * @note    V4.3.0: 离线时写入黑匣子 (循环日志不丢失)
+ * @note    V4.3.0r3: 移除 OTA 字库推送, 字体回退片内 ROM
  *          V4.2.1: OFFLINE 双模式 + 5次有限重试
  ******************************************************************************
  */
@@ -235,20 +235,6 @@ void App_Network_Task(void)
             s_connect_start = Sys_Timer_Get_Tick();
             s_rssi          = -100;
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
-        }
-        else if (strstr(local_buf, "OTA:START")) {
-            /* PC → Public MQTT → ESP → STM32: 启动 OTA 字库推送 */
-            if (g_sys_state == SYS_STATE_IDLE) App_Storage_OTA_Begin();
-        }
-        else if (strstr(local_buf, "OTA:DONE")) {
-            /* OTA:DONE → 完成校验, 标记 FONT_OK
-               必须在 OTA:<seq>, 之前, 否则 strstr("OTA:") 会误匹配 */
-            if (g_sys_state == SYS_STATE_IDLE) App_Storage_OTA_End();
-        }
-        else if (strstr(local_buf, "OTA:") == local_buf) {
-            /* OTA:<seq>,<base64> 数据帧 → 写入 Flash (仅 IDLE 态有效)
-               必须在 OTA:START/OTA:DONE 之后, 否则 strstr 会误匹配 */
-            if (g_sys_state == SYS_STATE_IDLE) App_Storage_OTA_Handler(local_buf);
         }
         else if (strstr(local_buf, "STATUS:MQTT")) {
             if (conn_cs == APP_NETWORK_CONN_WIFI) {

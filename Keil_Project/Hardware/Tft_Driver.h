@@ -2,10 +2,10 @@
  ******************************************************************************
  * @file    Hardware/Tft_Driver.h
  * @brief   ST7735 128×160 TFT 彩色显示驱动 — 公开接口
- * @note    V4.3.0: SPI1 分时复用 (PA5=SCK, PA7=MOSI, PA6=DC/MISO动态切换)
+ * @note    V4.3.0r3: SPI1 分时复用 (PA5=SCK, PA7=MOSI, PA6=DC/MISO动态切换)
  *          PA4=TFT_CS, PA12=W25Q128_CS (双 CS 门控), PA0=RST, PB6=BL
  *          SPI Mode 3, 全双工 (TFT 只写不读, Flash 读写)
- *          字模来源: W25Q128 SPI Flash (ASCI ICJK 全字库)
+ *          字模来源: 片内 ROM TFT_Font_Data.h (ASCI ICJK 字库)
  *          横屏 160×128, RGB565 色彩, MADCTL=0xA0
  ******************************************************************************
  */
