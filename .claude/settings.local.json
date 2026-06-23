@@ -168,7 +168,8 @@
       "Bash(rm -f \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/Objects/\"*.obj \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/Objects/\"*.lst \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/Listings/\"*.lst \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/Listings/\"*.m51)",
       "Bash(rm -f \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/\"*.axf \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/\"*.hex \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/\"*.bin)",
       "Bash(xargs rm -f)",
-      "Bash(e:/Anaconda3/python.exe *)"
+      "Bash(e:/Anaconda3/python.exe *)",
+      "Bash(del *)"
     ]
   }
 }
