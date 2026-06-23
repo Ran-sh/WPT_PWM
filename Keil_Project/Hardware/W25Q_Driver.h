@@ -30,12 +30,29 @@
 
 /* ── 字库头部偏移 ── */
 #define FONT_MAGIC            0x574BU   /* "WK" */
+#define FONT_ADDR             0x000000U /* 字库分区基址 */
 #define FONT_ASCII_BASE       0x000020U /* ASCII 起始 */
 #define FONT_CJK_BASE         0x000700U /* CJK U+4E00 起始 */
 #define FONT_CJK_BASE_UNICODE 0x4E00U   /* Unicode 起始码点 */
 #define FONT_CJK_COUNT        20902U    /* U+4E00~U+9FFF */
 #define FONT_CHAR_BYTES       32U       /* 16×16 LSB-first, 经 bit_reverse */
-#define FONT_DATA_SIZE_OFFSET 18U       /* uint32_t: 实际数据字节数 (CRC校验范围=offset_8→data_size) */
+
+/* ── Font_Header — 硬件对齐 32B (设计文档 §3 位对位一致) ── */
+typedef struct {
+    uint16_t magic;             /* 0x00 魔数 0x574B */
+    uint8_t  version;           /* 0x02 */
+    uint8_t  reserved;          /* 0x03 */
+    uint32_t total_size;        /* 0x04 字库分区总字节数 */
+    uint32_t crc32;             /* 0x08 CRC32 (校验 0x0C→0x1F 的 20B) */
+    uint16_t ascii_offset;      /* 0x0C */
+    uint16_t ascii_count;       /* 0x0E */
+    uint16_t ascii_bytes;       /* 0x10 */
+    uint16_t reserved2;         /* 0x12 */
+    uint32_t cjk_index_offset;  /* 0x14 */
+    uint16_t cjk_index_count;   /* 0x18 */
+    uint16_t cjk_data_bytes;    /* 0x1A */
+    uint32_t cjk_data_offset;   /* 0x1C */
+} Font_Header;                  /* 0x20 = 32B */
 
 /* ══ 公开接口 ══ */
 
@@ -59,5 +76,29 @@ uint8_t W25Q_Driver_Read_SR1(void);
 
 /** @brief 读 JEDEC ID (24位: 0xEF4018=W25Q128) */
 uint32_t W25Q_Driver_Read_JEDEC_ID(void);
+
+/* ── 低级总线控制 — 暴露给 Tft_Driver Font Index 二分检索 ── */
+/** @brief PA6→Input Floating + CS=Low, 独占 SPI 总线 */
+void W25Q_Enter_Mode(void);
+/** @brief CS=High + PA6→GPIO Out PP, 释放总线归还 TFT */
+void W25Q_Leave_Mode(void);
+/** @brief SPI1→8位帧 (DISABLE→清DFF→ENABLE 原子序列) */
+void W25Q_SPI_8bit(void);
+/** @brief 死等 W25Q128 Busy 位清零, 超时护底 */
+void W25Q_Wait_Busy_Timeout(void);
+/** @brief 单字节 SPI 收发 (CS 已 Low, 8bit 已切) */
+uint8_t W25Q_SPI_Transfer(uint8_t tx);
+
+/** @brief 总线独占二分搜索 CJK Index (6763条 Unicode 升序)
+ *  @note  全程持锁 W25Q_Enter_Mode, return 前统一释放,
+ *          禁止中途调用带 Leave_Mode 的通用读, 根除频繁闪切对灌短路毛刺
+ *  @param unicode UTF-16 码点 (0x4E00~0x9FA0)
+ *  @param hdr     Font_Header 指针 (需已加载验证通过)
+ *  @retval data_offset  相对 CJK_Data_BASE 的字模偏移, 0xFFFF=未找到 */
+uint16_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr);
+
+/** @brief 加载并校验 Font Header, 返回 1=有效 0=无效
+ *  @note  内部调用 CRC32_Compute (需 extern 声明, 见 App_Storage.h) */
+uint8_t Font_Header_Load(Font_Header *hdr);
 
 #endif /* W25Q_DRIVER_H */
