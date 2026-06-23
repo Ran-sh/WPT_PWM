@@ -60,8 +60,6 @@ static uint32_t CRC32_Compute(const uint8_t *data, uint32_t len)
 /* ═══════════════════════════════════════════════
  *  Base64 解码 — OTA 字库推送用
  * ═══════════════════════════════════════════════ */
-static const char BASE64_TABLE_OTA_CHAR[64] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /** @brief 单字符→6bit, 非法返回 0xFF */
 static uint8_t Base64_Char_Val(char c)
