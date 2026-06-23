@@ -53,6 +53,47 @@ static uint32_t CRC32_Compute(const uint8_t *data, uint32_t len)
     return crc ^ 0xFFFFFFFFU;  /* final XOR */
 }
 
+/* ═══════════════════════════════════════════════
+ *  Base64 解码 — OTA 字库推送用
+ * ═══════════════════════════════════════════════ */
+static const char BASE64_TABLE_OTA_CHAR[64] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/** @brief 单字符→6bit, 非法返回 0xFF */
+static uint8_t Base64_Char_Val(char c)
+{
+    if (c >= 'A' && c <= 'Z') return (uint8_t)(c - 'A');
+    if (c >= 'a' && c <= 'z') return (uint8_t)(c - 'a' + 26);
+    if (c >= '0' && c <= '9') return (uint8_t)(c - '0' + 52);
+    if (c == '+') return 62U;
+    if (c == '/') return 63U;
+    return 0xFFU;
+}
+
+/** @brief 解码 Base64 块: in中每4字符→3字节, 遇到 '=' 停止
+ *  @return  实际解码字节数 */
+static uint16_t Base64_Decode_Block(const char *in, uint16_t in_len, uint8_t *out)
+{
+    uint16_t out_idx = 0, i; uint8_t v0, v1, v2, v3;
+    for (i = 0; i + 3 < in_len; i += 4) {
+        v0 = Base64_Char_Val(in[i]);
+        v1 = Base64_Char_Val(in[i+1]);
+        if (v0 == 0xFFU || v1 == 0xFFU) break;
+        out[out_idx++] = (uint8_t)((v0 << 2) | (v1 >> 4));
+
+        if (in[i+2] == '=') break;
+        v2 = Base64_Char_Val(in[i+2]);
+        if (v2 == 0xFFU) break;
+        out[out_idx++] = (uint8_t)((v1 << 4) | (v2 >> 2));
+
+        if (in[i+3] == '=') break;
+        v3 = Base64_Char_Val(in[i+3]);
+        if (v3 == 0xFFU) break;
+        out[out_idx++] = (uint8_t)((v2 << 6) | v3);
+    }
+    return out_idx;
+}
+
 /* ══ 全局状态 ══ */
 volatile Font_Status g_font_status = FONT_MISSING;
 
