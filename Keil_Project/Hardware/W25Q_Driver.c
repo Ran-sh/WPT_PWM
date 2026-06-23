@@ -54,13 +54,11 @@ static void W25Q_Enter_Mode(void)
     FLASH_CS_LOW();                                              /* 门控: 选中 Flash */
 }
 
-/** @brief CS 拉高 → 门控释放, PA6 → GPIO_Out_PP (恢复 TFT DC 角色), SPI1→16位 */
+/** @brief CS 拉高 → 门控释放, PA6 → GPIO_Out_PP (恢复 TFT DC 角色) */
 static void W25Q_Leave_Mode(void)
 {
     FLASH_CS_HIGH();                                             /* 门控: 释放 Flash */
     GPIOA->CRL &= ~(0x0FU << 24); GPIOA->CRL |= (0x03U << 24); /* PA6=50MHz PP Out */
-    /* 确保 SPI1 回到 TFT 需要的 16 位模式 */
-    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 |= SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE);
 }
 
 /* ═══════════════════════════════════════════════
