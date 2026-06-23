@@ -432,6 +432,7 @@ void App_Storage_Init(void)
  *  @note  仅 IDLE 态可调用 (由 App_Network OTA:START 帧门控保证) */
 void App_Storage_OTA_Begin(void)
 {
+    if (g_sys_state != SYS_STATE_IDLE) return;
     s_ota_active     = 1;
     s_ota_page_total = 0;
     s_ota_page_done  = 0;
@@ -473,8 +474,16 @@ void App_Storage_OTA_End(void)
     *(uint32_t*)(header + 12) = FONT_CJK_BASE_UNICODE;
     *(uint32_t*)(header + 16) = FONT_CJK_COUNT;
     for (i = 20; i < 32; i++) header[i] = 0x00;
-    /* 计算数据区 CRC32 (从 offset 8 开始, 跳过 magic+version+crc占位) */
-    crc_val = CRC32_Compute(header + 4, 28);
+    /* 计算数据区 CRC32 (从 offset 8 开始, 跳过 magic+version+crc占位)
+     * 注意: 手动初始化中间态 CRC (0xFFFFFFFF), 与后续逐字节回路共享同一状态,
+     * 最后统一 ^= 0xFFFFFFFFU 仅一次 — 避免 CRC32_Compute 双 final-XOR */
+    crc_val = 0xFFFFFFFFU;
+    for (i = 4; i < 32; i++) {
+        uint32_t k;
+        crc_val ^= (uint32_t)header[i] << 24;
+        for (k = 0; k < 8; k++)
+            crc_val = (crc_val & 0x80000000U) ? (crc_val << 1) ^ 0x04C11DB7U : (crc_val << 1);
+    }
     for (addr = 32U; addr < (uint32_t)s_ota_page_total * W25Q_PAGE_SIZE; addr += 256U) {
         uint32_t j, k;
         W25Q_Driver_Read(W25Q_ADDR_FONT + addr, buf, 256);

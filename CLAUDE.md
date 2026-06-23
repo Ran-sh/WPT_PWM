@@ -24,16 +24,16 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.2.4
+当前版本: V4.3.0
 
 涉及版本号的位置 (全项目必须统一):
-  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.2.2
-  文档控制信息: 开发指南/技能文件的文档版本 → V4.2.2
-  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.2.2
-  README.md: badge + 版本历史 + 分支表 → V4.2.2
-  操作手册/部署文档: 版本字段 → V4.2.2
-  小程序: wxss/wxml/js 头部注释 → V4.2.2
-  其他文档: ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.2.2
+  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.3.0
+  文档控制信息: 开发指南/技能文件的文档版本 → V4.3.0
+  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.3.0
+  README.md: badge + 版本历史 + 分支表 → V4.3.0
+  操作手册/部署文档: 版本字段 → V4.3.0
+  小程序: wxss/wxml/js 头部注释 → V4.3.0
+  其他文档: ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.3.0
 
 历史版本 → V4.x.x 完整映射:
   旧 V0.0/V1.0 → V1.0.x | 旧 V3.0     → V2.0.0
@@ -329,13 +329,12 @@ Telemetry JSON 全链路格式: `{"V":xx,"I":xx,"F":xx,"S":x}\n`
 | PA3 | USART2_RX | PB4 | LED_WIFI |
 | PA4 | TFT_CS | PB5 | PAGE 按键 (IPU) |
 | PA5 | SPI1_SCK | PB6 | TFT 背光 TIM4_CH1 |
-| PA6 | TFT_DC | PB7 | F_DOWN 按键 (IPU) |
+| **PA6** | **TFT_DC / Flash MISO (动态切)** | PB7 | F_DOWN 按键 (IPU) |
 | PA7 | SPI1_MOSI | PB8 | F_UP 按键 (IPU) |
 | PA8 | TIM1_CH1 | PB9 | ON/OFF 按键 (IPU) |
 | PA9 | TIM1_CH2 | PB10 | PowerContrl (高=使能12V) |
 | PA10 | LED_COM | PB11 | ESP8266 CH_PD (EN) |
-| PA11 | LED_POWER | PB13 | TIM1_CH1N |
-| PA12 | LED_TEMP | PB14 | TIM1_CH2N |
+| PA11 | LED_POWER | **PA12** | **W25Q128_CS (原 LED_TEMP 释放)** |
 | PA15 | LED_SYSTEM | PB15 | 蜂鸣器 |
 
 JTAG 禁用释放 PB3/PB4/PB5/PA15。
@@ -373,7 +372,7 @@ JTAG 禁用释放 PB3/PB4/PB5/PA15。
 
 | 参数 | 值 |
 |:---|:---|
-| SPI | Mode 3, 18MHz, DMA1_Channel3, 只写不读 |
+| SPI | Mode 3, 18MHz, DMA1_Channel3, **全双工** (V4.3.0: MISO 用于 Flash 读取) |
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 |
 | 字库 | 8×16 ASCII (95) + 16×16 中文 (76) + 5×10 微数字 (12) |
