@@ -82,11 +82,15 @@ W25Q128 工作电压为 2.7V ~ 3.6V, 5V 供电会**永久损坏芯片**。烧录
 
 Windows 默认将 CH341A 识别为串口设备, flashrom 需要 **WinUSB** 驱动才能通过 SPI 协议直接访问芯片。
 
-### 4.1 下载 Zadig
+### 4.1 Zadig (已打包)
 
-官方下载: https://zadig.akeo.ie/
+项目 `ch341/flashrom-1.4/` 目录下已附带 `zadig-2.8.exe`, 直接双击运行:
 
-选择 `Zadig-2.9.exe` (或最新版)。
+```bash
+ch341\flashrom-1.4\zadig-2.8.exe
+```
+
+**注意:** 网上流传的独立 `zadig-2.9.exe` 版本存在兼容性问题, 推荐使用附带版本。
 
 ### 4.2 替换驱动
 
@@ -104,54 +108,166 @@ Windows 默认将 CH341A 识别为串口设备, flashrom 需要 **WinUSB** 驱�
 
 ---
 
-## 5. flashrom 下载与安装
+## 5. flashrom — 无需额外下载 (已打包)
 
-### 5.1 下载
+### 5.1 flashrom.exe 位置
 
-W25Q128 支持需要较新版本的 flashrom (1.4-devel 社区编译版)。推荐下载地址:
+`ch341/flashrom-1.4/flashrom.exe` — 已随项目分发, 无需单独下载。
 
-- **WinRAID 论坛**: https://winraid.level1techs.com/ (搜索 `flashrom-1.4`)
-- **GitHub**: https://github.com/nocomp/flashrom-ch341a/releases
-
-下载 `flashrom-windows-x64.zip` 解压后得到 `flashrom.exe`。
-
-### 5.2 加入 PATH
-
-**方法 A (推荐):** 将 `flashrom.exe` 放到一个固定目录 (如 `C:\Tools\flashrom\`), 然后将该目录加入系统 PATH:
-
-1. Win+R → `sysdm.cpl` → 高级 → 环境变量
-2. 在 "系统变量" 中找到 `Path` → 编辑 → 新建 → `C:\Tools\flashrom`
-3. 确定保存
-
-**方法 B:** 直接将 `flashrom.exe` 复制到 `ch341\` 目录下 (脚本会搜索当前目录)。
-
-### 5.3 验证安装
-
-打开新的命令行窗口, 输入:
-
-```bash
-flashrom --version
+```
+ch341/
+├── flashrom-1.4/
+│   ├── flashrom.exe          ← 64位 (推荐)
+│   ├── libwinpthread-1.dll   ← 运行时依赖
+│   ├── zadig-2.8.exe         ← WinUSB 驱动替换工具
+│   └── x32_flashrom/         ← 32位备选
+│       └── flashrom.exe
+├── generate_font.py
+├── burn_flash.py
+├── requirements.txt
+└── README.md
 ```
 
-应该输出类似 `flashrom v1.4-devel ... on Windows ...` 的信息。如果提示 "不是内部或外部命令", 请检查 PATH 设置或重启命令行。
+`burn_flash.py` 启动时自动检测本地 `flashrom-1.4/flashrom.exe`, 无需配置 PATH。
+
+### 5.2 验证
+
+```bash
+ch341\flashrom-1.4\flashrom.exe --version
+```
+
+输出: `flashrom 1.4.0 on Windows 10.0 (x86_64) — Dreg comp`
+
+支持 `ch341a_spi` 编程器, 可直接与 W25Q128 通信。
+
+### 5.3 Zadig (驱动替换)
+
+同一目录下已附带 `zadig-2.8.exe`, 直接运行即可:
+
+```bash
+ch341\flashrom-1.4\zadig-2.8.exe
+```
+
+操作步骤: Options → List All Devices → 选 CH341A → 选 WinUSB → Replace Driver
 
 ---
 
-## 6. Python 环境
+## 6. Python 环境配置 (VS Code 从零搭建)
 
-### 6.1 Python 版本
+### 6.1 确认工具链已就绪
 
-需要 **Python 3.10** 或更高版本: https://www.python.org/downloads/
+| 工具 | 状态 | 路径/版本 |
+|:---|:---|:---|
+| Python 3.10+ | ✅ 已安装 | `E:\Anaconda3\envs\skill-opt310\python.exe` (3.10.20) |
+| pip | ✅ 已安装 | v26.0.1 |
+| Pillow | ✅ 已安装 | v12.2.0 (字模渲染库) |
+| VS Code | ✅ 已安装 | v1.125.1 |
 
-安装时勾选 "Add Python to PATH"。
+### 6.2 导入项目配置
 
-### 6.2 安装依赖
+项目 `.vscode/` 目录已预先配置好，VS Code 打开项目后自动生效:
 
+```
+项目根目录/
+├── .vscode/
+│   ├── settings.json     ← Python 解释器路径 + 工作区设置
+│   └── launch.json       ← 调试运行配置 (generate_font / burn_flash)
+├── ch341/
+│   ├── generate_font.py
+│   ├── burn_flash.py
+│   └── requirements.txt
+└── ...
+```
+
+**settings.json** 内容说明:
+
+```json
+{
+    // Python 解释器 — 指定 conda env skill-opt310
+    "python.defaultInterpreterPath": "E:/Anaconda3/envs/skill-opt310/python.exe",
+
+    // 终端集成 — 自动激活 conda 环境
+    "python.terminal.activateEnvironment": true,
+
+    // 代码格式化
+    "[python]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    },
+
+    // 文件资源管理器 — 隐藏编译产物
+    "files.exclude": {
+        "Keil_Project/Objects": true,
+        "Keil_Project/Listings": true,
+        "__pycache__": true
+    }
+}
+```
+
+**launch.json** 内容说明:
+
+| 配置名称 | 快捷键 | 作用 |
+|:---|:---|:---|
+| `generate_font.py — 生成字库` | F5 | 运行字库生成 (仅测试，不烧录) |
+| `burn_flash.py — 烧录字库` | F5 | 运行完整烧录流程 |
+
+### 6.3 操作步骤
+
+**第 1 步: 打开项目**
+
+```
+1. 启动 VS Code
+2. 文件 → 打开文件夹 → 选择 D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT
+3. VS Code 自动读取 .vscode/settings.json → 左下角应显示 "Python 3.10.20 ('skill-opt310')"
+```
+
+**第 2 步: 确认 Python 解释器**
+
+```
+1. 按 Ctrl+Shift+P → 输入 "Python: Select Interpreter"
+2. 选择 "Python 3.10.20 ('skill-opt310') — E:\Anaconda3\envs\skill-opt310\python.exe"
+   (此步骤通常不需要手动操作 — .vscode/settings.json 已自动指定)
+```
+
+**第 3 步: 确认 Pillow 已安装**
+
+```
+1. 按 Ctrl+` 打开 VS Code 内置终端
+2. 确认终端开头显示 (skill-opt310) 环境标识
+3. 输入 python -c "import PIL; print('Pillow OK')"
+   预期输出: Pillow OK
+```
+
+如果没有输出或报错，手动安装:
 ```bash
 pip install -r ch341/requirements.txt
 ```
 
-当前依赖: `Pillow >= 10.0.0` (用于生成字库位图, Windows 自动加载系统宋体 simsun.ttc)。
+**第 4 步: 运行脚本**
+
+方式 A — 调试面板 (推荐):
+```
+1. 左侧点击 "运行和调试" 图标 (Ctrl+Shift+D)
+2. 顶部下拉选择 "generate_font.py — 生成字库" 或 "burn_flash.py — 烧录字库"
+3. 按 F5 启动
+```
+
+方式 B — 终端直接运行:
+```bash
+cd D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT\ch341
+python generate_font.py    # 仅测试字库生成
+python burn_flash.py       # 完整烧录 (需 CH341A 已接线)
+```
+
+### 6.4 故障排除
+
+| 症状 | 解决 |
+|:---|:---|
+| 左下角显示 Python 版本不对 | Ctrl+Shift+P → Python: Select Interpreter → 选 `skill-opt310` |
+| 终端报错 `No module named 'PIL'` | `pip install Pillow` |
+| `import` 下有红色波浪线 | Ctrl+Shift+P → Python: Select Interpreter → 重新选择 (触发 pylance 重载) |
+| 终端未激活 conda 环境 | 关闭终端面板 → Ctrl+` 重新打开 → 等待自动激活 |
+| 文件保存后中文乱码 | 文件 → 首选项 → 设置 → 搜索 "files.encoding" → 设为 `utf8` |
 
 ---
 

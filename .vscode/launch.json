@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "generate_font.py — 生成字库",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/ch341/generate_font.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/ch341",
+            "python": "E:/Anaconda3/envs/skill-opt310/python.exe"
+        },
+        {
+            "name": "burn_flash.py — 烧录字库",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/ch341/burn_flash.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/ch341",
+            "python": "E:/Anaconda3/envs/skill-opt310/python.exe"
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+{
+    "python.defaultInterpreterPath": "E:/Anaconda3/envs/skill-opt310/python.exe",
+    "python.terminal.activateEnvironment": true,
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "[python]": {
+        "editor.formatOnSave": false,
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    },
+    "files.exclude": {
+        "Keil_Project/Objects": true,
+        "Keil_Project/Listings": true,
+        "__pycache__": true,
+        ".superpowers": true
+    }
+}
