@@ -236,6 +236,18 @@ void App_Network_Task(void)
             s_rssi          = -100;
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
         }
+        else if (strstr(local_buf, "OTA:START")) {
+            /* PC → Public MQTT → ESP → STM32: 启动 OTA 字库推送 */
+            if (g_sys_state == SYS_STATE_IDLE) App_Storage_OTA_Begin();
+        }
+        else if (strstr(local_buf, "OTA:") == local_buf) {
+            /* OTA:<seq>,<base64> 数据帧 → 写入 Flash (仅 IDLE 态有效) */
+            if (g_sys_state == SYS_STATE_IDLE) App_Storage_OTA_Handler(local_buf);
+        }
+        else if (strstr(local_buf, "OTA:DONE")) {
+            /* OTA:DONE → 完成校验, 标记 FONT_OK */
+            if (g_sys_state == SYS_STATE_IDLE) App_Storage_OTA_End();
+        }
         else if (strstr(local_buf, "STATUS:MQTT")) {
             if (conn_cs == APP_NETWORK_CONN_WIFI) {
                 s_conn_state    = APP_NETWORK_CONN_MQTT;
