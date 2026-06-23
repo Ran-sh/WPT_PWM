@@ -11,6 +11,9 @@
 
 #include "Tft_Driver.h"
 #include "TFT_Font_Data.h"
+#include "W25Q_Driver.h"
+
+extern uint32_t CRC32_Compute(const uint8_t *data, uint32_t len);
 
 #define TFT_DRIVER_CS_PIN   GPIO_Pin_4
 #define TFT_DRIVER_DC_PIN   GPIO_Pin_6
@@ -26,6 +29,8 @@
 
 /* ── DMA 状态 ── */
 static uint8_t s_dma_configured = 0;
+static uint8_t  g_font_flash_valid = 0;     /* 1=Flash word font header CRC32 valid */
+static Font_Header g_font_header;           /* RAM-cached header 32B from W25Q */
 
 /* ── 像素缓冲区 ── */
 static uint16_t s_dma_buf[256];
@@ -289,6 +294,18 @@ void Tft_Driver_Init(void)
     Tft_Driver_WrCmd(0x29); Tft_Driver_Dly(50000);         /* DISPON */
 
     Tft_Driver_Clear(TFT_COLOR_BLACK);
+
+    /* Font Flash header check: magic + CRC32, invalid → g_font_flash_valid stays 0 (ROM fallback) */
+    {
+        uint32_t crc_stored; uint32_t crc_computed;
+        W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)&g_font_header, sizeof(Font_Header));
+        if (g_font_header.magic == FONT_MAGIC) {
+            crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
+            crc_computed = CRC32_Compute((uint8_t*)&g_font_header + 0x0C, 20);
+            g_font_header.crc32 = crc_stored;
+            g_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
+        }
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -344,29 +361,49 @@ static void Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16_t bg, uint
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  ASCII 渲染 — 片内 ROM 字模
+ *  ASCII 渲染 — 双路径: Flash 流式读取 / ROM 字模回退
  * ═══════════════════════════════════════════════════════════════ */
 
 void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
                           uint16_t fg, uint16_t bg)
 {
-    uint8_t r, idx; uint16_t* p;
-    uint16_t x0, y0;
+    uint8_t idx; uint16_t* p;
 
     if (line >= TFT_LINE_COUNT || col >= TFT_CHAR_PER_LINE) return;
     if ((uint8_t)ch < 32 || (uint8_t)ch > 126) ch = ' ';
 
     idx = (uint8_t)(ch - 32);
 
-    x0 = col  * TFT_FONT_WIDTH;
-    y0 = line * TFT_FONT_HEIGHT;
-    SetWin(x0, y0, x0 + TFT_FONT_WIDTH - 1, y0 + TFT_FONT_HEIGHT - 1);
+    if (g_font_flash_valid) {
+        /* ── Flash 路径: 流式读取 16 行 (每行 1B), 不经 RAM 缓存 ── */
+        uint8_t row; uint32_t base;
+        if (idx < 0x20 || idx > 0x7E) {
+            SetWin(col * 8, line * 16, col * 8 + 7, line * 16 + 15);
+            Tft_DMA_Fill(128, bg); return;
+        }
+        SetWin(col * 8, line * 16, col * 8 + 7, line * 16 + 15);
+        base = g_font_header.ascii_offset + (uint32_t)(idx - 0x20) * 16;
+        p = s_dma_buf;
+        for (row = 0; row < 16; row++) {
+            uint8_t byte_val;
+            W25Q_Driver_Read(base + (uint32_t)row, &byte_val, 1);
+            Decode_Char_Row(byte_val, fg, bg, p + row * 8);
+        }
+        Tft_DMA_Send(s_dma_buf, 128);
+        return;
+    }
 
-    p = s_dma_buf;
-    for (r = 0; r < 16; r++)
-        Decode_Char_Row(TFT_FONT_8X16[idx][r], fg, bg, p + r * 8);
-
-    Tft_DMA_Send(s_dma_buf, 128);
+    {
+        /* ── ROM 回退: 片内 TFT_FONT_8X16 字模 ── */
+        uint8_t r; uint16_t x0, y0;
+        x0 = col  * TFT_FONT_WIDTH;
+        y0 = line * TFT_FONT_HEIGHT;
+        SetWin(x0, y0, x0 + TFT_FONT_WIDTH - 1, y0 + TFT_FONT_HEIGHT - 1);
+        p = s_dma_buf;
+        for (r = 0; r < 16; r++)
+            Decode_Char_Row(TFT_FONT_8X16[idx][r], fg, bg, p + r * 8);
+        Tft_DMA_Send(s_dma_buf, 128);
+    }
 }
 
 void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
@@ -408,7 +445,7 @@ void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  中文渲染 — UTF-8 CN → CN_INDEX 线性查找 (片内 ROM)
+ *  中文渲染 — 双路径: Flash 二分查找 (6763字) / ROM 线性回退 (76字)
  * ═══════════════════════════════════════════════════════════════ */
 
 static uint8_t Tft_Is_UTF8_CN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
@@ -416,32 +453,52 @@ static uint8_t Tft_Is_UTF8_CN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
 static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
                                uint16_t fg, uint16_t bg)
 {
-    uint8_t row, g_idx; uint16_t* p; uint8_t i;
+    uint8_t row; uint16_t* p;
 
     if (ln >= TFT_LINE_COUNT || col + 1 >= TFT_CHAR_PER_LINE) return;
 
-    /* CN_INDEX 线性查找 (76字, 每次 ~38次比较, 可接受) */
-    g_idx = 0xFF;
-    for (i = 0; i < TFT_CN_FONT_CHAR_COUNT; i++) {
-        if (CN_INDEX[i*3] == utf8[0] && CN_INDEX[i*3+1] == utf8[1] && CN_INDEX[i*3+2] == utf8[2]) {
-            g_idx = i; break;
+    if (g_font_flash_valid) {
+        /* ── Flash 路径: UTF-8 → Unicode → 二分查找 → 流式读取 16 行 ── */
+        uint32_t unicode; uint16_t data_offset; uint32_t base;
+        unicode  = ((uint32_t)(utf8[0] & 0x0F) << 12);
+        unicode |= ((uint32_t)(utf8[1] & 0x3F) << 6);
+        unicode |= ((uint32_t)(utf8[2] & 0x3F));
+        data_offset = W25Q_Font_Index_Binary_Search((uint16_t)unicode, &g_font_header);
+        if (data_offset == 0xFFFF) {
+            SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
+            Tft_DMA_Fill(256, bg);
+            return;
         }
-    }
-    if (g_idx == 0xFF) {
-        /* 找不到 → 刷黑块 (跟 Flash 版本行为一致) */
+        base = g_font_header.cjk_data_offset + (uint32_t)data_offset;
         SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
-        Tft_DMA_Fill(256, bg);
-        return;
+        p = s_dma_buf;
+        for (row = 0; row < 16; row++) {
+            uint8_t lo_hi[2];
+            W25Q_Driver_Read(base + (uint32_t)row * 2, lo_hi, 2);
+            Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p + row * 16);
+        }
+        Tft_DMA_Send(s_dma_buf, 256);
+    } else {
+        /* ── ROM 回退: CN_INDEX 线性查找 (76字) ── */
+        uint8_t g_idx; uint8_t i;
+        g_idx = 0xFF;
+        for (i = 0; i < TFT_CN_FONT_CHAR_COUNT; i++) {
+            if (CN_INDEX[i*3] == utf8[0] && CN_INDEX[i*3+1] == utf8[1] && CN_INDEX[i*3+2] == utf8[2]) {
+                g_idx = i; break;
+            }
+        }
+        if (g_idx == 0xFF) {
+            SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
+            Tft_DMA_Fill(256, bg);
+            return;
+        }
+        SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
+        p = s_dma_buf;
+        for (row = 0; row < 16; row++)
+            Decode_CN_Row(CN_FONT_16X16[g_idx][row * 2], CN_FONT_16X16[g_idx][row * 2 + 1],
+                           fg, bg, p + row * 16);
+        Tft_DMA_Send(s_dma_buf, 256);
     }
-
-    SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
-
-    p = s_dma_buf;
-    for (row = 0; row < 16; row++)
-        Decode_CN_Row(CN_FONT_16X16[g_idx][row * 2], CN_FONT_16X16[g_idx][row * 2 + 1],
-                       fg, bg, p + row * 16);
-
-    Tft_DMA_Send(s_dma_buf, 256);
 }
 
 void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
