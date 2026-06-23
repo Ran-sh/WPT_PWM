@@ -57,6 +57,10 @@
 #define FREQ_MIN_HZ           95000
 #define FREQ_MAX_HZ           150000
 
+/* ── OTA 字库推送 ── */
+#define OTA_FONT_PORT         8266
+#define OTA_FONT_TIMEOUT_MS   60000
+
 
 /* ═══════════════════════════════════════════════════════════════
  *  2. 库引用
@@ -216,6 +220,10 @@ static void Mqtt_Task_On_Public_Message(char* topic, byte* payload, unsigned int
     Serial.write(payload, length);
     Serial.println();
 #endif
+    /* OTA trigger: PC sends "OTA:START" via Public MQTT → start TCP Server */
+    if (length == 9 && memcmp(payload, "OTA:START", 9) == 0) {
+        OTA_Font_Server_Start();
+    }
     Serial.write(payload, length);
     Serial.print("\n");
 }
@@ -413,6 +421,99 @@ static void Base64_Encode_3B(const uint8_t* in, uint8_t in_len, char* out)
     out[3] = (in_len > 2) ? BASE64_TABLE_OTA[v & 0x3F] : '=';
 }
 
+/* ═══════════════════════════════════════════════════════════════
+ *  4.6 OTA Font Server — TCP→Serial 双向透传
+ * ═══════════════════════════════════════════════════════════════ */
+
+static uint8_t       s_ota_active = 0;
+static WiFiServer*   s_ota_server = NULL;
+static WiFiClient    s_ota_client;
+static unsigned long s_ota_last_ms = 0;
+
+static void OTA_Font_Server_Start(void)
+{
+    if (s_ota_active) return;
+    s_ota_server = new WiFiServer(OTA_FONT_PORT);
+    if (s_ota_server) {
+        s_ota_server->begin();
+        s_ota_active = 1;
+        s_ota_client = WiFiClient();
+        s_ota_last_ms = millis();
+#ifdef DEBUG
+        Serial.println("[OTA] Server started on port 8266");
+#endif
+    }
+}
+
+static void OTA_Font_Server_Stop(void)
+{
+    if (s_ota_client && s_ota_client.connected()) {
+        s_ota_client.stop();
+    }
+    if (s_ota_server) {
+        s_ota_server->stop();
+        delete s_ota_server;
+        s_ota_server = NULL;
+    }
+    s_ota_active = 0;
+#ifdef DEBUG
+    Serial.println("[OTA] Server stopped");
+#endif
+}
+
+static void OTA_Font_Server_Loop(void)
+{
+    unsigned long now;
+    if (!s_ota_active) return;
+    now = millis();
+
+    /* ── Wait for client connection ── */
+    if (!s_ota_client || !s_ota_client.connected()) {
+        s_ota_client = s_ota_server->available();
+        if (s_ota_client && s_ota_client.connected()) {
+            s_ota_last_ms = now;
+#ifdef DEBUG
+            Serial.println("[OTA] Client connected");
+#endif
+        } else {
+            /* 60s timeout with no client → auto exit */
+            if (now - s_ota_last_ms >= OTA_FONT_TIMEOUT_MS) {
+                Serial.print("STATUS:OTA_TIMEOUT\n");
+                OTA_Font_Server_Stop();
+            }
+            return;
+        }
+    }
+
+    /* ── TCP → Serial: forward PC data to STM32 ── */
+    while (s_ota_client.available() > 0) {
+        char c = (char)s_ota_client.read();
+        Serial.print(c);
+        s_ota_last_ms = now;
+    }
+
+    /* ── Idle timeout: client disconnected without DONE/FAIL ── */
+    if ((!s_ota_client || !s_ota_client.connected())
+        && now - s_ota_last_ms >= OTA_FONT_TIMEOUT_MS) {
+        Serial.print("STATUS:OTA_TIMEOUT\n");
+        OTA_Font_Server_Stop();
+    }
+}
+
+/** @brief Called from Serial_Parse_Process_Line to relay ACK frames back to PC
+ *  @note  This avoids Serial.available() race with Serial_Parse_Read_Loop */
+static void OTA_Font_Server_Relay_ACK(const char* line)
+{
+    if (s_ota_active && s_ota_client && s_ota_client.connected()) {
+        s_ota_client.print(line);
+        s_ota_client.print("\n");
+    }
+    /* OTA:DONE / OTA:FAIL → close server */
+    if (Str_Starts_With(line, "OTA:DONE") || Str_Starts_With(line, "OTA:FAIL")) {
+        OTA_Font_Server_Stop();
+    }
+}
+
 
 /* ═══════════════════════════════════════════════════════════════
  *  5. 串口解析模块 — Serial_Parse 命名空间
@@ -444,6 +545,13 @@ static void Serial_Parse_Process_Line(const char* line)
         Serial.flush();          /* 等 UART FIFO 排空再重启 */
         delay(200);
         ESP.restart();
+    }
+
+    /* OTA ACK relay: STM32 ACK frames → TCP back to PC */
+    if (Str_Starts_With(line, "OTA:ACK") || Str_Starts_With(line, "OTA:ERR")
+        || Str_Starts_With(line, "OTA:DONE") || Str_Starts_With(line, "OTA:FAIL")) {
+        OTA_Font_Server_Relay_ACK(line);
+        return;  /* ACK frames do NOT go to MQTT telemetry */
     }
 
     Mqtt_Task_Publish_Telemetry(line);
@@ -530,6 +638,7 @@ void loop()
     unsigned long now = millis();
 
     Mqtt_Task_Loop();
+    OTA_Font_Server_Loop();  /* OTA mode: TCP↔Serial relay (non-blocking) */
     Serial_Parse_Read_Loop();
 
     /* 全局 WiFi 断连检测: 每 500ms 检查一次, 排除 IDLE 和 离线状态 */
