@@ -8,15 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.3.1 |
+| **版本** | V4.3.0 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.1)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
 > **频率斜坡设计**: `Claude_Files/docs/2026-05-24-freq-ramp-design.md`
 > **W25Q128 Flash 集成设计**: `Claude_Files/docs/2026-06-22-w25q128-flash-integration-design.md`
-> **OTA 字库推送设计**: `Claude_Files/specs/2026-06-23-ota-font-push-design.md`
-> **OTA 字库推送实施计划**: `Claude_Files/specs/2026-06-23-ota-font-push-plan.md`
 > **OTA 操作指南 (小白版)**: `Claude_Files/docs/OTA字库推送-小白操作指南.md`
 
 ## 版本号规则 (全项目铁律)
@@ -164,8 +162,7 @@ Sys_Safety 独立安全监测
 ```
 
 **铁律**: STM32 不发 AT 指令, ESP 不碰 PWM/ADC。开机自动联网。
-**V4.3.1 新增**: ESP8266 WiFiServer OTA 字库推送 (TCP→Serial 透传 + Base64 编码 + STM32 解码写 Flash), `Claude_Files/tools/ota_font_push.py` PC 端推送工具。
-**V4.3.0 新增**: SPI1 分时复用 (TFT + W25Q128), PA5=SCK PA7=MOSI PA6=DC/MISO 动态切, PA4=TFT_CS PA12=FLASH_CS 双门控。
+**V4.3.0 新增**: SPI1 分时复用 (TFT + W25Q128), PA5=SCK PA7=MOSI PA6=DC/MISO 动态切, PA4=TFT_CS PA12=FLASH_CS 双门控。字库暂存片内 ROM (76字+95ASCII)，待 CH341 编程器到后通过 Python→SPI Flash 灌入 GB2312 全字库。
 
 ## 系统全局状态机
 
@@ -467,7 +464,6 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
-| V4.3.1 | ESP8266 WiFiServer OTA 字库推送: PC→WiFi→ESP TCP透传→USART2→STM32 Base64解码+Page Program+CRC32校验, 首次上电自动灌字库的无线替代方案, 4处缓冲区128/256→512(容纳353B Base64帧), CRC32覆盖范围三计算点统一(data_size字段), seq越界RANGE拦截, ESP STATUS OTA门控防交叠 |
 | V4.3.0 | W25Q128 16MB SPI Flash 集成: SPI1 分时复用(PA6动态切DC/MISO) + GB2312全字库(668KB)+开机画面区(1MB)+参数双副本CRC32(8KB)+黑匣子循环日志(4MB)+故障锁存前后5s + 四大硬件防线(L1写使能/L2 Busy死等/L3 DFF原子闪切/L4 发波禁擦) + ADC校准Flash固化+本地自测算B方案 + config.js getDataModel() undefined修复 + control.html clearInterval修复 + 遥测S字段对齐g_sys_state |
 | V4.2.4 | 离线守卫全平台修复: Web+小程序 _isOnline 判定统一 + 缓存时序修正(延后到在线确认) + 在线兜底(data非空)+/device/detail覆写 + Web throw误触发修复 + 重复代码块清理 + 生命周期onHide/pagehide清理 |
 | V4.2.3 | 全平台安全审查修复: 删除硬编码凭证+console清理+定时器泄漏修复+setInterval防重叠+小程序并行在线检测+STM32 Sys_Safety仅RUNNING+Key批量读取+login SHA-256 |
