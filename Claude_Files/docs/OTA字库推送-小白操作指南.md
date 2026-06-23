@@ -19,17 +19,31 @@
 
 ## 二、第 0 步：确认 Python 能用
 
+项目已自带预配置脚本，**双击即可自动安装 Python 并验证环境**：
+
+### 一键安装验证
+
+打开文件管理器，进入项目目录：
+
+```
+D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT\Claude_Files\tools\
+```
+
+双击 `setup_python.bat` → 脚本会自动：
+1. 检查你的电脑是否已装 Python
+2. 如果没装 → 自动下载安装 Python 3.x
+3. 如果已装但 PATH 不对 → 自动修复
+4. 验证推送工具能正常运行
+
+### 手动验证（如果一键脚本已成功可跳过）
+
 打开 **命令提示符**（按 `Win+R`，输入 `cmd`，回车）：
 
 ```bash
 python --version
 ```
 
-期望看到类似 `Python 3.7.0`。如果提示"不是内部命令"：
-
-1. 去 [python.org](https://python.org) 下载 Python 3.x
-2. 安装时**勾选** `Add Python to PATH`（非常重要！）
-3. 重新打开命令提示符再试
+期望看到类似 `Python 3.7.0`。
 
 ---
 
