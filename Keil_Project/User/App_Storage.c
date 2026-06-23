@@ -8,7 +8,11 @@
 
 #include "App_Storage.h"
 #include "W25Q_Driver.h"
+#include "Esp8266_Driver.h"
 #include "Sys_Timer.h"
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 /* ═══════════════════════════════════════════════
  *  CRC8 查表 (多项式 0x07, 256B ROM)
@@ -102,6 +106,29 @@ static uint32_t s_log_wr_ptr  = 0;       /* 当前写偏移 (相对 BLACKBOX 基
 static uint32_t s_log_seq     = 0;       /* 总写入条数 */
 static uint32_t s_log_wrapped = 0;       /* 循环次数 */
 static uint32_t s_fault_lock_addr = 0;   /* 故障锁存区写入地址 */
+
+/* ═══════════════════════════════════════════════
+ *  OTA 字库推送 (Phase A: 4KB)
+ * ═══════════════════════════════════════════════ */
+static uint8_t  s_ota_active     = 0;
+static uint16_t s_ota_page_total = 0;
+static uint16_t s_ota_page_done  = 0;
+static uint8_t  s_ota_buf[256];       /* 单页解码缓冲 */
+
+/* ── ACK 回发 ── */
+static void OTA_Send_ACK(uint16_t seq)
+{
+    char buf[20]; uint16_t w;
+    w = (uint16_t)snprintf(buf, sizeof(buf), "OTA:ACK:%u\n", (unsigned int)seq);
+    if (w > 0 && w < sizeof(buf)) Esp8266_Driver_Send_String(buf);
+}
+
+static void OTA_Send_ERR(uint16_t seq, const char *reason)
+{
+    char buf[40]; uint16_t w;
+    w = (uint16_t)snprintf(buf, sizeof(buf), "OTA:ERR:%u,%s\n", (unsigned int)seq, reason);
+    if (w > 0 && w < sizeof(buf)) Esp8266_Driver_Send_String(buf);
+}
 
 /* ═══════════════════════════════════════════════
  *  V4.3.0: 首次上电自动灌入字库 — TFT_Font_Data.h → W25Q128 Flash
@@ -395,4 +422,71 @@ void App_Storage_Init(void)
                              (BLACKBOX_LOCK_BLOCKS * 65536U)))
             s_log_wr_ptr = 256U;                            /* 非法 → 重置 */
     }
+}
+
+/* ═══════════════════════════════════════════════
+ *  OTA 字库推送 (Phase A: 4KB)
+ * ═══════════════════════════════════════════════ */
+
+/** @brief 进入 OTA 模式: 擦除字库区前4KB + 初始化
+ *  @note  仅 IDLE 态可调用 (由 App_Network OTA:START 帧门控保证) */
+void App_Storage_OTA_Begin(void)
+{
+    s_ota_active     = 1;
+    s_ota_page_total = 0;
+    s_ota_page_done  = 0;
+    W25Q_Driver_Erase_Sector(W25Q_ADDR_FONT);
+    Esp8266_Driver_Send_String("OTA:READY\n");
+}
+
+/** @brief 处理 OTA:<seq>,<base64> 帧 */
+void App_Storage_OTA_Handler(const char *frame)
+{
+    uint16_t seq, data_len; const char *comma; uint32_t page_addr;
+    if (!s_ota_active) return;
+    if (strstr(frame, "OTA:") != frame) return;
+    seq = (uint16_t)strtol(frame + 4, NULL, 10);
+    comma = strstr(frame, ",");
+    if (comma == 0) return;
+    data_len = Base64_Decode_Block(comma + 1, (uint16_t)strlen(comma + 1), s_ota_buf);
+    if (data_len != W25Q_PAGE_SIZE) {
+        OTA_Send_ERR(seq, "B64LEN"); return;
+    }
+    page_addr = W25Q_ADDR_FONT + ((uint32_t)seq * W25Q_PAGE_SIZE);
+    W25Q_Driver_Write_Page(page_addr, s_ota_buf, W25Q_PAGE_SIZE);
+    s_ota_page_done++;
+    if (seq + 1 > s_ota_page_total) s_ota_page_total = seq + 1;
+    OTA_Send_ACK(seq);
+}
+
+/** @brief OTA 传输完成 — 写头部 + CRC32 校验 + 标记 FONT_OK */
+void App_Storage_OTA_End(void)
+{
+    uint8_t header[32]; uint32_t i, crc_val, addr; uint8_t buf[256];
+    if (!s_ota_active) return;
+    s_ota_active = 0;
+    /* 写入字库头部 (32B) */
+    *(uint16_t*)(header + 0)  = FONT_MAGIC;
+    *(uint16_t*)(header + 2)  = 1;
+    *(uint32_t*)(header + 4)  = 0;
+    *(uint32_t*)(header + 8)  = 1520U;
+    *(uint32_t*)(header + 12) = FONT_CJK_BASE_UNICODE;
+    *(uint32_t*)(header + 16) = FONT_CJK_COUNT;
+    for (i = 20; i < 32; i++) header[i] = 0x00;
+    /* 计算数据区 CRC32 (从 offset 8 开始, 跳过 magic+version+crc占位) */
+    crc_val = CRC32_Compute(header + 4, 28);
+    for (addr = 32U; addr < (uint32_t)s_ota_page_total * W25Q_PAGE_SIZE; addr += 256U) {
+        uint32_t j, k;
+        W25Q_Driver_Read(W25Q_ADDR_FONT + addr, buf, 256);
+        for (j = 0; j < 256U; j++) {
+            crc_val ^= (uint32_t)buf[j] << 24;
+            for (k = 0; k < 8; k++)
+                crc_val = (crc_val & 0x80000000U) ? (crc_val << 1) ^ 0x04C11DB7U : (crc_val << 1);
+        }
+    }
+    crc_val ^= 0xFFFFFFFFU;
+    *(uint32_t*)(header + 4) = crc_val;
+    W25Q_Driver_Write_Page(W25Q_ADDR_FONT, header, 32);
+    g_font_status = FONT_OK;
+    Esp8266_Driver_Send_String("OTA:DONE\n");
 }

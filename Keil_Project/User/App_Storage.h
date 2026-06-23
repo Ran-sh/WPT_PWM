@@ -98,4 +98,12 @@ uint32_t Blackbox_Get_Entry_Count(void);
 /** @brief 按序号读单条日志 (0=最旧), 返回值 1=有效 0=CRC坏 */
 uint8_t Blackbox_Read_Entry(uint32_t index, Blackbox_Entry_Packed *out);
 
+/* ── OTA 字库推送 ── */
+/** @brief 进入 OTA 模式: 擦除字库区前4KB + 显示进度 */
+void App_Storage_OTA_Begin(void);
+/** @brief 处理单帧 OTA 数据: 解析 + Base64 解码 + 写页 + 回 ACK */
+void App_Storage_OTA_Handler(const char *frame);
+/** @brief 完成 OTA: CRC32 校验 → FONT_OK/CORRUPT → 发 DONE/FAIL */
+void App_Storage_OTA_End(void);
+
 #endif /* APP_STORAGE_H */
