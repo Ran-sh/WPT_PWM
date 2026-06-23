@@ -240,16 +240,18 @@ static void Mqtt_Task_Maintain_Connection(void)
         case MQTT_CONN_STATE_WIFI_CONN:
             if (WiFi.status() == WL_CONNECTED) {
                 s_conn_state = MQTT_CONN_STATE_MQTT_CONN;
-                Serial.print("STATUS:MQTT\n");
+                if (!s_ota_active) Serial.print("STATUS:MQTT\n");
             } else if (now - s_conn_retry_ms >= WIFI_CONN_TIMEOUT_MS) {
                 /* 持续重试, 不设上限 — 上限判断由 STM32 App_Network 负责 */
                 s_conn_retry_cnt++;
                 s_conn_retry_ms = now;
                 WiFi.begin();
-                /* 上报重试次数给 STM32, 方便 TFT 显示 */
+                /* 上报重试次数给 STM32, 方便 TFT 显示 — OTA 活跃时抑制 */
+                if (!s_ota_active) {
                 Serial.print("STATUS:RETRY=");
                 Serial.print(s_conn_retry_cnt);
                 Serial.print("\n");
+                }
             }
             break;
 
@@ -267,9 +269,11 @@ static void Mqtt_Task_Maintain_Connection(void)
 
             if (one_ok && pub_ok) {
                 s_conn_state = MQTT_CONN_STATE_ONLINE;
+                if (!s_ota_active) {  /* OTA 活跃时抑制 STATUS 输出, 防止与 OTA 数据帧交叠 */
                 Serial.print("STATUS:ONLINE:RSSI=");
                 Serial.print(WiFi.RSSI());
                 Serial.print("\n");
+                }
 #ifdef DEBUG
                 Serial.println("[Status] >>> Sent STATUS:ONLINE to STM32 <<<");
 #endif
@@ -282,14 +286,14 @@ static void Mqtt_Task_Maintain_Connection(void)
             if (WiFi.status() != WL_CONNECTED) {
                 s_conn_state = MQTT_CONN_STATE_WIFI_CONN;
                 s_conn_retry_ms = now;
-                Serial.print("STATUS:DISCONNECTED\n");
+                if (!s_ota_active) Serial.print("STATUS:DISCONNECTED\n");
                 WiFi.begin();
             } else if (!s_mqtt_client.connected() && !s_mqtt_public.connected()) {
                 s_conn_state = MQTT_CONN_STATE_MQTT_CONN;
             }
-            /* 每 2s 上报 RSSI */ {
+            /* 每 2s 上报 RSSI — OTA 活跃时抑制, 防止与字体数据帧交叠 */ {
                 static unsigned long last_rssi = 0;
-                if (now - last_rssi >= 2000) {
+                if (!s_ota_active && now - last_rssi >= 2000) {
                     last_rssi = now;
                     Serial.print("STATUS:RSSI=");
                     Serial.print(WiFi.RSSI());
@@ -305,7 +309,7 @@ static void Mqtt_Task_Maintain_Connection(void)
             if (WiFi.status() == WL_CONNECTED) {
                 s_conn_state     = MQTT_CONN_STATE_MQTT_CONN;
                 s_conn_retry_cnt = 0;
-                Serial.print("STATUS:MQTT\n");
+                if (!s_ota_active) Serial.print("STATUS:MQTT\n");
             } else {
                 /* 每 WIFI_RETRY_INTERVAL_MS 重试一次连接 */
                 if (now - s_conn_retry_ms >= WIFI_RETRY_INTERVAL_MS) {
@@ -531,7 +535,7 @@ static void Serial_Parse_Process_Line(const char* line)
         WiFi.disconnect();
         s_conn_state     = MQTT_CONN_STATE_OFFLINE_PASSIVE;
         s_conn_retry_cnt = 0;
-        Serial.print("STATUS:DISCONNECTED\n");
+        if (!s_ota_active) Serial.print("STATUS:DISCONNECTED\n");
         return;
     }
 
@@ -652,7 +656,7 @@ void loop()
                 if (s_conn_state != MQTT_CONN_STATE_WIFI_CONN) {
                     s_conn_state     = MQTT_CONN_STATE_WIFI_CONN;
                     s_conn_retry_cnt = 0;
-                    Serial.print("STATUS:DISCONNECTED\n");
+                    if (!s_ota_active) Serial.print("STATUS:DISCONNECTED\n");
                 }
                 /* 每 3s 重试 WiFi.begin(), 利用保存的凭证重连 */
                 if (now - last_wifi_retry >= WIFI_RETRY_INTERVAL_MS) {

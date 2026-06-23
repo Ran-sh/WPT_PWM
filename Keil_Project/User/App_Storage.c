@@ -470,6 +470,10 @@ void App_Storage_OTA_Handler(const char *frame)
     if (!s_ota_active) return;
     if (strstr(frame, "OTA:") != frame) return;
     seq = (uint16_t)strtol(frame + 4, NULL, 10);
+    /* 防越界: seq 不能超出已擦除的扇区范围 */
+    if (seq >= 16U) {  /* 4KB=16页 */
+        OTA_Send_ERR(seq, "RANGE"); return;
+    }
     comma = strstr(frame, ",");
     if (comma == 0) return;
     data_len = Base64_Decode_Block(comma + 1, (uint16_t)strlen(comma + 1), s_ota_buf);
