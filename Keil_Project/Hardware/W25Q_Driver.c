@@ -16,6 +16,7 @@
 #include "W25Q_Driver.h"
 #include "Sys_Core.h"       /* g_sys_state */
 #include "Sys_Timer.h"      /* Sys_Timer_Get_Tick */
+#include "App_Storage.h"    /* CRC32_Compute */
 
 /* ═══════════════════════════════════════════════
  *  引脚宏 (行内高聚合)
@@ -232,9 +233,7 @@ uint8_t Font_Header_Load(Font_Header *hdr)
  * @note   进函数→W25Q_Enter_Mode 独占→切8bit→二分搜索→匹配→return
  *         全程持锁 CS=Low/PA6=MISO, 绝对禁止中途 Leave_Mode
  *         单次调用 ~5.85μs (26次 SPI Transfer × 7.5ns/周期 + 780 cycle)
- *         需外部声明 CRC32_Compute → extern uint32_t CRC32_Compute(const uint8_t*,uint32_t);
  */
-extern uint32_t CRC32_Compute(const uint8_t *data, uint32_t len);
 uint16_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
 {
     uint16_t lo, hi, mid, mid_uc, found_off; uint32_t addr;

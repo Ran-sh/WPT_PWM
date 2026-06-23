@@ -29,7 +29,7 @@ extern uint32_t CRC32_Compute(const uint8_t *data, uint32_t len);
 
 /* ── DMA 状态 ── */
 static uint8_t s_dma_configured = 0;
-static uint8_t  g_font_flash_valid = 0;     /* 1=Flash word font header CRC32 valid */
+static uint8_t  s_font_flash_valid = 0;     /* 1=Flash font header CRC32 valid */
 static Font_Header g_font_header;           /* RAM-cached header 32B from W25Q */
 
 /* ── 像素缓冲区 ── */
@@ -295,7 +295,7 @@ void Tft_Driver_Init(void)
 
     Tft_Driver_Clear(TFT_COLOR_BLACK);
 
-    /* Font Flash header check: magic + CRC32, invalid → g_font_flash_valid stays 0 (ROM fallback) */
+    /* Font Flash header check: magic + CRC32, invalid → s_font_flash_valid stays 0 (ROM fallback) */
     {
         uint32_t crc_stored; uint32_t crc_computed;
         W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)&g_font_header, sizeof(Font_Header));
@@ -303,7 +303,7 @@ void Tft_Driver_Init(void)
             crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
             crc_computed = CRC32_Compute((uint8_t*)&g_font_header + 0x0C, 20);
             g_font_header.crc32 = crc_stored;
-            g_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
+            s_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
         }
     }
 }
@@ -374,15 +374,11 @@ void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
 
     idx = (uint8_t)(ch - 32);
 
-    if (g_font_flash_valid) {
+    if (s_font_flash_valid) {
         /* ── Flash 路径: 流式读取 16 行 (每行 1B), 不经 RAM 缓存 ── */
         uint8_t row; uint32_t base;
-        if (idx < 0x20 || idx > 0x7E) {
-            SetWin(col * 8, line * 16, col * 8 + 7, line * 16 + 15);
-            Tft_DMA_Fill(128, bg); return;
-        }
         SetWin(col * 8, line * 16, col * 8 + 7, line * 16 + 15);
-        base = g_font_header.ascii_offset + (uint32_t)(idx - 0x20) * 16;
+        base = g_font_header.ascii_offset + (uint32_t)idx * 16;  /* idx = ch-32, 0..94 */
         p = s_dma_buf;
         for (row = 0; row < 16; row++) {
             uint8_t byte_val;
@@ -457,7 +453,7 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
 
     if (ln >= TFT_LINE_COUNT || col + 1 >= TFT_CHAR_PER_LINE) return;
 
-    if (g_font_flash_valid) {
+    if (s_font_flash_valid) {
         /* ── Flash 路径: UTF-8 → Unicode → 二分查找 → 流式读取 16 行 ── */
         uint32_t unicode; uint16_t data_offset; uint32_t base;
         unicode  = ((uint32_t)(utf8[0] & 0x0F) << 12);
