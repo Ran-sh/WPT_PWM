@@ -112,6 +112,9 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
     else         DMA1_Channel3->CCR &= ~DMA_MemoryInc_Enable;
     DMA_Cmd(DMA1_Channel3, ENABLE);
 
+    /* Flash 读后会残留 DFF=8bit, DMA 写屏不可信任外部状态 */
+    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 |= SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE);
+
     TFT_DC_DATA(); TFT_CS_LOW();
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, ENABLE);
 
