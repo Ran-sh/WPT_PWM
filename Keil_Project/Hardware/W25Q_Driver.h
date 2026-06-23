@@ -35,6 +35,7 @@
 #define FONT_CJK_BASE_UNICODE 0x4E00U   /* Unicode 起始码点 */
 #define FONT_CJK_COUNT        20902U    /* U+4E00~U+9FFF */
 #define FONT_CHAR_BYTES       32U       /* 16×16 LSB-first, 经 bit_reverse */
+#define FONT_DATA_SIZE_OFFSET 18U       /* uint32_t: 实际数据字节数 (CRC校验范围=offset_8→data_size) */
 
 /* ══ 公开接口 ══ */
 

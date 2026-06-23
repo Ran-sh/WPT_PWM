@@ -139,20 +139,10 @@ static void OTA_Send_ERR(uint16_t seq, const char *reason)
 
 static void App_Storage_Burn_Font_From_SRAM(void)
 {
-    uint32_t offset, i; uint8_t header[32];
+    uint32_t offset, i, data_end; uint8_t header[32];
 
     /* ── 擦除字库区前 4KB (容纳初始 76字+ASCII+图标) ── */
     W25Q_Driver_Erase_Sector(W25Q_ADDR_FONT);               /* 4KB 扇区 */
-
-    /* ── 写入头部 (32B) ── */
-    *(uint16_t*)(header + 0) = FONT_MAGIC;                  /* 0x574B */
-    *(uint16_t*)(header + 2) = 1;                           /* Version */
-    *(uint32_t*)(header + 4) = 0;                           /* CRC32 占位 (后续回填) */
-    *(uint32_t*)(header + 8) = 1520U;                      /* ASCII_Size */
-    *(uint32_t*)(header + 12) = FONT_CJK_BASE_UNICODE;     /* CJK_Base */
-    *(uint32_t*)(header + 16) = FONT_CJK_COUNT;            /* CJK_Count */
-    for (i = 20; i < 32; i++) header[i] = 0x00;
-    W25Q_Driver_Write_Page(W25Q_ADDR_FONT, header, 32);     /* 写入头部 */
 
     /* ── 写入 ASCII 8×16 字模 (95字) ── */
     offset = FONT_ASCII_BASE;
@@ -173,10 +163,29 @@ static void App_Storage_Burn_Font_From_SRAM(void)
         W25Q_Driver_Write_Page(offset, CN_FONT_16X16[i], 32);
         offset += 32;
     }
+    data_end = offset;  /* 实际数据结束地址 (相对于字库基址) */
 
-    /* ── 更新 CRC32 头部 (简易校验: 仅头部+ASCII+CJK) ── */
-    /** @note 全量 2MB CRC 对初始化来说太慢 (~200ms), 首次灌入后标记 FONT_OK
-     *        下次上电时通过 Magic 匹配走完整 CRC32 自检路径 */
+    /* ── 写入头部 (32B) + CRC32 回填 ── */
+    *(uint16_t*)(header + 0)  = FONT_MAGIC;                  /* 0x574B */
+    *(uint16_t*)(header + 2)  = 1;                           /* Version */
+    *(uint32_t*)(header + 4)  = 0;                           /* CRC32 占位 */
+    *(uint32_t*)(header + 8)  = 1520U;                      /* ASCII_Size */
+    *(uint32_t*)(header + 12) = FONT_CJK_BASE_UNICODE;     /* CJK_Base */
+    *(uint32_t*)(header + 16) = FONT_CJK_COUNT;            /* CJK_Count */
+    *(uint32_t*)(header + 20) = data_end;                   /* 数据 CRC 范围 */
+    for (i = 24; i < 32; i++) header[i] = 0x00;
+
+    /* CRC32 覆盖 [header+8 .. Flash+data_end), 与 Init 范围对齐 */
+    {
+        uint32_t crc_val = 0xFFFFFFFFU; uint32_t k;
+        for (i = 8; i < 32; i++) {
+            crc_val ^= (uint32_t)header[i] << 24;
+            for (k = 0; k < 8; k++)
+                crc_val = (crc_val & 0x80000000U) ? (crc_val << 1) ^ 0x04C11DB7U : (crc_val << 1);
+        }
+        *(uint32_t*)(header + 4) = crc_val ^ 0xFFFFFFFFU;
+    }
+    W25Q_Driver_Write_Page(W25Q_ADDR_FONT, header, 32);     /* 写入头部 */
     g_font_status = FONT_OK;
 }
 
@@ -392,13 +401,27 @@ void App_Storage_Init(void)
         g_font_status = FONT_MISSING;                       /* 无字库 → 自动灌入 */
         App_Storage_Burn_Font_From_SRAM();                  /* 从 TFT_Font_Data.h 搬运到 Flash */
     } else {
-        /* 全量 CRC32 扫描 (2MB, ~200ms, 被 ESP8266 4s BOOT_WAIT 吸收) */
+        /* CRC32 自检: 覆盖 [header+8 .. Flash+data_size),
+         * 与 App_Storage_Burn_Font_From_SRAM / App_Storage_OTA_End 计算范围严格一致
+         * data_size 初始值可为 0 (未写入), 此时 CRC 仅覆盖头部 */
+        uint32_t data_size;
         stored_crc = *(uint32_t*)(header + 4);
+        data_size  = *(uint32_t*)(header + 20);
+        if (data_size > 0x200000U || data_size < 32U) data_size = 0x200000U;  /* 非法→全量扫描兜底 */
         computed_crc = 0xFFFFFFFFU;
-        for (i = 8; i < 0x200000U; i += sizeof(buf)) {
-            uint32_t chunk = (0x200000U - i < sizeof(buf)) ? (0x200000U - i) : sizeof(buf);
+        /* 头部 byte 8..31 */
+        { uint32_t k;
+          for (k = 0; k < 24U; k++) {
+              computed_crc ^= (uint32_t)header[8 + k] << 24;
+              /* 逐 bit */ { uint8_t b; for (b = 0; b < 8; b++)
+                  computed_crc = (computed_crc & 0x80000000U) ?
+                      (computed_crc << 1) ^ 0x04C11DB7U : (computed_crc << 1);
+              }}
+        }
+        /* 数据区 byte 32..data_size */
+        for (i = 32U; i < data_size; i += sizeof(buf)) {
+            uint32_t chunk = (data_size - i < sizeof(buf)) ? (data_size - i) : sizeof(buf);
             W25Q_Driver_Read(W25Q_ADDR_FONT + i, buf, (uint16_t)chunk);
-            /* 逐字节 CRC32 增量计算 */
             { uint32_t j, k; for (j = 0; j < chunk; j++) {
                 computed_crc ^= (uint32_t)buf[j] << 24;
                 for (k = 0; k < 8; k++)
@@ -463,28 +486,32 @@ void App_Storage_OTA_Handler(const char *frame)
 /** @brief OTA 传输完成 — 写头部 + CRC32 校验 + 标记 FONT_OK */
 void App_Storage_OTA_End(void)
 {
-    uint8_t header[32]; uint32_t i, crc_val, addr; uint8_t buf[256];
+    uint8_t header[32]; uint32_t i, crc_val, addr, data_size; uint8_t buf[256];
     if (!s_ota_active) return;
     s_ota_active = 0;
-    /* 写入字库头部 (32B) */
+    /* 写入字库头部 (32B), 对齐 W25Q_Driver.h 头部布局:
+     *   [0-1] magic, [2-3] version, [4-7] CRC32, [8-11] ASCII_Size,
+     *   [12-15] CJK_Base, [16-19] CJK_Count, [20-31] reserved */
+    data_size = (uint32_t)s_ota_page_total * W25Q_PAGE_SIZE; /* CRC 覆盖字节数 */
     *(uint16_t*)(header + 0)  = FONT_MAGIC;
     *(uint16_t*)(header + 2)  = 1;
     *(uint32_t*)(header + 4)  = 0;
     *(uint32_t*)(header + 8)  = 1520U;
     *(uint32_t*)(header + 12) = FONT_CJK_BASE_UNICODE;
     *(uint32_t*)(header + 16) = FONT_CJK_COUNT;
-    for (i = 20; i < 32; i++) header[i] = 0x00;
-    /* 计算数据区 CRC32 (从 offset 8 开始, 跳过 magic+version+crc占位)
-     * 注意: 手动初始化中间态 CRC (0xFFFFFFFF), 与后续逐字节回路共享同一状态,
+    *(uint32_t*)(header + 20) = data_size;                   /* 关键: Init 据此确定 CRC 范围 */
+    for (i = 24; i < 32; i++) header[i] = 0x00;
+    /* CRC32 覆盖 [header+8 .. Flash+data_size)
+     * 手动初始化中间态 CRC (0xFFFFFFFF), 与后续逐字节回路共享同一状态,
      * 最后统一 ^= 0xFFFFFFFFU 仅一次 — 避免 CRC32_Compute 双 final-XOR */
     crc_val = 0xFFFFFFFFU;
-    for (i = 4; i < 32; i++) {
+    for (i = 8; i < 32; i++) {
         uint32_t k;
         crc_val ^= (uint32_t)header[i] << 24;
         for (k = 0; k < 8; k++)
             crc_val = (crc_val & 0x80000000U) ? (crc_val << 1) ^ 0x04C11DB7U : (crc_val << 1);
     }
-    for (addr = 32U; addr < (uint32_t)s_ota_page_total * W25Q_PAGE_SIZE; addr += 256U) {
+    for (addr = 32U; addr < data_size; addr += 256U) {
         uint32_t j, k;
         W25Q_Driver_Read(W25Q_ADDR_FONT + addr, buf, 256);
         for (j = 0; j < 256U; j++) {

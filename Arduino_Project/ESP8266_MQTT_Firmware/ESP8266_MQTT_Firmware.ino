@@ -26,7 +26,7 @@
 
 /* ── 串口通信 ── */
 #define SERIAL_BAUDRATE       115200
-#define SERIAL_LINE_MAX       128
+#define SERIAL_LINE_MAX       512  /* V4.3.0: 128→512, 容纳 OTA ACK 完整帧 */
 
 /* ── WiFi 配网 ── */
 #define WIFI_AP_NAME          "STM32_WPT_Config"
