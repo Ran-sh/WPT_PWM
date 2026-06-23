@@ -376,6 +376,43 @@ static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
 
 
 /* ═══════════════════════════════════════════════════════════════
+ *  4.5 Base64 编解码 — OTA 字库推送用 (避免二进制 \n 截断 USART 帧)
+ * ═══════════════════════════════════════════════════════════════ */
+static const char BASE64_TABLE_OTA[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/** @brief 解码: 4字符 → 3字节, 返回实际输出字节数 (0=非法) */
+static uint8_t Base64_Decode_Quad(const char* in, uint8_t* out)
+{
+    uint8_t i, vals[4], out_len = 3;
+    for (i = 0; i < 4; i++) {
+        if (in[i] >= 'A' && in[i] <= 'Z')      vals[i] = in[i] - 'A';
+        else if (in[i] >= 'a' && in[i] <= 'z') vals[i] = in[i] - 'a' + 26;
+        else if (in[i] >= '0' && in[i] <= '9') vals[i] = in[i] - '0' + 52;
+        else if (in[i] == '+')                 vals[i] = 62;
+        else if (in[i] == '/')                 vals[i] = 63;
+        else if (in[i] == '=') { vals[i] = 0; out_len--; }
+        else return 0;
+    }
+    out[0] = (vals[0] << 2) | (vals[1] >> 4);
+    out[1] = (vals[1] << 4) | (vals[2] >> 2);
+    out[2] = (vals[2] << 6) | vals[3];
+    return out_len;
+}
+
+/** @brief 编码: 3字节 → 4字符 (ACK 帧回传预留) */
+static void Base64_Encode_3B(const uint8_t* in, uint8_t in_len, char* out)
+{
+    uint32_t v = ((uint32_t)in[0] << 16) | ((in_len > 1 ? (uint32_t)in[1] : 0U) << 8) | (in_len > 2 ? (uint32_t)in[2] : 0U);
+    out[0] = BASE64_TABLE_OTA[(v >> 18) & 0x3F];
+    out[1] = BASE64_TABLE_OTA[(v >> 12) & 0x3F];
+    out[2] = (in_len > 1) ? BASE64_TABLE_OTA[(v >> 6) & 0x3F] : '=';
+    out[3] = (in_len > 2) ? BASE64_TABLE_OTA[v & 0x3F] : '=';
+    out[4] = '\0';
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
  *  5. 串口解析模块 — Serial_Parse 命名空间
  * ═══════════════════════════════════════════════════════════════ */
 
