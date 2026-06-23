@@ -10,7 +10,7 @@
 #include "Esp8266_Driver.h"
 #include "Sys_Timer.h"
 
-#define ESP8266_DRIVER_RX_BUF_SIZE      512  /* V4.3.0: 256→512, 容纳 OTA Base64 帧 (~353B) */
+#define ESP8266_DRIVER_RX_BUF_SIZE      256
 #define ESP8266_DRIVER_RX_RING_SIZE      3   /* 双帧缓冲: 防止 ESP 连续发送多条帧时丢弃后续帧 */
 #define ESP8266_DRIVER_CH_PD_PIN        GPIO_Pin_11
 #define ESP8266_DRIVER_CH_PD_PORT       GPIOB

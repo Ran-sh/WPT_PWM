@@ -170,7 +170,7 @@ static void App_Network_Check_Offline_Recovery(void)
      * 注意: 仅切换 STM32 状态为 WIFI, 不发硬件 RST — ESP 已存活且在重连中,
      * 发硬件 RST 反而会引入 4s BOOT_WAIT 延迟 */
     {
-        char local_buf[512];
+        char local_buf[256];
         if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
             return;
 
@@ -216,7 +216,7 @@ void App_Network_Task(void)
 
     /* ── 指令接收 (原子闭环: Try_Copy 一次性完成判定+复制+清零, 防 ISR 抢断丢帧) ── */
     {
-        char local_buf[512]; const char* p;
+        char local_buf[256]; const char* p;
         Inverter_Control_Soft_Start_State ss_cmd; uint8_t conn_cs;
 
         if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
