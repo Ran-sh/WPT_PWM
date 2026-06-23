@@ -8,13 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.3.0 |
+| **版本** | V4.3.1 |
 | **语言** | 中文交流，代码注释中英混合 |
 
-> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
+> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.1)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
 > **频率斜坡设计**: `Claude_Files/docs/2026-05-24-freq-ramp-design.md`
 > **W25Q128 Flash 集成设计**: `Claude_Files/docs/2026-06-22-w25q128-flash-integration-design.md`
+> **OTA 字库推送设计**: `docs/superpowers/specs/2026-06-23-ota-font-push-design.md`
 
 ## 版本号规则 (全项目铁律)
 
@@ -24,11 +25,11 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.3.0
+当前版本: V4.3.1
 
 涉及版本号的位置 (全项目必须统一):
-  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.3.0
-  文档控制信息: 开发指南/技能文件的文档版本 → V4.3.0
+  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.3.1
+  文档控制信息: 开发指南/技能文件的文档版本 → V4.3.1
   CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.3.0
   README.md: badge + 版本历史 + 分支表 → V4.3.0
   操作手册/部署文档: 版本字段 → V4.3.0
@@ -161,6 +162,7 @@ Sys_Safety 独立安全监测
 ```
 
 **铁律**: STM32 不发 AT 指令, ESP 不碰 PWM/ADC。开机自动联网。
+**V4.3.1 新增**: ESP8266 WiFiServer OTA 字库推送 (TCP→Serial 透传 + Base64 编码 + STM32 解码写 Flash), `Claude_Files/tools/ota_font_push.py` PC 端推送工具。
 **V4.3.0 新增**: SPI1 分时复用 (TFT + W25Q128), PA5=SCK PA7=MOSI PA6=DC/MISO 动态切, PA4=TFT_CS PA12=FLASH_CS 双门控。
 
 ## 系统全局状态机
@@ -189,7 +191,7 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~10957 行逻辑代码 (全�
 │   ├── Hardware/                               ← 硬件驱动 — 4398 行
 │   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1722+39行)
 │   │   ├── Tft_Driver.c/h                      ← ST7735 SPI1 全双工+DMA + Flash字库 (564+77行)
-│   │   ├── W25Q_Driver.c/h                     ← [V4.3.0] 16MB SPI Flash 驱动 + L1-L4 四大防线 (258+62行)
+│   │   ├── W25Q_Driver.c/h                     ← [V4.3.1] 16MB SPI Flash 驱动 + L1-L4 四大防线 (206+62行)
 │   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (356行, 待迁移至Flash)
 │   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (257+49行)
 │   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (162+20行)
@@ -199,8 +201,8 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~10957 行逻辑代码 (全�
 │   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (113+33行)
 │   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (68+30行)
 │   ├── User/                                   ← 应用层 — 1347 行
-│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (338+51行)
-│   │   ├── App_Storage.c/h                     ← [V4.3.0] 字库索引+参数双副本+黑匣子日志 (309+101行)
+│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测+OTA路由 (420+55行)
+│   │   ├── App_Storage.c/h                     ← [V4.3.1] 字库索引+参数双副本+黑匣子+OTA推送 (400+120行)
 │   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全(仅RUNNING) (205+44行)
 │   │   ├── main.c                              ← 程序入口 (50行)
 │   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
@@ -225,7 +227,8 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~10957 行逻辑代码 (全�
 └── Claude_Files/                               ← AI 生成文档+工具
     ├── docs/                                   ← 开发者指南 + 技能文件 + specs
     ├── diagrams/                               ← Visio 流程图
-    └── tools/                                  ← generate_docx.js + 桥接脚本
+    ├── tools/                                  ← generate_docx.js + ota_font_push.py 字库推送
+    └── docs/                                    ← 设计 specs + 实施 plans
 ```
 
 ## 主循环
@@ -462,6 +465,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V4.3.1 | ESP8266 WiFiServer OTA 字库推送: PC→WiFi→ESP TCP透传→USART2→STM32 Base64解码+Page Program+CRC32校验, 首次上电自动灌字库的无线替代方案, 4处缓冲区128/256→512(容纳353B Base64帧), CRC32覆盖范围三计算点统一(data_size字段), seq越界RANGE拦截, ESP STATUS OTA门控防交叠 |
 | V4.3.0 | W25Q128 16MB SPI Flash 集成: SPI1 分时复用(PA6动态切DC/MISO) + GB2312全字库(668KB)+开机画面区(1MB)+参数双副本CRC32(8KB)+黑匣子循环日志(4MB)+故障锁存前后5s + 四大硬件防线(L1写使能/L2 Busy死等/L3 DFF原子闪切/L4 发波禁擦) + ADC校准Flash固化+本地自测算B方案 + config.js getDataModel() undefined修复 + control.html clearInterval修复 + 遥测S字段对齐g_sys_state |
 | V4.2.4 | 离线守卫全平台修复: Web+小程序 _isOnline 判定统一 + 缓存时序修正(延后到在线确认) + 在线兜底(data非空)+/device/detail覆写 + Web throw误触发修复 + 重复代码块清理 + 生命周期onHide/pagehide清理 |
 | V4.2.3 | 全平台安全审查修复: 删除硬编码凭证+console清理+定时器泄漏修复+setInterval防重叠+小程序并行在线检测+STM32 Sys_Safety仅RUNNING+Key批量读取+login SHA-256 |
