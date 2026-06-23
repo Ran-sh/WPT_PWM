@@ -1,8 +1,8 @@
 /**
  ******************************************************************************
  * @file    Hardware/LED.h
- * @brief   系统 LED 驱动 (PC13 + PB3/PB4/PB5) —— 公开接口
- * @note    PC13 心跳 (低有效) / PB3 WiFi (高有效) / PB4 PWM (高有效) / PB5 Ready (高有效)
+ * @brief   系统 LED 驱动 (PA15 心跳 + PB3 PWM + PB4 Ready) —— 公开接口
+ * @note    PA15 心跳 (高有效) / PB3 PWM (高有效) / PB4 Ready (高有效)
  ******************************************************************************
  */
 
@@ -20,16 +20,11 @@ typedef enum {
 } LedState_t;
 
 void LED_Init(void);
-void LED_Task(void);   /* PC13 心跳 500ms 翻转 */
+void LED_Task(void);   /* PA15 心跳 500ms 翻转 */
 
 /* 状态更新 (由 UI_Task 每 200ms 调用) */
-void LED_Update_WiFi (LedState_t state);   /* PB3 */
-void LED_Update_PWM  (LedState_t state);   /* PB4 */
-void LED_Update_Ready(uint8_t   on_off);   /* PB5: 1=亮 0=灭 */
-
-/* 瞬时操作 */
-void LED_WiFi_ON(void);
-void LED_WiFi_OFF(void);
+void LED_Update_PWM  (LedState_t state);   /* PB3 */
+void LED_Update_Ready(uint8_t   on_off);   /* PB4: 1=亮 0=灭 */
 
 /* 闪烁驱动, UI_Task 内调用 */
 void LED_Status_Task(void);

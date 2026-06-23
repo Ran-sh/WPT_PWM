@@ -114,11 +114,11 @@ All `static uint32_t last` variables in task functions are per-function private 
 |:---|:---|:---|
 | SysTimer | `System/SysTimer.c` | Global ms counter, `Init/IncTick/GetTick/DelayMs` |
 | PWM | `Hardware/PWM.c` | TIM1 full-bridge, CH1+CH1N/CH2+CH2N, 1000ns dead-time (DEADTIME_NS macro), 50% locked duty, 95-150kHz PFM; non-blocking soft-start state machine (150k→100kHz, 200Hz/10ms step, ~2.5s); atomic `Inverter_SetState()` with irq guards; `Inverter_SoftStart_Trigger/Task/Stop/Fault/GetState/GetCurrentFreq` |
-| ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PA0, voltage PA1); `ADC_Filter_Task` 2ms independent filter task (32ms response vs old 3.2s); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
-| KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce; `KEY_Task()` with timestamp-diff scheduling; KEY0(PB12) / KEY1(PB13) |
+| ADC | `Hardware/ADC.c` | ADC1+DMA1 dual-channel scan (current PB0=CH8, voltage PB1=CH9); `ADC_Filter_Task` 2ms independent filter task (32ms response vs old 3.2s); `Get_Real_Voltage/Current` are O(1) returns of pre-computed values |
+| KEY | `Hardware/KEY.c` | 7-state FSM, single-click/double-click detection, 10ms debounce; `KEY_Task()` with timestamp-diff scheduling; KEY0(PB9) / KEY1(PB8) |
 | OLED | `Hardware/OLED.c` | SSD1306 128x64 0.96" over bit-banged I2C (PA11-SCL, PA12-SDA), 8x16 font; `OLED_Clear()` only on state transitions (rare); line overwrite avoids ~100ms I2C blocking; API: `ShowChar/ShowString/ShowNum/ShowFloatNum` |
 | UI | `Hardware/UI.c` | Dual-page UI: Page 0 = control panel (actionable), Page 1 = monitor only (read-only); KEY0 single-click triggers soft-start directly; KEY1 stops or adjusts freq +1kHz; soft-start real-time frequency + progress bar; state-change auto-clear; `UI_GetBridgeState()` for external query |
-| LED | `Hardware/LED.c` | PC13 heartbeat (500ms toggle via `LED_Task`), PB3 status (kept off), PB4 PWM status (fast blink=SS_SWEEP, slow blink=SS_DONE), PB5 Ready (on when Page0+IDLE/DONE, off on FAULT); power-on self-test: PB3/PB4/PB5 all on ~1s then off; JTAG disabled (SWD retained on PA13/PA14) to free PB3/PB4 as GPIO |
+| LED | `Hardware/LED.c` | PA15 heartbeat (500ms toggle via `LED_Task`), PB3 PWM status (fast blink=SS_SWEEP, slow blink=SS_DONE), PB4 Ready (on when Page0+IDLE/DONE, off on FAULT); power-on self-test: PB3/PB4/PA15 all on ~1s then off; JTAG disabled (SWD retained on PA13/PA14) to free PB3/PB4 as GPIO |
 
 ## Startup Flow
 
@@ -139,22 +139,26 @@ All `static uint32_t last` variables in task functions are per-function private 
 
 | Pin | Function | Connected To |
 |:---|:---|:---|
-| PA0 | ADC_CH0 | Current sensor (CC6920-10A) |
-| PA1 | ADC_CH1 | Voltage divider (20:1) |
-| PA7 | TIM1_CH1N | Half-bridge left low-side |
+| PA0 | — | (未使用, 已让给 ESP8266 RST) |
+| PA1 | — | (未使用, 已让给 ESP8266 RST) |
+| PA7 | — | (未使用, 默认映射无需 Partial Remap) |
 | PA8 | TIM1_CH1 | Half-bridge left high-side |
 | PA9 | TIM1_CH2 | Half-bridge right high-side |
 | PA11 | GPIO (OD) | OLED SCL |
 | PA12 | GPIO (OD) | OLED SDA |
 | PA13 | SWDIO | Debug (retained) |
 | PA14 | SWCLK | Debug (retained) |
-| PB0 | TIM1_CH2N | Half-bridge right low-side |
-| PB3 | GPIO (PP) | Status LED (ex-JTDO) |
-| PB4 | GPIO (PP) | PWM status LED (ex-JNTRST) |
-| PB5 | GPIO (PP) | Ready LED |
-| PB12 | GPIO (IPU) | KEY0 (单击: Trigger/Stop/故障复位, 双击: 切页) |
-| PB13 | GPIO (IPU) | KEY1 (单击: Stop SS_SWEEP时 / +1kHz调频 SS_DONE时 / 故障复位) |
-| PC13 | GPIO (PP) | Heartbeat LED (active-low) |
+| PA15 | GPIO (PP) | System heartbeat LED (active-high) |
+| PB0 | — | (未使用, 默认映射无需 Partial Remap) |
+| PB1 | — | (未使用, 已让给 ESP8266 RST) |
+| PB3 | GPIO (PP) | PWM status LED (ex-JTDO) |
+| PB4 | GPIO (PP) | Ready LED (ex-JNTRST) |
+| PB5 | — | (未使用, 保留 NC) |
+| PB8 | GPIO (IPU) | KEY1 (单击: Stop/调频+1kHz/故障复位) |
+| PB9 | GPIO (IPU) | KEY0 (单击: Trigger/Stop/故障复位, 双击: 切页) |
+| PB13 | TIM1_CH1N | Half-bridge left low-side |
+| PB14 | TIM1_CH2N | Half-bridge right low-side |
+| PC13 | — | (未使用) |
 
 ## PWM Safety Rules
 

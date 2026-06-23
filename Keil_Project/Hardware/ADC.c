@@ -2,11 +2,12 @@
  ******************************************************************************
  * @file    Hardware/ADC.c
  * @brief   模拟量采集驱动 (ADC1 + DMA1 双通道 + 独立滤波任务)
- * @note    ADC_Filter_Task 每 2ms 推入样本并更新平均值,
+ * @note    PB0=ADC_CH8 电流 (CC6920-10A), PB1=ADC_CH9 电压 (20:1 分压)
+ *          ADC_Filter_Task 每 2ms 推入样本并更新平均值,
  *          Get_Real_Voltage/Current 直接返回预计算结果, O(1) 零开销
  *
  *          DMA 后台循环刷新 ADC_ConvertedValue[2]
- *          [0]=电流(PA0), [1]=电压(PA1)
+ *          [0]=电流(PB0), [1]=电压(PB1)
  *
  *          滤波延迟: 16×2ms=32ms (vs 旧方案 16×200ms=3.2s)
  ******************************************************************************
@@ -41,12 +42,12 @@ void ADC_DMA_Init(void)
     DMA_InitTypeDef DMA_InitStructure;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_GPIOA, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_GPIOB, ENABLE);
     RCC_ADCCLKConfig(RCC_PCLK2_Div6);
 
     GPIO_InitStructure.GPIO_Pin  = GPIO_Pin_0 | GPIO_Pin_1;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
+    GPIO_Init(GPIOB, &GPIO_InitStructure);
 
     DMA_DeInit(DMA1_Channel1);
     DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(ADC1->DR);
@@ -71,8 +72,8 @@ void ADC_DMA_Init(void)
     ADC_InitStructure.ADC_NbrOfChannel       = 2;
     ADC_Init(ADC1, &ADC_InitStructure);
 
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_239Cycles5);
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 2, ADC_SampleTime_239Cycles5);
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_8, 1, ADC_SampleTime_239Cycles5);
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_9, 2, ADC_SampleTime_239Cycles5);
 
     ADC_DMACmd(ADC1, ENABLE);
     ADC_Cmd(ADC1, ENABLE);

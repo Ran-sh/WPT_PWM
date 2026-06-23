@@ -29,10 +29,7 @@ static void UI_ClearAllLines(void)
 /* ── LED 状态更新 (每 200ms) ── */
 static void UI_UpdateLEDs(SoftStart_State_t ss)
 {
-    /* PB3 Status: 本地版无WiFi, 保持关闭 */
-    LED_Update_WiFi(LED_OFF);
-
-    /* PB4 PWM */
+    /* PB3 PWM 状态 */
     if (ss == SS_SWEEP)
         LED_Update_PWM(LED_FAST);
     else if (ss == SS_DONE)
@@ -40,7 +37,7 @@ static void UI_UpdateLEDs(SoftStart_State_t ss)
     else
         LED_Update_PWM(LED_OFF);
 
-    /* PB5 Ready: SS_FAULT 时灭 */
+    /* PB4 Ready: SS_FAULT 时灭 */
     if (ss == SS_FAULT)
         LED_Update_Ready(0);
     else

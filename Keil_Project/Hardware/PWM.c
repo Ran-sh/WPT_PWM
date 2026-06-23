@@ -5,11 +5,11 @@
  * @note    存放路径: 项目根目录\Hardware\
  *
  * 硬件接口:
- * TIM1 高级定时器 (GPIO_PartialRemap_TIM1)
+ * TIM1 高级定时器 (默认映射 Default — 无 Remap)
  *   CH1  : PA8 → 上半桥左臂上管
- *   CH1N : PA7 → 下半桥左臂下管
+ *   CH1N : PB13 → 下半桥左臂下管
  *   CH2  : PA9 → 上半桥右臂上管
- *   CH2N : PB0 → 下半桥右臂下管
+ *   CH2N : PB14 → 下半桥右臂下管
  *
  * 驱动策略:
  *   CH1 = PWM1, CH2 = PWM2 → 对角线交替导通
@@ -96,27 +96,28 @@ static void Inverter_SetState(SoftStart_State_t new_state)
  *         计数器运行但 MOE 禁止 → 全桥无输出
  *         软启动由 Inverter_SoftStart_Trigger() 开启 MOE 并扫频
  *
+ *         默认映射 (无 Remap): PA8=CH1, PA9=CH2, PB13=CH1N, PB14=CH2N
+ *
  *   150kHz 周期: 72MHz / 150k = 480 ticks → ARR = 479, CCR = 240 (50%)
  */
 void PWM_Init(void)
 {
-    /* ================= 1. 时钟与重映射 ================= */
+    /* ================= 1. 时钟 ================= */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
 
-    GPIO_PinRemapConfig(GPIO_PartialRemap_TIM1, ENABLE);
-
-    /* ================= 2. GPIO (复用推挽, 50MHz) ================= */
+    /* ================= 2. GPIO 默认映射 (复用推挽, 50MHz) ================= */
     GPIO_InitTypeDef gpio;
     gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
 
-    gpio.GPIO_Pin = GPIO_Pin_7 | GPIO_Pin_8 | GPIO_Pin_9;
+    /* PA8=CH1, PA9=CH2 */
+    gpio.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9;
     GPIO_Init(GPIOA, &gpio);
 
-    gpio.GPIO_Pin = GPIO_Pin_0;
+    /* PB13=CH1N, PB14=CH2N */
+    gpio.GPIO_Pin = GPIO_Pin_13 | GPIO_Pin_14;
     GPIO_Init(GPIOB, &gpio);
 
     /* ================= 3. 时基单元 (默认 150kHz) ================= */
@@ -139,13 +140,13 @@ void PWM_Init(void)
     /*
      * OIS (Output Idle State) 防直通配置:
      *   MOE=0 时 CH1/CH2 强制输出 OCIdleState=Reset (低电平)
-     *   CH1N/CH2N 强制输出 OCNIdleState=Set (高电平)
+     *   CH1N/CH2N 强制输出 OCNIdleState=Reset (低电平)
      *   IR2103S: HIN 高有效 → CH1/CH2 低 = 上管关
-     *            LIN 低有效 → CH1N/CH2N 高 = 下管关
+     *            LIN 低有效 → CH1N/CH2N 低(→IR2103S LIN反相后高) = 下管关
      *   结论: MOE 关断时 4 个 MOSFET 全部可靠关断, 绝无桥臂直通
      */
     oc.TIM_OCIdleState  = TIM_OCIdleState_Reset;
-    oc.TIM_OCNIdleState = TIM_OCNIdleState_Set;
+    oc.TIM_OCNIdleState = TIM_OCNIdleState_Reset;
     oc.TIM_OCPolarity   = TIM_OCPolarity_High;
     oc.TIM_OCNPolarity  = TIM_OCNPolarity_Low;
     oc.TIM_OutputState  = TIM_OutputState_Enable;

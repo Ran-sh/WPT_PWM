@@ -4,8 +4,8 @@
  * @brief   物理按键驱动 —— 单击/双击识别
  * @note    存放路径: 项目根目录\Hardware\
  *          硬件接口:
- *            KEY0 → PB12 (内部上拉, 按下接 GND, 释放悬空 = 3.3V)
- *            KEY1 → PB13 (内部上拉, 按下接 GND, 释放悬空 = 3.3V)
+ *            KEY0 → PB9  (启停/故障复位, 内部上拉, 按下低电平)
+ *            KEY1 → PB8  (调频/停止/故障复位, 内部上拉, 按下低电平)
  *          调用周期: KEY_Scan_All() 由 KEY_Task() 通过 SysTimer 时间戳差值法每 10ms 调用
  *                    所有时序依赖此 10ms 节拍 (不可更改!)
  *
@@ -70,17 +70,17 @@ typedef struct {
 /*
  * 按键实例数组
  *
- * [0] → KEY0 (PB12): 软开关机 / 翻页 (双击)
- * [1] → KEY1 (PB13): 调频率 / 功能调节 (单击)
+ * [0] → KEY0 (PB9): 软开关机 / 翻页 (双击)
+ * [1] → KEY1 (PB8): 调频率 / 功能调节 (单击)
  */
 Button_t Key_List[KEY_COUNT] = {
-    {GPIOB, GPIO_Pin_12, KEY_STATE_IDLE, 0, 0},
-    {GPIOB, GPIO_Pin_13, KEY_STATE_IDLE, 0, 0}
+    {GPIOB, GPIO_Pin_9, KEY_STATE_IDLE, 0, 0},
+    {GPIOB, GPIO_Pin_8, KEY_STATE_IDLE, 0, 0}
 };
 
 /**
  * @brief  按键 GPIO 初始化
- * @note   PB12 / PB13 均配置为内部上拉输入 (IPU)
+ * @note   PB8 / PB9 均配置为内部上拉输入 (IPU)
  *         按下时引脚被拉至 GND (电平=0), 释放时内部上拉至 3.3V (电平=1)
  */
 void KEY_Init(void)
@@ -90,7 +90,7 @@ void KEY_Init(void)
     GPIO_InitTypeDef GPIO_Init_Structure;
     GPIO_Init_Structure.GPIO_Mode  = GPIO_Mode_IPU;           /* 内部上拉输入: 默认高电平 */
     GPIO_Init_Structure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init_Structure.GPIO_Pin   = GPIO_Pin_12 | GPIO_Pin_13;
+    GPIO_Init_Structure.GPIO_Pin   = GPIO_Pin_8 | GPIO_Pin_9;
     GPIO_Init(GPIOB, &GPIO_Init_Structure);
 }
 
@@ -170,7 +170,7 @@ void KEY_Scan_All(void)
 
 /**
  * @brief  读取按键事件 (阅后即焚)
- * @param  key_id: 按键编号 (0 = KEY0/PB12, 1 = KEY1/PB13)
+ * @param  key_id: 按键编号 (0 = KEY0/PB9, 1 = KEY1/PB8)
  * @retval 0 = 无事件, 1 = 单击, 2 = 双击
  * @note   读取后内部标志自动清零, 保证同一事件不会被重复消费。
  *         若 key_id 超出范围返回 0, 不做越界访问。
