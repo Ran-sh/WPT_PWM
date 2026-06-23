@@ -11,11 +11,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **版本** | V4.3.0 |
 | **语言** | 中文交流，代码注释中英混合 |
 
-> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.1)
+> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
 > **频率斜坡设计**: `Claude_Files/docs/2026-05-24-freq-ramp-design.md`
 > **W25Q128 Flash 集成设计**: `Claude_Files/docs/2026-06-22-w25q128-flash-integration-design.md`
-> **OTA 操作指南 (小白版)**: `Claude_Files/docs/OTA字库推送-小白操作指南.md`
 
 ## 版本号规则 (全项目铁律)
 
@@ -200,8 +199,8 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~10957 行逻辑代码 (全�
 │   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (113+33行)
 │   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (68+30行)
 │   ├── User/                                   ← 应用层 — 1347 行
-│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测+OTA路由 (420+55行)
-│   │   ├── App_Storage.c/h                     ← [V4.3.1] 字库索引+参数双副本+黑匣子+OTA推送 (400+120行)
+│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (338+51行)
+│   │   ├── App_Storage.c/h                     ← [V4.3.0] 字库索引+参数双副本+黑匣子日志 (309+101行)
 │   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全(仅RUNNING) (205+44行)
 │   │   ├── main.c                              ← 程序入口 (50行)
 │   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
@@ -226,7 +225,7 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~10957 行逻辑代码 (全�
 └── Claude_Files/                               ← AI 生成文档+工具
     ├── docs/                                   ← 开发者指南 + 技能文件 + specs
     ├── diagrams/                               ← Visio 流程图
-    ├── tools/                                  ← generate_docx.js + ota_font_push.py 字库推送
+    └── tools/                                  ← generate_docx.js + 桥接脚本
     └── docs/                                    ← 设计 specs + 实施 plans
 ```
 

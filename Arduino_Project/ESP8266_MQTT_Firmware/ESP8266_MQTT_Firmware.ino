@@ -504,7 +504,7 @@ void loop()
                 if (s_conn_state != MQTT_CONN_STATE_WIFI_CONN) {
                     s_conn_state     = MQTT_CONN_STATE_WIFI_CONN;
                     s_conn_retry_cnt = 0;
-                    if (!s_ota_active) Serial.print("STATUS:DISCONNECTED\n");
+                    Serial.print("STATUS:DISCONNECTED\n");
                 }
                 /* 每 3s 重试 WiFi.begin(), 利用保存的凭证重连 */
                 if (now - last_wifi_retry >= WIFI_RETRY_INTERVAL_MS) {
