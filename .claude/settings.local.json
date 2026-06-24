@@ -187,7 +187,9 @@
       "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -m pip install Pillow --quiet)",
       "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -c \"import PIL; print\\('Pillow', PIL.__version__\\)\")",
       "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -m py_compile \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/ch341/generate_font.py\")",
-      "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" generate_font.py)"
+      "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" generate_font.py)",
+      "Bash(ls \"ch341/.vscode/\")",
+      "Bash(rm -rf \"ch341/.vscode/\")"
     ]
   }
 }
