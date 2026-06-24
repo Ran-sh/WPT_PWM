@@ -591,3 +591,39 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
         x += 7; s++;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+ *  Icon By ID — 按编号绘制 16x16 图标 (ROM lookup)
+ * ═══════════════════════════════════════════════════════════════ */
+
+void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
+                                 uint16_t fg, uint16_t bg)
+{
+    uint8_t row; uint16_t* p;
+    SetWin(x, y, x + 15, y + 15);
+    p = s_dma_buf;
+    switch (icon_id) {
+        case 11: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_BATTERY[row*2],    ICON_BATTERY[row*2+1],    fg, bg, p + row*16); break;
+        case 12: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_WARNING[row*2],    ICON_WARNING[row*2+1],    fg, bg, p + row*16); break;
+        case 13: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CHECK[row*2],      ICON_CHECK[row*2+1],      fg, bg, p + row*16); break;
+        case 14: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CROSS[row*2],      ICON_CROSS[row*2+1],      fg, bg, p + row*16); break;
+        case 15: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_POWER[row*2],      ICON_POWER[row*2+1],      fg, bg, p + row*16); break;
+        case 16: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_LIGHTNING[row*2],  ICON_LIGHTNING[row*2+1],  fg, bg, p + row*16); break;
+        case 17: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_TEMP[row*2],       ICON_TEMP[row*2+1],       fg, bg, p + row*16); break;
+        case 18: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_FAN[row*2],        ICON_FAN[row*2+1],        fg, bg, p + row*16); break;
+        case 19: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_LOCK[row*2],       ICON_LOCK[row*2+1],       fg, bg, p + row*16); break;
+        case 20: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_HOME[row*2],       ICON_HOME[row*2+1],       fg, bg, p + row*16); break;
+        case 21: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_GEAR[row*2],       ICON_GEAR[row*2+1],       fg, bg, p + row*16); break;
+        case 22: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_REFRESH[row*2],    ICON_REFRESH[row*2+1],    fg, bg, p + row*16); break;
+        case 23: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_UP[row*2],   ICON_ARROW_UP[row*2+1],   fg, bg, p + row*16); break;
+        case 24: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_DN[row*2],   ICON_ARROW_DN[row*2+1],   fg, bg, p + row*16); break;
+        case 25: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_LT[row*2],   ICON_ARROW_LT[row*2+1],   fg, bg, p + row*16); break;
+        case 26: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_RT[row*2],   ICON_ARROW_RT[row*2+1],   fg, bg, p + row*16); break;
+        case 27: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_SIGNAL[row*2],     ICON_SIGNAL[row*2+1],     fg, bg, p + row*16); break;
+        case 28: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_GLOBE[row*2],      ICON_GLOBE[row*2+1],      fg, bg, p + row*16); break;
+        case 29: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CHART[row*2],      ICON_CHART[row*2+1],      fg, bg, p + row*16); break;
+        case 30: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CLOCK[row*2],      ICON_CLOCK[row*2+1],      fg, bg, p + row*16); break;
+        default: { uint8_t i; for (i = 0; i < 256; i++) p[i] = bg; } break;
+    }
+    Tft_DMA_Send(s_dma_buf, 256);
+}

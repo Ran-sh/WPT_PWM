@@ -74,4 +74,12 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
                                        const char* s,
                                        uint16_t fg, uint16_t bg);
 
+/** @brief 按 icon_id 绘制 16x16 图标 (现有 ROM 数组, Flash Table 模式待扩展)
+ *  @param icon_id  11=BATTERY 12=WARNING 13=CHECK 14=CROSS 15=POWER 16=LIGHTNING
+ *                   17=TEMP 18=FAN 19=LOCK 20=HOME 21=GEAR 22=REFRESH
+ *                   23=ARROW_UP 24=ARROW_DN 25=ARROW_LT 26=ARROW_RT
+ *                   27=SIGNAL 28=GLOBE 29=CHART 30=CLOCK */
+void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
+                                 uint16_t fg, uint16_t bg);
+
 #endif /* TFT_DRIVER_H */
