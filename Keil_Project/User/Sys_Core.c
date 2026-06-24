@@ -70,9 +70,17 @@ void Sys_Hardware_Init(void)
 void Sys_Startup_Screen(void)
 {
     Tft_Driver_Clear(TFT_COLOR_BLACK);
-    Tft_Driver_Show_CN_String(3, 3, "WPT-PWM", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
-    Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...",
-                              TFT_COLOR_WHITE, TFT_COLOR_BLACK);
+    Tft_Driver_Show_Splash();  /* 有 SPLASH 则播动画, 无则静默跳过 */
+    /* 回退: SPLASH 无效时的纯文本启动画面 */
+    {
+        uint8_t hdr[4];
+        W25Q_Driver_Read(W25Q_ADDR_SPLASH, hdr, 4);
+        if (hdr[0] != 0x50 || hdr[1] != 0x53) {
+            Tft_Driver_Show_CN_String(3, 3, "WPT-PWM", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
+            Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...",
+                                      TFT_COLOR_WHITE, TFT_COLOR_BLACK);
+        }
+    }
     Tft_Driver_Set_Backlight(255);
 }
 

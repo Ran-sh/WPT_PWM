@@ -19,6 +19,7 @@
 /* ── 分区基址 ── */
 #define W25Q_ADDR_FONT        0x000000U  /* 全字库 2MB */
 #define W25Q_ADDR_SPLASH      0x200000U  /* 开机画面 1MB */
+#define SPLASH_MAGIC          0x5350U   /* "SP" 魔数 LE */
 #define W25Q_ADDR_CFG_A       0x300000U  /* 参数配置 A 4KB */
 #define W25Q_ADDR_CFG_B       0x301000U  /* 参数配置 B 4KB */
 #define W25Q_ADDR_BLACKBOX    0x310000U  /* 黑匣子 4MB */

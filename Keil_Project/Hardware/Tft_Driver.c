@@ -12,6 +12,7 @@
 #include "Tft_Driver.h"
 #include "TFT_Font_Data.h"
 #include "W25Q_Driver.h"
+#include "Sys_Timer.h"
 
 extern uint32_t CRC32_Compute(const uint8_t *data, uint32_t len);
 
@@ -626,4 +627,31 @@ void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
         default: { uint8_t i; for (i = 0; i < 256; i++) p[i] = bg; } break;
     }
     Tft_DMA_Send(s_dma_buf, 256);
+}
+
+/* ===============================================================
+ *  SPLASH 开机动画 — W25Q128 SPLASH 分区 5帧 fade-in
+ * ============================================================= */
+
+void Tft_Driver_Show_Splash(void)
+{
+    uint8_t hdr[4]; uint8_t frame; uint16_t row; uint32_t frame_base;
+    W25Q_Driver_Read(W25Q_ADDR_SPLASH, hdr, 4);
+    if (hdr[0] != 0x50 || hdr[1] != 0x53) return;  /* "SP" 魔数不匹配 */
+    {
+        uint16_t buf[256];
+        for (frame = 0; frame < 5; frame++) {
+            frame_base = W25Q_ADDR_SPLASH + 32 + (uint32_t)frame * 40960;
+            SetWin(0, 0, 159, 127);
+            Tft_SPI_16bit();
+            for (row = 0; row < 80; row++) {
+                W25Q_Driver_Read(frame_base + (uint32_t)row * 512,
+                                 (uint8_t*)buf, 512);
+                Tft_DMA_Transfer(buf, 256, 1);
+            }
+            while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET);
+            Tft_SPI_8bit();
+            Sys_Timer_Delay_Ms(50);
+        }
+    }
 }

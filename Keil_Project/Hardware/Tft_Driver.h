@@ -82,4 +82,8 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
 void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
                                  uint16_t fg, uint16_t bg);
 
+/** @brief 显示 SPLASH 开机动画 (从 W25Q128 SPLASH 分区读取 5帧 fade-in, DMA 泵送)
+ *  @note  若 SPLASH 分区无效 (魔数不匹配) 则静默跳过, 约 250ms */
+void Tft_Driver_Show_Splash(void);
+
 #endif /* TFT_DRIVER_H */
