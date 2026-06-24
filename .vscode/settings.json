@@ -1,5 +1,5 @@
 {
-    "python.defaultInterpreterPath": "E:/Anaconda3/envs/skill-opt310/python.exe",
+    "python.defaultInterpreterPath": "C:/Users/48376/.conda/envs/skill-opt310/python.exe",
     "python.terminal.activateEnvironment": false,
     "[python]": {
         "editor.formatOnSave": false,
@@ -13,6 +13,6 @@
         ".superpowers": true
     },
     "terminal.integrated.env.windows": {
-        "PATH": "E:\\Anaconda3\\envs\\skill-opt310;${env:PATH}"
+        "PATH": "C:\\Users\\48376\\.conda\\envs\\skill-opt310;${env:PATH}"
     }
 }

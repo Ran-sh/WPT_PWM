@@ -169,7 +169,23 @@
       "Bash(rm -f \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/\"*.axf \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/\"*.hex \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/Keil_Project/\"*.bin)",
       "Bash(xargs rm -f)",
       "Bash(e:/Anaconda3/python.exe *)",
-      "Bash(del *)"
+      "Bash(del *)",
+      "Bash(rm -rf 'C:\\\\Users\\\\48376/.condarc' 'C:\\\\Users\\\\48376/.conda' D:/miniconda3)",
+      "Read(//e//**)",
+      "Read(//c/Users/48376/**)",
+      "Read(//c/Users/48376/.conda/**)",
+      "Read(//d/miniconda3/**)",
+      "Bash(\"D:/miniconda3/Scripts/conda.exe\" --version)",
+      "Bash(\"D:/miniconda3/python.exe\" --version)",
+      "Bash(D:/miniconda3/Scripts/conda.exe init *)",
+      "Bash(D:/miniconda3/Scripts/conda.exe create *)",
+      "Bash(\"D:/miniconda3/Scripts/conda.exe\" tos *)",
+      "Bash(\"D:/miniconda3/envs/skill-opt310/python.exe\" --version)",
+      "Bash(\"D:/miniconda3/envs/skill-opt310/python.exe\" -m pip install Pillow --quiet)",
+      "Bash(\"D:/miniconda3/envs/skill-opt310/python.exe\" -c \"import PIL; print\\('Pillow', PIL.__version__\\)\")",
+      "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" --version)",
+      "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -m pip install Pillow --quiet)",
+      "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -c \"import PIL; print\\('Pillow', PIL.__version__\\)\")"
     ]
   }
 }

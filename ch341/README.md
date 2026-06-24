@@ -158,8 +158,8 @@ ch341\flashrom-1.4\zadig-2.8.exe
 
 | 工具 | 状态 | 路径/版本 |
 |:---|:---|:---|
-| Python 3.10+ | ✅ 已安装 | `E:\Anaconda3\envs\skill-opt310\python.exe` (3.10.20) |
-| pip | ✅ 已安装 | v26.0.1 |
+| Python 3.10+ | ✅ 已安装 | `C:\Users\48376\.conda\envs\skill-opt310\python.exe` (3.10.20) |
+| pip | ✅ 已安装 | v26.1.1 |
 | Pillow | ✅ 已安装 | v12.2.0 (字模渲染库) |
 | VS Code | ✅ 已安装 | v1.125.1 |
 
