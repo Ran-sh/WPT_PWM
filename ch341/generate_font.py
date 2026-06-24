@@ -336,14 +336,14 @@ def main():
     with open(FONT_DATA_BIN, 'wb') as f: f.write(img)
     print(f"[OK] 生成 {FONT_DATA_BIN} ({len(img)} 字节 = 2MB)")
     print(f"     Header:    0x000000 ({len(hdr)}B)")
-    print(f"     ASCII:     0x{OFF_ASCII:06X} ({len(ascii_data)}B)")
-    print(f"     Icons:     0x{align_to(OFF_ASCII + len(ascii_data), ALIGN):06X}")
-    print(f"     CJK Index: 0x{align_to(OFF_ASCII + len(ascii_data) + 1832 + 1728 + 255, ALIGN):06X} "
+    print(f"     ASCII:     0x{0x20:06X} ({len(ascii_data)}B)")
+    print(f"     Icons:     0x{align_to(0x20 + len(ascii_data), ALIGN):06X}")
+    print(f"     CJK Index: 0x{align_to(0x20 + len(ascii_data) + 1832 + 1728 + 255, ALIGN):06X} "
           f"({len(cjk_index)}B, {CJK_COUNT} 条)")
-    print(f"     CJK Data:  0x{align_to(OFF_ASCII + len(ascii_data) + 1832 + 1728 + 255 + len(cjk_index) + 255, ALIGN):06X} "
+    print(f"     CJK Data:  0x{align_to(0x20 + len(ascii_data) + 1832 + 1728 + 255 + len(cjk_index) + 255, ALIGN):06X} "
           f"({len(cjk_glyph)}B)")
     print(f"     CRC32:     0x{struct.unpack_from('<I', hdr, 0x08)[0]:08X}")
-    sector_cnt = (total_size + 4095) // 4096
+    sector_cnt = (FLASH_SIZE + 4095) // 4096  # 2MB padding total, not just data
     print(f"     擦除扇区:  {sector_cnt} 个 (0x000000~0x{sector_cnt * 4096:06X})")
 
 
