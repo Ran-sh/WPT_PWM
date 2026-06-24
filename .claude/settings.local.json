@@ -189,7 +189,12 @@
       "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -m py_compile \"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/ch341/generate_font.py\")",
       "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" generate_font.py)",
       "Bash(ls \"ch341/.vscode/\")",
-      "Bash(rm -rf \"ch341/.vscode/\")"
+      "Bash(rm -rf \"ch341/.vscode/\")",
+      "Bash(D:/miniconda3/Scripts/conda.exe --version)",
+      "Bash(echo \"Conda: $\\(D:/miniconda3/Scripts/conda.exe --version 2>&1\\)\")",
+      "Bash(echo \"Python: $\\(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" --version 2>&1\\)\")",
+      "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -c \"import PIL; print\\(PIL.__version__\\)\")",
+      "Bash(echo \"Pillow: $\\(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -c \"import PIL; print\\(PIL.__version__\\)\" 2>&1\\)\")"
     ]
   }
 }
