@@ -247,18 +247,25 @@ C:\Users\48376\.conda\envs\skill-opt310\python.exe -m pip install Pillow
 
 **第 4 步: 运行脚本**
 
-方式 A — 调试面板 (推荐):
+> 当前工具链状态（已就绪）:
+> - Python 3.10.20 + Pillow 12.2.0 ✅
+> - flashrom 1.4.0 (`ch341/flashrom-1.4/flashrom.exe`) ✅
+> - `font_data.bin` 可预生成（非必需） ✅
+> - `generate_font.py` + `burn_flash.py` ✅
+> - 待完成: CH341A 接线 + WinUSB 驱动
+
+方式 A — F5 一键运行 (推荐):
 ```
 1. 左侧点击 "运行和调试" 图标 (Ctrl+Shift+D)
-2. 顶部下拉选择脚本名称
+2. 顶部下拉选择 "burn_flash.py — 烧录字库"
 3. 按 F5 启动
 ```
 
-方式 B — 终端直接运行:
+方式 B — 终端运行:
 ```
 cd ch341
-python generate_font.py    # 仅测试字库生成
-python burn_flash.py       # 完整烧录 (需 CH341A 已接线)
+python generate_font.py    # [可选] 仅测试字库生成
+python burn_flash.py       # 完整烧录 (需 CH341A 已接线 + WinUSB 驱动)
 ```
 
 ### 6.4 故障排除
@@ -280,27 +287,28 @@ python burn_flash.py       # 完整烧录 (需 CH341A 已接线)
 - [ ] CH341A 跳线帽在 **3.3V** 位置
 - [ ] 6 根杜邦线按接线表正确连接
 - [ ] STM32 目标板 **完全断电** (USB 线已拔)
-- [ ] Zadig WinUSB 驱动已安装 (设备管理器确认)
-- [ ] `flashrom --version` 正常输出
-- [ ] `python --version` ≥ 3.10
+- [ ] Zadig WinUSB 驱动已安装 (设备管理器 → Universal Serial Bus devices → CH341A)
+- [ ] VS Code 终端内 `python --version` ≥ 3.10
+- [ ] `ch341\flashrom-1.4\flashrom.exe --version` 正常输出
 
 ### 7.2 步骤一 (可选): 仅测试字库生成
 
-此命令验证 Python 环境和字体渲染是否正常, 生成 `font_data.bin` 但不烧录:
-
 ```bash
-python ch341/generate_font.py
+cd ch341
+python generate_font.py
 ```
 
 输出应包含:
-- `[OK] CRC32 自测通过`
-- `[OK] 加载字体: C:\Windows\Fonts\simsun.ttc`
+- `[OK] CRC32 自测通过: CRC32('1234') = 0x9BE3E0A3`
+- `[OK] 加载字体: C:\WINDOWS\Fonts\simsun.ttc`
 - `[OK] 生成 font_data.bin (2097152 字节 = 2MB)`
+- `擦除扇区: 512 个 (0x000000~0x200000)`
 
 ### 7.3 步骤二: 完整烧录
 
 ```bash
-python ch341/burn_flash.py
+cd ch341
+python burn_flash.py
 ```
 
 脚本自动执行以下 5 步:
@@ -358,10 +366,10 @@ python ch341/burn_flash.py
 
 ### 8.1 从备份恢复
 
-`burn_flash.py` 在 Step 3 会自动备份全片 16MB 到 `ch341/backup_16MB.bin`。如果烧录后出现异常, 可用以下命令恢复:
+如果烧录后出现异常，用项目自带的 flashrom 恢复:
 
 ```bash
-flashrom -p ch341a_spi -w ch341/backup_16MB.bin
+ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_16MB.bin
 ```
 
 此命令将芯片完整恢复到烧录前的状态。
