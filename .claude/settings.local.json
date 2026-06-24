@@ -194,7 +194,8 @@
       "Bash(echo \"Conda: $\\(D:/miniconda3/Scripts/conda.exe --version 2>&1\\)\")",
       "Bash(echo \"Python: $\\(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" --version 2>&1\\)\")",
       "Bash(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -c \"import PIL; print\\(PIL.__version__\\)\")",
-      "Bash(echo \"Pillow: $\\(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -c \"import PIL; print\\(PIL.__version__\\)\" 2>&1\\)\")"
+      "Bash(echo \"Pillow: $\\(\"C:/Users/48376/.conda/envs/skill-opt310/python.exe\" -c \"import PIL; print\\(PIL.__version__\\)\" 2>&1\\)\")",
+      "Bash(C:/Users/48376/.conda/envs/skill-opt310/python.exe *)"
     ]
   }
 }
