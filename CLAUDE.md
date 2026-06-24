@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.3.1 |
+| **版本** | V4.3.2 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
@@ -24,7 +24,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.3.1
+当前版本: V4.3.2
 
 涉及版本号的位置 (全项目必须统一):
   文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.3.1
@@ -463,6 +463,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V4.3.2 | 字库扩展: 开机动画(SPLASH 5帧 fade-in) + 20新图标(电池/警告/箭头/齿轮等) + Tft_Driver_Draw_Icon_By_Id |
 | V4.3.1 | CH341+Python Flash 字库烧录: generate_font.py(GB2312 6763字+图标 2MB镜像) + burn_flash.py(flashrom 备份+擦除+烧写+逐字节校验) + W25Q_Font_Index_Binary_Search(总线独占二分检索 5.85μs/字) + Tft_Driver Flash/ROM 双路径(单字单检索 16×提速) + Font_Header CRC32 小端序铁律 |
 | V4.3.0 | W25Q128 16MB SPI Flash 集成: SPI1 分时复用(PA6动态切DC/MISO) + GB2312全字库(668KB)+开机画面区(1MB)+参数双副本CRC32(8KB)+黑匣子循环日志(4MB)+故障锁存前后5s + 四大硬件防线(L1写使能/L2 Busy死等/L3 DFF原子闪切/L4 发波禁擦) + ADC校准Flash固化+本地自测算B方案 + config.js getDataModel() undefined修复 + control.html clearInterval修复 + 遥测S字段对齐g_sys_state |
 | V4.2.4 | 离线守卫全平台修复: Web+小程序 _isOnline 判定统一 + 缓存时序修正(延后到在线确认) + 在线兜底(data非空)+/device/detail覆写 + Web throw误触发修复 + 重复代码块清理 + 生命周期onHide/pagehide清理 |

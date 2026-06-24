@@ -345,6 +345,20 @@ python burn_flash.py
 3. 给 STM32 目标板上电
 4. 观察 TFT 屏幕: 正常显示全字库中文, 不再出现缺字方块
 
+### 7.6 烧录开机动画 (可选)
+
+开机动画存储在 W25Q128 SPLASH 分区 (0x200000, 1MB)，与字库分区独立，互不影响。
+
+```bash
+cd ch341
+python generate_splash.py   # 渲染 → splash.bin (200KB, 5帧 fade-in)
+python burn_splash.py       # 烧录 → W25Q128 SPLASH 分区 0x200000
+```
+
+**前置条件**: 必须先完成字库烧录 (7.3)，因为 SPLASH 烧录使用相同的 CH341A 接线和 flashrom 环境。
+
+**烧录后**: STM32 重新上电 → 屏幕显示 WPT-PWM 开机动画 (5帧渐亮, ~250ms)，动画结束后自动进入主菜单。如果 SPLASH 分区未烧录，回退到纯文本 "WPT-PWM 启动中..." 启动画面。
+
 ---
 
 ## 8. 故障排除
