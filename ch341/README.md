@@ -369,7 +369,7 @@ python burn_flash.py
 如果烧录后出现异常，用项目自带的 flashrom 恢复:
 
 ```bash
-ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_16MB.bin
+ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_16MB.bin -c W25Q128.V
 ```
 
 此命令将芯片完整恢复到烧录前的状态。
