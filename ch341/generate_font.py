@@ -187,7 +187,8 @@ def render_ascii(font) -> bytes:
 
 
 def render_cjk(font, code_points: list) -> tuple:
-    """PIL 渲染 GB2312 CJK → 16×16 LSB-first, 返回 (index_bytes, glyph_bytes)"""
+    """PIL 渲染 GB2312 CJK → 16×16 LSB-first, 返回 (index_bytes, glyph_bytes)
+       Index 条目: [Unicode LE 2B][Data_Offset LE 4B] = 6B/条, offset 用 uint32 防溢出"""
     index_buf = bytearray(); glyph_buf = bytearray()
     for cp in sorted(code_points):  # 升序排列 → 单片机二分查找正确性
         img = Image.new('1', (16, 16), 0); draw = ImageDraw.Draw(img)
@@ -196,11 +197,11 @@ def render_cjk(font, code_points: list) -> tuple:
         for row in range(16):
             lo = hi = 0
             for col in range(8):
-                if img.getpixel((col, row)):      lo |= (1 << col)  # 左半行 LSB-first
-                if img.getpixel((col + 8, row)):  hi |= (1 << col)  # 右半行 LSB-first
+                if img.getpixel((col, row)):      lo |= (1 << col)
+                if img.getpixel((col + 8, row)):  hi |= (1 << col)
             glyph[row * 2]     = bit_reverse_byte(lo)
             glyph[row * 2 + 1] = bit_reverse_byte(hi)
-        index_buf.extend(struct.pack('<HH', cp, len(glyph_buf)))  # [U16 LE][Offset LE], 严格小端序
+        index_buf.extend(struct.pack('<HI', cp, len(glyph_buf)))  # [U16 LE][U32 LE] 6B/条
         glyph_buf.extend(glyph)
     return bytes(index_buf), bytes(glyph_buf)
 
