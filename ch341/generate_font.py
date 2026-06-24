@@ -309,7 +309,7 @@ def main():
     print(f"[..] 渲染 GB2312 一级汉字 {CJK_COUNT} 字...")
     cjk_codes = list(range(CJK_START, CJK_END + 1))
     cjk_index, cjk_glyph = render_cjk(font, cjk_codes)
-    assert len(cjk_index) == CJK_COUNT * 4, f"CJK Index 大小异常: {len(cjk_index)}"
+    assert len(cjk_index) == CJK_COUNT * 6, f"CJK Index 大小异常: {len(cjk_index)}"  # 6B/条 <HI
     assert len(cjk_glyph) == CJK_COUNT * 32, f"CJK Data 大小异常: {len(cjk_glyph)}"
 
     # 自测: "一"(U+4E00) 渲染结果与现有 CN_FONT_16X16[0] 比对 (可选, 仅告警)

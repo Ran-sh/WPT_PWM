@@ -183,26 +183,25 @@ ch341\flashrom-1.4\zadig-2.8.exe
 
 ```json
 {
-    // Python 解释器 — 指定 conda env skill-opt310
-    "python.defaultInterpreterPath": "E:/Anaconda3/envs/skill-opt310/python.exe",
-
-    // 终端集成 — 自动激活 conda 环境
-    "python.terminal.activateEnvironment": true,
-
-    // 代码格式化
+    "python.defaultInterpreterPath": "C:/Users/48376/.conda/envs/skill-opt310/python.exe",
+    "python.terminal.activateEnvironment": false,
     "[python]": {
         "editor.tabSize": 4,
         "editor.insertSpaces": true
     },
-
-    // 文件资源管理器 — 隐藏编译产物
     "files.exclude": {
         "Keil_Project/Objects": true,
         "Keil_Project/Listings": true,
-        "__pycache__": true
+        "__pycache__": true,
+        ".superpowers": true
+    },
+    "terminal.integrated.env.windows": {
+        "PATH": "C:\\Users\\48376\\.conda\\envs\\skill-opt310;${env:PATH}"
     }
 }
 ```
+
+> 说明: 通过 `terminal.integrated.env.windows.PATH` 向 VS Code 终端注入 Python 路径。打开新终端后 `python` 自动指向 skill-opt310，无需 conda activate。
 
 **launch.json** 内容说明:
 
@@ -227,7 +226,7 @@ ch341\flashrom-1.4\zadig-2.8.exe
 
 ```
 1. 按 Ctrl+Shift+P → 输入 "Python: Select Interpreter"
-2. 选择 "Python 3.10.20 ('skill-opt310') — E:\Anaconda3\envs\skill-opt310\python.exe"
+2. 选择 "Python 3.10.20 ('skill-opt310') — C:\Users\48376\.conda\envs\skill-opt310\python.exe"
    (.vscode/settings.json 已通过 "python.defaultInterpreterPath" 预指定, 通常自动选中)
 ```
 
@@ -243,7 +242,7 @@ ch341\flashrom-1.4\zadig-2.8.exe
 
 如果步骤 3 报错 `No module named 'PIL'`:
 ```bash
-E:\Anaconda3\envs\skill-opt310\python.exe -m pip install Pillow
+C:\Users\48376\.conda\envs\skill-opt310\python.exe -m pip install Pillow
 ```
 
 **第 4 步: 运行脚本**
@@ -266,9 +265,9 @@ python burn_flash.py       # 完整烧录 (需 CH341A 已接线)
 
 | 症状 | 解决 |
 |:---|:---|
-| 终端 `python --version` 不是 3.10 | 关闭终端 → Ctrl+` 重新打开 (settings.json 已配置 PATH 注入, 新终端会自动生效) |
-| `No module named 'PIL'` | `E:\Anaconda3\envs\skill-opt310\python.exe -m pip install Pillow` |
-| `import` 下有红色波浪线 | Ctrl+Shift+P → Python: Select Interpreter → 选 `skill-opt310` |
+| 终端 `python --version` 不是 3.10 | 关闭终端 → Ctrl+` 重新打开 (settings.json 通过 PATH 注入自动生效, 无需 conda activate) |
+| `No module named 'PIL'` | `C:\Users\48376\.conda\envs\skill-opt310\python.exe -m pip install Pillow` |
+| `import` 下有红色波浪线 | Ctrl+Shift+P → Python: Select Interpreter → 选 `skill-opt310` (路径: `C:\Users\48376\.conda\envs\skill-opt310\python.exe`) |
 | 终端报 `conda activate` 失败 | **不需要 conda activate** — 配置已通过 PATH 注入绕过 conda 初始化 |
 | 文件保存后中文乱码 | 文件 → 首选项 → 设置 → 搜索 "files.encoding" → 设为 `utf8` |
 
