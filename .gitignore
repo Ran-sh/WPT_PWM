@@ -62,7 +62,7 @@ Thumbs.db
 /ch341/flashrom-1.4/*.py
 /ch341/flashrom-1.4/*.txt
 /ch341/flashrom-1.4/*.md
-/ch341/font_data.bin
+font_data.bin
 /ch341/backup_16MB.bin
 /ch341/verify_readback.bin
 /ch341/merged_flash.bin
