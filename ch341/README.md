@@ -1,6 +1,6 @@
 # CH341A 字库烧录操作指南
 
-> 适用项目: WPT_PWM V4.3.2 | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 日期: 2026-06-24
+> 适用项目: WPT_PWM V4.3.2 | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 日期: 2026-06-29
 
 本指南用于将 GB2312 全字库 (20897 汉字 + 95 ASCII + 图标动画) 通过 CH341A USB-SPI 编程器烧录到板载 W25Q128 Flash 芯片。
 
@@ -394,9 +394,11 @@ ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_16MB.bin -c W25Q12
 
 | 文件 | 用途 |
 |:---|:---|
-| `ch341/generate_font.py` | 字库生成: PIL 渲染 GB2312 全字库 20897 字 + ASCII 95 字 + 图标 54 帧 → `font_data.bin` (2MB) |
-| `ch341/burn_flash.py` | 烧录编排: CRC32 自测 → 调用字库生成 → 备份全片 → 写入 → 逐字节校验 |
-| `ch341/font_data.bin` | 生成产物: 2MB 字库镜像 (格式对齐 W25Q128 Flash 布局) |
+| `ch341/generate_font.py` | 字库生成器: PIL 渲染 GB2312 全字库 20897 字 + ASCII 95 字 + 图标 54 帧 → `font_data.bin` (2MB) |
+| `ch341/burn_flash.py` | 烧录编排: CRC32 自测 (STM32 refin=false) → 调用字库生成 → 备份全片 → 写入全片 → 逐字节校验 |
+| `ch341/font_data.bin` | 生成产物: 2MB 字库镜像 (格式对齐 W25Q128 Flash 布局, LSB-first 无位序反转) |
+
+> **V4.3.2 变更**: 删除 `generate_splash.py`/`burn_splash.py` — SPLASH 改为 STM32 纯代码实现, 开机动画存 ROM 不占 W25Q。
 | `ch341/backup_16MB.bin` | 安全备份: 烧录前全片 16MB 读取, **请勿删除**, 是恢复的最后防线 |
 | `ch341/requirements.txt` | Python 依赖: Pillow ≥ 10.0.0 |
 

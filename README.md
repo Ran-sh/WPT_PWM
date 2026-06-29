@@ -5,11 +5,11 @@
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![Display](https://img.shields.io/badge/Display-ST7735%20160×128%20TFT-red)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-purple)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V4.2.1-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V4.3.2-brightgreen)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V4.2.1** (2026-06-17) — STM32F103C8T6 + ESP8266-01 的 LCC-S 谐振全桥无线供电系统。**Dual-MCU 双脑架构** + **系统全局状态机** + **圆弧能量条仪表盘** + OneNET MQTT 多端控制。应用场景：植入式医疗设备无线充电。
+> **V4.3.2** (2026-06-29) — W25Q128 全字库 20897 字 (CH341A 烧录, CRC32 STM32 校验) + SPLASH 纯代码开机动画 + 初始化铁序修正。Dual-MCU 双脑架构 + 全局状态机 + 圆弧能量条仪表盘 + OneNET MQTT 多端控制。
 
 ---
 
@@ -30,6 +30,8 @@
 
 | 版本 | 日期 | 主要变更 |
 |:---|:---|:---|
+| V4.3.2 | 2026-06-29 | W25Q128 全字库修复: 初始化铁序 + CRC32 修正 + SPLASH 纯代码 + CS 翻转 |
+| V4.3.0 | 2026-06-22 | W25Q128 16MB SPI Flash: 全字库 + 黑匣子 + 双副本参数 + 四大防线 |
 | V4.2.1 | 2026-06-17 | 全项目 README 重写 + 4分支统一分支表 |
 | V4.2.0 | 2026-06-17 | 全平台版本号统一 + TFT字库修复 + 底部栏简化 + 16轮全链路审查 |
 | V4.1.0 | 2026-06-11 | TFT 彩屏 9 页面 + 圆弧能量条仪表盘 + Sys_Safety 独立安全 + EMA双级滤波 |

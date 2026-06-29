@@ -238,7 +238,7 @@ WPT_PWM_V4.0_ONENET_TFT/
 
 | 版本 | 关键修复 |
 |:---|:---|
-| V4.3.0 | SPI1 分时复用(TFT+W25Q128, PA6动态切DC/MISO, 双CS门控) + W25Q128 16MB 四分区+三级校验 + L1-L4四大硬件防线 + 黑匣子14B紧凑日志+跨页保护+故障锁存 + CRC32 final XOR修复 + 过流快照L4自相矛盾修复 + 启动画面时序修正 |
+| V4.3.2 | W25Q128 全字库修复: 初始化铁序 (TFT→W25Q→SysTick→Font→SPLASH) + Tft_Driver_Font_Init 拆分 + SPLASH 纯代码8帧渐亮 + 二分搜索 CS 翻转 + CRC32 算法修正 (Python zlib→STM32 refin=false) + bit_reverse_byte 删除 (字模不再镜像) |
 | V4.0.0 | 8轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 |
 | V4.1.0 | 小程序全重写: 单数据模型+双API并行+动态卡片+底部栏Component |
 | V4.2.1 | CN_FONT[74..75] 失败→综合 字模替换 + 底部栏简化(仅ON:确定+PAGE:返回) |
@@ -383,6 +383,18 @@ Vx.y.z 三数字体系：
 | 44 | 写指针不持久化: App_Storage_Init 读回 s_log_wr_ptr 但整个代码无写入 Flash Block 0 头部的逻辑 | Blackbox_Log_Tick 只更新内存变量, 从未写回 Flash | **需要掉电保持的运行时变量必须在每次变更后回写 Flash 或至少定期刷新** |
 | 45 | ADC 校准空 if: Flash 配置加载后 s_sys_config.adc_i_offset != 0 分支为空 | Adc_Driver 缺少公开 setter 函数, 当时设计只想到"读取"忘了"写入" | **新增 Flash 读取配置时, 必须同步检查目标模块是否有对应的公开写入接口** |
 | 46 | Tft_Driver_Init 将 SPI1 从 1Line_Tx 改为 2Lines_FullDuplex 后 TFT 全屏填充可能异常: SPI_CR1_BIDIMODE/BIDIOE 默认 0 即可 | 全双工模式下 MOSI 在 Master 接收时仍由 MCU 驱动, TFT 不回发数据 | **SPI 模式变更后必须验证: TFT DMA 发帧→正常, Flash 读→正常, 时序毛刺→无** |
+
+### 4.9 2026-06-29: V4.3.2 W25Q128 全字库修复教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 47 | Flash 字库永远无法启用, 显示 "Flash:FAIL ROM 76" | main.c 初始化顺序: `Sys_Hardware_Init()`→`Tft_Driver_Init()` 内部调用 `W25Q_Driver_Read()` 读字库头, 但此时 `W25Q_Driver_Init()` 尚未执行, `s_chip_ok=0`, Read 直接 return | **新增 init 模块后必须画时序依赖图: 谁需要谁先初始化, 违反则静默失败** |
+| 48 | 汉字屏幕镜像/反色 (bit_reverse) | `generate_font.py` 的 `bit_reverse_byte()` 把每字节位序翻转了, 但 `Decode_CN_Row` 和 ROM 字模均期望原始 LSB-first | **Python 生成的数据格式必须与 C 解码器逐位对应, 生成后立即在真实硬件上验证 1 个字** |
+| 49 | OCR32 校验失败 (Python≠STM32) | Python `zlib.crc32` 使用 reflected 算法 (refin=true/refout=true), STM32 `CRC32_Compute` 使用 normal 算法 (refin=false/refout=false), 同一输入产生不同 CRC | **跨语言 CRC 必须用同一参考实现验证: 固件代码拷到 Python 对比** |
+| 50 | 二分搜索每次读取错误数据 (Flash 拒收第二个 CMD_READ) | W25Q128 Read Data (03h) 要求 CS↑ 终止, 原实现整个 while 循环 CS 保持 LOW, Flash 始终处于数据持续输出模式 | **SPI Flash 的每个事务必须以 CS↑ 结束, 长事务中的多次 READ 也需要 CS 脉冲** |
+| 51 | 开机动画卡死 (SPLASH 死等) | `Tft_Driver_Show_Splash()` 内部 `Sys_Timer_Delay_Ms()` 依赖 SysTick, 但 `Sys_Timer_Init()` 在 `Sys_Post_Init()` 内部, 比 SPLASH 晚执行 | **阻塞延时函数必须在调用前确认时基已初始化, 否则立即死循环** |
+| 52 | SPLASH 5 帧太快消失 | 原 200KB splash.bin 位图方案不现实 (STM32 仅 64KB Flash), 5×80ms 太短 | **资源预算在设计阶段算清: 动画资源大小 vs MCU Flash 容量** |
+| 53 | `Tft_Driver_Font_Init()` 隐式声明警告 | main.c 未 `#include "Tft_Driver.h"` | **新增公开函数后 grep 所有调用点确保包含对应头文件** |
 
 ### 4.5 "更新全部内容"执行检查清单
 

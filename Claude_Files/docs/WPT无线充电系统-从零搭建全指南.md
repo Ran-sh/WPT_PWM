@@ -17,9 +17,9 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V4.3.0 |
-| **最后更新** | 2026-06-22 |
-| **对应固件版本** | V4.3.0 (分支 `4.0TFT`) |
+| **文档版本** | V4.3.2 |
+| **最后更新** | 2026-06-29 |
+| **对应固件版本** | V4.3.2 (分支 `4.0TFT`) |
 | **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) |
 | **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages) |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接, 备选) |
@@ -30,7 +30,8 @@
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
 | V2.2.0 | 2026-05-24 | 全篇重构: 调试避坑模块、配图标注、双主题小程序、频率渐变斜坡、Cloudflare部署 |
-| V4.3.0 | 2026-06-22 | W25Q128 16MB SPI Flash 集成: SPI1 分时复用(PA6 DC/MISO动态切) + GB2312 全字库 668KB + 开机画面区 1MB + 配置参数双副本 CRC32 + 黑匣子循环日志 4MB(14B紧凑条目+跨页保护+CRC8行内校验) + 故障锁存前后5s + 四大硬件防线(L1写使能级联/L2 Busy死等/L3 DFF原子闪切/L4 发波禁擦) + ADC校准 Flash固化+自测算 B方案 + 字库上电 200ms CRC32自检 + 5帧开机动画 |
+| V4.3.2 | 2026-06-29 | W25Q128 全字库修复: 初始化铁序修正 (TFT→SysTick→W25Q→Font→SPLASH) + Tft_Driver_Font_Init 拆分 + SPLASH 纯代码8帧渐亮 (不依赖 W25Q 位图分区) + 二分搜索 CS 翻转 + CRC32 算法修正 (Python zlib→STM32 refin=false) + bit_reverse_byte 删除 (字模不再镜像) + ch341 工具链精简 (仅字库烧录) |
+| V4.3.0 | 2026-06-22 | W25Q128 16MB SPI Flash 集成: SPI1 分时复用 + GB2312 全字库 + 黑匣子循环日志 + 四大硬件防线 |
 | V4.2.4 | 2026-06-18 | 离线守卫全平台修复: _isOnline 三层判定(兜底data非空→/device/detail覆写→cache延写) + Web throw误触发 + 重复代码块 + 生命周期onHide/pagehide清理 + 全平台代码审查 |
 | V4.2.1 | 2026-06-17 | 全项目 README 重写(4分支统一分支表) + 版本号规则全文档对齐 |
 | V4.2.0 | 2026-06-17 | 全平台版本号统一为 Vx.x.x 体系 + TFT字库 76字精准对齐(综/合字模修复) + 底部栏简化(仅ON:确定+PAGE:返回) + EMA双级滤波链 |
