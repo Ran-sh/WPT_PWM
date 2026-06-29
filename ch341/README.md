@@ -299,7 +299,7 @@ python generate_font.py
 ```
 
 输出应包含:
-- `[OK] CRC32 自测通过: CRC32('1234') = 0x9BE3E0A3`
+- `[OK] CRC32 自测通过: STM32 CRC32('1234') = 0x596A3B55`
 - `[OK] 加载字体: C:\WINDOWS\Fonts\simsun.ttc`
 - `[OK] 生成 font_data.bin (2097152 字节 = 2MB)`
 - `擦除扇区: 512 个 (0x000000~0x200000)`
@@ -315,10 +315,10 @@ python burn_flash.py
 
 | 步骤 | 操作 | 耗时 | 说明 |
 |:---|:---|:---|:---|
-| Step 0 | CRC32 自测 | <1s | 验证 Python 与 STM32 CRC32 算法一致 |
+| Step 0 | CRC32 自测 | <1s | 验证 Python 与 STM32 CRC32 算法一致 (refin=false) |
 | Step 1 | 检测 flashrom | <1s | 确认 flashrom 可用 |
 | Step 2 | 生成字库镜像 | ~8min | 渲染 20897 汉字 + 95 ASCII + 图标 |
-| Step 3 | 备份全片 16MB | ~3min | 读取 → `backup_16MB.bin` (安全防线) |
+| Step 3 | 备份全片 16MB | ~3min | 读取 → `backup_16MB.bin` (安全防线, 已有则跳过) |
 | Step 4 | 写入全片 Flash | ~5min | 字库覆盖前 2MB, 其余保持原样 |
 | Step 5 | 读回逐字节校验 | ~3min | 逐字节比对前 2MB, 0 差异才算通过 |
 
@@ -345,19 +345,10 @@ python burn_flash.py
 3. 给 STM32 目标板上电
 4. 观察 TFT 屏幕: 正常显示全字库中文, 不再出现缺字方块
 
-### 7.6 烧录开机动画 (可选)
+### 7.6 开机动画
 
-开机动画存储在 W25Q128 SPLASH 分区 (0x200000, 1MB)，与字库分区独立，互不影响。
-
-```bash
-cd ch341
-python generate_splash.py   # 渲染 → splash.bin (200KB, 5帧 fade-in)
-python burn_splash.py       # 烧录 → W25Q128 SPLASH 分区 0x200000
-```
-
-**前置条件**: 必须先完成字库烧录 (7.3)，因为 SPLASH 烧录使用相同的 CH341A 接线和 flashrom 环境。
-
-**烧录后**: STM32 重新上电 → 屏幕显示 WPT-PWM 开机动画 (5帧渐亮, ~250ms)，动画结束后自动进入主菜单。如果 SPLASH 分区未烧录，回退到纯文本 "WPT-PWM 启动中..." 启动画面。
+> **V4.3.2 变更**: 开机动画改为 STM32 纯代码实现 (8帧背光渐亮), 不依赖 W25Q SPLASH 分区。
+> 无需额外烧录, 固件已内置。删除 `burn_splash.py` 和 `generate_splash.py`。
 
 ---
 
@@ -399,8 +390,9 @@ ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_16MB.bin -c W25Q12
 | `ch341/font_data.bin` | 生成产物: 2MB 字库镜像 (格式对齐 W25Q128 Flash 布局, LSB-first 无位序反转) |
 
 > **V4.3.2 变更**: 删除 `generate_splash.py`/`burn_splash.py` — SPLASH 改为 STM32 纯代码实现, 开机动画存 ROM 不占 W25Q。
-| `ch341/backup_16MB.bin` | 安全备份: 烧录前全片 16MB 读取, **请勿删除**, 是恢复的最后防线 |
 | `ch341/requirements.txt` | Python 依赖: Pillow ≥ 10.0.0 |
+
+> **V4.3.2 变更**: 删除 `generate_splash.py`/`burn_splash.py` — SPLASH 改为 STM32 纯代码实现, 开机动画存 ROM 不占 W25Q。
 
 临时文件 (`merged_flash.bin`, `verify_readback.bin`) 在烧录成功后自动清理。
 
