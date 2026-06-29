@@ -81,6 +81,14 @@ void Sys_Startup_Screen(void)
                                       TFT_COLOR_WHITE, TFT_COLOR_BLACK);
         }
     }
+    /* Flash 字库加载结果 (Line 7, 不会被其他内容覆盖) */
+    if (Tft_Driver_Is_Font_Flash_Valid()) {
+        Tft_Driver_Show_String(7, 0, "Flash OK 6763",
+                               TFT_COLOR_GREEN, TFT_COLOR_BLACK);
+    } else {
+        Tft_Driver_Show_String(7, 0, "Flash FAIL 76",
+                               TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
+    }
     Tft_Driver_Set_Backlight(255);
 }
 

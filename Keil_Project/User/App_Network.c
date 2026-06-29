@@ -134,7 +134,7 @@ static void App_Network_Check_Retry(void)
         s_retry_count++;
 
         /* 重试达到上限 → 进入被动离线 (热点断开, 自动嗅探恢复) */
-        if (s_retry_count > APP_NETWORK_MAX_RETRIES) {
+        if (s_retry_count >= APP_NETWORK_MAX_RETRIES) {
             s_conn_state  = APP_NETWORK_CONN_OFFLINE_PASSIVE;
             s_retry_count = 0;
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_OFF);

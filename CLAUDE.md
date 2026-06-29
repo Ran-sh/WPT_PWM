@@ -13,8 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
-> **频率斜坡设计**: `Claude_Files/docs/2026-05-24-freq-ramp-design.md`
-> **W25Q128 Flash 集成设计**: `Claude_Files/docs/2026-06-22-w25q128-flash-integration-design.md`
+> **W25Q128 Flash CH341A 烧录指南**: `ch341/README.md` (V4.3.2)`
 
 ## 版本号规则 (全项目铁律)
 
@@ -27,13 +26,15 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
 当前版本: V4.3.2
 
 涉及版本号的位置 (全项目必须统一):
-  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.3.1
-  文档控制信息: 开发指南/技能文件的文档版本 → V4.3.1
-  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.3.0
-  README.md: badge + 版本历史 + 分支表 → V4.3.0
-  操作手册/部署文档: 版本字段 → V4.3.0
-  小程序: wxss/wxml/js 头部注释 → V4.3.0
-  其他文档: ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.3.0
+  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.3.2
+  文档控制信息: 开发指南/技能文件的文档版本 → V4.3.2
+  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.3.2
+  README.md: badge + 版本历史 + 分支表 → V4.3.2
+  操作手册/部署文档: 版本字段 → V4.3.2
+  小程序: wxss/wxml/js 头部注释 → V4.3.2
+  ch341/ 工具链: Python 脚本头部 → V4.3.2
+  Arduino 固件: .ino 头部 → V4.3.2
+  其他文档: ONENETapp/README → V4.3.0
 
 历史版本 → V4.x.x 完整映射:
   旧 V0.0/V1.0 → V1.0.x | 旧 V3.0     → V2.0.0
@@ -89,7 +90,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
 | 针对文件 | 写入内容 |
 |:---|:---|
 | `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` | 文档版本号、修改日志、引脚表（含W25Q128接线）、文件结构、UI 页面、EMA/Safety/网络协议等架构章节与当前代码对齐 |
-| `Claude_Files/docs/2026-06-22-w25q128-flash-integration-design.md` | [V4.3.0] W25Q128 硬件接线/分区表/校验体系/软件架构/PC工具链 当前代码对齐 |
+| `ch341/README.md` | [V4.3.2] CH341A Flash 字库烧录完整操作指南: 硬件接线/驱动安装/生成→烧写→校验全流程 |
 
 ### 第 5 条 — 更新技能文件
 
@@ -113,8 +114,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
 |:---|:---|
 | `README.md` | 版本号、架构图、功能列表与当前代码对齐 |
 | `ONENETapp/README.md` | 网页端部署信息 |
-| `Railway_Deploy/README.md` | 桥接服务器状态 (当前为备选方案) |
-| `Claude_Files/diagrams/README.md` | 图表文件说明 |
+| `ch341/README.md` | CH341A Flash 烧录工具链说明 |
 
 ### 第 8 条 — 清理 Keil 编译产物 + Git 提交推送
 
@@ -161,7 +161,8 @@ Sys_Safety 独立安全监测
 ```
 
 **铁律**: STM32 不发 AT 指令, ESP 不碰 PWM/ADC。开机自动联网。
-**V4.3.0 新增**: SPI1 分时复用 (TFT + W25Q128), PA5=SCK PA7=MOSI PA6=DC/MISO 动态切, PA4=TFT_CS PA12=FLASH_CS 双门控。字库暂存片内 ROM (76字+95ASCII)，待 CH341 编程器到后通过 Python→SPI Flash 灌入 GB2312 全字库。
+**V4.3.2 新增**: W25Q128 Flash 字库已通过 CH341A 烧录 20897 字 GB2312 一级汉字 — 固件启动时自动 CRC32 校验 Flash Header, 有效则走全字库, 无效则自动回退片内 ROM 76 字。
+**V4.3.0 新增**: SPI1 分时复用 (TFT + W25Q128), PA5=SCK PA7=MOSI PA6=DC/MISO 动态切, PA4=TFT_CS PA12=FLASH_CS 双门控。
 
 ## 系统全局状态机
 
@@ -182,58 +183,71 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 ## 文件结构
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/                        ← ~10957 行逻辑代码 (全平台)
-├── Keil_Project/                               ← STM32 固件 — 5829 行 (含 User/System, 不含 Library/Start)
+WPT_PWM_V4.0_ONENET_TFT/                        ← ~11500 行逻辑代码 (全平台 含 ch341 工具链 856 行)
+├── Keil_Project/                               ← STM32 固件 — 5502 行 (Hardware 4398 + User/System 1104, 不含 Library/Start)
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
 │   ├── Hardware/                               ← 硬件驱动 — 4398 行
-│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1722+39行)
-│   │   ├── Tft_Driver.c/h                      ← ST7735 SPI1 全双工+DMA + Flash字库 (564+77行)
-│   │   ├── W25Q_Driver.c/h                     ← [V4.3.1] 16MB SPI Flash 驱动 + L1-L4 四大防线 (206+62行)
-│   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (356行, 待迁移至Flash)
+│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1714+39行)
+│   │   ├── Tft_Driver.c/h                      ← ST7735 SPI1 全双工+DMA + Flash/ROM 双路径字库 (663+94行)
+│   │   ├── W25Q_Driver.c/h                     ← [V4.3.2] 16MB SPI Flash 驱动 + u32 offset + BSRR 防毛刺 (269+118行)
+│   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (441行, ROM 回退后备)
 │   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (257+49行)
-│   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (162+20行)
+│   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (187+28行)
 │   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡 (146+67行)
 │   │   ├── Key_Driver.c/h                      ← 4键 FSM + 批量事件读取 (137+40行)
-│   │   ├── Led_Driver.c/h                      ← 6 LED 闪烁 (135+42行)
+│   │   ├── Led_Driver.c/h                      ← 5 LED 闪烁 (PA12 已让给 Flash CS) (134+42行)
 │   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (113+33行)
 │   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (68+30行)
-│   ├── User/                                   ← 应用层 — 1347 行
-│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (338+51行)
-│   │   ├── App_Storage.c/h                     ← [V4.3.0] 字库索引+参数双副本+黑匣子日志 (309+101行)
-│   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全(仅RUNNING) (205+44行)
-│   │   ├── main.c                              ← 程序入口 (50行)
+│   ├── User/                                   ← 应用层 — 1190 行
+│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (331+51行)
+│   │   ├── App_Storage.c/h                     ← [V4.3.2] CRC32 extern + 参数双副本+黑匣子日志 (250+87行)
+│   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全(仅RUNNING)+启动Status (262+44行)
+│   │   ├── main.c                              ← 程序入口 (55行)
 │   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
 │   ├── System/ → Sys_Timer.c/h                 ← SysTick 1ms + DWT (48+36行)
 │   ├── Start/  → CMSIS + system_stm32f10x
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
 ├── Arduino_Project/                            ← ESP8266 固件 — 522 行
 │   └── ESP8266_MQTT_Firmware/...ino            ← WiFiManager+双MQTT+指令去抖+遥测+OFFLINE
-├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3406 行
-│   ├── index.html(410)/control.html(495)       ← 主页+控制+乐观更新+连接指示器
-│   ├── monitoring.html(394)/history.html(527)  ← 监测+历史趋势图
-│   ├── alerts.html(325)/settings.html(804)/login.html(149)
-│   ├── js/onenet.js(188)                       ← OneNET API 核心 (安全: 无console/无Token泄露)
-│   ├── js/config.js(65)/mobile-nav.js(31)      ← 数据模型+移动端导航
-│   └── service-worker.js(28)                   ← PWA 离线回退 v3
-├── 安卓app/                                    ← 微信小程序 — 1038 行 (6页面+Component)
+├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3444 行
+│   ├── index.html(429)/control.html(497)       ← 主页+控制+乐观更新+重试防堆积+连接指示器
+│   ├── monitoring.html(405)/history.html(529)  ← 监测+历史趋势图
+│   ├── alerts.html(326)/settings.html(805)/login.html(151)
+│   ├── js/onenet.js(192)                       ← OneNET API 核心 (安全: 无console/无Token泄露)
+│   ├── js/config.js(79)                        ← 数据模型+escapeHtml() XSS防护+移动端导航
+│   ├── js/mobile-nav.js(31)
+│   └── service-worker.js(31)                   ← PWA 离线回退 v3 (BASE 相对路径)
+├── 安卓app/                                    ← 微信小程序 — 1198 行 (6页面+Component)
 │   ├── utils/config.js(47)/onenet.js(271)      ← 数据模型单一来源 + API层 (双请求在线检测)
 │   ├── custom-tab-bar/                         ← 底部导航 Component (无高亮)
 │   ├── pages/{index,monitoring,control,history,alerts,settings}/
 │   ├── 操作手册.md / 部署文档.md               ← 小程序文档
 │   └── docs/                                   ← 设计 spec
+├── ch341/                                      ← [V4.3.2] CH341A Flash 字库/动画工具链 — 856 行
+│   ├── README.md                               ← 完整操作指南 (硬件接线+驱动安装+烧录)
+│   ├── requirements.txt                        ← Python 依赖: pillow
+│   ├── generate_font.py                        ← GB2312 全字库生成器 (20897 CJK + 95 ASCII + 31 图标, 432行)
+│   ├── generate_splash.py                      ← 开机动画 5 帧 fade-in RGB565 生成器 (85行)
+│   ├── burn_flash.py                           ← 字库烧录编排 (生成→备份→融合→烧写16MB→逐字节CRC校验, 236行)
+│   ├── burn_splash.py                          ← 开机动画烧录器 (全片合并写入方案, 103行)
+│   └── flashrom-1.4/                           ← flashrom 1.4.0 + Zadig 2.8 + WinUSB 驱动
 └── Claude_Files/                               ← AI 生成文档+工具
-    ├── docs/                                   ← 开发者指南 + 技能文件 + specs
+    ├── docs/                                   ← 开发者指南 + 技能文件
     ├── diagrams/                               ← Visio 流程图
     └── tools/                                  ← generate_docx.js + 桥接脚本
-    └── docs/                                    ← 设计 specs + 实施 plans
 ```
 
 ## 主循环
 
 ```c
 int main(void) {
-    Sys_Clamp_ESP(); Sys_Hardware_Init(); Sys_Startup_Screen(); Sys_Post_Init();
+    Sys_Clamp_ESP();
+    W25Q_Driver_Init();         /* V4.3.2: 仅验 JEDEC (Tft_Driver_Init 已配 SPI1+PA5/PA7/PA12) */
+    App_Storage_Init();         /* 字库 CRC + 黑匣子指针 + 参数加载 */
+    Sys_Hardware_Init();        /* Pwm/TFT/Led/Buzzer/Adc/Key 初始化 */
+    Sys_Startup_Screen();       /* 开机动画 + Flash OK/FAIL + 启动文字 */
+    Sys_Post_Init();            /* SysTick + LED + ESP BOOT 等待 */
     g_sys_state = SYS_STATE_IDLE;
     while (1) {
         Key_Driver_Task(); Adc_Driver_Filter_Task(); App_Network_Task(); Sys_Safety_Task();
@@ -289,6 +303,8 @@ int main(void) {
 
 ## 网页端 (Cloudflare Pages)
 
+- **登录守卫**: 所有 6 个受保护页面顶部内置 `lastLoginTime` 检查，7 天过期后自动跳转 `/login.html`
+- **XSS 防护**: `config.js` 提供 `escapeHtml()` 函数，所有 `innerHTML` 插值前必须通过此函数转义用户可控字符串
 - **乐观更新**: `setProperty` 成功后立即写 localStorage + 3s 乐观锁
 - **重试**: `setProperty` 网络/业务错误各重试 3 次 (500ms/800ms)
 - **连接指示**: 在线(绿) / 离线(黄) / 失败(红) / 未配置(灰), `/device/detail` 优先 + 数据非空兜底
@@ -296,6 +312,7 @@ int main(void) {
 - **频率映射**: `fromCloud: v => Math.floor(v/1000)` / `toCloud: v => v*1000`, Web 显示 kHz
 - **安全**: 零 console 输出, 零硬编码 Token, login.html SHA-256 哈希验证
 - **轮询**: 5s 间隔 setInterval + pagehide 清理, 无嵌套泄漏; 慢网下防重叠
+- **SW**: 使用 BASE 相对路径兼容根路径/子路径部署; 仅在 login.html 注册 (autoLogin 跳转后尚未注册，已知限制)
 
 ## 微信小程序
 
@@ -335,7 +352,7 @@ Telemetry JSON 全链路格式: `{"V":xx,"I":xx,"F":xx,"S":x}\n`
 | PA8 | TIM1_CH1 | PB9 | ON/OFF 按键 (IPU) |
 | PA9 | TIM1_CH2 | PB10 | PowerContrl (高=使能12V) |
 | PA10 | LED_COM | PB11 | ESP8266 CH_PD (EN) |
-| PA11 | LED_POWER | **PA12** | **W25Q128_CS (原 LED_TEMP 释放)** |
+| PA11 | LED_POWER | **PA12** | **W25Q128_CS** |
 | PA15 | LED_SYSTEM | PB15 | 蜂鸣器 |
 
 JTAG 禁用释放 PB3/PB4/PB5/PA15。
@@ -376,9 +393,10 @@ JTAG 禁用释放 PB3/PB4/PB5/PA15。
 | SPI | Mode 3, 18MHz, DMA1_Channel3, **全双工** (V4.3.0: MISO 用于 Flash 读取) |
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 |
-| 字库 | 8×16 ASCII (95) + 16×16 中文 (76) + 5×10 微数字 (12) |
+| **字库路径** | **Flash 20897 字 (CRC32 校验) → ROM 76 字 (自动回退)** |
 | 字库位序 | 全部 LSB-first, 统一在 `TFT_Font_Data.h` |
-| 图标 | WIFI(4+动画6帧), MQTT(3态+动画6帧), ICON_STAR |
+| 图标 | WIFI(4+动画6帧), MQTT(3态+动画6帧), ICON_STAR, 20 新图标 |
+| **开机动画** | **SPLASH 分区 5 帧 fade-in (SPLASH_MAGIC=0x5350)** |
 
 CN_INDEX 与 CN_FONT_16X16 严格一一对应 (76字, 索引 0-75), 末尾为 综(74)+合(75)。
 
@@ -463,7 +481,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
-| V4.3.2 | 字库扩展: 开机动画(SPLASH 5帧 fade-in) + 20新图标(电池/警告/箭头/齿轮等) + Tft_Driver_Draw_Icon_By_Id |
+| V4.3.2 | CH341A Flash 字库烧录: GB2312 20897字→W25Q128 + 开机动画 SPLASH 5帧 + TFT 双路径自动回退 + `CRC32_Compute` static→extern + `W25Q_Font_Index_Binary_Search` u16→u32 offset + `data_offset` 哨兵 0xFFFF→0xFFFFFFFF + `App_Network_Check_Retry` off-by-one `>`→`>=` + Web 全平台: login 明文注释移除 + 6 页面登录守卫注入 + `escapeHtml()` XSS 防护 + compound retry 防堆积 + SW BASE 相对路径 + `fullTime` TypeError 空值防护 + `Leave_Mode` BSRR 预置高防 PA6 毛刺 |
 | V4.3.1 | CH341+Python Flash 字库烧录: generate_font.py(GB2312 6763字+图标 2MB镜像) + burn_flash.py(flashrom 备份+擦除+烧写+逐字节校验) + W25Q_Font_Index_Binary_Search(总线独占二分检索 5.85μs/字) + Tft_Driver Flash/ROM 双路径(单字单检索 16×提速) + Font_Header CRC32 小端序铁律 |
 | V4.3.0 | W25Q128 16MB SPI Flash 集成: SPI1 分时复用(PA6动态切DC/MISO) + GB2312全字库(668KB)+开机画面区(1MB)+参数双副本CRC32(8KB)+黑匣子循环日志(4MB)+故障锁存前后5s + 四大硬件防线(L1写使能/L2 Busy死等/L3 DFF原子闪切/L4 发波禁擦) + ADC校准Flash固化+本地自测算B方案 + config.js getDataModel() undefined修复 + control.html clearInterval修复 + 遥测S字段对齐g_sys_state |
 | V4.2.4 | 离线守卫全平台修复: Web+小程序 _isOnline 判定统一 + 缓存时序修正(延后到在线确认) + 在线兜底(data非空)+/device/detail覆写 + Web throw误触发修复 + 重复代码块清理 + 生命周期onHide/pagehide清理 |

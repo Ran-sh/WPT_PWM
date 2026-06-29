@@ -5,6 +5,19 @@
  * @note    SPI1 分时复用: PA5=SCK PA7=MOSI PA6=动态(MISO/DC) PA12=CS
  *          四大硬件防线: 写使能锁存 / Busy死等 / DFF原子闪切 / 发波禁擦
  *          ARMCC V5 SPL, 禁止 // 注释, 禁止 HAL
+ *
+ *          ════ W25Q128 实际接线 ════
+ *          W25Q128 Pin 1 (CS)   → STM32 PA12  (FLASH_CS)
+ *          W25Q128 Pin 2 (DO)   → STM32 PA6   (SPI1_MISO, 分时复用)
+ *          W25Q128 Pin 3 (WP)   → 3.3V (拉高, 写不保护)
+ *          W25Q128 Pin 4 (GND)  → GND
+ *          W25Q128 Pin 5 (DI)   → STM32 PA7   (SPI1_MOSI)
+ *          W25Q128 Pin 6 (CLK)  → STM32 PA5   (SPI1_SCK)
+ *          W25Q128 Pin 7 (HOLD) → 3.3V (拉高)
+ *          W25Q128 Pin 8 (VCC)  → 3.3V (不可 5V, 烧芯片!)
+ *
+ *          模块: W25Q128 SOP-8 小板, 排针直接焊接到 PCB
+ *          TFT_CS=PA4, Flash_CS=PA12 — 双片选门控, TFT 与 Flash 共享 SPI1 总线
  ******************************************************************************
  */
 
@@ -95,8 +108,8 @@ uint8_t W25Q_SPI_Transfer(uint8_t tx);
  *          禁止中途调用带 Leave_Mode 的通用读, 根除频繁闪切对灌短路毛刺
  *  @param unicode UTF-16 码点 (0x4E00~0x9FA0)
  *  @param hdr     Font_Header 指针 (需已加载验证通过)
- *  @retval data_offset  相对 CJK_Data_BASE 的字模偏移, 0xFFFF=未找到 */
-uint16_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr);
+ *  @retval data_offset  相对 CJK_Data_BASE 的字模偏移(32位), 0xFFFFFFFF=未找到 */
+uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr);
 
 /** @brief 加载并校验 Font Header, 返回 1=有效 0=无效
  *  @note  内部调用 CRC32_Compute (需 extern 声明, 见 App_Storage.h) */

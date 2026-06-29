@@ -45,7 +45,7 @@ static uint8_t CRC8_Compute(const uint8_t *data, uint8_t len)
 /* ═══════════════════════════════════════════════
  *  CRC32 (多项式 0x04C11DB7, 含 final XOR, 与 WinRAR/STM32 CRC 外设一致)
  * ═══════════════════════════════════════════════ */
-static uint32_t CRC32_Compute(const uint8_t *data, uint32_t len)
+uint32_t CRC32_Compute(const uint8_t *data, uint32_t len)
 {
     uint32_t crc = 0xFFFFFFFFU; uint32_t i, j;
     for (i = 0; i < len; i++) {

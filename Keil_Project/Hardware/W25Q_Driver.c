@@ -26,9 +26,6 @@
 #define FLASH_CS_LOW()  GPIO_ResetBits(FLASH_CS_PORT, FLASH_CS_PIN)
 #define FLASH_CS_HIGH() GPIO_SetBits(FLASH_CS_PORT, FLASH_CS_PIN)
 
-#define TFT_DC_PIN      GPIO_Pin_6
-#define TFT_DC_PORT     GPIOA
-
 /* ── W25Q128 指令集 ── */
 #define CMD_WREN         0x06U
 #define CMD_WRDI         0x04U
@@ -55,10 +52,12 @@ void W25Q_Enter_Mode(void)
     FLASH_CS_LOW();                                              /* 门控: 选中 Flash */
 }
 
-/** @brief CS 拉高 → 门控释放, PA6 → GPIO_Out_PP (恢复 TFT DC 角色) */
+/** @brief CS 拉高 → 门控释放, PA6 → GPIO_Out_PP (恢复 TFT DC 角色)
+ *  @note  先置 ODR HIGH (TFT DC=DATA), 再切方向, 防切向瞬间低电平毛刺导致 TFT 误收命令 */
 void W25Q_Leave_Mode(void)
 {
     FLASH_CS_HIGH();                                             /* 门控: 释放 Flash */
+    GPIOA->BSRR = GPIO_Pin_6;                                    /* PA6 ODR 预置高 (DC=DATA) */
     GPIOA->CRL &= ~(0x0FU << 24); GPIOA->CRL |= (0x03U << 24); /* PA6=50MHz PP Out */
 }
 
@@ -218,44 +217,40 @@ uint8_t Font_Header_Load(Font_Header *hdr)
     W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)hdr, sizeof(Font_Header));
     if (hdr->magic != FONT_MAGIC) return 0;
     crc_stored = hdr->crc32; hdr->crc32 = 0;                    /* 临时清零用于计算 */
-    crc_computed = CRC32_Compute((uint8_t*)hdr + 0x0C, 20);     /* 0x0C→0x1F */  /* 阅后即焚: 代数复用 App_Storage CRC32_Compute */
+    crc_computed = CRC32_Compute((uint8_t*)hdr + 0x0C, 20);     /* 0x0C→0x1F */
     hdr->crc32 = crc_stored;
     return (crc_stored == crc_computed) ? 1 : 0;
 }
 
 /* ═══════════════════════════════════════════════
  *  Font_Index_Binary_Search — 总线独占 二分检索
- *  提速 16×: 进入持锁, 全程不释放, 搜索完才还总线
+ *  V4.3.2 FIX: uint16_t→uint32_t, 修复高位 offset 截断
  * ═══════════════════════════════════════════════ */
 
-/**
- * @brief  总线独占二分搜索 CJK Index (20902 条 Unicode 升序)
- * @note   Index 条目: [U16 LE 2B][Offset U32 LE 4B] = 6B/条
- *         进函数→W25Q_Enter_Mode 独占→切8bit→二分搜索→匹配→return
- *         全程持锁 CS=Low/PA6=MISO, 绝对禁止中途 Leave_Mode
- *         单次调用 ~7μs (38次 SPI Transfer)
- */
-uint16_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
+/** @brief  总线独占二分搜索 CJK Index (20902 条 Unicode 升序)
+ *  @note   Index 条目: [U16 LE 2B][Offset U32 LE 4B] = 6B/条
+ *          W25Q_Enter_Mode 入口独占一次, 全函数仅一次 Leave_Mode 释放
+ *  @retval U32 offset 相对 CJK_Data_BASE, 0xFFFFFFFF=未找到 */
+uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
 {
-    uint16_t lo, hi, mid, mid_uc, found_off; uint32_t addr;
-    if (!s_chip_ok || hdr == 0) return 0xFFFF;
-    W25Q_Enter_Mode();                                           /* PA6→MISO, CS=L */ /* 阅后即焚: 入口独占一次, 全函数仅此一次 */
+    uint16_t lo, hi, mid, mid_uc; uint32_t addr, found_off;
+    if (!s_chip_ok || hdr == 0) return 0xFFFFFFFFUL;
+    W25Q_Enter_Mode();                                           /* PA6→MISO, CS=L */
     W25Q_SPI_8bit();                                             /* 原子切8bit */
     lo = 0; hi = hdr->cjk_index_count;                           /* hi=20902 */
     while (lo < hi) {
         mid = (lo + hi) >> 1;                                    /* 折半 → 无溢出 uint16 */
         addr = hdr->cjk_index_offset + (uint32_t)mid * 6U;       /* 条大小=6B [U16][U32] */
-        /* ── 原生 READ 0x03 + 3B addr + 2B 哑读 → 收 mid_uc LE ── */
         W25Q_SPI_Transfer(CMD_READ);
         W25Q_SPI_Transfer((uint8_t)(addr >> 16));
         W25Q_SPI_Transfer((uint8_t)(addr >> 8));
         W25Q_SPI_Transfer((uint8_t)(addr));
         mid_uc  = (uint16_t)W25Q_SPI_Transfer(0xFF);
-        mid_uc |= (uint16_t)W25Q_SPI_Transfer(0xFF) << 8;        /* LE 还原 */ /* 阅后即焚: 小端序 lo|(hi<<8), Python struct.pack('<H') 精确对位 */
+        mid_uc |= (uint16_t)W25Q_SPI_Transfer(0xFF) << 8;        /* LE 还原 */
         if (mid_uc < unicode) lo = mid + 1; else hi = mid;       /* 标准二分[lo,hi) */
     }
-    if (lo >= hdr->cjk_index_count) { W25Q_Leave_Mode(); return 0xFFFF; }
-    /* ── 验证候选条目完全匹配: 读 U16 Unicode + U32 offset ── */
+    if (lo >= hdr->cjk_index_count) { W25Q_Leave_Mode(); return 0xFFFFFFFFUL; }
+    /* 验证候选条目: 读 U16 Unicode + U32 offset */
     addr = hdr->cjk_index_offset + (uint32_t)lo * 6U;
     W25Q_SPI_Transfer(CMD_READ);
     W25Q_SPI_Transfer((uint8_t)(addr >> 16));
@@ -263,11 +258,12 @@ uint16_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
     W25Q_SPI_Transfer((uint8_t)(addr));
     mid_uc  = (uint16_t)W25Q_SPI_Transfer(0xFF);
     mid_uc |= (uint16_t)W25Q_SPI_Transfer(0xFF) << 8;
-    if (mid_uc != unicode) { W25Q_Leave_Mode(); return 0xFFFF; }
-    found_off  = (uint16_t)W25Q_SPI_Transfer(0xFF);              /* offset[0] lo */
-    found_off |= (uint16_t)W25Q_SPI_Transfer(0xFF) << 8;         /* offset[1] */
-    found_off |= (uint16_t)W25Q_SPI_Transfer(0xFF) << 16;        /* offset[2] */ /* 阅后即焚: 前 2B low16 够用(最大 668KB < 65535×8?), 但完整读 4B 保证兼容 */
-    (void)W25Q_SPI_Transfer(0xFF);                                /* offset[3] hi → 丢弃, found_off=uint16 仅取低 16 位 */ /* 阅后即焚: 20902字×32B=668704B > 65535, offset 16位不够, 需完整 U32 */
-    W25Q_Leave_Mode();                                           /* CS=H, PA6→DC */ /* 阅后即焚: 全函数唯一一次释放, 零闪切对灌毛刺 */
+    if (mid_uc != unicode) { W25Q_Leave_Mode(); return 0xFFFFFFFFUL; }
+    /* V4.3.2 FIX: 完整 U32 offset, 高位汉字 offset 可达 668KB (>65535) */
+    found_off  = (uint32_t)W25Q_SPI_Transfer(0xFF);              /* offset[0] lo */
+    found_off |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 8;         /* offset[1] */
+    found_off |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 16;        /* offset[2] */
+    found_off |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 24;        /* offset[3] hi */
+    W25Q_Leave_Mode();                                           /* CS=H, PA6→DC */
     return found_off;
 }

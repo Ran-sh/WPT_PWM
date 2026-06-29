@@ -55,6 +55,7 @@ Thumbs.db
 /ch341/zadig-*.exe
 /ch341/flashrom-1.4/CDM*
 /ch341/flashrom-1.4/CH341-Drivers/
+/ch341/flashrom-1.4/CH341SER/
 /ch341/flashrom-1.4/*.pdf
 /ch341/flashrom-1.4/*.jpeg
 /ch341/flashrom-1.4/*.png

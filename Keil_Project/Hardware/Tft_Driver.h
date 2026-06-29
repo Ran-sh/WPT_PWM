@@ -87,4 +87,8 @@ void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
  *  @note  若 SPLASH 分区无效 (魔数不匹配) 则静默跳过, 约 250ms */
 void Tft_Driver_Show_Splash(void);
 
+/** @brief 查询 Flash 字库是否就绪 (1=Flash 6763字, 0=ROM 回退 76字)
+ *  @note  Sys_Startup_Screen 用此在启动末行显示加载状态 */
+uint8_t Tft_Driver_Is_Font_Flash_Valid(void);
+
 #endif /* TFT_DRIVER_H */

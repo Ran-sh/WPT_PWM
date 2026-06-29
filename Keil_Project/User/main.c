@@ -25,7 +25,8 @@ int main(void)
     Sys_Clamp_ESP();
     Sys_Hardware_Init();
 
-    /* V4.3.0: W25Q128 + 字库自检 (在 Sys_Startup_Screen 之前, 确保字库就绪) */
+    /* V4.3.2: W25Q128 在 TFT SPI1 就绪后初始化 (仅验 JEDEC, 不重复配 SPI)
+     *         Tft_Driver_Init 已配好 PA5/PA7/PA12 + SPI1, W25Q 复用 */
     W25Q_Driver_Init();
     App_Storage_Init();                              /* 字库 CRC + 恢复黑匣子指针 + 加载参数 */
 

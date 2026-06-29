@@ -25,6 +25,8 @@ FONT_SIZE    = 2 * 1024 * 1024       # 字库分区 2MB
 CHIP_SIZE    = 16 * 1024 * 1024      # W25Q128 全片 16MB
 VERIFY_LEN   = 248 * 1024            # 校验范围: 前 248KB (字库有效数据区)
 ERASE_BLOCKS = 62                    # 248KB = 62 * 4KB sectors
+LAYOUT_FILE  = os.path.join(SCRIPT_DIR, "layout.txt")
+WRITE_TIMEOUT = 3600                 # 2MB 写入超时 1 小时 (CH341A SPI 约 0.5KB/s)
 # 优先级: 本地 flashrom 目录 > PATH
 _FLASHROM_LOCAL = os.path.join(SCRIPT_DIR, "flashrom-1.4", "flashrom.exe")
 FLASHROM = _FLASHROM_LOCAL if os.path.exists(_FLASHROM_LOCAL) else "flashrom"
@@ -38,19 +40,15 @@ def compute_crc32(data: bytes) -> int:
     return zlib.crc32(data) & 0xFFFFFFFF
 
 
-def run_flashrom(args: list, desc: str):
-    """调用 flashrom, 失败时打印 stderr/stdout 并退出"""
+def run_flashrom(args: list, desc: str, timeout: int = 300):
+    """调用 flashrom, 实时输出进度条, 失败时退出"""
     cmd = [FLASHROM, "-p", "ch341a_spi"] + args
     print(f"[..] {desc}")
     print(f"     {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True,
-                            timeout=300, creationflags=_NO_WIN)
+    # 不捕获输出 — 让 flashrom 进度条直接刷终端
+    result = subprocess.run(cmd, timeout=timeout, creationflags=_NO_WIN)
     if result.returncode != 0:
-        print(f"[FAIL] {desc}")
-        if result.stdout.strip():
-            print(result.stdout)
-        if result.stderr.strip():
-            print(result.stderr)
+        print(f"[FAIL] {desc} (exit={result.returncode})")
         sys.exit(1)
     print(f"[OK]  {desc}")
 
@@ -137,7 +135,7 @@ def main():
     print(f"[OK]  备份就绪: {BACKUP_BIN} ({CHIP_SIZE} 字节 = 16MB)")
 
     # ═══════════════════════════════════════════════════════════════
-    # Step 4: 叠加字库 → 烧写全片 16MB
+    # Step 4: 叠加字库 → 写入全片 Flash (16MB)
     # ═══════════════════════════════════════════════════════════════
     print("\n[==== Step 4/5: 叠加字库 → 写入全片 Flash ====]")
 
@@ -153,28 +151,31 @@ def main():
     # 读取字库
     print("[..] 读取字库镜像...")
     with open(FONT_BIN, "rb") as f:
-        font_data = bytearray(f.read())
+        font_data_verify = f.read()
 
     # 将 font_data.bin 覆盖到备份的前 2MB (保护配置分区 + 黑匣子日志)
     print(f"[..] 覆盖字库到镜像前 2MB (地址 0x000000~0x{0x200000:06X})...")
-    backup[0:FONT_SIZE] = font_data
+    backup[0:FONT_SIZE] = font_data_verify
 
     # 计算字库区 CRC32 (写入后读回比对用)
     font_crc = compute_crc32(bytes(backup[0:ERASE_BLOCKS * 4096]))
     print(f"     字库区 CRC32: 0x{font_crc:08X} (覆盖 0x000000~0x{ERASE_BLOCKS * 4096:06X})")
 
-    # 写入合并镜像
+    # 写入合并镜像 (全片 16MB, CH341A 约 0.5KB/s ≈ 1小时)
     with open(MERGED_BIN, "wb") as f:
         f.write(backup)
     print(f"[..] 合并镜像已生成: {MERGED_BIN} ({len(backup)} 字节)")
+    print("[..] 预计耗时 ~30-60 分钟, 请耐心等待...")
 
-    run_flashrom(["-w", MERGED_BIN], f"烧写全片 Flash ← {MERGED_BIN}")
+    run_flashrom(["-w", MERGED_BIN], f"烧写全片 Flash ← {MERGED_BIN}",
+                 timeout=WRITE_TIMEOUT)
 
     # ═══════════════════════════════════════════════════════════════
-    # Step 5: 读回校验 (逐字节比对前 248KB)
+    # Step 5: 读回校验 (逐字节比对字库分区)
     # ═══════════════════════════════════════════════════════════════
-    print("\n[==== Step 5/5: 读回逐字节校验 ====]")
-    run_flashrom(["-r", VERIFY_BIN], f"读回校验 → {VERIFY_BIN}")
+    print("\n[==== Step 5/5: 读回逐字节校验 (字库分区) ====]")
+    run_flashrom(["-r", VERIFY_BIN], f"读回全片 → {VERIFY_BIN}",
+                 timeout=600)
 
     print("[..] 逐字节比对字库分区 (0x000000~0x{:06X}, {:,} 字节)...".format(
         VERIFY_LEN, VERIFY_LEN))

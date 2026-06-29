@@ -309,6 +309,12 @@ void Tft_Driver_Init(void)
     }
 }
 
+/* 公开字库状态查询 (供 Sys_Startup_Screen 显示) */
+uint8_t Tft_Driver_Is_Font_Flash_Valid(void)
+{
+    return s_font_flash_valid;
+}
+
 /* ═══════════════════════════════════════════════════════════════
  *  基础绘图
  * ═══════════════════════════════════════════════════════════════ */
@@ -456,12 +462,12 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
 
     if (s_font_flash_valid) {
         /* ── Flash 路径: UTF-8 → Unicode → 二分查找 → 流式读取 16 行 ── */
-        uint32_t unicode; uint16_t data_offset; uint32_t base;
+        uint32_t unicode; uint32_t data_offset; uint32_t base;
         unicode  = ((uint32_t)(utf8[0] & 0x0F) << 12);
         unicode |= ((uint32_t)(utf8[1] & 0x3F) << 6);
         unicode |= ((uint32_t)(utf8[2] & 0x3F));
         data_offset = W25Q_Font_Index_Binary_Search((uint16_t)unicode, &g_font_header);
-        if (data_offset == 0xFFFF) {
+        if (data_offset == 0xFFFFFFFFUL) {
             SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
             Tft_DMA_Fill(256, bg);
             return;
