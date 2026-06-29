@@ -295,17 +295,24 @@ void Tft_Driver_Init(void)
     Tft_Driver_WrCmd(0x29); Tft_Driver_Dly(50000);         /* DISPON */
 
     Tft_Driver_Clear(TFT_COLOR_BLACK);
+}
 
-    /* Font Flash header check: magic + CRC32, invalid → s_font_flash_valid stays 0 (ROM fallback) */
-    {
-        uint32_t crc_stored; uint32_t crc_computed;
-        W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)&g_font_header, sizeof(Font_Header));
-        if (g_font_header.magic == FONT_MAGIC) {
-            crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
-            crc_computed = CRC32_Compute((uint8_t*)&g_font_header + 0x0C, 20);
-            g_font_header.crc32 = crc_stored;
-            s_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
-        }
+/* ===============================================================
+ *  Tft_Driver_Font_Init — 字库初始化 (W25Q_Driver_Init 之后调用)
+ *  读取 Flash 字库头, CRC32 校验通过则启用全字库 20897 字,
+ *  否则 s_font_flash_valid 保持 0 → ROM 76 字自动回退
+ * ============================================================= */
+
+void Tft_Driver_Font_Init(void)
+{
+    uint32_t crc_stored; uint32_t crc_computed;
+    W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)&g_font_header, sizeof(Font_Header));
+    s_font_flash_valid = 0;
+    if (g_font_header.magic == FONT_MAGIC) {
+        crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
+        crc_computed = CRC32_Compute((uint8_t*)&g_font_header + 0x0C, 20);
+        g_font_header.crc32 = crc_stored;
+        s_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
     }
 }
 
@@ -636,28 +643,49 @@ void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
 }
 
 /* ===============================================================
- *  SPLASH 开机动画 — W25Q128 SPLASH 分区 5帧 fade-in
+ *  SPLASH 开机动画 — 纯代码实现 (数据存在 STM32 ROM, 字体从 W25Q 读取)
+ *  5 帧背光渐亮 + 标题文字, 不依赖 W25Q SPLASH 分区
+ *  使用的汉字均为 ROM 76 字集中已有: 无线充电启动中  不依赖 Flash 字库
  * ============================================================= */
 
 void Tft_Driver_Show_Splash(void)
 {
-    uint8_t hdr[4]; uint8_t frame; uint16_t row; uint32_t frame_base;
-    W25Q_Driver_Read(W25Q_ADDR_SPLASH, hdr, 4);
-    if (hdr[0] != 0x50 || hdr[1] != 0x53) return;  /* "SP" 魔数不匹配 */
-    {
-        uint16_t buf[256];
-        for (frame = 0; frame < 5; frame++) {
-            frame_base = W25Q_ADDR_SPLASH + 32 + (uint32_t)frame * 40960;
-            SetWin(0, 0, 159, 127);
-            Tft_SPI_16bit();
-            for (row = 0; row < 80; row++) {
-                W25Q_Driver_Read(frame_base + (uint32_t)row * 512,
-                                 (uint8_t*)buf, 512);
-                Tft_DMA_Transfer(buf, 256, 1);
-            }
-            while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET);
-            Tft_SPI_8bit();
-            Sys_Timer_Delay_Ms(50);
-        }
+    uint8_t bl_step;
+
+    Tft_Driver_Set_Backlight(0);
+    Tft_Driver_Clear(TFT_COLOR_BLACK);
+
+    /* 逐帧渐亮: 8 帧, 背光 8%→100%, 每帧 200ms */
+    for (bl_step = 0; bl_step < 8; bl_step++) {
+        uint8_t  bl = (uint8_t)(31 * (bl_step + 1));      /* 31→248, step=31 */
+        uint16_t fg = (bl_step < 3) ? 0x5280U   /* 暗铜 */
+                    : (bl_step < 5) ? 0x7380U   /* 暗金 */
+                    : (bl_step < 7) ? 0xBC00U   /* 金色 */
+                    :                 0xFF80U;  /* 亮黄 */
+
+        Tft_Driver_Set_Backlight(bl);
+
+        /* Line 1: 标题 — 无线充电 (ROM 76字内) */
+        Tft_Driver_Show_CN_String(1, 4,
+            "\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5",  /* 无线充电 */
+            fg, TFT_COLOR_BLACK);
+
+        /* Line 3: 副标题 — WPT-PWM (ASCII) */
+        Tft_Driver_Show_String(3, 4, "WPT-PWM V4.3.2",
+                               fg, TFT_COLOR_BLACK);
+
+        /* Line 5: 启动中... (ROM 76字内: 启动中) */
+        Tft_Driver_Show_CN_String(5, 5,
+            "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad\x2e\x2e\x2e",  /* 启动中... */
+            fg, TFT_COLOR_BLACK);
+
+        /* Line 7: STM32 + W25Q (ASCII) */
+        Tft_Driver_Show_String(7, 2, "STM32 + W25Q128",
+                               fg, TFT_COLOR_BLACK);
+
+        Sys_Timer_Delay_Ms(200);
     }
+
+    /* 定格 800ms */
+    Sys_Timer_Delay_Ms(800);
 }

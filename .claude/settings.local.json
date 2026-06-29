@@ -203,7 +203,8 @@
       "Bash(\"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/ch341/flashrom-1.4/flashrom.exe\" -p ch341a_spi)",
       "Bash(\"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/ch341/flashrom-1.4/flashrom.exe\" --help)",
       "Bash(wc -l Keil_Project/Hardware/Ui_Controller.c Keil_Project/Hardware/Ui_Controller.h Keil_Project/Hardware/Tft_Driver.c Keil_Project/Hardware/Tft_Driver.h Keil_Project/Hardware/W25Q_Driver.c Keil_Project/Hardware/W25Q_Driver.h Keil_Project/Hardware/Esp8266_Driver.c Keil_Project/Hardware/Esp8266_Driver.h Keil_Project/Hardware/Adc_Driver.c Keil_Project/Hardware/Adc_Driver.h Keil_Project/Hardware/Inverter_Control.c Keil_Project/Hardware/Inverter_Control.h Keil_Project/Hardware/Key_Driver.c Keil_Project/Hardware/Key_Driver.h Keil_Project/Hardware/Led_Driver.c Keil_Project/Hardware/Led_Driver.h Keil_Project/Hardware/Pwm_Driver.c Keil_Project/Hardware/Pwm_Driver.h Keil_Project/Hardware/Buzzer_Driver.c Keil_Project/Hardware/Buzzer_Driver.h Keil_Project/User/App_Network.c Keil_Project/User/App_Network.h Keil_Project/User/App_Storage.c Keil_Project/User/App_Storage.h Keil_Project/User/Sys_Core.c Keil_Project/User/Sys_Core.h Keil_Project/User/main.c Keil_Project/User/stm32f10x_it.c Keil_Project/User/stm32f10x_it.h Keil_Project/System/Sys_Timer.c Keil_Project/System/Sys_Timer.h)",
-      "Bash(wc -l Keil_Project/Hardware/TFT_Font_Data.h)"
+      "Bash(wc -l Keil_Project/Hardware/TFT_Font_Data.h)",
+      "Bash(pip install *)"
     ]
   }
 }

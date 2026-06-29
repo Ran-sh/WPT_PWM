@@ -38,8 +38,13 @@
 #define TFT_FONT_WIDTH        8
 #define TFT_FONT_HEIGHT       16
 
-/** @brief 初始化 ST7735 TFT (硬件复位+寄存器序列+背光 PWM) */
+/** @brief 初始化 ST7735 TFT (硬件复位+寄存器序列+背光 PWM)
+ *  @note  仅初始化 TFT 硬件, 不访问 W25Q128 (Flash 驱动尚未就绪) */
 void Tft_Driver_Init(void);
+/** @brief 初始化 Flash 字库 (W25Q_Driver_Init 之后调用)
+ *  @note  读取并校验 W25Q128 中的 Font Header, 有效则启用 Flash 全字库路径,
+ *         无效则自动回退 ROM 76 字 */
+void Tft_Driver_Font_Init(void);
 /** @brief 全屏填充单色 */
 void Tft_Driver_Clear(uint16_t color);
 /** @brief 设置背光亮度 (0=灭, 255=最亮, TIM4_CH1 PWM) */

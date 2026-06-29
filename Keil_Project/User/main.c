@@ -1,11 +1,10 @@
 /**
  ******************************************************************************
  * @file    User/main.c
- * @brief   WPT_PWM V4.3.0 — 程序入口 (W25Q128 Flash 集成)
- * @note    V4.3.0: 新增 W25Q_Driver + App_Storage 初始化
- *          状态: INIT → IDLE → SWEEP → RUNNING
- *                          ↑        │        │
- *                          └── FAULT ←───────┘
+ * @brief   WPT_PWM V4.3.2 — 程序入口 (W25Q128 全字库)
+ * @note    V4.3.2: 初始化铁序 TFT → W25Q → Font → 其余
+ *          W25Q_Driver_Init 后必须调用 Tft_Driver_Font_Init(),
+ *          否则 Flash 字库永远回退 ROM 76 字
  ******************************************************************************
  */
 
@@ -15,6 +14,8 @@
 #include "Adc_Driver.h"
 #include "App_Network.h"
 #include "W25Q_Driver.h"
+#include "Tft_Driver.h"
+#include "Sys_Timer.h"
 #include "App_Storage.h"
 
 int main(void)
@@ -25,12 +26,14 @@ int main(void)
     Sys_Clamp_ESP();
     Sys_Hardware_Init();
 
-    /* V4.3.2: W25Q128 在 TFT SPI1 就绪后初始化 (仅验 JEDEC, 不重复配 SPI)
-     *         Tft_Driver_Init 已配好 PA5/PA7/PA12 + SPI1, W25Q 复用 */
-    W25Q_Driver_Init();
-    App_Storage_Init();                              /* 字库 CRC + 恢复黑匣子指针 + 加载参数 */
+    /* Sys_Timer 必须在 SPLASH 之前 — Tft_Driver_Show_Splash 内部 Sys_Timer_Delay_Ms 依赖 SysTick */
+    Sys_Timer_Init();
 
-    Sys_Startup_Screen();                            /* 字库就绪后显示启动画面 */
+    W25Q_Driver_Init();
+    Tft_Driver_Font_Init();                          /* 必须在 W25Q_Driver_Init 之后! */
+    App_Storage_Init();
+
+    Sys_Startup_Screen();
     Sys_Post_Init();
     g_sys_state = SYS_STATE_IDLE;
 

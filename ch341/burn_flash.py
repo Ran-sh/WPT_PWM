@@ -36,8 +36,13 @@ _NO_WIN = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 def compute_crc32(data: bytes) -> int:
-    """zlib.crc32 → uint32, 与 STM32 CRC32_Compute 多项式/初值/final XOR 一致"""
-    return zlib.crc32(data) & 0xFFFFFFFF
+    """STM32 CRC32_Compute 同款: poly=0x04C11DB7, init=0xFFFFFFFF, refin=false, xorout=0xFFFFFFFF"""
+    crc = 0xFFFFFFFF
+    for b in data:
+        crc ^= (b << 24)
+        for _ in range(8):
+            crc = (crc << 1) ^ 0x04C11DB7 if crc & 0x80000000 else crc << 1
+    return (crc ^ 0xFFFFFFFF) & 0xFFFFFFFF
 
 
 def run_flashrom(args: list, desc: str, timeout: int = 300):
@@ -60,10 +65,10 @@ def main():
     # Step 0: CRC32 自测 (fail-fast 防算法不一致)
     # ═══════════════════════════════════════════════════════════════
     print("\n[==== Step 0/5: CRC32 自测 ====]")
-    print("[..] CRC32('1234') 期望 0x9BE3E0A3")
-    assert compute_crc32(b"1234") == 0x9BE3E0A3, \
-        "CRC32 自测失败! Python zlib.crc32 与 STM32 CRC32_Compute 算法参数不一致"
-    print("[OK]  CRC32 自测通过: CRC32('1234') = 0x9BE3E0A3")
+    print("[..] CRC32('1234') 期望 0x596A3B55 (STM32 refin=false)")
+    assert compute_crc32(b"1234") == 0x596A3B55, \
+        "CRC32 自测失败! 与 STM32 CRC32_Compute 算法参数不一致"
+    print("[OK]  CRC32 自测通过: STM32 CRC32('1234') = 0x596A3B55")
 
     # ═══════════════════════════════════════════════════════════════
     # Step 1: 检测 flashrom

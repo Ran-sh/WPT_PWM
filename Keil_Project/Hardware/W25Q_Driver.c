@@ -165,14 +165,14 @@ void W25Q_Driver_Read(uint32_t addr, uint8_t *buf, uint16_t len)
 {
     if (!s_chip_ok || buf == 0 || len == 0) return;
 
-    W25Q_SPI_8bit(); W25Q_Wait_Busy_Timeout();           /* L3 + L2: 进入边界 */
-    W25Q_Enter_Mode();                                   /* PA6→MISO, CS=L */
+    W25Q_SPI_8bit(); W25Q_Enter_Mode();                  /* L3: 8bit + PA6→MISO, CS=L */
+    FLASH_CS_HIGH(); FLASH_CS_LOW();                      /* CS 脉冲: 重置 Flash 命令解码器 */
     W25Q_SPI_Transfer(CMD_READ);
     W25Q_SPI_Transfer((uint8_t)(addr >> 16));
     W25Q_SPI_Transfer((uint8_t)(addr >> 8));
     W25Q_SPI_Transfer((uint8_t)(addr));
     while (len--) *buf++ = W25Q_SPI_Transfer(0xFF);
-    W25Q_Leave_Mode();                                   /* L2: 退出边界 */
+    W25Q_Leave_Mode();                                   /* CS=H, PA6→DC */
 }
 
 void W25Q_Driver_Write_Page(uint32_t addr, const uint8_t *buf, uint16_t len)
@@ -229,7 +229,9 @@ uint8_t Font_Header_Load(Font_Header *hdr)
 
 /** @brief  总线独占二分搜索 CJK Index (20902 条 Unicode 升序)
  *  @note   Index 条目: [U16 LE 2B][Offset U32 LE 4B] = 6B/条
- *          W25Q_Enter_Mode 入口独占一次, 全函数仅一次 Leave_Mode 释放
+ *          V4.3.2 FIX: 循环内 CS 翻转 (W25Q128 要求每次 CMD_READ 前 CS↑→CS↓ 重置解码器)
+ *          CS 脉冲期间 PA6 保持 MISO 角色 (仅切 CS 线, 不重配 GPIO)
+ *          Entry+Exit 各一次 Leave_Mode, 中途不归还总线
  *  @retval U32 offset 相对 CJK_Data_BASE, 0xFFFFFFFF=未找到 */
 uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
 {
@@ -241,6 +243,7 @@ uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
     while (lo < hi) {
         mid = (lo + hi) >> 1;                                    /* 折半 → 无溢出 uint16 */
         addr = hdr->cjk_index_offset + (uint32_t)mid * 6U;       /* 条大小=6B [U16][U32] */
+        FLASH_CS_HIGH(); FLASH_CS_LOW();                         /* CS 脉冲: 重置 Flash 命令解码器 */
         W25Q_SPI_Transfer(CMD_READ);
         W25Q_SPI_Transfer((uint8_t)(addr >> 16));
         W25Q_SPI_Transfer((uint8_t)(addr >> 8));
@@ -252,6 +255,7 @@ uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
     if (lo >= hdr->cjk_index_count) { W25Q_Leave_Mode(); return 0xFFFFFFFFUL; }
     /* 验证候选条目: 读 U16 Unicode + U32 offset */
     addr = hdr->cjk_index_offset + (uint32_t)lo * 6U;
+    FLASH_CS_HIGH(); FLASH_CS_LOW();                             /* CS 脉冲: 重置命令解码器 */
     W25Q_SPI_Transfer(CMD_READ);
     W25Q_SPI_Transfer((uint8_t)(addr >> 16));
     W25Q_SPI_Transfer((uint8_t)(addr >> 8));

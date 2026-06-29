@@ -70,20 +70,11 @@ void Sys_Hardware_Init(void)
 void Sys_Startup_Screen(void)
 {
     Tft_Driver_Clear(TFT_COLOR_BLACK);
-    Tft_Driver_Show_Splash();  /* 有 SPLASH 则播动画, 无则静默跳过 */
-    /* 回退: SPLASH 无效时的纯文本启动画面 */
-    {
-        uint8_t hdr[4];
-        W25Q_Driver_Read(W25Q_ADDR_SPLASH, hdr, 4);
-        if (hdr[0] != 0x50 || hdr[1] != 0x53) {
-            Tft_Driver_Show_CN_String(3, 3, "WPT-PWM", TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
-            Tft_Driver_Show_CN_String(5, 3, "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad" "...",
-                                      TFT_COLOR_WHITE, TFT_COLOR_BLACK);
-        }
-    }
-    /* Flash 字库加载结果 (Line 7, 不会被其他内容覆盖) */
+    Tft_Driver_Show_Splash();               /* 纯代码 SPLASH: 8 帧背光渐亮~2.4s */
+
+    /* Flash 字库加载结果 (Line 7, 不会被 SPLASH 覆盖) */
     if (Tft_Driver_Is_Font_Flash_Valid()) {
-        Tft_Driver_Show_String(7, 0, "Flash OK 6763",
+        Tft_Driver_Show_String(7, 0, "Flash OK 20897",
                                TFT_COLOR_GREEN, TFT_COLOR_BLACK);
     } else {
         Tft_Driver_Show_String(7, 0, "Flash FAIL 76",
@@ -95,7 +86,7 @@ void Sys_Startup_Screen(void)
 void Sys_Post_Init(void)
 {
     uint8_t cfg_valid;
-    Sys_Timer_Init();
+    /* Sys_Timer_Init 已提前到 main.c 中 (SPLASH 需要 SysTick) */
     Led_Driver_Set_System(1);
 
     /* V4.3.0: Flash 加载参数配置, 双副本 CRC32 闭锁回退 */

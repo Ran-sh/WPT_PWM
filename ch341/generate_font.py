@@ -241,8 +241,14 @@ ICON_SPEC = [
 # ═══════════════════════════════════════════════════════════════════
 
 def compute_crc32(data: bytes) -> int:
-    """zlib.crc32 → uint32, 与 STM32 CRC32_Compute 多项式/初值/final XOR 一致"""
-    return zlib.crc32(data) & 0xFFFFFFFF  # 强制无符号, 截断 int32 有符号陷阱
+    """STM32 CRC32_Compute 同款: poly=0x04C11DB7, init=0xFFFFFFFF, refin=false, refout=false, xorout=0xFFFFFFFF
+    与 App_Storage.c CRC32_Compute() 位对位一致, 不与 zlib.crc32 混淆"""
+    crc = 0xFFFFFFFF
+    for b in data:
+        crc ^= (b << 24)
+        for _ in range(8):
+            crc = (crc << 1) ^ 0x04C11DB7 if crc & 0x80000000 else crc << 1
+    return (crc ^ 0xFFFFFFFF) & 0xFFFFFFFF
 
 
 def bit_reverse_byte(b: int) -> int:
@@ -263,7 +269,7 @@ def render_ascii(font) -> bytes:
             byte_val = 0
             for col in range(8):
                 if img.getpixel((col, row)): byte_val |= (1 << col)  # LSB-first: bit0=最左像素
-            data.append(bit_reverse_byte(byte_val))  # 位序翻转, 咬合解码器
+            data.append(byte_val)                    # LSB-first, 与 Decode_Char_Row 一致
     return bytes(data)
 
 
@@ -280,8 +286,8 @@ def render_cjk(font, code_points: list) -> tuple:
             for col in range(8):
                 if img.getpixel((col, row)):      lo |= (1 << col)
                 if img.getpixel((col + 8, row)):  hi |= (1 << col)
-            glyph[row * 2]     = bit_reverse_byte(lo)
-            glyph[row * 2 + 1] = bit_reverse_byte(hi)
+            glyph[row * 2]     = lo                  # LSB-first, 与 Decode_CN_Row 一致
+            glyph[row * 2 + 1] = hi                  # LSB-first, 与 Decode_CN_Row 一致
         index_buf.extend(struct.pack('<HI', cp, len(glyph_buf)))  # [U16 LE][U32 LE] 6B/条
         glyph_buf.extend(glyph)
     return bytes(index_buf), bytes(glyph_buf)
@@ -365,10 +371,10 @@ def assemble_font_image(ascii_data: bytes,
 # ═══════════════════════════════════════════════════════════════════
 
 def main():
-    # 自测: CRC32("1234") == 0x9BE3E0A3 (STM32 CRC32_Compute 预计算值)
-    assert compute_crc32(b"1234") == 0x9BE3E0A3, \
-        "CRC32 自测失败! Python zlib.crc32 与 STM32 CRC32_Compute 不一致"
-    print("[OK] CRC32 自测通过: CRC32('1234') = 0x9BE3E0A3")
+    # 自测: CRC32("1234") == 0x596A3B55 (STM32 CRC32_Compute, refin=false)
+    assert compute_crc32(b"1234") == 0x596A3B55, \
+        "CRC32 自测失败! 与 STM32 CRC32_Compute 不一致"
+    print("[OK] CRC32 自测通过: STM32 CRC32('1234') = 0x596A3B55")
 
     # 加载宋体 16px
     font_paths = [
