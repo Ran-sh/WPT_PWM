@@ -358,7 +358,7 @@ static void Fmt_I(char* buf, float c)
 
 static void Fmt_F(char* buf, float f)
 {
-    snprintf(buf, 21, "\xe9\xa2\x91\xe7\x8e\x87" "F:%3d.%01dkHz", (int)f, (int)((f-(int)f)*10+0.5f)%10);
+    snprintf(buf, 21, T(S_FREQ_CN, S_FREQ_EN) "F:%3d.%01dkHz", (int)f, (int)((f-(int)f)*10+0.5f)%10);
 }
 
 /* ================================================================
