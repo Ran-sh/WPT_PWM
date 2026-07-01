@@ -592,7 +592,7 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
  *  Icon 绘制 — Flash V2 Icon Table + ROM 3图标回退
  * ═══════════════════════════════════════════════════════════════ */
 
-/** @brief 统一图标绘制: Flash 优先, ROM 3图标回退 (WIFI_OFF/WIFI_REMOVE/MQTT_NO)
+/** @brief 统一图标绘制: Flash V2 优先, ROM 3图标回退 (WIFI_OFF/WIFI_REMOVE/MQTT_NO_ICON)
  *  @param icon_id 0-30, see ICON_ID_* defines in Tft_Driver.h
  *  @param frame   0..n_frames-1, clamped internally
  *  @param x,y     top-left TFT pixel coordinates
