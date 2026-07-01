@@ -223,7 +223,9 @@
       "Bash(awk '/static uint16_t s_color/{print NR\": \"$0}' \"Keil_Project/Hardware/Ui_Controller.c\")",
       "Bash(awk '/static uint16_t Uc_/{print NR\": \"$0}' \"Keil_Project/Hardware/Ui_Controller.c\")",
       "Bash(awk 'NR>=88 && NR<=120' \"Keil_Project/Hardware/Ui_Controller.c\")",
-      "Bash(awk 'NR>=190 && NR<=215' \"Keil_Project/Hardware/Ui_Controller.c\")"
+      "Bash(awk 'NR>=190 && NR<=215' \"Keil_Project/Hardware/Ui_Controller.c\")",
+      "Bash(sed -i 's/\\\\bT\\(S_/T_show\\(S_/g; s/\\\\bT_show\\(T_show\\(/T_show\\(/g; s/\\\\bT_show\\(is_cn/is_cn/g' \"Keil_Project/Hardware/Ui_Controller.c\")",
+      "Bash(sed -i 's/\\\\bT_show\\(S_VOLTAGE_CN, S_VOLTAGE_EN\\)/T_str\\(S_VOLTAGE_CN, S_VOLTAGE_EN\\)/g; s/\\\\bT_show\\(S_CURRENT_CN, S_CURRENT_EN\\)/T_str\\(S_CURRENT_CN, S_CURRENT_EN\\)/g; s/\\\\bT_show\\(S_FREQ_CN, S_FREQ_EN\\)/T_str\\(S_FREQ_CN, S_FREQ_EN\\)/g; s/\\\\bT_show\\(S_LBL_FREQ_CN, S_LBL_FREQ_EN\\)/T_str\\(S_LBL_FREQ_CN, S_LBL_FREQ_EN\\)/g; s/\\\\bT_show\\(S_LBL_VOLT_CN, S_LBL_VOLT_EN\\)/T_str\\(S_LBL_VOLT_CN, S_LBL_VOLT_EN\\)/g; s/\\\\bT_show\\(S_LBL_CURR_CN, S_LBL_CURR_EN\\)/T_str\\(S_LBL_CURR_CN, S_LBL_CURR_EN\\)/g' \"Keil_Project/Hardware/Ui_Controller.c\")"
     ]
   }
 }
