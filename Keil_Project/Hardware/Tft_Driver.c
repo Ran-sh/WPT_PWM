@@ -598,7 +598,7 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
  *  @param x,y     top-left TFT pixel coordinates
  *  @param fg,bg   foreground/background RGB565 colors
  *  @retval 1=success, 0=not found
- *  @note   Flash 正常 -> 31 图标全量; Flash 无效 -> ROM 全量回退 (WiFi 4+6+2, MQTT 4+6, Star 1)
+ *  @note   Flash 正常 -> 31 图标全量; Flash 无效 -> ROM 全量回退 (WiFi 4+6+2, MQTT 4+6, Star 1) */
 uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
     uint8_t icon_id, uint8_t frame, uint16_t fg, uint16_t bg)
 {
