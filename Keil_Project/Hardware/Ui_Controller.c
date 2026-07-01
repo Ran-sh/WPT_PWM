@@ -319,7 +319,7 @@ static void Draw_Main_Menu_Full(void)
             case 0:
                 text = is_running ? S_M1_STOP : S_M1_START;
                 break;
-            case 1: text = "2. " S_MONITOR; break;
+            case 1: text = Ui_Lang("2. \xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b", "2. MONITOR"); break;
             case 2: text = S_M3_WIFI; break;
             case 3:
                 text = S_M4_FAULT;
