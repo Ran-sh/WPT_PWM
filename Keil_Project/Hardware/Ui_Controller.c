@@ -1994,6 +1994,7 @@ static void Apply_Color_Preset(uint8_t preset_idx)
     s_color_bg      = p->bg;
     s_color_accent  = p->accent;
     s_color_preset  = preset_idx;
+    (void)s_color_preset;  /* consumed by persistence path */
 }
 
 static void Draw_Color_Full(void)
