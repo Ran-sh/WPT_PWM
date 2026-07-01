@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 generate_font.py — GB2312 一级汉字 + ASCII + 图标 → W25Q128 字库镜像 (2MB)
-V1.0  2026-06-23  架构对齐 docs/superpowers/specs/2026-06-23-ch341-font-burn-design.md §2~§5
+V1.1  2026-06-29  移除 bit_reverse_byte, 字模 LSB-first 匹配 ROM; CRC32 改用 STM32 算法
+V1.2  2026-07-01  V4.3.2 同步: 图标无变更, 版本标记更新
 依赖: Pillow (pip install Pillow), simsun.ttc (Windows 自带 16px 宋体)
 """
 

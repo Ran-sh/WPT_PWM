@@ -1,6 +1,6 @@
 # CH341A 字库烧录操作指南
 
-> 适用项目: WPT_PWM V4.3.2 | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 日期: 2026-06-29
+> 适用项目: WPT_PWM V4.3.2 | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 日期: 2026-07-01
 
 本指南用于将 GB2312 全字库 (20897 汉字 + 95 ASCII + 图标动画) 通过 CH341A USB-SPI 编程器烧录到板载 W25Q128 Flash 芯片。
 

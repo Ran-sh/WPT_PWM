@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 burn_flash.py — CH341A + flashrom 字库烧录编排
-V1.0  2026-06-23
+V1.1  2026-06-29  CRC32 改用 STM32 算法; 自测断言更新
+V1.2  2026-07-01  V4.3.2 同步
 
 用法: python ch341/burn_flash.py
 
