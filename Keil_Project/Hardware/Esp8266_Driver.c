@@ -1,26 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Esp8266_Driver.c
- * @brief   ESP8266 串口通信驱动 — V4.3.2
- *
- *  Pinout:  STM32 <-> ESP8266 (USART2 + control)
- *  +------------------------------------------------------------+
- *  |    STM32F103C8T6                      ESP8266               |
- *  |                                                             |
- *  |    PA2  --- USART2_TX  ----------------->  RXD              |
- *  |    PA3  --- USART2_RX  <-----------------  TXD              |
- *  |    PA1  --- GPIO_PP    ----------------->  RST              |
- *  |    PB11 --- GPIO_PP    ----------------->  CH_PD / EN       |
- *  |                                                             |
- *  |    UART: 115200-8-N-1, plain JSON, zero AT commands         |
- *  |    Sequence: CH_PD high -> 100ms -> RST pulse(100ms) -> 4s  |
- *  |    RX: RXNE ISR -> ring buf(3x256B) -> Try_Copy_Rx_Frame    |
- *  |    TX: polling TXE + TC dual confirm                        |
- *  +------------------------------------------------------------+
- *
- * @note    CH_PD=PB11 (EN), RST=PA1, USART2=PA2/PA3
- ******************************************************************************
- */
+/** @brief ESP8266 串口通信驱动 — V4.3.2 */
 
 #include "Esp8266_Driver.h"
 #include "Sys_Timer.h"
@@ -250,13 +231,7 @@ uint16_t Esp8266_Driver_Copy_Rx_Frame(char* dst, uint16_t max_len)
     return len;
 }
 
-/**
- * @brief  原子检查+复制: flag-check + frame-copy + clear 在同一临界区内完成
- * @note   消除 Get_Rx_Flag()→Copy_Rx_Frame() 之间的中断窗口:
- *         若检测到帧标志后 ISR 又写入新帧, 旧原子方案会在 Copy 内清标志,
- *         导致新帧标志也一并被清零, 帧静默丢失。
- *         本函数将"判断+复制"合一, 返回 0 (无帧) 或有效帧长, 调用方无需先调 Get_Rx_Flag。
- */
+/** @brief 原子检查+复制: flag-check + frame-copy + clear 在同一临界区内完成 @note   消除 Get_Rx_Flag()→Copy_Rx_Frame() 之间的中断窗口: 若检测到帧标志后 ISR 又写入新帧, 旧原子方案会在 Copy 内清标志, 导致新帧标志也一并被清零, 帧静默丢失。 本函数将"判断+复制"合一, 返回 0 (无帧) 或有效帧长, 调用方无需先调 Get_Rx_Flag。 */
 uint16_t Esp8266_Driver_Try_Copy_Rx_Frame(char* dst, uint16_t max_len)
 {
     uint16_t len = 0;

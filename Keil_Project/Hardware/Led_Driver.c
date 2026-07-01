@@ -1,37 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.c
- * @brief   LED 指示灯驱动 — V4.3.2 (5 LEDs)
- *
- *  Pinout (JTAG disabled -> PB3/PB4/PA15 freed as GPIO):
- *  +----------------------------------------------------------+
- *  |                    STM32F103C8T6                          |
- *  |                                                           |
- *  |    PA15 --- GPIO_PP --- LED_SYSTEM (yellow) heartbeat     |
- *  |              ON=normal  BLINK_SLOW=abnormal  BLINK_FAST=  |
- *  |                                                           |
- *  |    PB4  --- GPIO_PP --- LED_WIFI   (blue)  WiFi status    |
- *  |              ON=online  BLINK_SLOW=reconnect  OFF=offlin  |
- *  |                                                           |
- *  |    PB3  --- GPIO_PP --- LED_PWM    (green) PWM running    |
- *  |              ON=running  BLINK_SLOW=sweep  OFF=idle       |
- *  |                                                           |
- *  |    PA10 --- GPIO_PP --- LED_COM    (blue)  comm activity  |
- *  |              ON=tx/rx  OFF=idle                           |
- *  |                                                           |
- *  |    PA11 --- GPIO_PP --- LED_POWER  (green) power indicat  |
- *  |              ON=12V enabled  OFF=12V disabled             |
- *  |                                                           |
- *  |    PA12 === W25Q128_CS (reassigned to Flash, LED_TEMP of  |
- *  |                                                           |
- *  |    Each LED: GPIO -> R (220 ohm) -> LED anode -> GND      |
- *  +----------------------------------------------------------+
- *
- * @note    PA15=LED_SYSTEM, PB4=LED_WIFI, PB3=LED_PWM,
- *          PA10=LED_COM, PA11=LED_POWER
- *          PA12 reassigned to W25Q128 Flash CS
- ******************************************************************************
- */
+/** @brief LED 指示灯驱动 — V4.3.2 (5 LEDs) */
 
 #include "Led_Driver.h"
 #include "Sys_Timer.h"

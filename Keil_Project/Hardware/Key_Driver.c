@@ -1,25 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Key_Driver.c
- * @brief   按键驱动 — V4.3.2 (4 keys)
- *
- *  Pinout (4 keys, all IPU pull-up, press = LOW):
- *  +----------------------------------------------------------+
- *  |                      STM32F103C8T6                        |
- *  |                                                           |
- *  |    PB8  --- IPU ---+--- Key --- GND    F_UP    (频率+)      |
- *  |    PB7  --- IPU ---+--- Key --- GND    F_DOWN  (频率-)      |
- *  |    PB5  --- IPU ---+--- Key --- GND    PAGE   (确定/启停)   |
- *  |    PB9  --- IPU ---+--- Key --- GND    ON     (返回)         |
- *  |                                                           |
- *  |    Per-key FSM: IDLE -> DEBOUNCE(10ms) -> PRESS           |
- *  |      -> WAIT_DOUBLE(200ms) -> LONG(3s)                    |
- *  |    Batch read: Key_Driver_Read_Batch merges critical sec  |
- *  +----------------------------------------------------------+
- *
- * @note    PB5=PAGE(确定/启停), PB9=ON(返回), PB8=F_UP, PB7=F_DOWN
- ******************************************************************************
- */
+/** @brief 按键驱动 — V4.3.2 (4 keys) */
 
 #include "Key_Driver.h"
 #include "Sys_Timer.h"

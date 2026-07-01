@@ -1,27 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Inverter_Control.c
- * @brief   逆变器控制 — 软启动状态机 + 频率斜坡 (V4.3.2)
- *
- *  Pinout (via dependent modules):
- *  +----------------------------------------------------------+
- *  |                       STM32F103C8T6                       |
- *  |                                                           |
- *  |    PA8  --- TIM1_CH1  ---+--- Full-bridge CH1   (Pwm_Dri  |
- *  |    PA9  --- TIM1_CH2  ---+--- Full-bridge CH2   (Pwm_Dri  |
- *  |    PB13 --- TIM1_CH1N ---+--- FB CH1N complement (Pwm_Dr  |
- *  |    PB14 --- TIM1_CH2N ---+--- FB CH2N complement (Pwm_Dr  |
- *  |                                                           |
- *  |    PB10 --- GPIO_PP ---------- 12V power enable (Sys_Cor  |
- *  |              (HIGH=enable, LOW=disable)                   |
- *  |                                                           |
- *  |    Soft-start: freq ramp 150kHz -> 100kHz, 1kHz step, 20  |
- *  |    FAULT: instant brake, all ramps cancel, PWM disabled   |
- *  +----------------------------------------------------------+
- *
- * @note    Soft-start 150k->100kHz non-blocking, PWM deadtime 1000ns
- ******************************************************************************
- */
+/** @brief 逆变器控制 — 软启动状态机 + 频率斜坡 (V4.3.2) */
 
 #include "Inverter_Control.h"
 #include "Pwm_Driver.h"

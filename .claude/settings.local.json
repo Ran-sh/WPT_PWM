@@ -217,7 +217,8 @@
       "Bash(sed -i 's/* @brief   System timer module —/* @brief   系统时基模块 —/' Keil_Project/System/Sys_Timer.c)",
       "Bash(sed -i 's/* @brief   Network application layer —/* @brief   网络应用层 —/' Keil_Project/User/App_Network.c)",
       "Bash(sed -i \"s/* @brief   ST7735 128x160 TFT color display driver — public interface/* @brief   ST7735 128x160 TFT 彩屏显示驱动 — V4.3.2/\" Keil_Project/Hardware/Tft_Driver.h)",
-      "Bash(sed -i \"s/  ════ W25Q128 实际接线 ════/  ==== W25Q128 实物接线 ====/\" Keil_Project/Hardware/W25Q_Driver.h)"
+      "Bash(sed -i \"s/  ════ W25Q128 实际接线 ════/  ==== W25Q128 实物接线 ====/\" Keil_Project/Hardware/W25Q_Driver.h)",
+      "Bash(awk -F: '{sum+=$2} END {print \"总数: \" sum}')"
     ]
   }
 }

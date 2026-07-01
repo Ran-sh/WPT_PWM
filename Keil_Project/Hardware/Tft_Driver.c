@@ -1,34 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V4.3.2 全字库双路径)
- *
- *  Pinout (SPI1 TDM: TFT + W25Q128 share bus):
- *  +------------------------------------------------------------+
- *  |    STM32F103C8T6              ST7735 128x160 Green Tab      |
- *  |                                                             |
- *  |    PA5 --- SPI1_SCK ------------------> SCL  (18MHz)        |
- *  |    PA7 --- SPI1_MOSI ------------------> SDA  (shared data  |
- *  |    PA4 --- GPIO_PP --------------------> CS   (active low)  |
- *  |    PA6 --- GPIO_PP --------------------> DC   (cmd/data)    |
- *  |    PA0 --- GPIO_PP --------------------> RESET              |
- *  |    PB6 --- TIM4_CH1 -------------------> BL   (backlight P  |
- *  |                                                             |
- *  |    PA6 --- SPI1_MISO <------------------ W25Q128 DO (Flash  |
- *  |    PA12 -- GPIO_PP --------------------> W25Q128 /CS (Flas  |
- *  |                                                             |
- *  |    SPI Mode3 (CPOL=H, CPHA=2Edge), full-duplex              |
- *  |    160x128 landscape, MADCTL=0xA0, SetWin offset X+1 Y+2    |
- *  |    DMA1_Channel3 pixel pump, WrCmd/WrDat 8-bit polling      |
- *  |                                                             |
- *  |    PA6 dynamic: TFT(DC) <--> W25Q128(MISO)                  |
- *  |      DFF(SPI1_CR1 bit11): 8b(poll) <-> 16b(DMA) atomic swi  |
- *  +------------------------------------------------------------+
- *
- * @note    V4.3.2: Flash 20897 chars (CRC32) -> ROM 76 fallback
- *          SPLASH pure-code 8-frame fade-in (STM32 ROM, no W25Q)
- ******************************************************************************
- */
+/** @brief ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V4.3.2 全字库双路径) */
 
 #include "Tft_Driver.h"
 #include "TFT_Font_Data.h"

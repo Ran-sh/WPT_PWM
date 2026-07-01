@@ -1,33 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   人机界面控制器 V4.3.2 — 9 页面 + 圆弧能量条 + 增量刷新
- *
- *  Hardware dependencies (indirect, via Driver layer):
- *  +----------------------------------------------------------+
- *  |                       STM32F103C8T6                       |
- *  |                                                           |
- *  |    Tft_Driver:  SPI1+DMA (PA5/PA7/PA4/PA6/PA0/PB6)  disp  |
- *  |    Key_Driver:  PB9/PB8/PB7/PB5 (IPU)                inp  |
- *  |    Led_Driver:  PA15/PB4/PB3/PA10/PA11               sta  |
- *  |    Buzzer:      PB15 (PP)                             be  |
- *  |    Pwm_Driver:  TIM1 CH1/CH2/CH1N/CH2N               pow  |
- *  |    Sys_Core:    global state machine g_sys_state          |
- *  |    Sys_Timer:   timebase (200ms inc refresh cycle)        |
- *  |                                                           |
- *  |    9 pages: MAIN_MENU/SUB_MENU/VOLTAGE/CURRENT/           |
- *  |             FREQUENCY/SUMMARY/WIFI_CONFIG/FAULT/          |
- *  |             SWEEP_PROGRESS                                |
- *  |                                                           |
- *  |    UI Phase pipeline (7 phases):                          |
- *  |      P0=TopRight Icons  P1=Fault Detect  P2=Sweep AutoJu  |
- *  |      P3=Key Scan+Disp   P4=Page Change    P5=200ms Dynam  |
- *  |      P6=Cursor Clamp    P7=Draw (full only when dirty)    |
- *  +----------------------------------------------------------+
- *
- * @note    TFT 8x20 cols, 160x128 landscape, 4 keys: ON/OFF/F+/F-/PAGE
- ******************************************************************************
- */
+/** @brief 人机界面控制器 V4.3.2 — 9 页面 + 圆弧能量条 + 增量刷新 */
 
 #include "Ui_Controller.h"
 #include "Sys_Core.h"
@@ -196,12 +170,7 @@ static uint8_t Right(const char* s)
     return (w >= 20) ? 0 : 20 - w;
 }
 
-/**
- * @brief  UI 层 EMA 滤波: V/I 平滑 Sys_Safety 输出(显示级二次滤波), F 直接读数无迟滞
- * @note   V/I: α=0.25, τ≈800ms, 减少屏幕数值高频抖动
- *         F:   数字寄存器原子值, 零 EMA 迟滞, 保证按键调频跟手
- *         数据源: Sys_Safety 已对 ADC 做一级滤波, 此处仅做显示平滑
- */
+/** @brief UI 层 EMA 滤波: V/I 平滑 Sys_Safety 输出(显示级二次滤波), F 直接读数无迟滞 @note   V/I: α=0.25, τ≈800ms, 减少屏幕数值高频抖动 F:   数字寄存器原子值, 零 EMA 迟滞, 保证按键调频跟手 数据源: Sys_Safety 已对 ADC 做一级滤波, 此处仅做显示平滑 */
 static void Update_EMA(void)
 {
     if (!s_ema_ok) {
@@ -1667,21 +1636,14 @@ void Ui_Controller_Task(void)
 Ui_Page Ui_Controller_Get_Page(void)      { return s_page; }
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void) { return s_no_wifi_mode; }
 
-/**
- * @brief  外部强制跳转到目标页面 (物理级)
- * @note   远程指令触发或系统状态迁移时, 调用此函数同步 UI 页面, 防止 UI 展示不同步
- */
+/** @brief 外部强制跳转到目标页面 (物理级) @note   远程指令触发或系统状态迁移时, 调用此函数同步 UI 页面, 防止 UI 展示不同步 */
 void Ui_Controller_Force_Page(Ui_Page page)
 {
     s_page = page;
     s_page_drawn = 0;  /* 强制全量重绘 */
 }
 
-/**
- * @brief  外部强制跳转到目标页面并重置菜单光标
- * @note   远程 CMD:ON/OFF 专用 — 除页面跳转外, 还强制重置 s_menu_cursor=0
- *         防止远端操作后本地菜单光标停留在已失效的旧菜单项上
- */
+/** @brief 外部强制跳转到目标页面并重置菜单光标 @note   远程 CMD:ON/OFF 专用 — 除页面跳转外, 还强制重置 s_menu_cursor=0 防止远端操作后本地菜单光标停留在已失效的旧菜单项上 */
 void Ui_Controller_Force_Page_And_Reset(Ui_Page page)
 {
     s_page        = page;
