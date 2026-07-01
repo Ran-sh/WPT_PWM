@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.c
-/** @brief LED 指示灯驱动 - V4.3.2 (5 LEDs) */
+ * @brief   LED 指示灯驱动 - V4.3.2 (5 LEDs)
 
 #include "Led_Driver.h"
 #include "Sys_Timer.h"

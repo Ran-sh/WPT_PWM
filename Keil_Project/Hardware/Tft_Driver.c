@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
-/** @brief ST7735 128x160 TFT 彩屏驱动 - SPI1+DMA (V4.3.2 全字库双路径) */
+ * @brief   ST7735 128x160 TFT 彩屏驱动 - SPI1+DMA (V4.3.2 全字库双路径)
 
 #include "Tft_Driver.h"
 #include "TFT_Font_Data.h"
