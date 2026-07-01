@@ -1,7 +1,31 @@
 /**
  ******************************************************************************
  * @file    System/Sys_Timer.c
- * @brief   系统时基模块 — 实现
+ * @brief   系统时基模块 — V4.3.2
+ *
+ *  Timing sources:
+ *  +--------------------------------------------------------+
+ *  |                 STM32F103C8T6                           |
+ *  |                                                         |
+ *  |    SysTick (Cortex-M3) --- 1ms timebase                 |
+ *  |      SysTick_Handler() -> Sys_Timer_IncTick()           |
+ *  |      Sys_Timer_Get_Tick() -> uint32_t, 49.7-day wrap-s  |
+ *  |                                                         |
+ *  |    DWT (Cortex-M3 debug) --- 0.5us high-res counter     |
+ *  |      DWT->CYCCNT enabled via DEMCR TRCENA + CTRL CYCCN  |
+ *  |                                                         |
+ *  |    Core scheduling pattern (periodic tasks):            |
+ *  |      static uint32_t last = 0;                          |
+ *  |      if (Sys_Timer_Get_Tick() - last >= PERIOD_MS) {    |
+ *  |          last = Sys_Timer_Get_Tick();                   |
+ *  |          // business logic                              |
+ *  |      }                                                  |
+ *  |      uint32_t unsigned subtract auto-handles 49.7-day   |
+ *  |                                                         |
+ *  |    Sys_Timer_Delay_Ms() — init phase ONLY, never at ru  |
+ *  +--------------------------------------------------------+
+ *
+ * @note    Single project-wide timebase; SysTick_Handler has ONE line: IncTick
  ******************************************************************************
  */
 

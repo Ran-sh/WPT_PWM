@@ -1,9 +1,24 @@
 /**
  ******************************************************************************
  * @file    Hardware/Esp8266_Driver.c
- * @brief   ESP8266 串口通信驱动 — 实现 (V4.2.0 冷启动强化版)
- * @note    CH_PD=PB11 (EN), RST=PA1 (独立复位)
- *          简化时序: GPIO仅配一次 → 拉高CH_PD供电 → RST复位脉冲 → 等待启动
+ * @brief   ESP8266 串口通信驱动 — V4.3.2
+ *
+ *  Pinout:  STM32 <-> ESP8266 (USART2 + control)
+ *  +------------------------------------------------------------+
+ *  |    STM32F103C8T6                      ESP8266               |
+ *  |                                                             |
+ *  |    PA2  --- USART2_TX  ----------------->  RXD              |
+ *  |    PA3  --- USART2_RX  <-----------------  TXD              |
+ *  |    PA1  --- GPIO_PP    ----------------->  RST              |
+ *  |    PB11 --- GPIO_PP    ----------------->  CH_PD / EN       |
+ *  |                                                             |
+ *  |    UART: 115200-8-N-1, plain JSON, zero AT commands         |
+ *  |    Sequence: CH_PD high -> 100ms -> RST pulse(100ms) -> 4s  |
+ *  |    RX: RXNE ISR -> ring buf(3x256B) -> Try_Copy_Rx_Frame    |
+ *  |    TX: polling TXE + TC dual confirm                        |
+ *  +------------------------------------------------------------+
+ *
+ * @note    CH_PD=PB11 (EN), RST=PA1, USART2=PA2/PA3
  ******************************************************************************
  */
 

@@ -1,23 +1,11 @@
 /**
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.h
- * @brief   W25Q128 16MB SPI NOR Flash 底层驱动 — 公开接口
+ * @brief   W25Q128 16MB SPI NOR Flash 底层驱动 — V4.3.2
  * @note    SPI1 分时复用: PA5=SCK PA7=MOSI PA6=动态(MISO/DC) PA12=CS
- *          四大硬件防线: 写使能锁存 / Busy死等 / DFF原子闪切 / 发波禁擦
+ *          四大硬件防线: 写使能锁存 / Busy 死等 / DFF 原子闪切 / 发波禁擦
+ *          接线详见 W25Q_Driver.c 头部注释
  *          ARMCC V5 SPL, 禁止 // 注释, 禁止 HAL
- *
- *          ════ W25Q128 实际接线 ════
- *          W25Q128 Pin 1 (CS)   → STM32 PA12  (FLASH_CS)
- *          W25Q128 Pin 2 (DO)   → STM32 PA6   (SPI1_MISO, 分时复用)
- *          W25Q128 Pin 3 (WP)   → 3.3V (拉高, 写不保护)
- *          W25Q128 Pin 4 (GND)  → GND
- *          W25Q128 Pin 5 (DI)   → STM32 PA7   (SPI1_MOSI)
- *          W25Q128 Pin 6 (CLK)  → STM32 PA5   (SPI1_SCK)
- *          W25Q128 Pin 7 (HOLD) → 3.3V (拉高)
- *          W25Q128 Pin 8 (VCC)  → 3.3V (不可 5V, 烧芯片!)
- *
- *          模块: W25Q128 SOP-8 小板, 排针直接焊接到 PCB
- *          TFT_CS=PA4, Flash_CS=PA12 — 双片选门控, TFT 与 Flash 共享 SPI1 总线
  ******************************************************************************
  */
 

@@ -1,13 +1,12 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.h
- * @brief   ST7735 128×160 TFT 彩色显示驱动 — 公开接口
- * @note    V4.3.2: + Tft_Driver_Draw_Icon_By_Id(20新图标) + Tft_Driver_Show_Splash(5帧开机动画)
- *          V4.3.0r3: SPI1 分时复用 (PA5=SCK, PA7=MOSI, PA6=DC/MISO动态切换)
- *          PA4=TFT_CS, PA12=W25Q128_CS (双 CS 门控), PA0=RST, PB6=BL
- *          SPI Mode 3, 全双工 (TFT 只写不读, Flash 读写)
- *          字模来源: 片内 ROM TFT_Font_Data.h (ASCI ICJK 字库)
- *          横屏 160×128, RGB565 色彩, MADCTL=0xA0
+ * @brief   ST7735 128x160 TFT 彩屏显示驱动 — V4.3.2
+ * @note    SPI1 分时复用 (PA5=SCK, PA7=MOSI, PA6=DC/MISO 动态, PA4=TFT_CS,
+ *          PA12=W25Q128_CS, PA0=RST, PB6=BL)
+ *          SPI Mode3, 全双工 (TFT 只写, Flash 读写)
+ *          字库: Flash 20897 字 (CRC32) -> ROM 76 字回退
+ *          横屏 160x128, RGB565, MADCTL=0xA0
  ******************************************************************************
  */
 
@@ -88,8 +87,8 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
 void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
                                  uint16_t fg, uint16_t bg);
 
-/** @brief 显示 SPLASH 开机动画 (从 W25Q128 SPLASH 分区读取 5帧 fade-in, DMA 泵送)
- *  @note  若 SPLASH 分区无效 (魔数不匹配) 则静默跳过, 约 250ms */
+/** @brief 显示 SPLASH 开机动画 (纯代码: 标题脉冲 + 图标 + 进度条, ~2.85s, ROM 76 字)
+ *  @note  Delay_Ms 步进, 不依赖 W25Q Flash, ~4.8s */
 void Tft_Driver_Show_Splash(void);
 
 /** @brief 查询 Flash 字库是否就绪 (1=Flash 6763字, 0=ROM 回退 76字)

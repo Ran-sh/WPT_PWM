@@ -1,8 +1,26 @@
 /**
  ******************************************************************************
  * @file    Hardware/Pwm_Driver.c
- * @brief   全桥 PWM 驱动 — 实现 (默认映射版)
- * @note    PA8=TIM1_CH1, PA9=TIM1_CH2, PB13=TIM1_CH1N, PB14=TIM1_CH2N
+ * @brief   全桥 PWM 驱动 — V4.3.2
+ *
+ *  Pinout (TIM1 full-bridge, default mapping):
+ *  +---------------------------------------------------------+
+ *  |                     STM32F103C8T6                        |
+ *  |                                                          |
+ *  |    PA8  --- TIM1_CH1  ---+--- High-side Q1 (PWM1)        |
+ *  |    PB13 --- TIM1_CH1N ---+--- Low-side  Q2 (complement,  |
+ *  |                                                          |
+ *  |    PA9  --- TIM1_CH2  ---+--- High-side Q3 (PWM2)        |
+ *  |    PB14 --- TIM1_CH2N ---+--- Low-side  Q4 (complement,  |
+ *  |                                                          |
+ *  |    Up mode, 50% duty, deadtime 1000ns                    |
+ *  |    Freq 95~150kHz (1kHz step)                            |
+ *  |    OC/OCN polarity=Low, UDIS shadow-register atomic upd  |
+ *  |    Power-on safe: TIM_Cmd(DISABLE)+MOE(DISABLE)          |
+ *  +---------------------------------------------------------+
+ *
+ * @note    PA8=CH1, PA9=CH2, PB13=CH1N, PB14=CH2N
+ *          Deadtime 1000ns, 50% duty, compile-time DTG calc
  ******************************************************************************
  */
 

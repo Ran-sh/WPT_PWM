@@ -183,34 +183,34 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 ## 文件结构
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/                        ← ~14040 行逻辑代码 (全平台 含 ch341 工具链 680 行)
-├── Keil_Project/                               ← STM32 固件 — 6061 行 (Hardware 4706 + User/System 1355, 不含 Library/Start)
+WPT_PWM_V4.0_ONENET_TFT/                        ← ~14110 行逻辑代码 (全平台 含 ch341 工具链 679 行)
+├── Keil_Project/                               ← STM32 固件 — 5926 行 (Hardware 3946 + User/System 1980, 不含 Library/Start)
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
-│   ├── Hardware/                               ← 硬件驱动 — 4706 行
-│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1714+39行)
-│   │   ├── Tft_Driver.c/h                      ← ST7735 SPI1 全双工+DMA + Flash/ROM 双路径字库 + SPLASH (691+99行)
-│   │   ├── W25Q_Driver.c/h                     ← [V4.3.2] 16MB SPI Flash + CS翻转二分搜索 + BSRR防毛刺 (273+118行)
+│   ├── Hardware/                               ← 硬件驱动 — 3946 行
+│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1690+39行)
+│   │   ├── Tft_Driver.c/h                      ← ST7735 SPI1 全双工+DMA + Flash/ROM 双路径字库 + SPLASH (742+98行)
+│   │   ├── W25Q_Driver.c/h                     ← [V4.3.2] 16MB SPI Flash + CS翻转二分搜索 + BSRR防毛刺 (294+106行)
 │   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (441行, ROM 回退后备)
-│   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (257+49行)
-│   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (187+28行)
-│   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡 (146+67行)
-│   │   ├── Key_Driver.c/h                      ← 4键 FSM + 批量事件读取 (137+40行)
-│   │   ├── Led_Driver.c/h                      ← 5 LED 闪烁 (PA12 已让给 Flash CS) (134+42行)
-│   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (113+33行)
-│   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (68+30行)
-│   ├── User/                                   ← 应用层 — 1271 行
-│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (331+51行)
-│   │   ├── App_Storage.c/h                     ← [V4.3.2] CRC32 extern + 参数双副本+黑匣子日志 (250+87行)
-│   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全(仅RUNNING)+启动Status (253+44行)
-│   │   ├── main.c                              ← 程序入口 (58行, +Tft_Driver_Font_Init +Sys_Timer 提前)
-│   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (68+42行)
-│   ├── System/ → Sys_Timer.c/h                 ← SysTick 1ms + DWT (48+36行)
+│   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (272+49行)
+│   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (203+28行)
+│   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡 (164+65行)
+│   │   ├── Key_Driver.c/h                      ← 4键 FSM + 批量事件读取 (151+40行)
+│   │   ├── Led_Driver.c/h                      ← 5 LED 闪烁 (PA12 已让给 Flash CS) (158+42行)
+│   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (131+33行)
+│   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (80+30行)
+│   ├── User/                                   ← 应用层 — 1240 行
+│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (357+51行)
+│   │   ├── App_Storage.c/h                     ← [V4.3.2] CRC32 extern + 参数双副本+黑匣子日志 (271+87行)
+│   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全(仅RUNNING)+启动Status (300+44行)
+│   │   ├── main.c                              ← 程序入口 (77行, 注释全量 + Task 移入状态机)
+│   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (88+87行)
+│   ├── System/ → Sys_Timer.c/h                 ← SysTick 1ms + DWT (72+36行)
 │   ├── Start/  → CMSIS + system_stm32f10x
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
 ├── Arduino_Project/                            ← ESP8266 固件 — 522 行
 │   └── ESP8266_MQTT_Firmware/...ino            ← WiFiManager+双MQTT+指令去抖+遥测+OFFLINE
-├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3474 行
+├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3444 行
 │   ├── index.html(429)/control.html(497)       ← 主页+控制+乐观更新+重试防堆积+连接指示器
 │   ├── monitoring.html(405)/history.html(529)  ← 监测+历史趋势图
 │   ├── alerts.html(326)/settings.html(805)/login.html(151)
@@ -224,7 +224,7 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~14040 行逻辑代码 (全�
 │   ├── pages/{index,monitoring,control,history,alerts,settings}/
 │   ├── 操作手册.md / 部署文档.md               ← 小程序文档
 │   └── docs/                                   ← 设计 spec
-├── ch341/                                      ← [V4.3.2] CH341A Flash 字库烧录工具链 — 680 行
+├── ch341/                                      ← [V4.3.2] CH341A Flash 字库烧录工具链 — 679 行
 │   ├── README.md                               ← 完整操作指南
 │   ├── requirements.txt                        ← Python 依赖: pillow
 │   ├── generate_font.py                        ← GB2312 全字库生成器 (20897 CJK + 95 ASCII + 31 图标, 438行)
@@ -240,27 +240,28 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~14040 行逻辑代码 (全�
 
 ```c
 int main(void) {
-    Sys_Clamp_ESP();
+    Sys_Clamp_ESP();            /* 钳位 ESP 控制脚 */
     Sys_Hardware_Init();        /* Pwm/TFT/Led/Buzzer/Adc/Key */
-    Sys_Timer_Init();           /* SysTick 在 SPLASH 之前! (Tft_Driver_Show_Splash 依赖 Delay_Ms) */
-    W25Q_Driver_Init();         /* JEDEC 校验 → s_chip_ok */
-    Tft_Driver_Font_Init();     /* Flash Font Header + CRC32 → s_font_flash_valid (必须在 W25Q 之后!) */
+    Sys_Timer_Init();           /* SysTick 在 SPLASH 之前! (Delay_Ms 依赖 SysTick) */
+    W25Q_Driver_Init();         /* JEDEC 校验 -> s_chip_ok */
+    Tft_Driver_Font_Init();     /* Flash Font Header + CRC32 (必须在 W25Q 之后!) */
     App_Storage_Init();         /* 参数加载 + 黑匣子指针恢复 */
-    Sys_Startup_Screen();       /* SPLASH 8帧渐亮 + Flash OK/FAIL */
-    Sys_Post_Init();            /* LED + ADC + 看门狗 + ESP 启动 (不含 SysTick, 已提前) */
+    Sys_Startup_Screen();       /* SPLASH 逐字渐亮 ~4.8s */
+    Sys_Post_Init();            /* LED + ADC + WDG + ESP 启动 */
+    Sys_Timer_Delay_Ms(1000);   /* 开机画面停留 1s */
     g_sys_state = SYS_STATE_IDLE;
-    while (1) {
-        Key_Driver_Task(); Adc_Driver_Filter_Task(); App_Network_Task(); Sys_Safety_Task();
+    while (1) {                 /* 主循环 — 按状态分发 */
         switch (g_sys_state) {
-            case SYS_STATE_IDLE:    Sys_Run_Idle();    break;
-            case SYS_STATE_SWEEP:   Sys_Run_Sweep();   break;
-            case SYS_STATE_RUNNING: Sys_Run_Running(); break;
-            case SYS_STATE_FAULT:   Sys_Run_Fault();   break;
+            case SYS_STATE_IDLE:    Sys_Run_Idle();    break;  /* 空闲: PWM 关, 等待操作 */
+            case SYS_STATE_SWEEP:   Sys_Run_Sweep();   break;  /* 扫频: 150k->100kHz 软启动 */
+            case SYS_STATE_RUNNING: Sys_Run_Running(); break;  /* 运行: 频率闭环 + 调度 */
+            case SYS_STATE_FAULT:   Sys_Run_Fault();   break;  /* 故障: 过流保护 + 等待复位 */
         }
-        IWDG_ReloadCounter(); __WFI();
     }
 }
 ```
+
+**V4.3.2 架构变更**: Key/ADC/Network/Safety 4 个 Task + IWDG + WFI 已移入每个 `Sys_Run_*()` 状态函数内部, 主循环只剩 switch 分发。
 
 ## Sys_Safety (安全监测, 独立于 UI)
 
@@ -345,11 +346,11 @@ Telemetry JSON 全链路格式: `{"V":xx,"I":xx,"F":xx,"S":x}\n`
 | PA1 | ESP8266 RST | PB1 | ADC_CH9 (电压) |
 | PA2 | USART2_TX | PB3 | LED_PWM |
 | PA3 | USART2_RX | PB4 | LED_WIFI |
-| PA4 | TFT_CS | PB5 | PAGE 按键 (IPU) |
+| PA4 | TFT_CS | PB5 | PAGE 按键 (IPU, 确定/启停) |
 | PA5 | SPI1_SCK | PB6 | TFT 背光 TIM4_CH1 |
 | **PA6** | **TFT_DC / Flash MISO (动态切)** | PB7 | F_DOWN 按键 (IPU) |
 | PA7 | SPI1_MOSI | PB8 | F_UP 按键 (IPU) |
-| PA8 | TIM1_CH1 | PB9 | ON/OFF 按键 (IPU) |
+| PA8 | TIM1_CH1 | PB9 | ON/OFF 按键 (IPU, 返回) |
 | PA9 | TIM1_CH2 | PB10 | PowerContrl (高=使能12V) |
 | PA10 | LED_COM | PB11 | ESP8266 CH_PD (EN) |
 | PA11 | LED_POWER | **PA12** | **W25Q128_CS** |
@@ -396,7 +397,7 @@ JTAG 禁用释放 PB3/PB4/PB5/PA15。
 | **字库路径** | **Flash 20897 字 (CRC32 STM32 refin=false 校验) → ROM 76 字 (自动回退)** |
 | 字库位序 | 全部 LSB-first, 统一在 `TFT_Font_Data.h` / `generate_font.py` (无 bit_reverse) |
 | 图标 | WIFI(4+动画6帧), MQTT(3态+动画6帧), ICON_STAR, 20 新图标 |
-| **开机动画** | **SPLASH: 纯代码实现 (8帧背光渐亮, STM32 ROM), 不依赖 W25Q SPLASH 分区** |
+| **开机动画** | **SPLASH: 纯代码实现 (背光渐亮 + 逐字点亮 ~4.8s), 不依赖 W25Q, 版本号右下角** |
 
 CN_INDEX 与 CN_FONT_16X16 严格一一对应 (76字, 索引 0-75), 末尾为 综(74)+合(75)。
 
@@ -443,13 +444,12 @@ CN_INDEX 与 CN_FONT_16X16 严格一一对应 (76字, 索引 0-75), 末尾为 �
 
 ### 底部栏
 
-所有页面统一: 左侧 `ON:确定` + 右侧 `PAGE:返回`。
-SUB_MENU 和 FAULT 页面仅右侧 `PAGE:返回`。
+所有页面统一: 底部栏已删除 (V4.3.2), Row 6/7 空白。
 
 ## Safety
 
 - **过流**: Sys_Safety 仅在 RUNNING 状态检测 >5.0A → SYS_FAULT + Buzzer BEEP
-- **FAULT 恢复**: ON/OFF 单击 → `Soft_Start_Reset()` + `Sys_Safety_Reset_EMA()` → MAIN_MENU
+- **FAULT 恢复**: PAGE(确定) 单击 → `Soft_Start_Reset()` + `Sys_Safety_Reset_EMA()` → MAIN_MENU
 - **FAULT 防重触发**: EMA 电流清零 + 重新初始化; 非 RUNNING 状态跳过安全检测
 - **远程启停 UI 同步**: CMD:ON/OFF → `Ui_Controller_Force_Page_And_Reset()`
 - **上电**: TIM1 全关, PB10 拉低关 12V
@@ -481,7 +481,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
-| V4.3.2 | W25Q128 全字库修复: 初始化铁序 (TFT→SysTick→W25Q→Font→SPLASH) + Tft_Driver_Font_Init 拆分 + SPLASH 纯代码8帧渐亮 + 二分搜索 CS 翻转 (FLASH_CS↑↓脉冲) + CRC32 算法修正 (Python zlib→STM32 refin=false) + generate_font.py 去掉 bit_reverse_byte (字模不再镜像) + ch341 清理 (删 splash 相关文件) + W25Q_Driver_Read 移除冗余 Wait_Busy |
+| V4.3.2 | W25Q128 全字库修复 + 开机动画重写: SPLASH 逐字渐亮~4.8s(背光渐变+两行逐字+版本号右下角) + 按键交换(PB5=PAGE确定/PB9=ON返回) + 底部栏全删 + Task/IWDG/WFI 移入状态机 + main.c 每行注释 + UI 页面标题中文化 + 接线图纯 ASCII(ARMCC V5 C89兼容) + CRC32/CS翻转/bit_reverse/generate_font.py 修正 |
 | V4.3.1 | CH341+Python Flash 字库烧录: generate_font.py(GB2312 6763字+图标 2MB镜像) + burn_flash.py(flashrom 备份+擦除+烧写+逐字节校验) + W25Q_Font_Index_Binary_Search(总线独占二分检索 5.85μs/字) + Tft_Driver Flash/ROM 双路径(单字单检索 16×提速) + Font_Header CRC32 小端序铁律 |
 | V4.3.0 | W25Q128 16MB SPI Flash 集成: SPI1 分时复用(PA6动态切DC/MISO) + GB2312全字库(668KB)+开机画面区(1MB)+参数双副本CRC32(8KB)+黑匣子循环日志(4MB)+故障锁存前后5s + 四大硬件防线(L1写使能/L2 Busy死等/L3 DFF原子闪切/L4 发波禁擦) + ADC校准Flash固化+本地自测算B方案 + config.js getDataModel() undefined修复 + control.html clearInterval修复 + 遥测S字段对齐g_sys_state |
 | V4.2.4 | 离线守卫全平台修复: Web+小程序 _isOnline 判定统一 + 缓存时序修正(延后到在线确认) + 在线兜底(data非空)+/device/detail覆写 + Web throw误触发修复 + 重复代码块清理 + 生命周期onHide/pagehide清理 |

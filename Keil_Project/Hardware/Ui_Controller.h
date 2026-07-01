@@ -1,9 +1,9 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.h
- * @brief   人机界面控制器 -- 公开接口 (V4.2.0 两级菜单架构)
- * @note    TFT 8行20列彩屏, 4键操作
- *          9 pages: MAIN_MENU -> MONITOR_SUB_MENU -> SWEEP/MONITOR_x/WIFI_SETUP/FAULT
+ * @brief   人机界面控制器 — V4.3.2 (9 页面 + 圆弧能量条 + 增量刷新)
+ * @note    TFT 8 行 20 列彩屏, 4 键操作
+ *          9 pages: MAIN_MENU -> MONITOR_SUB -> SWEEP/MONITOR_x/WIFI_SETUP/FAULT
  ******************************************************************************
  */
 

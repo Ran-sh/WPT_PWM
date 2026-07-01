@@ -1,15 +1,36 @@
 /**
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.c
- * @brief   W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 (极简行内聚合版)
+ * @brief   W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 (V4.3.2)
  *
- *          接线: PA5=SCK PA7=MOSI PA6=动态(MISO↔DC) PA12=CS PA4=TFT_CS
- *          四大硬件死线闭锁:
- *            L1: 写使能 (0x06) 强制级联 + CS 边沿锁存
- *            L2: Busy 位 (SR1 BIT0) 阻塞死等上/下边界
- *            L3: DFF (SPI1 CR1 bit11) 原子闪切 8b↔16b 防时序毛刺
- *            L4: 发波态 (SWEEP/RUNNING) 全局禁擦, 45ms 死刑拦截
- * @note    ARMCC V5 SPL, 纯 C89, 禁止 // 双斜杠
+ *  Pinout (shares SPI1 with TFT, PA6 dynamic swap):
+ *  +------------------------------------------------------------+
+ *  |    STM32F103C8T6               W25Q128 (16MB SPI NOR Flash  |
+ *  |                                                             |
+ *  |    PA5  --- SPI1_SCK ------------------> CLK  (shared w/ T  |
+ *  |    PA7  --- SPI1_MOSI ------------------> DI   (shared w/   |
+ *  |    PA6  --- SPI1_MISO <------------------ DO   (dynamic sw  |
+ *  |    PA12 --- GPIO_PP --------------------> /CS  (GPIO gated  |
+ *  |              BSRR atomic toggle, glitch-free                |
+ *  |                                                             |
+ *  |    Partition layout (16MB, 0x000000 ~ 0xFFFFFF):            |
+ *  |      [0x000000~0x1FFFFF] Font lib (2MB)  <- CH341A burn     |
+ *  |      [0x200000~0x2FFFFF] Font reserve (1MB)                 |
+ *  |      [0x300000~0x301FFF] Params dual-copy (8KB)             |
+ *  |      [0x400000~0x7FFFFF] Blackbox log (4MB)                 |
+ *  |      [0x800000~0xFFFFFF] Unused (8MB)                       |
+ *  |                                                             |
+ *  |    CS toggle rule: CS high+low before EVERY CMD_READ,       |
+ *  |      else Flash command decoder ignores second read         |
+ *  |                                                             |
+ *  |    Four hardware deadlock guards:                           |
+ *  |      L1: Write enable (0x06) cascaded + CS edge latch       |
+ *  |      L2: Busy bit (SR1 BIT0) blocking wait with bounds      |
+ *  |      L3: DFF (SPI1 CR1 bit11) atomic 8b<->16b no-glitch     |
+ *  |      L4: Wave-active (SWEEP/RUNNING) global erase ban (45m  |
+ *  +------------------------------------------------------------+
+ *
+ * @note    ARMCC V5 SPL, pure C89, no // comments
  ******************************************************************************
  */
 

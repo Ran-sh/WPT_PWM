@@ -1,11 +1,32 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 128×160 TFT — SPI1+DMA V4.3.0 (片内 ROM 字库)
- *          PA5=SCK PA7=MOSI PA4=CS PA6=DC PA0=RST PB6=BL PA12=FLASH_CS
- *          SPI1 Mode3 (CPOL=High, CPHA=2Edge), 横屏 160x128, MADCTL=0xA0
- *          DMA1_Channel3 用于全部像素传输 (Fill + Blit), WrCmd/WrDat 8位轮询
- * @note    V4.3.0r3: 字库回退到片内 TFT_Font_Data.h (ROM), W25Q128 仅用于配置+黑匣子
+ * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V4.3.2 全字库双路径)
+ *
+ *  Pinout (SPI1 TDM: TFT + W25Q128 share bus):
+ *  +------------------------------------------------------------+
+ *  |    STM32F103C8T6              ST7735 128x160 Green Tab      |
+ *  |                                                             |
+ *  |    PA5 --- SPI1_SCK ------------------> SCL  (18MHz)        |
+ *  |    PA7 --- SPI1_MOSI ------------------> SDA  (shared data  |
+ *  |    PA4 --- GPIO_PP --------------------> CS   (active low)  |
+ *  |    PA6 --- GPIO_PP --------------------> DC   (cmd/data)    |
+ *  |    PA0 --- GPIO_PP --------------------> RESET              |
+ *  |    PB6 --- TIM4_CH1 -------------------> BL   (backlight P  |
+ *  |                                                             |
+ *  |    PA6 --- SPI1_MISO <------------------ W25Q128 DO (Flash  |
+ *  |    PA12 -- GPIO_PP --------------------> W25Q128 /CS (Flas  |
+ *  |                                                             |
+ *  |    SPI Mode3 (CPOL=H, CPHA=2Edge), full-duplex              |
+ *  |    160x128 landscape, MADCTL=0xA0, SetWin offset X+1 Y+2    |
+ *  |    DMA1_Channel3 pixel pump, WrCmd/WrDat 8-bit polling      |
+ *  |                                                             |
+ *  |    PA6 dynamic: TFT(DC) <--> W25Q128(MISO)                  |
+ *  |      DFF(SPI1_CR1 bit11): 8b(poll) <-> 16b(DMA) atomic swi  |
+ *  +------------------------------------------------------------+
+ *
+ * @note    V4.3.2: Flash 20897 chars (CRC32) -> ROM 76 fallback
+ *          SPLASH pure-code 8-frame fade-in (STM32 ROM, no W25Q)
  ******************************************************************************
  */
 
@@ -643,49 +664,79 @@ void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
 }
 
 /* ===============================================================
- *  SPLASH 开机动画 — 纯代码实现 (数据存在 STM32 ROM, 字体从 W25Q 读取)
- *  5 帧背光渐亮 + 标题文字, 不依赖 W25Q SPLASH 分区
- *  使用的汉字均为 ROM 76 字集中已有: 无线充电启动中  不依赖 Flash 字库
+ *  SPLASH 开机动画 — 纯代码实现 (V4.3.2)
+ *
+ *  布局 (160×128):
+ *  +----------------------------------+
+ *  |                           V4.3.2|  Row 7 col14: 版本号, 右下角暗灰
+ *  |                                  |
+ *  |     无  线  充  电               |  逐字出现, 间隔空格, 亮黄
+ *  |                                  |
+ *  |          W  P  T                 |  逐字出现, 亮青
+ *  +----------------------------------+
+ *
+ *  动画 (总长约 4.8s):
+ *    Phase 1 (1200ms): 背光渐亮 0->248, 8帧x150ms
+ *    Phase 2 (3200ms): 4字x8帧x50ms = 400ms/字, 每字渐亮
+ *    Hold   (400ms):   全亮定格
+ *
+ *  使用字库: ROM 76 字 — 无 线 充 电, 不依赖 Flash
  * ============================================================= */
 
 void Tft_Driver_Show_Splash(void)
 {
-    uint8_t bl_step;
+    uint8_t i, bl, col;
+    /* UTF-8: 无 U+65E0  线 U+7EBF  充 U+5145  电 U+7535 */
+    const char s_cn[4][4] = {
+        "\xe6\x97\xa0", "\xe7\xba\xbf", "\xe5\x85\x85", "\xe7\x94\xb5"
+    };
 
     Tft_Driver_Set_Backlight(0);
     Tft_Driver_Clear(TFT_COLOR_BLACK);
 
-    /* 逐帧渐亮: 8 帧, 背光 8%→100%, 每帧 200ms */
-    for (bl_step = 0; bl_step < 8; bl_step++) {
-        uint8_t  bl = (uint8_t)(31 * (bl_step + 1));      /* 31→248, step=31 */
-        uint16_t fg = (bl_step < 3) ? 0x5280U   /* 暗铜 */
-                    : (bl_step < 5) ? 0x7380U   /* 暗金 */
-                    : (bl_step < 7) ? 0xBC00U   /* 金色 */
-                    :                 0xFF80U;  /* 亮黄 */
-
+    /* Phase 1: 背光渐亮 0->248, 8帧x150ms=1200ms */
+    for (i = 1; i <= 8; i++) {
+        bl = (uint8_t)(i * 248 / 8);
         Tft_Driver_Set_Backlight(bl);
-
-        /* Line 1: 标题 — 无线充电 (ROM 76字内) */
-        Tft_Driver_Show_CN_String(1, 4,
-            "\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5",  /* 无线充电 */
-            fg, TFT_COLOR_BLACK);
-
-        /* Line 3: 副标题 — WPT-PWM (ASCII) */
-        Tft_Driver_Show_String(3, 4, "WPT-PWM V4.3.2",
-                               fg, TFT_COLOR_BLACK);
-
-        /* Line 5: 启动中... (ROM 76字内: 启动中) */
-        Tft_Driver_Show_CN_String(5, 5,
-            "\xe5\x90\xaf\xe5\x8a\xa8\xe4\xb8\xad\x2e\x2e\x2e",  /* 启动中... */
-            fg, TFT_COLOR_BLACK);
-
-        /* Line 7: STM32 + W25Q (ASCII) */
-        Tft_Driver_Show_String(7, 2, "STM32 + W25Q128",
-                               fg, TFT_COLOR_BLACK);
-
-        Sys_Timer_Delay_Ms(200);
+        Sys_Timer_Delay_Ms(150);
     }
 
-    /* 定格 800ms */
-    Sys_Timer_Delay_Ms(800);
+    /* 版本号: 右下角暗灰 (Row 7 col14, 屏亮后第一个字渐亮时出现) */
+    Tft_Driver_Show_String(7, 14, "V4.3.2", 0x3186U, TFT_COLOR_BLACK);
+
+    /* Phase 2: 两行同时逐字点亮, 每字 8帧渐亮x50ms=400ms, 4字=1600ms */
+    for (col = 0; col < 4; col++) {
+        uint16_t cn_fg, wpt_fg;
+        uint8_t  sub;
+
+        for (sub = 0; sub < 8; sub++) {
+            /* 当前字颜色: 从暗到亮 (0x3186 暗 -> 0xFFE0 亮黄 / 0x031F 暗 -> 0x07FF 亮青) */
+            cn_fg  = 0x31BEU + (uint16_t)((0xFFE0U - 0x31BEU) * (sub + 1) / 8);
+            wpt_fg = 0x031FU + (uint16_t)((0x07FFU - 0x031FU) * (sub + 1) / 8);
+
+            /* 之前已点亮的字保持全亮 */
+            if (col > 0) {
+                uint8_t prev;
+                for (prev = 0; prev < col; prev++)
+                    Tft_Driver_Show_CN_String(2, (uint8_t)(5 + prev * 2),
+                        s_cn[prev], 0xFFE0U, TFT_COLOR_BLACK);
+                for (prev = 0; prev < col && prev < 3; prev++)
+                    Tft_Driver_Show_String(5, (uint8_t)(8 + prev),
+                        "WPT" + prev, 0x07FFU, TFT_COLOR_BLACK);
+            }
+
+            /* 当前字: 渐亮 */
+            Tft_Driver_Show_CN_String(2, (uint8_t)(5 + col * 2),
+                s_cn[col], cn_fg, TFT_COLOR_BLACK);
+
+            if (col < 3)
+                Tft_Driver_Show_String(5, (uint8_t)(8 + col),
+                    "WPT" + col, wpt_fg, TFT_COLOR_BLACK);
+
+            Sys_Timer_Delay_Ms(50);
+        }
+    }
+
+    /* Phase 3: 全亮定格 400ms */
+    Sys_Timer_Delay_Ms(400);
 }

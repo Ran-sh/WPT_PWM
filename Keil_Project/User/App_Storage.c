@@ -1,8 +1,29 @@
 /**
  ******************************************************************************
  * @file    User/App_Storage.c
- * @brief   应用存储层 — 参数 + 黑匣子 (极简行内聚合实现)
- * @note    四大防线均在 W25Q_Driver 层实施, 本层专注分区逻辑+校验
+ * @brief   应用存储层 — 参数双副本 + 黑匣子日志 (V4.3.2)
+ *
+ *  W25Q128 Flash partition map (16MB):
+ *  +------------------------------------------------------------+
+ *  |    W25Q128 16MB SPI NOR Flash (SPI1: PA5/PA7/PA6(MISO)/PA1  |
+ *  |                                                             |
+ *  |    [0x300000~0x300FFF] Param copy A (4KB)                   |
+ *  |      sys_config: WiFi creds + ADC cal + preferences         |
+ *  |      CRC32 verified, dual-copy rotation (power-loss safe)   |
+ *  |                                                             |
+ *  |    [0x301000~0x301FFF] Param copy B (4KB)                   |
+ *  |      Alternates with copy A, either valid = recoverable     |
+ *  |                                                             |
+ *  |    [0x400000~0x7FFFFF] Blackbox circular log (4MB)          |
+ *  |      Circular: pointer wraps 0x800000 -> 0x400256           |
+ *  |      Granularity: 1s/entry, ~174762 entries (~48 hours)     |
+ *  |      Fault latch: SYS_FAULT pre-5s + post-5s window preser  |
+ *  |                                                             |
+ *  |    Safety: Four guards in W25Q_Driver (L1~L4),              |
+ *  |      this layer handles partition logic + CRC + recovery    |
+ *  +------------------------------------------------------------+
+ *
+ * @note    Four hardware guards in W25Q_Driver layer
  ******************************************************************************
  */
 

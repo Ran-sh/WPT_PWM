@@ -1,14 +1,12 @@
 /**
  ******************************************************************************
  * @file    Hardware/Inverter_Control.h
- * @brief   逆变器应用控制 — 软启动状态机 + 频率渐变
+ * @brief   逆变器控制 — 软启动状态机 + 频率斜坡 (V4.3.2)
  * @note    依赖 Pwm_Driver 硬件抽象层
- *
- *          软启动: SS_IDLE → Trigger → SS_SWEEP (150k→100kHz, 10ms/步, ~2.5s)
- *                  → SS_DONE → Stop → SS_IDLE
- *          故障:   任意状态 → SS_FAULT (MOE 关断, KEY 复位)
- *
- *          频率斜坡: Freq_Ramp_Trigger → 10ms/步, 1kHz/步, 渐变到目标频率
+ *          软启动: SS_IDLE -> Trigger -> SS_SWEEP (150k->100kHz, 10ms/步, ~2.5s)
+ *            -> SS_DONE -> Stop -> SS_IDLE
+ *          故障: 任意状态 -> SS_FAULT (MOE 关断, KEY 复位)
+ *          频率斜坡: Freq_Ramp_Trigger -> 10ms/步, 1kHz/步, 渐变到目标
  ******************************************************************************
  */
 

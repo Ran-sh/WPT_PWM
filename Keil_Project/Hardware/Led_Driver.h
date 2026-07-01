@@ -1,9 +1,9 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.h
- * @brief   LED 指示灯驱动 — 公开接口 (V4.2.0 6 LED 版)
- * @note    V4.3.0: PA12 已让给 W25Q128 Flash CS, LED_TEMP 禁用 (5 LED)
- *          PA15=SYSTEM心跳, PB4=WiFi, PB3=PWM, PA10=COM, PA11=POWER
+ * @brief   LED 指示灯驱动 — V4.3.2 (5 LED)
+ * @note    V4.3.0: PA12 已让给 W25Q128 Flash CS, LED_TEMP 禁用
+ *          PA15=SYSTEM 心跳, PB4=WiFi, PB3=PWM, PA10=COM, PA11=POWER
  ******************************************************************************
  */
 

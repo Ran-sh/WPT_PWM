@@ -1,9 +1,35 @@
 /**
  ******************************************************************************
  * @file    User/App_Network.c
- * @brief   网络应用层 — 实现 (V4.3.0: 黑匣子日志 + Flash 配置集成)
- * @note    V4.3.0r3: 移除 OTA 字库推送, 字体回退片内 ROM
- *          V4.2.1: OFFLINE 双模式 + 5次有限重试
+ * @brief   网络应用层 — V4.3.2
+ *
+ *  Hardware connections:
+ *  +------------------------------------------------------------+
+ *  |    STM32                            ESP8266                 |
+ *  |    PA2 (USART2_TX) ------------------>  RXD                 |
+ *  |    PA3 (USART2_RX) <------------------  TXD                 |
+ *  |    PA1 (GPIO_PP)   ------------------>  RST                 |
+ *  |    PB11 (GPIO_PP)  ------------------>  CH_PD / EN          |
+ *  |                                                             |
+ *  |    Protocol: 115200-8-N-1, plain JSON (zero AT commands)    |
+ *  |    JSON: {"V":xx,"I":xx,"F":xx,"S":x}\n   (telemetry up)    |
+ *  |          CMD:ON/CMD:OFF/CMD:SETFREQ:xxx (command down)      |
+ *  |                                                             |
+ *  |    State machine: IDLE -> WIFI -> MQTT -> ONLINE            |
+ *  |      OFFLINE_PASSIVE: passive disconnect, auto-sniff resto  |
+ *  |      OFFLINE_ACTIVE:  active disconnect, need manual ON     |
+ *  |                                                             |
+ *  |    Retry: exponential backoff 5s->15s->30s->60s->2m->5m->3  |
+ *  |            5 attempts max, no hardware RST to ESP           |
+ *  |    Heartbeat timeout: 8s no ESP frame -> offline            |
+ *  |    MQTT timeout: 30s no MQTT frame -> fallback WIFI retry   |
+ *  |    BOOT_WAIT early exit: ESP UART data available            |
+ *  |                                                             |
+ *  |    Frame safety: Try_Copy_Rx_Frame atomic copy              |
+ *  |      + ss_cmd/conn_cs per-frame snapshot anti-TOCTOU        |
+ *  +------------------------------------------------------------+
+ *
+ * @note    WiFi OFFLINE dual-mode + 5 retries + remote ON/OFF UI sync
  ******************************************************************************
  */
 

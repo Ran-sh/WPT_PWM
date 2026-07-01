@@ -1,10 +1,45 @@
 /**
  ******************************************************************************
  * @file    User/Sys_Core.c
- * @brief   系统核心模块 — 实现 (V4.3.0: W25Q128 配置+黑匣子集成)
- * @note    V4.3.0r3: 字库回退片内 ROM, W25Q128 仅配置+黑匣子
- *          Sys_Post_Init 中加载 Flash 参数配置 (WiFi/校准/偏好)
- *          V4.2.0: 合并 8 个 Sys_* 文件为 2 个
+ * @brief   系统核心模块 — V4.3.2
+ *
+ *  System-wide pin overview (all peripherals, hardware-exclusive pins):
+ *  +------------------------------------------------------------+
+ *  |                      STM32F103C8T6  LQFP-48                 |
+ *  |                                                             |
+ *  |    -- Display --                                            |
+ *  |    PA5=SCK  PA7=MOSI  PA4=TFT_CS  PA6=DC/MISO  PA0=TFT_RST  |
+ *  |    PB6=TIM4_CH1 (backlight PWM)                             |
+ *  |    -- Flash --                                              |
+ *  |    PA5=SCK  PA7=MOSI  PA6=DC/MISO(dyn)  PA12=FLASH_CS       |
+ *  |    -- PWM --                                                |
+ *  |    PA8=CH1  PA9=CH2  PB13=CH1N  PB14=CH2N                   |
+ *  |    -- ADC --                                                |
+ *  |    PB0=CH8(I)  PB1=CH9(V)                                   |
+ *  |    -- ESP8266 --                                            |
+ *  |    PA2=TX  PA3=RX  PA1=RST  PB11=EN                         |
+ *  |    -- Keys --                                               |
+ *  |    PB9=ON/OFF  PB8=F+  PB7=F-  PB5=PAGE                     |
+ *  |    -- LEDs --                                               |
+ *  |    PA15=SYSTEM  PB4=WIFI  PB3=PWM  PA10=COM  PA11=POWER     |
+ *  |    -- Power control --                                      |
+ *  |    PB10=PowerCtrl (HIGH=12V enable, LOW=disable)            |
+ *  |    -- Buzzer --                                             |
+ *  |    PB15=Buzzer                                              |
+ *  |                                                             |
+ *  |    State machine: SYS_INIT -> SYS_IDLE -> SYS_SWEEP -> SYS  |
+ *  |                       ^             |            |          |
+ *  |                       +--- SYS_FAULT <-----------+          |
+ *  |                                                             |
+ *  |    Sys_Safety (independent of UI):                          |
+ *  |      EMA filter a=0.25, only RUNNING checks overcurrent     |
+ *  |      I > 5.0A -> FAULT + Buzzer + PWM off                   |
+ *  |      PB10: V > 12V -> HIGH enable, V <= 12V -> LOW disable  |
+ *  +------------------------------------------------------------+
+ *
+ * @note    Init order: Sys_Hardware_Init -> Sys_Timer_Init ->
+ *          W25Q_Driver_Init -> Tft_Driver_Font_Init ->
+ *          App_Storage_Init -> Sys_Startup_Screen -> Sys_Post_Init
  ******************************************************************************
  */
 
@@ -70,17 +105,7 @@ void Sys_Hardware_Init(void)
 void Sys_Startup_Screen(void)
 {
     Tft_Driver_Clear(TFT_COLOR_BLACK);
-    Tft_Driver_Show_Splash();               /* 纯代码 SPLASH: 8 帧背光渐亮~2.4s */
-
-    /* Flash 字库加载结果 (Line 7, 不会被 SPLASH 覆盖) */
-    if (Tft_Driver_Is_Font_Flash_Valid()) {
-        Tft_Driver_Show_String(7, 0, "Flash OK 20897",
-                               TFT_COLOR_GREEN, TFT_COLOR_BLACK);
-    } else {
-        Tft_Driver_Show_String(7, 0, "Flash FAIL 76",
-                               TFT_COLOR_YELLOW, TFT_COLOR_BLACK);
-    }
-    Tft_Driver_Set_Backlight(255);
+    Tft_Driver_Show_Splash();               /* 纯代码 SPLASH: 逐字渐亮 ~4.8s */
 }
 
 void Sys_Post_Init(void)
@@ -210,6 +235,12 @@ void Sys_Run_Idle(void)
     Ui_Controller_Task();
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
+    Key_Driver_Task();
+    Adc_Driver_Filter_Task();
+    App_Network_Task();
+    Sys_Safety_Task();
+    IWDG_ReloadCounter();
+    __WFI();
 }
 
 void Sys_Run_Sweep(void)
@@ -220,13 +251,18 @@ void Sys_Run_Sweep(void)
     if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE)
         g_sys_state = SYS_STATE_RUNNING;
 
-    /* V4.3.0: 黑匣子 200ms 日志 (SWEEP 也记录) */
     if (now_s - last_bb_s >= 200) { last_bb_s = now_s;
         Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(), Sys_Safety_Get_EMA_Current(),
                           Pwm_Driver_Get_Frequency(), (uint8_t)g_sys_state);
     }
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
+    Key_Driver_Task();
+    Adc_Driver_Filter_Task();
+    App_Network_Task();
+    Sys_Safety_Task();
+    IWDG_ReloadCounter();
+    __WFI();
 }
 
 void Sys_Run_Running(void)
@@ -235,13 +271,18 @@ void Sys_Run_Running(void)
     Ui_Controller_Task();
     Inverter_Control_Freq_Ramp_Task();
 
-    /* V4.3.0: 黑匣子 200ms 日志 (仅 RUNNING) */
     if (now - last_bb >= 200) { last_bb = now;
         Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(), Sys_Safety_Get_EMA_Current(),
                           Pwm_Driver_Get_Frequency(), (uint8_t)g_sys_state);
     }
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
+    Key_Driver_Task();
+    Adc_Driver_Filter_Task();
+    App_Network_Task();
+    Sys_Safety_Task();
+    IWDG_ReloadCounter();
+    __WFI();
 }
 
 void Sys_Run_Fault(void)
@@ -250,4 +291,10 @@ void Sys_Run_Fault(void)
     Inverter_Control_Freq_Ramp_Cancel();
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
+    Key_Driver_Task();
+    Adc_Driver_Filter_Task();
+    App_Network_Task();
+    Sys_Safety_Task();
+    IWDG_ReloadCounter();
+    __WFI();
 }

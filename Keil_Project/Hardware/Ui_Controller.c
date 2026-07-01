@@ -1,13 +1,31 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   Ui Controller V4.2.0 — incremental refresh, zero-flicker, ICON_STAR
- * @note    TFT 8x20 cols, 160x128 landscape, 4 keys: F+/F-/KEY0/PAGE
- *          Architecture: static text drawn ONCE on page entry,
- *          cursor changes update only 2 lines (erase old ★ + draw new ★),
- *          200ms cycle only updates changing values (F/V/I/bar/status).
- *          Menu pages idle at 0% SPI activity — no writes unless state changes.
- *          Every _Full() covers all 8 rows → zero cross-page pixel residue.
+ * @brief   人机界面控制器 V4.3.2 — 9 页面 + 圆弧能量条 + 增量刷新
+ *
+ *  Hardware dependencies (indirect, via Driver layer):
+ *  +----------------------------------------------------------+
+ *  |                       STM32F103C8T6                       |
+ *  |                                                           |
+ *  |    Tft_Driver:  SPI1+DMA (PA5/PA7/PA4/PA6/PA0/PB6)  disp  |
+ *  |    Key_Driver:  PB9/PB8/PB7/PB5 (IPU)                inp  |
+ *  |    Led_Driver:  PA15/PB4/PB3/PA10/PA11               sta  |
+ *  |    Buzzer:      PB15 (PP)                             be  |
+ *  |    Pwm_Driver:  TIM1 CH1/CH2/CH1N/CH2N               pow  |
+ *  |    Sys_Core:    global state machine g_sys_state          |
+ *  |    Sys_Timer:   timebase (200ms inc refresh cycle)        |
+ *  |                                                           |
+ *  |    9 pages: MAIN_MENU/SUB_MENU/VOLTAGE/CURRENT/           |
+ *  |             FREQUENCY/SUMMARY/WIFI_CONFIG/FAULT/          |
+ *  |             SWEEP_PROGRESS                                |
+ *  |                                                           |
+ *  |    UI Phase pipeline (7 phases):                          |
+ *  |      P0=TopRight Icons  P1=Fault Detect  P2=Sweep AutoJu  |
+ *  |      P3=Key Scan+Disp   P4=Page Change    P5=200ms Dynam  |
+ *  |      P6=Cursor Clamp    P7=Draw (full only when dirty)    |
+ *  +----------------------------------------------------------+
+ *
+ * @note    TFT 8x20 cols, 160x128 landscape, 4 keys: ON/OFF/F+/F-/PAGE
  ******************************************************************************
  */
 
@@ -85,13 +103,13 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 #define UI_POWER_V_THRESHOLD_V     12.0f
 
 /* -------- Chinese strings (UTF-8 hex) -------- */
-#define S_WPT_PWM   "WPT-PWM"
-#define S_SWEEP     "\xe6\x89\xab\xe9\xa2\x91\xe9\xa1\xb5"           /* sweep page */
-#define S_MONITOR   "\xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b" /* status monitor */
-#define S_MON_FREQ  "\xe7\x9b\x91\xe6\xb5\x8b\xe9\xa2\x91\xe7\x8e\x87" /* monitor freq */
-#define S_MON_VOLT  "\xe7\x9b\x91\xe6\xb5\x8b\xe7\x94\xb5\xe5\x8e\x8b" /* monitor volt */
-#define S_MON_CURR  "\xe7\x9b\x91\xe6\xb5\x8b\xe7\x94\xb5\xe6\xb5\x81" /* monitor curr */
-#define S_LAUNCH    "\xe5\x90\xaf\xe5\x8a\xa8\xe9\xa1\xb5"           /* launch page */
+#define S_WPT_PWM   "\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95"         /* 主菜单 */
+#define S_SWEEP     "\xe6\x89\xab\xe9\xa2\x91\xe4\xb8\xad"         /* 扫频中 */
+#define S_MONITOR   "\xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b" /* 状态监测 */
+#define S_MON_FREQ  "\xe9\xa2\x91\xe7\x8e\x87\xe8\xa1\xa8\xe7\x9b\x98" /* 频率表盘 */
+#define S_MON_VOLT  "\xe7\x94\xb5\xe5\x8e\x8b\xe8\xa1\xa8\xe7\x9b\x98" /* 电压表盘 */
+#define S_MON_CURR  "\xe7\x94\xb5\xe6\xb5\x81\xe8\xa1\xa8\xe7\x9b\x98" /* 电流表盘 */
+#define S_LAUNCH    "\xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91" /* 无线配网 */
 #define S_FREQ      "\xe9\xa2\x91\xe7\x8e\x87"                       /* freq */
 #define S_VOLTAGE   "\xe7\x94\xb5\xe5\x8e\x8b"                       /* voltage */
 #define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* current */
@@ -101,8 +119,8 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 #define S_WIFI_OFFLINE "\xe5\xb7\xb2" "\xe7\xa6\xbb" "\xe7\xba\xbf"           /* 已离线 */
 #define S_WIFI_IDLE    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"                   /* 未连接 */
 #define S_WIFI_FORMAT  "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81" /* 无线状态 */
-#define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* summary */
-#define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* back to main */
+#define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* 综合监测 */
+#define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* 返回主菜单 */
 #define S_LABEL_FREQ   "\xe9\xa2\x91\xe7\x8e\x87" " kHz"
 #define S_LABEL_VOLT   "\xe7\x94\xb5\xe5\x8e\x8b" " V"
 #define S_LABEL_CURR   "\xe7\x94\xb5\xe6\xb5\x81" " A"
@@ -111,13 +129,11 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 #define S_PAUSE     "\xe5\xb7\xb2\xe6\x9a\x82\xe5\x81\x9c"           /* 已暂停 */
 #define S_OVERCUR   "\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4" /* 过流保护 */
 #define S_PWM_OFF   "PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad"       /* PWM已关断 */
-#define S_FAULT_TITLE "!!!\xe6\x95\x85\xe9\x9a\x9c!!!"               /* !!!故障!!! */
+#define S_FAULT_TITLE "\xe6\x95\x85\xe9\x9a\x9c\xe9\xa1\xb5"           /* 故障页 */
 #define S_RESET_HINT "\xe6\x8c\x89" "KEY0" "\xe5\xa4\x8d\xe4\xbd\x8d" "\xe9\x87\x8d\xe5\x90\xaf"
-#define S_BOTTOM_L_CONFIRM "ON:\xe7\xa1\xae\xe5\xae\x9a"           /* ON:确定 */
-#define S_BOTTOM_R         "PAGE:\xe8\xbf\x94\xe5\x9b\x9e"         /* PAGE:返回 */
-#define S_ON_DISCONNECT   "ON:\xe6\x96\xad\xe5\xbc\x80WIFI"
-#define S_ON_CONNECT      "ON:\xe8\xbf\x9e\xe6\x8e\xa5WIFI"
-#define S_LONG_CLEAR      "\xe9\x95\xbf\xe6\x8c\x89ON:" S_CLEAR_WIFI
+#define S_LONG_CLEAR      "\xe9\x95\xbf\xe6\x8c\x89\xe6\xb8\x85\xe9\x99\xa4WIFI"  /* 长按清除WiFi */
+#define S_DISCONNECT      "\xe6\x96\xad\xe5\xbc\x80"                      /* 断开 */
+#define S_CONNECT         "\xe8\xbf\x9e\xe6\x8e\xa5"                      /* 连接 */
 
 /* -------- Page state variables -------- */
 static Ui_Page  s_page            = UI_PAGE_MAIN_MENU;
@@ -141,14 +157,12 @@ static uint8_t s_last_is_fault_menu = 0xFF; /* tracked FAULT state for menu item
 static uint8_t s_last_sub_visible   = 0;    /* tracked sub-menu visible_top */
 static uint8_t s_last_sweep_stopped = 0xFF; /* tracked sweep pause state */
 static uint8_t s_last_wifi_cs       = 0xFF; /* tracked WiFi connection status */
-static uint8_t s_last_retry         = 0xFF; /* tracked WiFi retry count */
 
 /* Cached last formatted value strings — avoid redrawing unchanged values */
 static char    s_last_f_str[21];
 static char    s_last_v_str[21];
 static char    s_last_i_str[21];
 static char    s_last_status_buf[42];
-static char    s_last_retry_buf[16];
 
 /* Gauge value & status cache (for diff-based incremental refresh) */
 static char    s_gauge_val_str[24] = "";
@@ -261,16 +275,7 @@ static void Draw_Divider(uint8_t line)
     Tft_Driver_Show_String(line, 0, S_DIV, UI_COLOR_DIM, UI_COLOR_BG);
 }
 
-/* ── Bottom bar (row 7): left_text (col 0, left-aligned) + S_BOTTOM_R (right-aligned) ── */
-static void Draw_Bottom_Bar(const char* left_text)
-{
-    Erase_Line(7);
-    Tft_Driver_Show_CN_String(7, 0, left_text, UI_COLOR_TEXT, UI_COLOR_BG);
-    Tft_Driver_Show_CN_String(7, Right(S_BOTTOM_R),
-        S_BOTTOM_R, UI_COLOR_TEXT, UI_COLOR_BG);
-}
-
-/* ── Draw menu text at line,col (precise erase excluding cursor zone, text at col≥2 for star) ── */
+/* ── Draw menu text at line,col (precise erase excluding cursor zone, text at col>=2 for star) ── */
 static void Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t enabled)
 {
     uint16_t color = enabled ? UI_COLOR_TEXT : UI_COLOR_DIM;
@@ -318,8 +323,8 @@ static void Draw_Main_Menu_Full(void)
 
     Draw_Cursor(2 + s_menu_cursor);   /* rows 2-5 */
 
-    Draw_Divider(6);              /* row 6 */
-    Draw_Bottom_Bar(S_BOTTOM_L_CONFIRM);
+    Erase_Line(6);
+    Erase_Line(7);
 
     s_last_is_running    = is_running;
     s_last_is_fault_menu = is_fault;
@@ -395,10 +400,10 @@ static void Draw_Sub_Menu_Full(void)
         }
     }
 
-    Draw_Cursor(2 + (s_menu_cursor - visible_top));   /* rows 2-5 */
+    Draw_Cursor(2 + (s_menu_cursor - visible_top));
 
-    Draw_Divider(6);              /* row 6 */
-    Draw_Bottom_Bar("");                                      /* only PAGE:返回 on right */
+    Erase_Line(6);
+    Erase_Line(7);
 
     s_last_sub_visible = visible_top;
 }
@@ -494,8 +499,8 @@ static void Draw_Sweep_Full(void)
     strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
-    Draw_Divider(6);              /* row 6 */
-    Draw_Bottom_Bar(S_BOTTOM_L_CONFIRM);                       /* row 7 */
+    Erase_Line(6);
+    Erase_Line(7);
 
     s_last_sweep_stopped = is_stopped;
 }
@@ -556,7 +561,7 @@ static void Sweep_Dynamic_Update(void)
 
     /* Bottom hint */
     if (is_stopped != s_last_sweep_stopped) {
-        Draw_Bottom_Bar(S_BOTTOM_L_CONFIRM);
+        Erase_Line(7);
         s_last_sweep_stopped = is_stopped;
     }
 }
@@ -576,7 +581,7 @@ static void Draw_Summary_Full(void)
 
     /* row 2: Freq */
     if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
+    else            { snprintf(buf, sizeof(buf), S_FREQ "F:0.0kHz"); }
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
@@ -593,13 +598,11 @@ static void Draw_Summary_Full(void)
     strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
-    /* row 5: blank — erase any residue from previous page */
+    /* row 5: blank */
     Erase_Line(5);
 
-    Draw_Divider(6);              /* row 6 */
-    {
-        Draw_Bottom_Bar(S_BOTTOM_L_CONFIRM);     /* row 7 */
-    }
+    Erase_Line(6);
+    Erase_Line(7);
 
     s_last_is_running = is_running;
 }
@@ -642,7 +645,7 @@ static void Summary_Dynamic_Update(void)
 
     /* Bottom hint */
     if (is_running != s_last_is_running) {
-        Draw_Bottom_Bar(S_BOTTOM_L_CONFIRM);
+        Erase_Line(7);
         s_last_is_running = is_running;
     }
 }
@@ -1102,11 +1105,11 @@ static void Draw_Freq_Full(void) {
     /* PWM 未运行时强制 val=0, 防止 EMA 取到默认 90kHz 导致能量条非零 */
     float display_val = is_running ? s_ema_f : 0.0f;
     Draw_Gauge_Full(&GAUGE_F, display_val);
-    /* PWM 未运行时数值显示为 0 (频率实际未输出) */
+    /* PWM 停止时频率显示 0 (电压电流继续实时监测) */
     if (!is_running) {
         Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
-        Tft_Driver_Show_CN_String(5, Center("0"), "0", UI_COLOR_DIM, UI_COLOR_BG);
-        strncpy(s_gauge_val_str, "0", sizeof(s_gauge_val_str));
+        Tft_Driver_Show_CN_String(5, Center("0kHz"), "0kHz", UI_COLOR_DIM, UI_COLOR_BG);
+        strncpy(s_gauge_val_str, "0kHz", sizeof(s_gauge_val_str));
     }
     s_last_val_f = s_ema_f;
 }
@@ -1160,9 +1163,9 @@ static void Draw_WiFi_Full(void)
         status_text = S_WIFI_IDLE;
 
     if (App_Network_Is_Offline()) {
-        hint_text = S_ON_CONNECT;
+        hint_text = S_CONNECT;
     } else {
-        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
+        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_DISCONNECT : S_CONNECT;
     }
 
     Draw_Header(S_LAUNCH);         /* row 0 */
@@ -1177,30 +1180,17 @@ static void Draw_WiFi_Full(void)
         s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
     }
 
-    /* row 3: Retry count (or blank) */
-    if (App_Network_Is_Connecting()) {
-        char buf[16];
-        snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d",
-                 App_Network_Get_Retry_Count() + 1, 5);
-        Tft_Driver_Show_CN_String(3, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
-        strncpy(s_last_retry_buf, buf, sizeof(s_last_retry_buf));
-        s_last_retry_buf[sizeof(s_last_retry_buf) - 1] = '\0';
-    } else {
-        Erase_Line(3);
-        s_last_retry_buf[0] = '\0';
-    }
-
-    /* row 4: blank — spacer between info and action hints */
+    /* row 3~4: blank */
+    Erase_Line(3);
     Erase_Line(4);
 
-    /* row 5: ON action hint */
+    /* row 5: action hint */
     Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
-    /* row 6: Long-press clear hint */
+    /* row 6: long-press clear hint */
     Tft_Driver_Show_CN_String(6, Right(S_LONG_CLEAR), S_LONG_CLEAR, UI_COLOR_ALARM, UI_COLOR_BG);
-    Draw_Divider(7);               /* row 7 */
+    Erase_Line(7);
 
     s_last_wifi_cs = cs;
-    s_last_retry   = App_Network_Get_Retry_Count();
 }
 
 static void WiFi_Dynamic_Update(void)
@@ -1224,7 +1214,7 @@ static void WiFi_Dynamic_Update(void)
         char buf[42];
         snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
         if (strncmp(buf, s_last_status_buf, sizeof(s_last_status_buf)) != 0) {
-            Erase_Line(2);  /* clear old text before writing shorter/equal text */
+            Erase_Line(2);
             Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
             strncpy(s_last_status_buf, buf, sizeof(s_last_status_buf));
             s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
@@ -1233,25 +1223,13 @@ static void WiFi_Dynamic_Update(void)
         s_last_wifi_cs = cs;
     }
 
-    if (App_Network_Is_Connecting()) {
-        char buf[16];
-        snprintf(buf, sizeof(buf), "\xe9\x87\x8d\xe8\xaf\x95 %d/%d", retry + 1, 5);
-        if (retry != s_last_retry || strncmp(buf, s_last_retry_buf, sizeof(s_last_retry_buf)) != 0) {
-            Tft_Driver_Show_CN_String(3, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
-            strncpy(s_last_retry_buf, buf, sizeof(s_last_retry_buf));
-            s_last_retry_buf[sizeof(s_last_retry_buf) - 1] = '\0';
-        }
-    } else if (s_last_retry != 0xFF || s_last_retry_buf[0] != '\0') {
-        Erase_Line(3);
-        s_last_retry_buf[0] = '\0';
-    }
-    s_last_retry = retry;
+    Erase_Line(3);
 
     if (need_hint_update) {
         if (App_Network_Is_Offline()) {
-            hint_text = S_ON_CONNECT;
+            hint_text = S_CONNECT;
         } else {
-            hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_ON_DISCONNECT : S_ON_CONNECT;
+            hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_DISCONNECT : S_CONNECT;
         }
         Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
     }
@@ -1275,8 +1253,8 @@ static void Draw_Fault_Full(void)
     Tft_Driver_Show_CN_String(5, Center(S_RESET_HINT),
         S_RESET_HINT, UI_COLOR_VALUE, UI_COLOR_BG);    /* row 5 */
 
-    Draw_Divider(6);                /* row 6 */
-    Draw_Bottom_Bar("");                                          /* only PAGE:返回 on right */
+    Erase_Line(6);
+    Erase_Line(7);
 }
 
 /* ================================================================
@@ -1324,7 +1302,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         is_running = (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE);
     }
 
-    /* F_UP (k1) */
+    /* F_UP (k1): 频率+/上移 */
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU: {
@@ -1354,7 +1332,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* F_DOWN (k2) */
+    /* F_DOWN (k2): 频率-/下移 */
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU: {
@@ -1383,7 +1361,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* KEY0 (k0) */
+    /* KEY0 (k0): 确定/启停 */
     if (k0 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
@@ -1466,7 +1444,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* KEY0 long-press: clear WiFi credentials → active offline + reboot ESP into config mode */
+    /* KEY0 long-press: 清除WiFi凭证 -> 主动离线 + ESP 重启进配网 */
     if (k0 == KEY_DRIVER_EVENT_LONG_PRESS) {
         Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
         if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE) {
@@ -1483,7 +1461,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         Reset_EMA();
     }
 
-    /* PAGE (k3): go back */
+    /* PAGE (k3): 返回上一级 */
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
@@ -1605,14 +1583,12 @@ void Ui_Controller_Task(void)
         s_last_is_fault_menu = 0xFF;
         s_last_sweep_stopped = 0xFF;
         s_last_wifi_cs       = 0xFF;
-        s_last_retry         = 0xFF;
         s_last_sub_visible   = 0;
-        s_last_gauge_label   = NULL;  /* cross-gauge label cache */
+        s_last_gauge_label   = NULL;
         s_last_f_str[0] = '\0';
         s_last_v_str[0] = '\0';
         s_last_i_str[0] = '\0';
         s_last_status_buf[0] = '\0';
-        s_last_retry_buf[0]  = '\0';
     }
 
     /* ── Phase 5: 200ms tick ── */

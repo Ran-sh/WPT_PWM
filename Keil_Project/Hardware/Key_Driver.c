@@ -1,9 +1,23 @@
 /**
  ******************************************************************************
  * @file    Hardware/Key_Driver.c
- * @brief   按键驱动 — 实现 (V4.2.0 4 键版)
- * @note    PB9=ON/OFF, PB8=F_UP, PB7=F_DOWN, PB5=PAGE
- *          每键独立状态机: IDLE → DEBOUNCE → PRESS → WAIT_DOUBLE → LONG
+ * @brief   按键驱动 — V4.3.2 (4 keys)
+ *
+ *  Pinout (4 keys, all IPU pull-up, press = LOW):
+ *  +----------------------------------------------------------+
+ *  |                      STM32F103C8T6                        |
+ *  |                                                           |
+ *  |    PB8  --- IPU ---+--- Key --- GND    F_UP    (频率+)      |
+ *  |    PB7  --- IPU ---+--- Key --- GND    F_DOWN  (频率-)      |
+ *  |    PB5  --- IPU ---+--- Key --- GND    PAGE   (确定/启停)   |
+ *  |    PB9  --- IPU ---+--- Key --- GND    ON     (返回)         |
+ *  |                                                           |
+ *  |    Per-key FSM: IDLE -> DEBOUNCE(10ms) -> PRESS           |
+ *  |      -> WAIT_DOUBLE(200ms) -> LONG(3s)                    |
+ *  |    Batch read: Key_Driver_Read_Batch merges critical sec  |
+ *  +----------------------------------------------------------+
+ *
+ * @note    PB5=PAGE(确定/启停), PB9=ON(返回), PB8=F_UP, PB7=F_DOWN
  ******************************************************************************
  */
 
@@ -33,12 +47,12 @@ typedef struct {
     uint8_t            click_count;
 } Key_Driver_Instance;
 
-/* PB9=启停, PB8=频率+, PB7=频率-, PB5=翻页 */
+/* PB5=确定(启停), PB8=频率+, PB7=频率-, PB9=返回 */
 static Key_Driver_Instance s_keys[KEY_DRIVER_COUNT] = {
-    { GPIOB, GPIO_Pin_9, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 },
+    { GPIOB, GPIO_Pin_5, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 },
     { GPIOB, GPIO_Pin_8, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 },
     { GPIOB, GPIO_Pin_7, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 },
-    { GPIOB, GPIO_Pin_5, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 }
+    { GPIOB, GPIO_Pin_9, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 }
 };
 
 void Key_Driver_Init(void)

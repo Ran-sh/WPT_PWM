@@ -1,13 +1,33 @@
 /**
   ******************************************************************************
   * @file    User/stm32f10x_it.c
-  * @brief   中断服务函数实现 (净化版)
-  * @note    存放路径: 项目根目录\User\
+  * @brief   中断服务函数 (V4.3.2 净化版)
   *
-  *          【重构要点】
-  *          - SysTick_Handler 极简化: 仅调用 Sys_Timer_Inc_Tick()
-  *          - 删除所有外部调度标志位 (Flag_Task_xxx)
-  *          - USART2_IRQHandler 保留 ORE 溢出防锁死机制
+  *  ISR map (Cortex-M3 NVIC):
+  *  +------------------------------------------------------------+
+  *  |                 STM32F103C8T6  NVIC                        |
+  *  |                                                            |
+  *  |  SysTick_Handler                                            |
+  *  |    +--- Sys_Timer_IncTick()  (only call, 1ms timebase)     |
+  *  |    Minimal: NO business logic in ISR                       |
+  *  |                                                            |
+  *  |  USART2_IRQHandler                                         |
+  *  |    +--- USART_FLAG_ORE check  (MUST be first, anti-lock)   |
+  *  |    |    +--- USART_ReceiveData()  read DR to clear ORE     |
+  *  |    +--- USART_IT_RXNE check                                |
+  *  |         +--- Esp8266_Driver_Rx_Char(ch)  push ring buffer  |
+  *  |                                                            |
+  *  |  HardFault/MemManage/BusFault_Handler                       |
+  *  |    +--- PWM off first (TIM1 DISABLE + MOE DISABLE)         |
+  *  |    +--- Then infinite loop (safety first)                  |
+  *  |                                                            |
+  *  |  FORBIDDEN:                                                |
+  *  |    x Business logic in ISR                                 |
+  *  |    x Flag_Task_xxx dispatch flags in stm32f10x_it.c        |
+  *  |    x printf / blocking delay in ISR                        |
+  *  +------------------------------------------------------------+
+  *
+  * @note    USART2 on PA2(TX)/PA3(RX), 115200-8-N-1
   ******************************************************************************
   */
 

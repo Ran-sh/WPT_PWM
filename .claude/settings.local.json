@@ -204,7 +204,20 @@
       "Bash(\"D:/Claude Code Project/WPT_PWM_V4.0_ONENET_TFT/ch341/flashrom-1.4/flashrom.exe\" --help)",
       "Bash(wc -l Keil_Project/Hardware/Ui_Controller.c Keil_Project/Hardware/Ui_Controller.h Keil_Project/Hardware/Tft_Driver.c Keil_Project/Hardware/Tft_Driver.h Keil_Project/Hardware/W25Q_Driver.c Keil_Project/Hardware/W25Q_Driver.h Keil_Project/Hardware/Esp8266_Driver.c Keil_Project/Hardware/Esp8266_Driver.h Keil_Project/Hardware/Adc_Driver.c Keil_Project/Hardware/Adc_Driver.h Keil_Project/Hardware/Inverter_Control.c Keil_Project/Hardware/Inverter_Control.h Keil_Project/Hardware/Key_Driver.c Keil_Project/Hardware/Key_Driver.h Keil_Project/Hardware/Led_Driver.c Keil_Project/Hardware/Led_Driver.h Keil_Project/Hardware/Pwm_Driver.c Keil_Project/Hardware/Pwm_Driver.h Keil_Project/Hardware/Buzzer_Driver.c Keil_Project/Hardware/Buzzer_Driver.h Keil_Project/User/App_Network.c Keil_Project/User/App_Network.h Keil_Project/User/App_Storage.c Keil_Project/User/App_Storage.h Keil_Project/User/Sys_Core.c Keil_Project/User/Sys_Core.h Keil_Project/User/main.c Keil_Project/User/stm32f10x_it.c Keil_Project/User/stm32f10x_it.h Keil_Project/System/Sys_Timer.c Keil_Project/System/Sys_Timer.h)",
       "Bash(wc -l Keil_Project/Hardware/TFT_Font_Data.h)",
-      "Bash(pip install *)"
+      "Bash(pip install *)",
+      "Bash(npx @anthropic-ai/claude-code --version)",
+      "Bash(sed -i 's/* @brief   ADC driver —/* @brief   ADC 模拟量采集驱动 —/' Keil_Project/Hardware/Adc_Driver.c)",
+      "Bash(sed -i 's/* @brief   Active buzzer driver —/* @brief   有源蜂鸣器驱动 —/' Keil_Project/Hardware/Buzzer_Driver.c)",
+      "Bash(sed -i 's/* @brief   ESP8266 UART driver —/* @brief   ESP8266 串口通信驱动 —/' Keil_Project/Hardware/Esp8266_Driver.c)",
+      "Bash(sed -i 's/* @brief   Inverter control —/* @brief   逆变器控制 — 软启动状态机 + 频率斜坡 \\(/' Keil_Project/Hardware/Inverter_Control.c)",
+      "Bash(sed -i 's/* @brief   Key driver —/* @brief   按键驱动 —/' Keil_Project/Hardware/Key_Driver.c)",
+      "Bash(sed -i 's/* @brief   ST7735 128x160 TFT — SPI1+DMA \\(V4.3.2 dual font path\\)/* @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA \\(V4.3.2 全字库双路径\\)/' Keil_Project/Hardware/Tft_Driver.c)",
+      "Bash(sed -i 's/* @brief   Ui Controller V4.3.2 — 9 pages + arc gauge + incremental refresh/* @brief   人机界面控制器 V4.3.2 — 9 页面 + 圆弧能量条 + 增量刷新/' Keil_Project/Hardware/Ui_Controller.c)",
+      "Bash(sed -i 's/* @brief   W25Q128 16MB SPI NOR Flash — SPI1 TDM driver \\(V4.3.2\\)/* @brief   W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 \\(V4.3.2\\)/' Keil_Project/Hardware/W25Q_Driver.c)",
+      "Bash(sed -i 's/* @brief   System timer module —/* @brief   系统时基模块 —/' Keil_Project/System/Sys_Timer.c)",
+      "Bash(sed -i 's/* @brief   Network application layer —/* @brief   网络应用层 —/' Keil_Project/User/App_Network.c)",
+      "Bash(sed -i \"s/* @brief   ST7735 128x160 TFT color display driver — public interface/* @brief   ST7735 128x160 TFT 彩屏显示驱动 — V4.3.2/\" Keil_Project/Hardware/Tft_Driver.h)",
+      "Bash(sed -i \"s/  ════ W25Q128 实际接线 ════/  ==== W25Q128 实物接线 ====/\" Keil_Project/Hardware/W25Q_Driver.h)"
     ]
   }
 }
