@@ -203,10 +203,10 @@ void App_Storage_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
 }
 
 /* ═══════════════════════════════════════════════
- *  黑匣子日志 (P4) — 14B 紧凑二进制 + CRC8 + 跨页保护 + 故障锁存
+ *  Blackbox Log — 14B packed binary + CRC8 + page-safe + fault latch
  * ═══════════════════════════════════════════════ */
 
-/** @brief 封包: 浮点参数 → 14B 紧凑二进制 */
+/** @brief Pack: float params → 14B compact binary */
 static void Blackbox_Pack(float v, float i, uint16_t freq, uint8_t state,
                           Blackbox_Entry_Packed *out)
 {

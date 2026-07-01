@@ -47,9 +47,9 @@ typedef struct {
     uint8_t  backlight;      /* 1B  背光亮度 */
     uint8_t  language;       /* 1B  语言 0=CN 1=EN */
     uint8_t  font_size;      /* 1B  [V4.4.0] 0=小 1=中 */
-    uint8_t  color_preset;   /* 1B  [V4.4.0] 0-5预设 255=自定义 */
-    uint16_t color_fg;       /* 2B  [V4.4.0] RGB565 前景 */
-    uint16_t color_bg;       /* 2B  [V4.4.0] RGB565 背景 */
+    uint8_t  color_preset;   /* 1B  [V4.4.0] 0-5 preset, 255=custom */
+    uint16_t color_fg;       /* 2B  [V4.4.0] RGB565 foreground */
+    uint16_t color_bg;       /* 2B  [V4.4.0] RGB565 background */
     /* 校验 */
     uint32_t crc32;          /* 4B  CRC32 (不含自身) */
 } App_Storage_Config;         /* 总计 254+4=258B → 需确认不超256B */

@@ -94,7 +94,7 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 static uint8_t  s_language         = 0;     /* 0=Chinese, 1=English */
 static uint8_t  s_font_size        = 1;     /* 0=Small, 1=Medium(default) */
 static uint8_t  s_backlight_val    = 248;   /* 48-248, default 248 */
-static uint8_t  s_color_preset     = 0;     /* 0-5 preset, 255=custom */
+static uint8_t  sc_preset          = 0;     /* 0-5 preset, 255=custom */
 static uint16_t s_color_fg         = 0xFFFF;/* RGB565 default white */
 static uint16_t s_color_bg         = 0x0000;/* RGB565 default black */
 static uint16_t s_color_accent     = 0xFFE0;/* RGB565 default yellow */
@@ -1638,13 +1638,12 @@ static void Handle_Keys_by_Page(Ui_Page page,
 /* ── Settings Menu Item Text ── */
 static const char* Get_Menu_Setting_Text(uint8_t idx)
 {
-    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
     switch (idx) {
-        case 0: return is_cn ? "\xe8\xaf\xad\xe8\xa8\x80  Language"     : "1. Language";
-        case 1: return is_cn ? "\xe5\x9b\xbe\xe6\xa0\x87  Icons"        : "2. Icons";
-        case 2: return is_cn ? "\xe5\xad\x97\xe4\xbd\x93  Font"         : "3. Font Size";
-        case 3: return is_cn ? "\xe4\xba\xae\xe5\xba\xa6  Brightness"   : "4. Brightness";
-        case 4: return is_cn ? "\xe9\xa2\x9c\xe8\x89\xb2  Color"        : "5. Color";
+        case 0: return Pick_CN_EN("\xe8\xaf\xad\xe8\xa8\x80  Language", "1. Language");
+        case 1: return Pick_CN_EN("\xe5\x9b\xbe\xe6\xa0\x87  Icons", "2. Icons");
+        case 2: return Pick_CN_EN("\xe5\xad\x97\xe4\xbd\x93  Font", "3. Font Size");
+        case 3: return Pick_CN_EN("\xe4\xba\xae\xe5\xba\xa6  Brightness", "4. Brightness");
+        case 4: return Pick_CN_EN("\xe9\xa2\x9c\xe8\x89\xb2  Color", "5. Color");
         default: return "";
     }
 }
@@ -1655,17 +1654,13 @@ static const char* Get_Menu_Setting_Text(uint8_t idx)
 static void Draw_Setting_Full(void)
 {
     uint8_t i;
-    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
-    uint8_t has_flash = Tft_Driver_Is_Font_Flash_Valid();
-
-    /* Row 0: Title */
     Draw_Header(Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN));
     Draw_Divider(1);
 
     /* Row 2-6: 5 menu items */
     for (i = 0; i < 5; i++) {
         const char* text = Get_Menu_Setting_Text(i);
-        uint8_t enabled = (i == 1) ? has_flash : 1;  /* Icons requires Flash */
+        uint8_t enabled = (i == 1) ? Tft_Driver_Is_Font_Flash_Valid() : 1;  /* Icons requires Flash */
         Erase_Line(2 + i);
         Draw_Menu_Text(2 + i, 2, text, enabled);
     }
@@ -1675,7 +1670,7 @@ static void Draw_Setting_Full(void)
     /* Row 7: hint */
     Erase_Line(7);
     {
-        const char* hint = is_cn ? Pick_CN_EN(S_ON_RETURN_CN, S_ON_RETURN_EN) : "[ON]Back";
+        const char* hint = Pick_CN_EN(S_ON_RETURN_CN, S_ON_RETURN_EN);
         uint8_t col = Right(hint);
         Tft_Driver_Show_String(7, col, hint, Uc_Dim(), Uc_Bg());
     }
@@ -1710,10 +1705,9 @@ static void Handle_Setting_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Lang_Full(void)
 {
-    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
 
-    Draw_Header(is_cn ? Pick_CN_EN(S_TITLE_LANG_CN, S_TITLE_LANG_EN) : Pick_CN_EN(S_SETTINGS_LANG_CN, S_SETTINGS_LANG_EN));
+    Draw_Header(Pick_CN_EN(S_TITLE_LANG_CN, S_TITLE_LANG_EN));
 
     Erase_Line(3);
     Tft_Driver_Show_String(3, 3, "  Chinese",
@@ -1726,8 +1720,8 @@ static void Draw_Lang_Full(void)
 
     Erase_Line(7);
     {
-        const char* hint = is_cn ? "\xe4\xb8\x8a\xe4\xb8\x8b\xe9\x80\x89\xe6\x8b\xa9 \xe7\xa1\xae\xe8\xae\xa4\xe5\x88\x87\xe6\x8d\xa2"
-                                 : "UP/DN Select PAGE Confirm";
+        const char* hint = Pick_CN_EN("\xe4\xb8\x8a\xe4\xb8\x8b\xe9\x80\x89\xe6\x8b\xa9 \xe7\xa1\xae\xe8\xae\xa4\xe5\x88\x87\xe6\x8d\xa2",
+                                         "UP/DN Select PAGE Confirm");
         Tft_Driver_Show_String(7, 0, hint, Uc_Dim(), Uc_Bg());
     }
 }
@@ -1777,7 +1771,6 @@ static const char* Get_Icon_Name(uint8_t icon_id)
 static void Draw_Icons_Full(void)
 {
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
-    uint8_t is_cn = (s_language == 0 && flash_ok);
 
     if (!flash_ok) {
         Draw_Header("Icons");
@@ -1787,7 +1780,7 @@ static void Draw_Icons_Full(void)
 
     {
         char buf[24];
-        snprintf(buf, 24, "%s [%d/2]", is_cn ? Pick_CN_EN(S_TITLE_ICONS_CN, S_TITLE_ICONS_EN) : "Icons", s_icon_page + 1);
+        snprintf(buf, 24, "%s [%d/2]", Pick_CN_EN(S_TITLE_ICONS_CN, S_TITLE_ICONS_EN), s_icon_page + 1);
         Draw_Header(buf);
     }
 
@@ -1848,10 +1841,9 @@ static void Handle_Icons_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Font_Full(void)
 {
-    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
 
     {
-        const char* title = is_cn ? Pick_CN_EN(S_TITLE_FONT_CN, S_TITLE_FONT_EN) : Pick_CN_EN(S_SETTINGS_FONT_CN, S_SETTINGS_FONT_EN);
+        const char* title = Pick_CN_EN(S_TITLE_FONT_CN, S_TITLE_FONT_EN);
         uint8_t col = Center(title);
         Draw_Header(title);
     }
@@ -1866,7 +1858,7 @@ static void Draw_Font_Full(void)
     Draw_Cursor((s_font_size == 0) ? 4 : 3);
 
     Erase_Line(5);
-    if (is_cn)
+    if (Tft_Driver_Is_Font_Flash_Valid())
         Tft_Driver_Show_CN_String(5, Center("\xe9\xa2\x84\xe8\xa7\x88:\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5"),
             "\xe9\xa2\x84\xe8\xa7\x88:\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5", Uc_Data(), Uc_Bg());
     else
@@ -1894,10 +1886,9 @@ static void Handle_Font_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_BL_Full(void)
 {
-    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
 
     {
-        const char* title = is_cn ? Pick_CN_EN(S_TITLE_BL_CN, S_TITLE_BL_EN) : Pick_CN_EN(S_SETTINGS_BL_CN, S_SETTINGS_BL_EN);
+        const char* title = Pick_CN_EN(S_TITLE_BL_CN, S_TITLE_BL_EN);
         Draw_Header(title);
     }
 
@@ -1918,7 +1909,7 @@ static void Draw_BL_Full(void)
     }
 
     {
-        const char* hint = is_cn ? "[F_UP +]  [F_DOWN -]" : "[F_UP +]  [F_DOWN -]";
+        const char* hint = "[F_UP +]  [F_DOWN -]";
         uint8_t col = Center(hint);
         Tft_Driver_Show_String(6, col, hint, Uc_Text(), Uc_Bg());
     }
@@ -1993,20 +1984,19 @@ static void Apply_Color_Preset(uint8_t preset_idx)
     s_color_fg      = p->fg;
     s_color_bg      = p->bg;
     s_color_accent  = p->accent;
-    s_color_preset  = preset_idx;
-    (void)s_color_preset;  /* consumed by persistence path */
+    sc_preset  = preset_idx;
+    (void)sc_preset;  /* ARMCC V5 #550-D: suppress "set but never used" */
 }
 
 static void Draw_Color_Full(void)
 {
     uint8_t i;
-    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
 
-    Draw_Header(is_cn ? Pick_CN_EN(S_TITLE_COLOR_CN, S_TITLE_COLOR_EN) : Pick_CN_EN(S_SETTINGS_COLOR_CN, S_SETTINGS_COLOR_EN));
+    Draw_Header(Pick_CN_EN(S_TITLE_COLOR_CN, S_TITLE_COLOR_EN));
 
     for (i = 0; i < 6; i++) {
         char buf[24];
-        const char* name = is_cn ? COLOR_PRESETS[i].name_cn : COLOR_PRESETS[i].name_en;
+        const char* name = Pick_CN_EN(COLOR_PRESETS[i].name_cn, COLOR_PRESETS[i].name_en);
         snprintf(buf, 24, "  %s", name);
         Erase_Line(2 + i);
         Draw_Menu_Text(2 + i, 2, buf, 1);
@@ -2292,7 +2282,7 @@ void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
     } else {
         s_color_fg     = fg;
         s_color_bg     = bg;
-        s_color_preset = 255;
+        sc_preset = 255;
     }
     Tft_Driver_Set_Backlight(s_backlight_val);
 }
