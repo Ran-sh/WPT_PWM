@@ -1659,7 +1659,7 @@ static void Draw_Setting_Full(void)
     uint8_t has_flash = Tft_Driver_Is_Font_Flash_Valid();
 
     /* Row 0: Title */
-    Draw_Header(is_cn ? Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN) : Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN));
+    Draw_Header(Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN));
     Draw_Divider(1);
 
     /* Row 2-6: 5 menu items */
