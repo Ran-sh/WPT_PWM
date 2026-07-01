@@ -1296,7 +1296,7 @@ static void Draw_WiFi_Full(void)
     /* row 2: Status */
     {
         char buf[42];
-        snprintf(buf, sizeof(buf), T_show(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN) ": %s", status_text);
+        snprintf(buf, sizeof(buf), "%s: %s", T_str(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
         Tft_Driver_Show_CN_String(2, 0, buf, Uc_Text(), Uc_Bg());
         strncpy(s_last_status_buf, buf, sizeof(s_last_status_buf));
         s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
@@ -1334,7 +1334,7 @@ static void WiFi_Dynamic_Update(void)
 
     if (cs != s_last_wifi_cs) {
         char buf[42];
-        snprintf(buf, sizeof(buf), T_show(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN) ": %s", status_text);
+        snprintf(buf, sizeof(buf), "%s: %s", T_str(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
         if (strncmp(buf, s_last_status_buf, sizeof(s_last_status_buf)) != 0) {
             Erase_Line(2);
             Tft_Driver_Show_CN_String(2, 0, buf, Uc_Text(), Uc_Bg());
