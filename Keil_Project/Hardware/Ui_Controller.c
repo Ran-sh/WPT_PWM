@@ -168,6 +168,8 @@ static uint8_t s_ema_ok = 0;
 
 /* User freq stepping */
 static uint32_t s_user_target_hz = 100000;
+static uint8_t  s_user_target_synced = 0;
+
 /* ════════════════════════════════════════════════════════════
  *  V4.4.0 Settings State
  * ════════════════════════════════════════════════════════════ */
@@ -178,10 +180,6 @@ static uint16_t s_color_fg         = 0xFFFF;/* RGB565 default white */
 static uint16_t s_color_bg         = 0x0000;/* RGB565 default black */
 static uint16_t s_color_accent     = 0xFFE0;/* RGB565 default yellow */
 static uint8_t  s_color_preset     = 0;     /* 0-5 preset, 255=custom */
-
-/* User freq stepping */
-static uint32_t s_user_target_hz = 100000;
-static uint8_t  s_user_target_synced = 0;
 
 /* Settings sub-page cursor */
 static uint8_t  s_setting_cursor   = 0;
@@ -1573,12 +1571,6 @@ static void Handle_Keys_by_Page(Ui_Page page,
  *  V4.4.0 Settings Pages
  * ═══════════════════════════════════════════════════════════════ */
 
-/* ── Dynamic Color Helpers ── */
-static uint16_t Uc_Bg(void)     { return s_color_bg; }
-static uint16_t Uc_Title(void)   { return s_color_accent; }
-static uint16_t Uc_Text(void)   { return s_color_fg; }
-static uint16_t Uc_Value(void)  { return s_color_accent; }
-
 /* ── Settings Menu Item Text ── */
 static const char* Get_Menu_Setting_Text(uint8_t idx)
 {
@@ -1589,19 +1581,6 @@ static const char* Get_Menu_Setting_Text(uint8_t idx)
         case 2: return is_cn ? "\xe5\xad\x97\xe4\xbd\x93  Font"         : "3. Font Size";
         case 3: return is_cn ? "\xe4\xba\xae\xe5\xba\xa6  Brightness"   : "4. Brightness";
         case 4: return is_cn ? "\xe9\xa2\x9c\xe8\x89\xb2  Color"        : "5. Color";
-        default: return "";
-    }
-}
-
-/* ── Settings Item Name (Chinese-only, for sub-page titles) ── */
-static const char* Get_Setting_Item_Name(uint8_t idx)
-{
-    switch (idx) {
-        case 0: return S_SETTINGS_LANG;
-        case 1: return S_SETTINGS_ICONS;
-        case 2: return S_SETTINGS_FONT;
-        case 3: return S_SETTINGS_BL;
-        case 4: return S_SETTINGS_COLOR;
         default: return "";
     }
 }

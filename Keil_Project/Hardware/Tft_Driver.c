@@ -628,39 +628,77 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  Icon By ID — 按编号绘制 16x16 图标 (ROM lookup)
+ *  Icon By ID — 按编号从 Flash 读取 16x16 图标 (V4.4.0: ROM 不再存储 20 图标)
  * ═══════════════════════════════════════════════════════════════ */
 
-void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
-                                 uint16_t fg, uint16_t bg)
+uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
+                                   uint8_t frame, uint16_t fg, uint16_t bg)
 {
+    /* V4.4.0: 图标数据在 W25Q128 Flash 中 (via Font_Header icon_table).
+     *  无 Flash 时: WIFI/MQTT/ICON_STAR (id 0-8) 可走 ROM 回退.
+     *  其他 id 11-30 仅 Flash 可用. */
+    /* Note: 此函数签名已改为有 frame 参数, 与 .h 一致.
+     *  Flash 路径通过 W25Q_Read icon_table→data 实现.
+     *  为快速修复, 先实现 Flash-only 路径, ROM 回退仅保留 STAR/WIFI/MQTT. */
     uint8_t row; uint16_t* p;
+    uint16_t icon_data[16];  /* 2 bytes per row for Decode_CN_Row */
+
+    if (icon_id > 30) return 0;
+
     SetWin(x, y, x + 15, y + 15);
     p = s_dma_buf;
+
+    /* Try Flash path first */
+    if (s_font_flash_valid) {
+        /* Read icon frame from Flash icon_data area */
+        uint32_t icon_idx_base, icon_data_base, data_offset, frame_offset;
+        uint8_t n_frames, icon_entry[8];
+        /* Locate icon entry: icon_table = hdr + 32 */
+        icon_idx_base = 0x000060;  /* icon_table offset in Flash */
+        /* Read 8-byte entry: [id:2][n_frames:2][data_offset:4] */
+        W25Q_Driver_Read(icon_idx_base + (uint32_t)icon_id * 8, icon_entry, 8);
+        n_frames     = icon_entry[2] | (uint16_t)icon_entry[3] << 8;
+        data_offset  = (uint32_t)icon_entry[4] | (uint32_t)icon_entry[5] << 8
+                    | (uint32_t)icon_entry[6] << 16 | (uint32_t)icon_entry[7] << 24;
+        icon_data_base = 0x000060 + 16 + (uint32_t)31 * 8;  /* after table */
+        if (frame >= n_frames) frame = n_frames - 1;
+        frame_offset = icon_data_base + data_offset + (uint32_t)frame * 32;
+        for (row = 0; row < 16; row++) {
+            uint8_t lo_hi[2];
+            W25Q_Driver_Read(frame_offset + (uint32_t)row * 2, lo_hi, 2);
+            Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p + row * 16);
+        }
+        Tft_DMA_Send(s_dma_buf, 256);
+        return 1;
+    }
+
+    /* ROM fallback: only WIFI (0-3), MQTT (4-7), STAR (8) */
     switch (icon_id) {
-        case 11: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_BATTERY[row*2],    ICON_BATTERY[row*2+1],    fg, bg, p + row*16); break;
-        case 12: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_WARNING[row*2],    ICON_WARNING[row*2+1],    fg, bg, p + row*16); break;
-        case 13: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CHECK[row*2],      ICON_CHECK[row*2+1],      fg, bg, p + row*16); break;
-        case 14: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CROSS[row*2],      ICON_CROSS[row*2+1],      fg, bg, p + row*16); break;
-        case 15: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_POWER[row*2],      ICON_POWER[row*2+1],      fg, bg, p + row*16); break;
-        case 16: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_LIGHTNING[row*2],  ICON_LIGHTNING[row*2+1],  fg, bg, p + row*16); break;
-        case 17: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_TEMP[row*2],       ICON_TEMP[row*2+1],       fg, bg, p + row*16); break;
-        case 18: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_FAN[row*2],        ICON_FAN[row*2+1],        fg, bg, p + row*16); break;
-        case 19: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_LOCK[row*2],       ICON_LOCK[row*2+1],       fg, bg, p + row*16); break;
-        case 20: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_HOME[row*2],       ICON_HOME[row*2+1],       fg, bg, p + row*16); break;
-        case 21: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_GEAR[row*2],       ICON_GEAR[row*2+1],       fg, bg, p + row*16); break;
-        case 22: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_REFRESH[row*2],    ICON_REFRESH[row*2+1],    fg, bg, p + row*16); break;
-        case 23: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_UP[row*2],   ICON_ARROW_UP[row*2+1],   fg, bg, p + row*16); break;
-        case 24: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_DN[row*2],   ICON_ARROW_DN[row*2+1],   fg, bg, p + row*16); break;
-        case 25: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_LT[row*2],   ICON_ARROW_LT[row*2+1],   fg, bg, p + row*16); break;
-        case 26: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_RT[row*2],   ICON_ARROW_RT[row*2+1],   fg, bg, p + row*16); break;
-        case 27: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_SIGNAL[row*2],     ICON_SIGNAL[row*2+1],     fg, bg, p + row*16); break;
-        case 28: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_GLOBE[row*2],      ICON_GLOBE[row*2+1],      fg, bg, p + row*16); break;
-        case 29: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CHART[row*2],      ICON_CHART[row*2+1],      fg, bg, p + row*16); break;
-        case 30: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CLOCK[row*2],      ICON_CLOCK[row*2+1],      fg, bg, p + row*16); break;
+        case 0: case 1: case 2: case 3:
+            if (frame > 3) frame = 3;
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(WIFI_ICON[frame][row*2], WIFI_ICON[frame][row*2+1], fg, bg, p + row*16);
+            break;
+        case 4:
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(MQTT_ICON[row*2], MQTT_ICON[row*2+1], fg, bg, p + row*16);
+            break;
+        case 5:
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(MQTT_YES_ICON[row*2], MQTT_YES_ICON[row*2+1], fg, bg, p + row*16);
+            break;
+        case 6:
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(MQTT_NO_ICON[row*2], MQTT_NO_ICON[row*2+1], fg, bg, p + row*16);
+            break;
+        case 8:
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(ICON_STAR[row*2], ICON_STAR[row*2+1], fg, bg, p + row*16);
+            break;
         default: { uint8_t i; for (i = 0; i < 256; i++) p[i] = bg; } break;
     }
     Tft_DMA_Send(s_dma_buf, 256);
+    return 1;
 }
 
 /* ===============================================================
