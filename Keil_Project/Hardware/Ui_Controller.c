@@ -118,63 +118,126 @@ static uint16_t Uc_Data(void)    { return s_color_fg; }
 #define Uc_Ok()     TFT_COLOR_GREEN
 #define Uc_Dim()    TFT_COLOR_GRAY
 
+/* ═══════════════════════════════════════════════════════════════
+ *  Bilingual String System (V4.4.0)
+ *
+ *  T() macro: auto-selects Chinese or English based on Flash validity.
+ *  When W25Q128 is unavailable, all CJK strings fall back to English.
+ *  Usage: T(S_CN) → "中文" if Flash valid, "English" if not.
+ *
+ *  Pattern per string: S_xxx_CN (UTF-8 Chinese) + S_xxx_EN (ASCII English)
+ *  S_xxx is #defined as S_xxx_CN for backward compat.
+ * ═══════════════════════════════════════════════════════════════ */
+#define T(cn, en)  (Tft_Driver_Is_Font_Flash_Valid() ? (cn) : (en))
+
 #define UI_REFRESH_MS              200
 #define UI_OVERCURRENT_THRESHOLD_A 5.0f
 #define UI_POWER_V_THRESHOLD_V     12.0f
 
-/* -------- Chinese strings (UTF-8 hex) -------- */
-#define S_WPT_PWM   "\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95"         /* 主菜单 */
-#define S_SWEEP     "\xe6\x89\xab\xe9\xa2\x91\xe4\xb8\xad"         /* 扫频中 */
-#define S_MONITOR   "\xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b" /* 状态监测 */
-#define S_MON_FREQ  "\xe9\xa2\x91\xe7\x8e\x87\xe8\xa1\xa8\xe7\x9b\x98" /* 频率表盘 */
-#define S_MON_VOLT  "\xe7\x94\xb5\xe5\x8e\x8b\xe8\xa1\xa8\xe7\x9b\x98" /* 电压表盘 */
-#define S_MON_CURR  "\xe7\x94\xb5\xe6\xb5\x81\xe8\xa1\xa8\xe7\x9b\x98" /* 电流表盘 */
-#define S_LAUNCH    "\xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91" /* 无线配网 */
-#define S_FREQ      "\xe9\xa2\x91\xe7\x8e\x87"                       /* freq */
-#define S_VOLTAGE   "\xe7\x94\xb5\xe5\x8e\x8b"                       /* voltage */
-#define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* current */
-#define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* clear WIFI */
-#define S_WIFI_ONLINE  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe6\x88\x90" "\xe5\x8a\x9f" /* 连接成功 */
-#define S_WIFI_CONN    "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe4\xb8\xad"               /* 连接中 */
-#define S_WIFI_OFFLINE "\xe5\xb7\xb2" "\xe7\xa6\xbb" "\xe7\xba\xbf"           /* 已离线 */
-#define S_WIFI_IDLE    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"                   /* 未连接 */
-#define S_WIFI_FORMAT  "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81" /* 无线状态 */
-#define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* 综合监测 */
-#define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* 返回主菜单 */
-#define S_LABEL_FREQ   "\xe9\xa2\x91\xe7\x8e\x87" " kHz"
-#define S_LABEL_VOLT   "\xe7\x94\xb5\xe5\x8e\x8b" " V"
-#define S_LABEL_CURR   "\xe7\x94\xb5\xe6\xb5\x81" " A"
-#define S_DIV       "--------------------"           /* divider */
+/* -------- Bilingual strings (CN / EN) -------- */
+#define S_WPT_PWM_CN   "\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95"         /* 主菜单 */
+#define S_WPT_PWM_EN   "Main Menu"
+#define S_SWEEP_CN     "\xe6\x89\xab\xe9\xa2\x91\xe4\xb8\xad"         /* 扫频中 */
+#define S_SWEEP_EN     "Sweeping"
+#define S_MONITOR_CN   "\xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b" /* 状态监测 */
+#define S_MONITOR_EN   "Monitor"
+#define S_MON_FREQ_CN  "\xe9\xa2\x91\xe7\x8e\x87\xe8\xa1\xa8\xe7\x9b\x98" /* 频率表盘 */
+#define S_MON_FREQ_EN  "Frequency"
+#define S_MON_VOLT_CN  "\xe7\x94\xb5\xe5\x8e\x8b\xe8\xa1\xa8\xe7\x9b\x98" /* 电压表盘 */
+#define S_MON_VOLT_EN  "Voltage"
+#define S_MON_CURR_CN  "\xe7\x94\xb5\xe6\xb5\x81\xe8\xa1\xa8\xe7\x9b\x98" /* 电流表盘 */
+#define S_MON_CURR_EN  "Current"
+#define S_LAUNCH_CN    "\xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91" /* 无线配网 */
+#define S_LAUNCH_EN    "WiFi Setup"
+#define S_FREQ_CN      "\xe9\xa2\x91\xe7\x8e\x87"                     /* freq */
+#define S_FREQ_EN      "Freq"
+#define S_VOLTAGE_CN   "\xe7\x94\xb5\xe5\x8e\x8b"                     /* voltage */
+#define S_VOLTAGE_EN   "Volt"
+#define S_CURRENT_CN   "\xe7\x94\xb5\xe6\xb5\x81"                     /* current */
+#define S_CURRENT_EN   "Curr"
+#define S_CLEAR_WIFI_CN "\xe6\xb8\x85\xe9\x99\xa4WIFI"                /* clear WIFI */
+#define S_CLEAR_WIFI_EN "Clear WiFi"
+#define S_WIFI_ONLINE_CN  "\xe8\xbf\x9e\xe6\x8e\xa5\xe6\x88\x90\xe5\x8a\x9f" /* 连接成功 */
+#define S_WIFI_ONLINE_EN  "Online"
+#define S_WIFI_CONN_CN    "\xe8\xbf\x9e\xe6\x8e\xa5\xe4\xb8\xad"           /* 连接中 */
+#define S_WIFI_CONN_EN    "Connecting"
+#define S_WIFI_OFFLINE_CN "\xe5\xb7\xb2\xe7\xa6\xbb\xe7\xba\xbf"           /* 已离线 */
+#define S_WIFI_OFFLINE_EN "Offline"
+#define S_WIFI_IDLE_CN    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"           /* 未连接 */
+#define S_WIFI_IDLE_EN    "Disconnected"
+#define S_SUMMARY_CN   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* 综合监测 */
+#define S_SUMMARY_EN   "Summary"
+#define S_BACK_CN      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* 返回主菜单 */
+#define S_BACK_EN      "Back to Menu"
+#define S_LABEL_FREQ_CN "\xe9\xa2\x91\xe7\x8e\x87 kHz"
+#define S_LABEL_FREQ_EN "Freq kHz"
+#define S_LABEL_VOLT_CN "\xe7\x94\xb5\xe5\x8e\x8b V"
+#define S_LABEL_VOLT_EN "Volt V"
+#define S_LABEL_CURR_CN "\xe7\x94\xb5\xe6\xb5\x81 A"
+#define S_LABEL_CURR_EN "Curr A"
+#define S_DIV       "--------------------"           /* divider (纯ASCII) */
 
-#define S_PAUSE     "\xe5\xb7\xb2\xe6\x9a\x82\xe5\x81\x9c"           /* 已暂停 */
-#define S_OVERCUR   "\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4" /* 过流保护 */
-#define S_PWM_OFF   "PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad"       /* PWM已关断 */
-#define S_FAULT_TITLE "\xe6\x95\x85\xe9\x9a\x9c\xe9\xa1\xb5"           /* 故障页 */
-#define S_RESET_HINT "\xe6\x8c\x89" "KEY0" "\xe5\xa4\x8d\xe4\xbd\x8d" "\xe9\x87\x8d\xe5\x90\xaf"
-#define S_LONG_CLEAR      "\xe9\x95\xbf\xe6\x8c\x89\xe6\xb8\x85\xe9\x99\xa4WIFI"  /* 长按清除WiFi */
-#define S_DISCONNECT      "\xe6\x96\xad\xe5\xbc\x80"                      /* 断开 */
-#define S_CONNECT         "\xe8\xbf\x9e\xe6\x8e\xa5"                      /* 连接 */
+#define S_PAUSE_CN     "\xe5\xb7\xb2\xe6\x9a\x82\xe5\x81\x9c"           /* 已暂停 */
+#define S_PAUSE_EN     "Paused"
+#define S_OVERCUR_CN   "\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4" /* 过流保护 */
+#define S_OVERCUR_EN   "Overcurrent!"
+#define S_PWM_OFF_CN   "PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad"       /* PWM已关断 */
+#define S_PWM_OFF_EN   "PWM Disabled"
+#define S_FAULT_TITLE_CN "\xe6\x95\x85\xe9\x9a\x9c\xe9\xa1\xb5"         /* 故障页 */
+#define S_FAULT_TITLE_EN "FAULT"
+#define S_RESET_HINT_CN "\xe6\x8c\x89KEY0\xe5\xa4\x8d\xe4\xbd\x8d\xe9\x87\x8d\xe5\x90\xaf"
+#define S_RESET_HINT_EN "[PAGE] Reset"
+#define S_LONG_CLEAR_CN "\xe9\x95\xbf\xe6\x8c\x89\xe6\xb8\x85\xe9\x99\xa4WIFI"  /* 长按清除WiFi */
+#define S_LONG_CLEAR_EN "Long-Press Clear"
+#define S_DISCONNECT_CN "\xe6\x96\xad\xe5\xbc\x80"                      /* 断开 */
+#define S_DISCONNECT_EN "Disconnect"
+#define S_CONNECT_CN    "\xe8\xbf\x9e\xe6\x8e\xa5"                      /* 连接 */
+#define S_CONNECT_EN    "Connect"
+#define S_STOP_PWM_CN   "1. \xe5\x81\x9c\xe6\xad\xa2PWM"               /* 停止PWM */
+#define S_STOP_PWM_EN   "1. Stop PWM"
+#define S_START_PWM_CN  "1. \xe5\x90\xaf\xe5\x8a\xa8PWM"               /* 启动PWM */
+#define S_START_PWM_EN  "1. Start PWM"
+#define S_WIFI_SETUP_CN "3. \xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91"
+#define S_WIFI_SETUP_EN "3. WiFi Setup"
+#define S_FAULT_CLEAR_CN "5. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4"
+#define S_FAULT_CLEAR_EN "5. Clear Fault"
 
 /* V4.4.0 Settings strings */
-#define S_SETTINGS        "\xe8\xae\xbe\xe7\xbd\xae"        /* 设置 */
-#define S_SETTINGS_LANG   "\xe8\xaf\xad\xe8\xa8\x80"        /* 语言 */
-#define S_SETTINGS_ICONS  "\xe5\x9b\xbe\xe6\xa0\x87"        /* 图标 */
-#define S_SETTINGS_FONT   "\xe5\xad\x97\xe4\xbd\x93"        /* 字体 */
-#define S_SETTINGS_BL     "\xe4\xba\xae\xe5\xba\xa6"        /* 亮度 */
-#define S_SETTINGS_COLOR  "\xe9\xa2\x9c\xe8\x89\xb2"        /* 颜色 */
-#define S_TITLE_LANG      S_SETTINGS_LANG
-#define S_TITLE_ICONS     S_SETTINGS_ICONS
-#define S_TITLE_FONT      "\xe5\xad\x97\xe4\xbd\x93\xe5\xa4\xa7\xe5\xb0\x8f" /* 字体大小 */
-#define S_TITLE_BL        "\xe4\xba\xae\xe5\xba\xa6\xe8\xb0\x83\xe8\x8a\x82" /* 亮度调节 */
-#define S_TITLE_COLOR     "\xe9\xa2\x9c\xe8\x89\xb2\xe6\x96\xb9\xe6\xa1\x88" /* 颜色方案 */
-#define S_ON_RETURN       "[ON]\xe8\xbf\x94\xe5\x9b\x9e"   /* [ON]返回 */
-#define S_EN_SETTINGS     "Settings"
-#define S_EN_LANG         "Language"
-#define S_EN_ICONS        "Icons"
-#define S_EN_FONT         "Font Size"
-#define S_EN_BL           "Brightness"
-#define S_EN_COLOR        "Color"
-#define S_FLASH_REQUIRED  "Flash required"
+#define S_SETTINGS_CN    "\xe8\xae\xbe\xe7\xbd\xae"        /* 设置 */
+#define S_SETTINGS_EN    "Settings"
+#define S_SETTINGS_LANG_CN "\xe8\xaf\xad\xe8\xa8\x80"      /* 语言 */
+#define S_SETTINGS_LANG_EN "Language"
+#define S_SETTINGS_ICONS_CN "\xe5\x9b\xbe\xe6\xa0\x87"     /* 图标 */
+#define S_SETTINGS_ICONS_EN "Icons"
+#define S_SETTINGS_FONT_CN "\xe5\xad\x97\xe4\xbd\x93"      /* 字体 */
+#define S_SETTINGS_FONT_EN "Font Size"
+#define S_SETTINGS_BL_CN   "\xe4\xba\xae\xe5\xba\xa6"      /* 亮度 */
+#define S_SETTINGS_BL_EN   "Brightness"
+#define S_SETTINGS_COLOR_CN "\xe9\xa2\x9c\xe8\x89\xb2"     /* 颜色 */
+#define S_SETTINGS_COLOR_EN "Color"
+#define S_TITLE_LANG_CN    S_SETTINGS_LANG_CN
+#define S_TITLE_LANG_EN    S_SETTINGS_LANG_EN
+#define S_TITLE_ICONS_CN   S_SETTINGS_ICONS_CN
+#define S_TITLE_ICONS_EN   S_SETTINGS_ICONS_EN
+#define S_TITLE_FONT_CN    "\xe5\xad\x97\xe4\xbd\x93\xe5\xa4\xa7\xe5\xb0\x8f"
+#define S_TITLE_FONT_EN    "Font Size"
+#define S_TITLE_BL_CN      "\xe4\xba\xae\xe5\xba\xa6\xe8\xb0\x83\xe8\x8a\x82"
+#define S_TITLE_BL_EN      "Brightness"
+#define S_TITLE_COLOR_CN   "\xe9\xa2\x9c\xe8\x89\xb2\xe6\x96\xb9\xe6\xa1\x88"
+#define S_TITLE_COLOR_EN   "Color Scheme"
+#define S_ON_RETURN_CN     "[ON]\xe8\xbf\x94\xe5\x9b\x9e"
+#define S_ON_RETURN_EN     "[ON] Back"
+#define S_MON_MENU_CN      "2. " /* + S_MONITOR_CN at runtime */
+#define S_MON_MENU_EN      "2. Monitor"
+#define S_SETTINGS_MENU_CN "4. " /* + S_SETTINGS_CN at runtime */
+#define S_SETTINGS_MENU_EN "4. Settings"
+#define S_LBL_FREQ_CN      "\xe9\xa2\x91\xe7\x8e\x87 kHz"    /* used in gauge */
+#define S_LBL_FREQ_EN      "Freq kHz"
+#define S_LBL_VOLT_CN      "\xe7\x94\xb5\xe5\x8e\x8b V"
+#define S_LBL_VOLT_EN      "Volt V"
+#define S_LBL_CURR_CN      "\xe7\x94\xb5\xe6\xb5\x81 A"
+#define S_LBL_CURR_EN      "Curr A"
+#define S_FLASH_REQUIRED   "Flash required"
 
 /* -------- Page state variables -------- */
 static Ui_Page  s_page            = UI_PAGE_MAIN_MENU;
@@ -282,7 +345,7 @@ static void Fmt_V(char* buf, float v)
     int x = (int)(v * 100.0f + 0.5f);
     if (x < 0) x = 0;
     if (x > 99999) x = 99999;
-    snprintf(buf, 21, S_VOLTAGE "V:%03d.%02dV", x/100, x%100);
+    snprintf(buf, 21, T(S_VOLTAGE_CN, S_VOLTAGE_EN) "V:%03d.%02dV", x/100, x%100);
 }
 
 static void Fmt_I(char* buf, float c)
@@ -290,7 +353,7 @@ static void Fmt_I(char* buf, float c)
     char sign = (c < 0) ? '-' : '+';
     float v = (c < 0) ? -c : c;
     int x = (int)(v * 1000.0f + 0.5f);
-    snprintf(buf, 21, S_CURRENT "I:%c%d.%03dA", sign, (int)(x/1000), (int)(x%1000));
+    snprintf(buf, 21, T(S_CURRENT_CN, S_CURRENT_EN) "I:%c%d.%03dA", sign, (int)(x/1000), (int)(x%1000));
 }
 
 static void Fmt_F(char* buf, float f)
@@ -359,7 +422,7 @@ static void Draw_Main_Menu_Full(void)
     }
     item_count = is_fault ? 5 : 4;
 
-    Draw_Header(S_WPT_PWM);
+    Draw_Header(T(S_WPT_PWM_CN, S_WPT_PWM_EN));
     Draw_Divider(1);
 
     for (i = 0; i < item_count; i++) {
@@ -368,13 +431,14 @@ static void Draw_Main_Menu_Full(void)
         switch (i) {
             case 0:
                 text = is_running
-                    ? "1. \xe5\x81\x9c\xe6\xad\xa2PWM"
-                    : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";
+                    ? T(S_STOP_PWM_CN, S_STOP_PWM_EN)
+                    : T(S_START_PWM_CN, S_START_PWM_EN);
                 break;
-            case 1: text = "2. " S_MONITOR; break;
-            case 2: text = "3. \xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91"; break;
-            case 3: text = "4. " S_SETTINGS; break;
-            case 4: text = "5. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4"; break;
+            case 1: text = (Tft_Driver_Is_Font_Flash_Valid()
+                ? "2. " S_MONITOR_CN : S_MON_MENU_EN); break;
+            case 2: text = T(S_WIFI_SETUP_CN, S_WIFI_SETUP_EN); break;
+            case 3: text = T(S_SETTINGS_MENU_CN, S_SETTINGS_MENU_EN); break;
+            case 4: text = T(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN); break;
             default: text = ""; break;
         }
         Erase_Line(2 + i);
@@ -410,15 +474,15 @@ static void Main_Menu_Dynamic_Update(void)
 
     if (is_running != s_last_is_running) {
         const char* text = is_running
-            ? "1. \xe5\x81\x9c\xe6\xad\xa2PWM"
-            : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";
+            ? T(S_STOP_PWM_CN, S_STOP_PWM_EN)
+            : T(S_START_PWM_CN, S_START_PWM_EN);
         Draw_Menu_Text(2, 2, text, 1);
         if (s_menu_cursor == 0) Draw_Cursor(2);
         s_last_is_running = is_running;
     }
 
     if (is_fault != s_last_is_fault_menu) {
-        const char* text = "4. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4";
+        const char* text = T(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN);
         uint8_t enabled = is_fault ? 1 : 0;
         Draw_Menu_Text(5, 2, text, enabled);
         if (s_menu_cursor == 3) Draw_Cursor(5);
@@ -432,11 +496,11 @@ static void Main_Menu_Dynamic_Update(void)
 static const char* Sub_Item_Name(uint8_t idx)
 {
     switch (idx) {
-        case 0: return S_SUMMARY;
-        case 1: return S_MON_FREQ;
-        case 2: return S_MON_VOLT;
-        case 3: return S_MON_CURR;
-        case 4: return S_BACK;
+        case 0: return T(S_SUMMARY_CN, S_SUMMARY_EN);
+        case 1: return T(S_MON_FREQ_CN, S_MON_FREQ_EN);
+        case 2: return T(S_MON_VOLT_CN, S_MON_VOLT_EN);
+        case 3: return T(S_MON_CURR_CN, S_MON_CURR_EN);
+        case 4: return T(S_BACK_CN, S_BACK_EN);
         default: return "";
     }
 }
@@ -446,7 +510,7 @@ static void Draw_Sub_Menu_Full(void)
     uint8_t visible_top = (s_menu_cursor >= 3) ? (s_menu_cursor - 2) : 0;
     uint8_t i, line;
 
-    Draw_Header(S_MONITOR);       /* row 0 */
+    Draw_Header(T(S_MONITOR_CN, S_MONITOR_EN));       /* row 0 */
     Draw_Divider(1);              /* row 1 */
 
     for (line = 2; line <= 5; line++) {
@@ -511,11 +575,11 @@ static void Draw_Sweep_Full(void)
     uint8_t is_stopped = (ss == INVERTER_CONTROL_SS_STATE_IDLE);
     char buf[21];
 
-    Draw_Header(S_SWEEP);         /* row 0 */
+    Draw_Header(T(S_SWEEP_CN, S_SWEEP_EN));         /* row 0 */
     Draw_Divider(1);              /* row 1 */
 
     /* row 2: Frequency */
-    snprintf(buf, sizeof(buf), S_FREQ "F:%3lu.%1lukHz",
+    snprintf(buf, sizeof(buf), T(S_FREQ_CN, S_FREQ_EN) "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     Tft_Driver_Show_CN_String(2, 0, buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
@@ -543,7 +607,7 @@ static void Draw_Sweep_Full(void)
             snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
             if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
         } else {
-            Tft_Driver_Show_CN_String(3, 5, S_PAUSE, Uc_Alarm(), Uc_Bg());
+            Tft_Driver_Show_CN_String(3, 5, T(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
         }
     }
 
@@ -574,7 +638,7 @@ static void Sweep_Dynamic_Update(void)
     char buf[21];
 
     /* Frequency */
-    snprintf(buf, sizeof(buf), S_FREQ "F:%3lu.%1lukHz",
+    snprintf(buf, sizeof(buf), T(S_FREQ_CN, S_FREQ_EN) "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
@@ -597,7 +661,7 @@ static void Sweep_Dynamic_Update(void)
             snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
             if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
         } else {
-            Tft_Driver_Show_CN_String(3, 5, S_PAUSE, Uc_Alarm(), Uc_Bg());
+            Tft_Driver_Show_CN_String(3, 5, T(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
         }
     }
 
@@ -636,12 +700,12 @@ static void Draw_Summary_Full(void)
 
     Update_EMA();
 
-    Draw_Header(S_SUMMARY);       /* row 0 */
+    Draw_Header(T(S_SUMMARY_CN, S_SUMMARY_EN));       /* row 0 */
     Draw_Divider(1);              /* row 1 */
 
     /* row 2: Freq */
     if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), S_FREQ "F:0.0kHz"); }
+    else            { snprintf(buf, sizeof(buf), T(S_FREQ_CN, S_FREQ_EN) "F:0.0kHz"); }
     Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
@@ -677,7 +741,7 @@ static void Summary_Dynamic_Update(void)
 
     /* Frequency */
     if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
+    else            { snprintf(buf, sizeof(buf), T(S_FREQ_CN, S_FREQ_EN) "F:---.-kHz"); }
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
         Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
@@ -979,11 +1043,11 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
 
         /* -- Row 6 (Y=96): metric label with unit suffix, center-aligned ── */
         if (cfg->label == 'F')
-            Tft_Driver_Show_CN_String(6, Center(S_LABEL_FREQ), S_LABEL_FREQ, Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Center(T(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN)), T(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN), Uc_Value(), Uc_Bg());
         else if (cfg->label == 'V')
-            Tft_Driver_Show_CN_String(6, Center(S_LABEL_VOLT), S_LABEL_VOLT, Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Center(T(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN)), T(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN), Uc_Value(), Uc_Bg());
         else
-            Tft_Driver_Show_CN_String(6, Center(S_LABEL_CURR), S_LABEL_CURR, Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Center(T(S_LABEL_CURR_CN, S_LABEL_CURR_EN)), T(S_LABEL_CURR_CN, S_LABEL_CURR_EN), Uc_Value(), Uc_Bg());
     }
 
     /* ── 6. Footer: top-right icons only (gauge pages are full-screen, no divider/bottom bar) ── */
@@ -1139,9 +1203,9 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
     /* -- Row 6 (Y=96): metric label with unit suffix -- */
     {
         const char* label_text;
-        if (cfg->label == 'F')      label_text = S_LABEL_FREQ;
-        else if (cfg->label == 'V') label_text = S_LABEL_VOLT;
-        else                        label_text = S_LABEL_CURR;
+        if (cfg->label == 'F')      label_text = T(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN);
+        else if (cfg->label == 'V') label_text = T(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN);
+        else                        label_text = T(S_LABEL_CURR_CN, S_LABEL_CURR_EN);
         if (label_text != s_last_gauge_label) {
             s_last_gauge_label = label_text;
             Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
@@ -1214,21 +1278,21 @@ static void Draw_WiFi_Full(void)
     const char* hint_text;
 
     if (cs == APP_NETWORK_CONN_ONLINE)
-        status_text = S_WIFI_ONLINE;
+        status_text = T(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
     else if (App_Network_Is_Connecting())
-        status_text = S_WIFI_CONN;
+        status_text = T(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
     else if (App_Network_Is_Offline())
-        status_text = S_WIFI_OFFLINE;
+        status_text = T(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
     else  /* IDLE */
-        status_text = S_WIFI_IDLE;
+        status_text = T(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
 
     if (App_Network_Is_Offline()) {
-        hint_text = S_CONNECT;
+        hint_text = T(S_CONNECT_CN, S_CONNECT_EN);
     } else {
-        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_DISCONNECT : S_CONNECT;
+        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? T(S_DISCONNECT_CN, S_DISCONNECT_EN) : T(S_CONNECT_CN, S_CONNECT_EN);
     }
 
-    Draw_Header(S_LAUNCH);         /* row 0 */
+    Draw_Header(T(S_LAUNCH_CN, S_LAUNCH_EN));         /* row 0 */
     Draw_Divider(1);               /* row 1 */
 
     /* row 2: Status */
@@ -1247,7 +1311,7 @@ static void Draw_WiFi_Full(void)
     /* row 5: action hint */
     Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, Uc_Text(), Uc_Bg());
     /* row 6: long-press clear hint */
-    Tft_Driver_Show_CN_String(6, Right(S_LONG_CLEAR), S_LONG_CLEAR, Uc_Alarm(), Uc_Bg());
+    Tft_Driver_Show_CN_String(6, Right(T(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN)), T(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN), Uc_Alarm(), Uc_Bg());
     Erase_Line(7);
 
     s_last_wifi_cs = cs;
@@ -1262,13 +1326,13 @@ static void WiFi_Dynamic_Update(void)
     uint8_t need_hint_update = 0;
 
     if (cs == APP_NETWORK_CONN_ONLINE)
-        status_text = S_WIFI_ONLINE;
+        status_text = T(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
     else if (App_Network_Is_Connecting())
-        status_text = S_WIFI_CONN;
+        status_text = T(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
     else if (App_Network_Is_Offline())
-        status_text = S_WIFI_OFFLINE;
+        status_text = T(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
     else  /* IDLE */
-        status_text = S_WIFI_IDLE;
+        status_text = T(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
 
     if (cs != s_last_wifi_cs) {
         char buf[42];
@@ -1287,9 +1351,9 @@ static void WiFi_Dynamic_Update(void)
 
     if (need_hint_update) {
         if (App_Network_Is_Offline()) {
-            hint_text = S_CONNECT;
+            hint_text = T(S_CONNECT_CN, S_CONNECT_EN);
         } else {
-            hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_DISCONNECT : S_CONNECT;
+            hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? T(S_DISCONNECT_CN, S_DISCONNECT_EN) : T(S_CONNECT_CN, S_CONNECT_EN);
         }
         Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, Uc_Text(), Uc_Bg());
     }
@@ -1300,18 +1364,18 @@ static void WiFi_Dynamic_Update(void)
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Fault_Full(void)
 {
-    Draw_Header(S_FAULT_TITLE);     /* row 0 */
+    Draw_Header(T(S_FAULT_TITLE_CN, S_FAULT_TITLE_EN));     /* row 0 */
     Draw_Divider(1);                /* row 1 */
 
-    Tft_Driver_Show_CN_String(2, Center(S_OVERCUR),
-        S_OVERCUR, Uc_Alarm(), Uc_Bg());      /* row 2 */
-    Tft_Driver_Show_CN_String(3, Center(S_PWM_OFF),
-        S_PWM_OFF, Uc_Text(), Uc_Bg());        /* row 3 */
+    Tft_Driver_Show_CN_String(2, Center(T(S_OVERCUR_CN, S_OVERCUR_EN)),
+        T(S_OVERCUR_CN, S_OVERCUR_EN), Uc_Alarm(), Uc_Bg());      /* row 2 */
+    Tft_Driver_Show_CN_String(3, Center(T(S_PWM_OFF_CN, S_PWM_OFF_EN)),
+        T(S_PWM_OFF_CN, S_PWM_OFF_EN), Uc_Text(), Uc_Bg());        /* row 3 */
 
     Erase_Line(4);                  /* row 4: blank spacer */
 
-    Tft_Driver_Show_CN_String(5, Center(S_RESET_HINT),
-        S_RESET_HINT, Uc_Value(), Uc_Bg());    /* row 5 */
+    Tft_Driver_Show_CN_String(5, Center(T(S_RESET_HINT_CN, S_RESET_HINT_EN)),
+        T(S_RESET_HINT_CN, S_RESET_HINT_EN), Uc_Value(), Uc_Bg());    /* row 5 */
 
     Erase_Line(6);
     Erase_Line(7);
@@ -1596,7 +1660,7 @@ static void Draw_Setting_Full(void)
     uint8_t has_flash = Tft_Driver_Is_Font_Flash_Valid();
 
     /* Row 0: Title */
-    Draw_Header(is_cn ? S_SETTINGS : S_EN_SETTINGS);
+    Draw_Header(is_cn ? T(S_SETTINGS_CN, S_SETTINGS_EN) : T(S_SETTINGS_CN, S_SETTINGS_EN));
     Draw_Divider(1);
 
     /* Row 2-6: 5 menu items */
@@ -1612,7 +1676,7 @@ static void Draw_Setting_Full(void)
     /* Row 7: hint */
     Erase_Line(7);
     {
-        const char* hint = is_cn ? S_ON_RETURN : "[ON]Back";
+        const char* hint = is_cn ? T(S_ON_RETURN_CN, S_ON_RETURN_EN) : "[ON]Back";
         uint8_t col = Right(hint);
         Tft_Driver_Show_String(7, col, hint, Uc_Dim(), Uc_Bg());
     }
@@ -1650,7 +1714,7 @@ static void Draw_Lang_Full(void)
     uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
 
-    Draw_Header(is_cn ? S_TITLE_LANG : S_EN_LANG);
+    Draw_Header(is_cn ? T(S_TITLE_LANG_CN, S_TITLE_LANG_EN) : T(S_SETTINGS_LANG_CN, S_SETTINGS_LANG_EN));
 
     Erase_Line(3);
     Tft_Driver_Show_String(3, 3, "  Chinese",
@@ -1724,7 +1788,7 @@ static void Draw_Icons_Full(void)
 
     {
         char buf[24];
-        snprintf(buf, 24, "%s [%d/2]", is_cn ? S_TITLE_ICONS : "Icons", s_icon_page + 1);
+        snprintf(buf, 24, "%s [%d/2]", is_cn ? T(S_TITLE_ICONS_CN, S_TITLE_ICONS_EN) : "Icons", s_icon_page + 1);
         Draw_Header(buf);
     }
 
@@ -1788,7 +1852,7 @@ static void Draw_Font_Full(void)
     uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
 
     {
-        const char* title = is_cn ? S_TITLE_FONT : S_EN_FONT;
+        const char* title = is_cn ? T(S_TITLE_FONT_CN, S_TITLE_FONT_EN) : T(S_SETTINGS_FONT_CN, S_SETTINGS_FONT_EN);
         uint8_t col = Center(title);
         Draw_Header(title);
     }
@@ -1834,7 +1898,7 @@ static void Draw_BL_Full(void)
     uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
 
     {
-        const char* title = is_cn ? S_TITLE_BL : S_EN_BL;
+        const char* title = is_cn ? T(S_TITLE_BL_CN, S_TITLE_BL_EN) : T(S_SETTINGS_BL_CN, S_SETTINGS_BL_EN);
         Draw_Header(title);
     }
 
@@ -1938,7 +2002,7 @@ static void Draw_Color_Full(void)
     uint8_t i;
     uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
 
-    Draw_Header(is_cn ? S_TITLE_COLOR : S_EN_COLOR);
+    Draw_Header(is_cn ? T(S_TITLE_COLOR_CN, S_TITLE_COLOR_EN) : T(S_SETTINGS_COLOR_CN, S_SETTINGS_COLOR_EN));
 
     for (i = 0; i < 6; i++) {
         char buf[24];
