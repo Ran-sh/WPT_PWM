@@ -41,6 +41,7 @@ static volatile uint32_t s_sys_tick = 0;
 #define DWT_REG_CYCCNT  (*(volatile uint32_t *)0xE0001004)
 #define DWT_BIT_CYCCNT_ENA  (1u << 0)
 
+/** @brief 初始化 SysTick 1ms + DWT 72MHz 周期计数器 (全局时基) */
 void Sys_Timer_Init(void)
 {
     SysTick_Config(SystemCoreClock / 1000);

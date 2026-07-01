@@ -116,6 +116,7 @@ static void Esp8266_Driver_Config_USART_Once(void)
  *  公开接口
  * ═══════════════════════════════════════════════════════════════ */
 
+/** @brief 启动 ESP8266 硬件初始化: RST 脉冲 + BOOT_WAIT */
 void Esp8266_Driver_Start_Init(void)
 {
     /* 硬件只配一次, 避免反复 USART_Init 干扰正在接收的数据 */
@@ -142,6 +143,7 @@ void Esp8266_Driver_Start_Init(void)
     s_init_state = ESP8266_DRIVER_INIT_RST_PULSE;
 }
 
+/** @brief 周期驱动 ESP8266 初始化状态机 */
 void Esp8266_Driver_Init_Task(void)
 {
     switch (s_init_state) {
@@ -182,6 +184,8 @@ uint8_t Esp8266_Driver_Is_Ready(void)
     return (s_init_state == ESP8266_DRIVER_INIT_READY);
 }
 
+/** @brief 发送字符串到 ESP8266 (轮询 TXE+TC, 阻塞)
+ *  @param str 以 \0 结尾的字符串 */
 void Esp8266_Driver_Send_String(const char* str)
 {
     while (*str) {
@@ -190,6 +194,7 @@ void Esp8266_Driver_Send_String(const char* str)
     }
 }
 
+/** @brief ISR 回调: 接收 1 字节到环形缓冲 */
 void Esp8266_Driver_Rx_Char(uint8_t ch)
 {
     if (ch == '\r' || ch == '\n') {

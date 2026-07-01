@@ -90,6 +90,7 @@ static void Drive_Pin(GPIO_TypeDef* port, uint16_t pin,
     }
 }
 
+/** @brief 初始化 5 LED GPIO + 禁用 JTAG 释放 PB3/PB4 (PA12 已让给 Flash CS) */
 void Led_Driver_Init(void)
 {
     GPIO_InitTypeDef cfg;
@@ -129,6 +130,7 @@ void Led_Driver_Init(void)
         LED_DRIVER_PWM_PIN | LED_DRIVER_WIFI_PIN);
 }
 
+/** @brief 周期驱动所有 LED: 根据状态自动 ON/OFF/SLOW/FAST 闪烁 */
 void Led_Driver_Task(void)
 {
     Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_WIFI_PIN,  s_wifi_state,  &s_wifi_last);

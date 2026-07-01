@@ -55,6 +55,7 @@ static Key_Driver_Instance s_keys[KEY_DRIVER_COUNT] = {
     { GPIOB, GPIO_Pin_9, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 }
 };
 
+/** @brief 初始化 4 键 GPIO: PB5/PB7/PB8/PB9 全部 IPU 上拉 */
 void Key_Driver_Init(void)
 {
     GPIO_InitTypeDef cfg;
@@ -123,6 +124,7 @@ static void Update_Fsm(Key_Driver_Instance* key)
     }
 }
 
+/** @brief 周期扫描 4 键 FSM (每 10ms), 自动去抖+单击/双击/长按判定 */
 void Key_Driver_Task(void)
 {
     static uint32_t last = 0;
@@ -136,6 +138,7 @@ void Key_Driver_Task(void)
     }
 }
 
+/** @brief 批量读取 4 键事件 (单次临界区, 阅后即焚, 减少 IRQ 抖动) */
 void Key_Driver_Get_All_Events(Key_Driver_Event out[4])
 {
     uint32_t primask = __get_PRIMASK();
