@@ -120,11 +120,12 @@ static uint16_t Uc_Data(void)    { return s_color_fg; }
 
 /* ═══════════════════════════════════════════════════════════════
  *  Bilingual String System (V4.4.0)
- *  T() selects CN or EN based on W25Q Flash validity.
- *  T_str() for snprintf format strings; T_show() for Show_CN_String args.
+ *  Pick_CN_EN() inline function replaces macros to avoid ARMCC macro issues.
+ *  Used both as snprintf format arg and Show_CN_String arg.
  * ═══════════════════════════════════════════════════════════════ */
-#define T_str(cn, en)  (Tft_Driver_Is_Font_Flash_Valid() ? (cn) : (en))
-#define T_show(cn, en) (Tft_Driver_Is_Font_Flash_Valid() ? (cn) : (en))
+static const char* Pick_CN_EN(const char* cn, const char* en) {
+    return Tft_Driver_Is_Font_Flash_Valid() ? cn : en;
+}
 #define S_WIFI_TITLE_CN "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81"
 #define S_WIFI_TITLE_EN "WiFi Status"
 
@@ -343,7 +344,7 @@ static void Fmt_V(char* buf, float v)
     int x = (int)(v * 100.0f + 0.5f);
     if (x < 0) x = 0;
     if (x > 99999) x = 99999;
-    snprintf(buf, 21, T_str(S_VOLTAGE_CN, S_VOLTAGE_EN) "V:%03d.%02dV", x/100, x%100);
+    snprintf(buf, 21, Pick_CN_EN(S_VOLTAGE_CN, S_VOLTAGE_EN) "V:%03d.%02dV", x/100, x%100);
 }
 
 static void Fmt_I(char* buf, float c)
@@ -351,12 +352,12 @@ static void Fmt_I(char* buf, float c)
     char sign = (c < 0) ? '-' : '+';
     float v = (c < 0) ? -c : c;
     int x = (int)(v * 1000.0f + 0.5f);
-    snprintf(buf, 21, T_str(S_CURRENT_CN, S_CURRENT_EN) "I:%c%d.%03dA", sign, (int)(x/1000), (int)(x%1000));
+    snprintf(buf, 21, Pick_CN_EN(S_CURRENT_CN, S_CURRENT_EN) "I:%c%d.%03dA", sign, (int)(x/1000), (int)(x%1000));
 }
 
 static void Fmt_F(char* buf, float f)
 {
-    snprintf(buf, 21, T_str(S_FREQ_CN, S_FREQ_EN) "F:%3d.%01dkHz", (int)f, (int)((f-(int)f)*10+0.5f)%10);
+    snprintf(buf, 21, Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:%3d.%01dkHz", (int)f, (int)((f-(int)f)*10+0.5f)%10);
 }
 
 /* ================================================================
@@ -420,7 +421,7 @@ static void Draw_Main_Menu_Full(void)
     }
     item_count = is_fault ? 5 : 4;
 
-    Draw_Header(T_show(S_WPT_PWM_CN, S_WPT_PWM_EN));
+    Draw_Header(Pick_CN_EN(S_WPT_PWM_CN, S_WPT_PWM_EN));
     Draw_Divider(1);
 
     for (i = 0; i < item_count; i++) {
@@ -429,14 +430,14 @@ static void Draw_Main_Menu_Full(void)
         switch (i) {
             case 0:
                 text = is_running
-                    ? T_show(S_STOP_PWM_CN, S_STOP_PWM_EN)
-                    : T_show(S_START_PWM_CN, S_START_PWM_EN);
+                    ? Pick_CN_EN(S_STOP_PWM_CN, S_STOP_PWM_EN)
+                    : Pick_CN_EN(S_START_PWM_CN, S_START_PWM_EN);
                 break;
             case 1: text = (Tft_Driver_Is_Font_Flash_Valid()
                 ? "2. " S_MONITOR_CN : S_MON_MENU_EN); break;
-            case 2: text = T_show(S_WIFI_SETUP_CN, S_WIFI_SETUP_EN); break;
-            case 3: text = T_show(S_SETTINGS_MENU_CN, S_SETTINGS_MENU_EN); break;
-            case 4: text = T_show(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN); break;
+            case 2: text = Pick_CN_EN(S_WIFI_SETUP_CN, S_WIFI_SETUP_EN); break;
+            case 3: text = Pick_CN_EN(S_SETTINGS_MENU_CN, S_SETTINGS_MENU_EN); break;
+            case 4: text = Pick_CN_EN(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN); break;
             default: text = ""; break;
         }
         Erase_Line(2 + i);
@@ -472,15 +473,15 @@ static void Main_Menu_Dynamic_Update(void)
 
     if (is_running != s_last_is_running) {
         const char* text = is_running
-            ? T_show(S_STOP_PWM_CN, S_STOP_PWM_EN)
-            : T_show(S_START_PWM_CN, S_START_PWM_EN);
+            ? Pick_CN_EN(S_STOP_PWM_CN, S_STOP_PWM_EN)
+            : Pick_CN_EN(S_START_PWM_CN, S_START_PWM_EN);
         Draw_Menu_Text(2, 2, text, 1);
         if (s_menu_cursor == 0) Draw_Cursor(2);
         s_last_is_running = is_running;
     }
 
     if (is_fault != s_last_is_fault_menu) {
-        const char* text = T_show(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN);
+        const char* text = Pick_CN_EN(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN);
         uint8_t enabled = is_fault ? 1 : 0;
         Draw_Menu_Text(5, 2, text, enabled);
         if (s_menu_cursor == 3) Draw_Cursor(5);
@@ -494,11 +495,11 @@ static void Main_Menu_Dynamic_Update(void)
 static const char* Sub_Item_Name(uint8_t idx)
 {
     switch (idx) {
-        case 0: return T_show(S_SUMMARY_CN, S_SUMMARY_EN);
-        case 1: return T_show(S_MON_FREQ_CN, S_MON_FREQ_EN);
-        case 2: return T_show(S_MON_VOLT_CN, S_MON_VOLT_EN);
-        case 3: return T_show(S_MON_CURR_CN, S_MON_CURR_EN);
-        case 4: return T_show(S_BACK_CN, S_BACK_EN);
+        case 0: return Pick_CN_EN(S_SUMMARY_CN, S_SUMMARY_EN);
+        case 1: return Pick_CN_EN(S_MON_FREQ_CN, S_MON_FREQ_EN);
+        case 2: return Pick_CN_EN(S_MON_VOLT_CN, S_MON_VOLT_EN);
+        case 3: return Pick_CN_EN(S_MON_CURR_CN, S_MON_CURR_EN);
+        case 4: return Pick_CN_EN(S_BACK_CN, S_BACK_EN);
         default: return "";
     }
 }
@@ -508,7 +509,7 @@ static void Draw_Sub_Menu_Full(void)
     uint8_t visible_top = (s_menu_cursor >= 3) ? (s_menu_cursor - 2) : 0;
     uint8_t i, line;
 
-    Draw_Header(T_show(S_MONITOR_CN, S_MONITOR_EN));       /* row 0 */
+    Draw_Header(Pick_CN_EN(S_MONITOR_CN, S_MONITOR_EN));       /* row 0 */
     Draw_Divider(1);              /* row 1 */
 
     for (line = 2; line <= 5; line++) {
@@ -573,11 +574,11 @@ static void Draw_Sweep_Full(void)
     uint8_t is_stopped = (ss == INVERTER_CONTROL_SS_STATE_IDLE);
     char buf[21];
 
-    Draw_Header(T_show(S_SWEEP_CN, S_SWEEP_EN));         /* row 0 */
+    Draw_Header(Pick_CN_EN(S_SWEEP_CN, S_SWEEP_EN));         /* row 0 */
     Draw_Divider(1);              /* row 1 */
 
     /* row 2: Frequency */
-    snprintf(buf, sizeof(buf), T_str(S_FREQ_CN, S_FREQ_EN) "F:%3lu.%1lukHz",
+    snprintf(buf, sizeof(buf), Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     Tft_Driver_Show_CN_String(2, 0, buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
@@ -605,7 +606,7 @@ static void Draw_Sweep_Full(void)
             snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
             if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
         } else {
-            Tft_Driver_Show_CN_String(3, 5, T_show(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
+            Tft_Driver_Show_CN_String(3, 5, Pick_CN_EN(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
         }
     }
 
@@ -636,7 +637,7 @@ static void Sweep_Dynamic_Update(void)
     char buf[21];
 
     /* Frequency */
-    snprintf(buf, sizeof(buf), T_str(S_FREQ_CN, S_FREQ_EN) "F:%3lu.%1lukHz",
+    snprintf(buf, sizeof(buf), Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
@@ -659,7 +660,7 @@ static void Sweep_Dynamic_Update(void)
             snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
             if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
         } else {
-            Tft_Driver_Show_CN_String(3, 5, T_show(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
+            Tft_Driver_Show_CN_String(3, 5, Pick_CN_EN(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
         }
     }
 
@@ -698,12 +699,12 @@ static void Draw_Summary_Full(void)
 
     Update_EMA();
 
-    Draw_Header(T_show(S_SUMMARY_CN, S_SUMMARY_EN));       /* row 0 */
+    Draw_Header(Pick_CN_EN(S_SUMMARY_CN, S_SUMMARY_EN));       /* row 0 */
     Draw_Divider(1);              /* row 1 */
 
     /* row 2: Freq */
     if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), T_str(S_FREQ_CN, S_FREQ_EN) "F:0.0kHz"); }
+    else            { snprintf(buf, sizeof(buf), Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:0.0kHz"); }
     Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
@@ -739,7 +740,7 @@ static void Summary_Dynamic_Update(void)
 
     /* Frequency */
     if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), T_str(S_FREQ_CN, S_FREQ_EN) "F:---.-kHz"); }
+    else            { snprintf(buf, sizeof(buf), Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:---.-kHz"); }
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
         Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
@@ -1041,11 +1042,11 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
 
         /* -- Row 6 (Y=96): metric label with unit suffix, center-aligned ── */
         if (cfg->label == 'F')
-            Tft_Driver_Show_CN_String(6, Center(T_show(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN)), T_show(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN), Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Center(Pick_CN_EN(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN)), Pick_CN_EN(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN), Uc_Value(), Uc_Bg());
         else if (cfg->label == 'V')
-            Tft_Driver_Show_CN_String(6, Center(T_show(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN)), T_show(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN), Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Center(Pick_CN_EN(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN)), Pick_CN_EN(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN), Uc_Value(), Uc_Bg());
         else
-            Tft_Driver_Show_CN_String(6, Center(T_show(S_LABEL_CURR_CN, S_LABEL_CURR_EN)), T_show(S_LABEL_CURR_CN, S_LABEL_CURR_EN), Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Center(Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN)), Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN), Uc_Value(), Uc_Bg());
     }
 
     /* ── 6. Footer: top-right icons only (gauge pages are full-screen, no divider/bottom bar) ── */
@@ -1201,9 +1202,9 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
     /* -- Row 6 (Y=96): metric label with unit suffix -- */
     {
         const char* label_text;
-        if (cfg->label == 'F')      label_text = T_show(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN);
-        else if (cfg->label == 'V') label_text = T_show(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN);
-        else                        label_text = T_show(S_LABEL_CURR_CN, S_LABEL_CURR_EN);
+        if (cfg->label == 'F')      label_text = Pick_CN_EN(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN);
+        else if (cfg->label == 'V') label_text = Pick_CN_EN(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN);
+        else                        label_text = Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN);
         if (label_text != s_last_gauge_label) {
             s_last_gauge_label = label_text;
             Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
@@ -1276,27 +1277,27 @@ static void Draw_WiFi_Full(void)
     const char* hint_text;
 
     if (cs == APP_NETWORK_CONN_ONLINE)
-        status_text = T_show(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
+        status_text = Pick_CN_EN(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
     else if (App_Network_Is_Connecting())
-        status_text = T_show(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
+        status_text = Pick_CN_EN(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
     else if (App_Network_Is_Offline())
-        status_text = T_show(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
+        status_text = Pick_CN_EN(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
     else  /* IDLE */
-        status_text = T_show(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
+        status_text = Pick_CN_EN(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
 
     if (App_Network_Is_Offline()) {
-        hint_text = T_show(S_CONNECT_CN, S_CONNECT_EN);
+        hint_text = Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
     } else {
-        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? T_show(S_DISCONNECT_CN, S_DISCONNECT_EN) : T_show(S_CONNECT_CN, S_CONNECT_EN);
+        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? Pick_CN_EN(S_DISCONNECT_CN, S_DISCONNECT_EN) : Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
     }
 
-    Draw_Header(T_show(S_LAUNCH_CN, S_LAUNCH_EN));         /* row 0 */
+    Draw_Header(Pick_CN_EN(S_LAUNCH_CN, S_LAUNCH_EN));         /* row 0 */
     Draw_Divider(1);               /* row 1 */
 
     /* row 2: Status */
     {
         char buf[42];
-        snprintf(buf, sizeof(buf), "%s: %s", T_str(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
+        snprintf(buf, sizeof(buf), "%s: %s", Pick_CN_EN(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
         Tft_Driver_Show_CN_String(2, 0, buf, Uc_Text(), Uc_Bg());
         strncpy(s_last_status_buf, buf, sizeof(s_last_status_buf));
         s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
@@ -1309,7 +1310,7 @@ static void Draw_WiFi_Full(void)
     /* row 5: action hint */
     Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, Uc_Text(), Uc_Bg());
     /* row 6: long-press clear hint */
-    Tft_Driver_Show_CN_String(6, Right(T_show(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN)), T_show(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN), Uc_Alarm(), Uc_Bg());
+    Tft_Driver_Show_CN_String(6, Right(Pick_CN_EN(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN)), Pick_CN_EN(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN), Uc_Alarm(), Uc_Bg());
     Erase_Line(7);
 
     s_last_wifi_cs = cs;
@@ -1324,17 +1325,17 @@ static void WiFi_Dynamic_Update(void)
     uint8_t need_hint_update = 0;
 
     if (cs == APP_NETWORK_CONN_ONLINE)
-        status_text = T_show(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
+        status_text = Pick_CN_EN(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
     else if (App_Network_Is_Connecting())
-        status_text = T_show(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
+        status_text = Pick_CN_EN(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
     else if (App_Network_Is_Offline())
-        status_text = T_show(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
+        status_text = Pick_CN_EN(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
     else  /* IDLE */
-        status_text = T_show(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
+        status_text = Pick_CN_EN(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
 
     if (cs != s_last_wifi_cs) {
         char buf[42];
-        snprintf(buf, sizeof(buf), "%s: %s", T_str(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
+        snprintf(buf, sizeof(buf), "%s: %s", Pick_CN_EN(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
         if (strncmp(buf, s_last_status_buf, sizeof(s_last_status_buf)) != 0) {
             Erase_Line(2);
             Tft_Driver_Show_CN_String(2, 0, buf, Uc_Text(), Uc_Bg());
@@ -1349,9 +1350,9 @@ static void WiFi_Dynamic_Update(void)
 
     if (need_hint_update) {
         if (App_Network_Is_Offline()) {
-            hint_text = T_show(S_CONNECT_CN, S_CONNECT_EN);
+            hint_text = Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
         } else {
-            hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? T_show(S_DISCONNECT_CN, S_DISCONNECT_EN) : T_show(S_CONNECT_CN, S_CONNECT_EN);
+            hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? Pick_CN_EN(S_DISCONNECT_CN, S_DISCONNECT_EN) : Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
         }
         Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, Uc_Text(), Uc_Bg());
     }
@@ -1362,18 +1363,18 @@ static void WiFi_Dynamic_Update(void)
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Fault_Full(void)
 {
-    Draw_Header(T_show(S_FAULT_TITLE_CN, S_FAULT_TITLE_EN));     /* row 0 */
+    Draw_Header(Pick_CN_EN(S_FAULT_TITLE_CN, S_FAULT_TITLE_EN));     /* row 0 */
     Draw_Divider(1);                /* row 1 */
 
-    Tft_Driver_Show_CN_String(2, Center(T_show(S_OVERCUR_CN, S_OVERCUR_EN)),
-        T_show(S_OVERCUR_CN, S_OVERCUR_EN), Uc_Alarm(), Uc_Bg());      /* row 2 */
-    Tft_Driver_Show_CN_String(3, Center(T_show(S_PWM_OFF_CN, S_PWM_OFF_EN)),
-        T_show(S_PWM_OFF_CN, S_PWM_OFF_EN), Uc_Text(), Uc_Bg());        /* row 3 */
+    Tft_Driver_Show_CN_String(2, Center(Pick_CN_EN(S_OVERCUR_CN, S_OVERCUR_EN)),
+        Pick_CN_EN(S_OVERCUR_CN, S_OVERCUR_EN), Uc_Alarm(), Uc_Bg());      /* row 2 */
+    Tft_Driver_Show_CN_String(3, Center(Pick_CN_EN(S_PWM_OFF_CN, S_PWM_OFF_EN)),
+        Pick_CN_EN(S_PWM_OFF_CN, S_PWM_OFF_EN), Uc_Text(), Uc_Bg());        /* row 3 */
 
     Erase_Line(4);                  /* row 4: blank spacer */
 
-    Tft_Driver_Show_CN_String(5, Center(T_show(S_RESET_HINT_CN, S_RESET_HINT_EN)),
-        T_show(S_RESET_HINT_CN, S_RESET_HINT_EN), Uc_Value(), Uc_Bg());    /* row 5 */
+    Tft_Driver_Show_CN_String(5, Center(Pick_CN_EN(S_RESET_HINT_CN, S_RESET_HINT_EN)),
+        Pick_CN_EN(S_RESET_HINT_CN, S_RESET_HINT_EN), Uc_Value(), Uc_Bg());    /* row 5 */
 
     Erase_Line(6);
     Erase_Line(7);
@@ -1658,7 +1659,7 @@ static void Draw_Setting_Full(void)
     uint8_t has_flash = Tft_Driver_Is_Font_Flash_Valid();
 
     /* Row 0: Title */
-    Draw_Header(is_cn ? T_show(S_SETTINGS_CN, S_SETTINGS_EN) : T_show(S_SETTINGS_CN, S_SETTINGS_EN));
+    Draw_Header(is_cn ? Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN) : Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN));
     Draw_Divider(1);
 
     /* Row 2-6: 5 menu items */
@@ -1674,7 +1675,7 @@ static void Draw_Setting_Full(void)
     /* Row 7: hint */
     Erase_Line(7);
     {
-        const char* hint = is_cn ? T_show(S_ON_RETURN_CN, S_ON_RETURN_EN) : "[ON]Back";
+        const char* hint = is_cn ? Pick_CN_EN(S_ON_RETURN_CN, S_ON_RETURN_EN) : "[ON]Back";
         uint8_t col = Right(hint);
         Tft_Driver_Show_String(7, col, hint, Uc_Dim(), Uc_Bg());
     }
@@ -1712,7 +1713,7 @@ static void Draw_Lang_Full(void)
     uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
 
-    Draw_Header(is_cn ? T_show(S_TITLE_LANG_CN, S_TITLE_LANG_EN) : T_show(S_SETTINGS_LANG_CN, S_SETTINGS_LANG_EN));
+    Draw_Header(is_cn ? Pick_CN_EN(S_TITLE_LANG_CN, S_TITLE_LANG_EN) : Pick_CN_EN(S_SETTINGS_LANG_CN, S_SETTINGS_LANG_EN));
 
     Erase_Line(3);
     Tft_Driver_Show_String(3, 3, "  Chinese",
@@ -1786,7 +1787,7 @@ static void Draw_Icons_Full(void)
 
     {
         char buf[24];
-        snprintf(buf, 24, "%s [%d/2]", is_cn ? T_show(S_TITLE_ICONS_CN, S_TITLE_ICONS_EN) : "Icons", s_icon_page + 1);
+        snprintf(buf, 24, "%s [%d/2]", is_cn ? Pick_CN_EN(S_TITLE_ICONS_CN, S_TITLE_ICONS_EN) : "Icons", s_icon_page + 1);
         Draw_Header(buf);
     }
 
@@ -1850,7 +1851,7 @@ static void Draw_Font_Full(void)
     uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
 
     {
-        const char* title = is_cn ? T_show(S_TITLE_FONT_CN, S_TITLE_FONT_EN) : T_show(S_SETTINGS_FONT_CN, S_SETTINGS_FONT_EN);
+        const char* title = is_cn ? Pick_CN_EN(S_TITLE_FONT_CN, S_TITLE_FONT_EN) : Pick_CN_EN(S_SETTINGS_FONT_CN, S_SETTINGS_FONT_EN);
         uint8_t col = Center(title);
         Draw_Header(title);
     }
@@ -1896,7 +1897,7 @@ static void Draw_BL_Full(void)
     uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
 
     {
-        const char* title = is_cn ? T_show(S_TITLE_BL_CN, S_TITLE_BL_EN) : T_show(S_SETTINGS_BL_CN, S_SETTINGS_BL_EN);
+        const char* title = is_cn ? Pick_CN_EN(S_TITLE_BL_CN, S_TITLE_BL_EN) : Pick_CN_EN(S_SETTINGS_BL_CN, S_SETTINGS_BL_EN);
         Draw_Header(title);
     }
 
@@ -2000,7 +2001,7 @@ static void Draw_Color_Full(void)
     uint8_t i;
     uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
 
-    Draw_Header(is_cn ? T_show(S_TITLE_COLOR_CN, S_TITLE_COLOR_EN) : T_show(S_SETTINGS_COLOR_CN, S_SETTINGS_COLOR_EN));
+    Draw_Header(is_cn ? Pick_CN_EN(S_TITLE_COLOR_CN, S_TITLE_COLOR_EN) : Pick_CN_EN(S_SETTINGS_COLOR_CN, S_SETTINGS_COLOR_EN));
 
     for (i = 0; i < 6; i++) {
         char buf[24];
