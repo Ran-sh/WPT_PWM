@@ -75,6 +75,7 @@ static uint8_t s_calibrated  = 0;              /* 校准完成标志 */
 static uint8_t s_cal_count   = 0;              /* 校准样本计数 */
 static float   s_cal_accum   = 0.0f;           /* 校准累加值 */
 
+/** @brief 初始化 ADC1 + DMA1 双通道连续扫描, 144241 周期互质采样 */
 void Adc_Driver_Init(void)
 {
     ADC_InitTypeDef  adc;
@@ -133,6 +134,7 @@ void Adc_Driver_Init(void)
     ADC_SoftwareStartConvCmd(ADC1, ENABLE);  /* 启动连续转换 */
 }
 
+/** @brief 周期任务: DMA 滑动窗口滤波 + 电压/电流 EMA 更新 */
 void Adc_Driver_Filter_Task(void)
 {
     static uint32_t last_cyc = 0;
@@ -156,6 +158,7 @@ void Adc_Driver_Filter_Task(void)
     s_current   = (s_raw_pin_v - s_i_offset) / ADC_DRIVER_CURRENT_SENSITIVITY * ADC_DRIVER_CURRENT_CAL_FACTOR;
 }
 
+/** @brief 冷启动电流零点自测算: 50 样本均值 -> s_i_offset */
 void Adc_Driver_Calibrate_Offset(void)
 {
     static uint32_t last_cal = 0;
@@ -175,7 +178,9 @@ void Adc_Driver_Calibrate_Offset(void)
     }
 }
 
+/** @brief 获取 EMA 滤波后的实时电压值 (V) */
 float Adc_Driver_Get_Voltage(void) { return s_voltage; }
+/** @brief 获取 EMA 滤波后的实时电流值 (A) */
 float Adc_Driver_Get_Current(void) { return s_current; }
 
 /** @brief 从 Flash 固化值写入校准参数 (W25Q128 参数区加载后调用)

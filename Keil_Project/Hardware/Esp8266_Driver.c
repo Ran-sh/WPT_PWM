@@ -179,6 +179,7 @@ void Esp8266_Driver_Init_Task(void)
     }
 }
 
+/** @brief 查询 ESP8266 是否就绪 (初始化完成, 串口可用) */
 uint8_t Esp8266_Driver_Is_Ready(void)
 {
     return (s_init_state == ESP8266_DRIVER_INIT_READY);
@@ -207,16 +208,19 @@ void Esp8266_Driver_Rx_Char(uint8_t ch)
     }
 }
 
+/** @brief 查询是否有新接收帧 (非阻塞) */
 uint8_t Esp8266_Driver_Get_Rx_Flag(void)
 {
     return s_rx_frame_flag;
 }
 
+/** @brief 获取接收缓冲区只读指针 (配合 Get_Rx_Flag 使用) */
 const char* Esp8266_Driver_Get_Rx_Buffer(void)
 {
     return s_rx_buf;
 }
 
+/** @brief 清空接收缓冲 (临界区保护) */
 void Esp8266_Driver_Clear_Rx_Buffer(void)
 {
     uint32_t primask = __get_PRIMASK();

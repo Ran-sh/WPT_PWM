@@ -101,11 +101,13 @@ void Inverter_Control_Soft_Start_Reset(void)
     Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_IDLE);
 }
 
+/** @brief 获取软启动状态机当前状态 (原子读取, 无需关 IRQ) */
 Inverter_Control_Soft_Start_State Inverter_Control_Soft_Start_Get_State(void)
 {
     return s_ss_state;
 }
 
+/** @brief 获取软启动当前实际频率 (Hz) */
 uint32_t Inverter_Control_Soft_Start_Get_Current_Freq(void)
 {
     return s_ss_current_freq;
@@ -161,6 +163,7 @@ void Inverter_Control_Freq_Ramp_Task(void)
     }
 }
 
+/** @brief 获取频率斜坡目标值 (Hz) */
 uint32_t Inverter_Control_Freq_Ramp_Get_Target(void)
 {
     return s_ramp_target;

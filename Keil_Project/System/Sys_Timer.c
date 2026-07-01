@@ -42,6 +42,7 @@ static volatile uint32_t s_sys_tick = 0;
 #define DWT_BIT_CYCCNT_ENA  (1u << 0)
 
 /** @brief 初始化 SysTick 1ms + DWT 72MHz 周期计数器 (全局时基) */
+/** @brief 初始化 SysTick 1ms + DWT 72MHz 周期计数器 (全局唯一时基) */
 void Sys_Timer_Init(void)
 {
     SysTick_Config(SystemCoreClock / 1000);
@@ -51,21 +52,25 @@ void Sys_Timer_Init(void)
     DWT_REG_CTRL  |= DWT_BIT_CYCCNT_ENA;
 }
 
+/** @brief SysTick ISR 回调: 递增毫秒计数 (禁止用户代码调用) */
 void Sys_Timer_Inc_Tick(void)
 {
     s_sys_tick++;
 }
 
+/** @brief 获取毫秒时间戳 (32bit 无符号, ~49.7 天回绕安全) */
 uint32_t Sys_Timer_Get_Tick(void)
 {
     return s_sys_tick;
 }
 
+/** @brief 获取 DWT CPU 周期计数 (亚毫秒高精度定时) */
 uint32_t Sys_Timer_Get_Cycles(void)
 {
     return DWT_REG_CYCCNT;
 }
 
+/** @brief 阻塞延时 ms 毫秒 (仅初始化阶段使用, 运行时禁止阻塞) */
 void Sys_Timer_Delay_Ms(uint32_t ms)
 {
     uint32_t start = s_sys_tick;

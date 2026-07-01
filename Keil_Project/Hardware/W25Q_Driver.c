@@ -164,6 +164,7 @@ void W25Q_Driver_Init(void)
     s_chip_ok = 1;
 }
 
+/** @brief 读 JEDEC ID: 24bit 0xEF4018=W25Q128, 失败返回0 */
 uint32_t W25Q_Driver_Read_JEDEC_ID(void)
 {
     uint32_t id;
@@ -176,6 +177,7 @@ uint32_t W25Q_Driver_Read_JEDEC_ID(void)
     return id;
 }
 
+/** @brief 读状态寄存器 1 (用于外部 Busy 检查) */
 uint8_t W25Q_Driver_Read_SR1(void)
 {
     uint8_t sr1;
@@ -238,6 +240,7 @@ void W25Q_Driver_Erase_Sector(uint32_t addr)
 
 /** @brief 加载并 CRC32 校验 Font Header, 返回 1=有效
  *  @note  依赖 extern CRC32_Compute (App_Storage.c) */
+/** @brief 加载并校验 Font Header (magic + CRC32), 返回 1=有效 */
 uint8_t Font_Header_Load(Font_Header *hdr)
 {
     uint32_t crc_stored; uint32_t crc_computed;

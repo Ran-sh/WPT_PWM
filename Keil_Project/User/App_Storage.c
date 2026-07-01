@@ -56,6 +56,7 @@ static const uint8_t CRC8_TABLE[256] = {
     0xDE,0xD9,0xD0,0xD7,0xC2,0xC5,0xCC,0xCB,0xE6,0xE1,0xE8,0xEF,0xFA,0xFD,0xF4,0xF3
 };
 
+/** @brief CRC8 查表计算 (多项式 0x07, 256B ROM 表) */
 static uint8_t CRC8_Compute(const uint8_t *data, uint8_t len)
 {
     uint8_t crc = 0x00;
@@ -66,6 +67,7 @@ static uint8_t CRC8_Compute(const uint8_t *data, uint8_t len)
 /* ═══════════════════════════════════════════════
  *  CRC32 (多项式 0x04C11DB7, 含 final XOR, 与 WinRAR/STM32 CRC 外设一致)
  * ═══════════════════════════════════════════════ */
+/** @brief CRC32 计算 (多项式 0x04C11DB7, refin=false, 与 STM32 CRC 外设一致) */
 uint32_t CRC32_Compute(const uint8_t *data, uint32_t len)
 {
     uint32_t crc = 0xFFFFFFFFU; uint32_t i, j;
@@ -239,6 +241,7 @@ void Blackbox_Lock_Fault_Snapshot(void)
     s_fault_lock_addr += BLACKBOX_ENTRY_SIZE * 50U;
 }
 
+/** @brief 获取黑匣子已写入条目总数 */
 uint32_t Blackbox_Get_Entry_Count(void) { return s_log_seq; }
 
 /** @brief 按索引读取黑匣子条目 (0=最旧) */

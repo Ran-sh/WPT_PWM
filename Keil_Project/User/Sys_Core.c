@@ -66,6 +66,7 @@ static App_Storage_Config s_sys_config;
  *  1. 初始化 (原 Sys_Init.c)
  * ═══════════════════════════════════════════════════════════════ */
 
+/** @brief 钳位 ESP8266 控制脚 (RST=0, CH_PD=0), 防止上电浮空误触发 */
 void Sys_Clamp_ESP(void)
 {
     GPIO_InitTypeDef gpio;
@@ -82,6 +83,7 @@ void Sys_Clamp_ESP(void)
     GPIO_ResetBits(GPIOB, GPIO_Pin_11);         /* CH_PD=0 */
 }
 
+/** @brief 硬件驱动批量初始化: Pwm/TFT/Led/Buzzer/Adc/Key, PB10 初始关断 */
 void Sys_Hardware_Init(void)
 {
     GPIO_InitTypeDef gpio;
@@ -102,12 +104,14 @@ void Sys_Hardware_Init(void)
     Key_Driver_Init();
 }
 
+/** @brief 开机画面: SPLASH 动画 ~4.8s + Flash/ROM 字库状态显示 */
 void Sys_Startup_Screen(void)
 {
     Tft_Driver_Clear(TFT_COLOR_BLACK);
     Tft_Driver_Show_Splash();               /* 纯代码 SPLASH: 逐字渐亮 ~4.8s */
 }
 
+/** @brief 后初始化: LED 心跳 + Flash 参数加载 + ADC 校准 + WDG + ESP 联网 */
 void Sys_Post_Init(void)
 {
     uint8_t cfg_valid;
@@ -152,6 +156,7 @@ void Sys_Post_Init(void)
 static float  s_safety_ema_v = 0.0f, s_safety_ema_i = 0.0f;
 static uint8_t s_safety_ema_ok = 0;
 
+/** @brief 更新安全级 EMA 滤波 (a=0.25, ~800ms), 从 ADC 原始值重新计算 */
 static void Sys_Safety_Update_EMA(void)
 {
     float v = Adc_Driver_Get_Voltage();
@@ -166,7 +171,9 @@ static void Sys_Safety_Update_EMA(void)
     }
 }
 
+/** @brief 获取安全级 EMA 滤波电压 (用于过流保护+PB10控制) */
 float Sys_Safety_Get_EMA_Voltage(void)  { return s_safety_ema_v; }
+/** @brief 获取安全级 EMA 滤波电流 (用于过流保护阈值比较) */
 float Sys_Safety_Get_EMA_Current(void)  { return s_safety_ema_i; }
 
 /**
@@ -175,6 +182,7 @@ float Sys_Safety_Get_EMA_Current(void)  { return s_safety_ema_i; }
  *         若不重置, Sys_Safety_Task 下一圈又会将 g_sys_state 拉回 FAULT, 造成"消除无效"。
  *         调用后将 EMA 重置为当前 ADC 原始值, 同时锁定新状态让 EMA 重新收敛。
  */
+/** @brief 重置过流 EMA 缓存: 电流清零 + 强制重新收敛, 防止 FAULT 误重触发 */
 void Sys_Safety_Reset_EMA(void)
 {
     s_safety_ema_i  = 0.0f;
@@ -182,6 +190,7 @@ void Sys_Safety_Reset_EMA(void)
     /* 电压 EMA 保持不变 — 电压值不受过流复位影响 */
 }
 
+/** @brief 安全监测周期任务: 仅 RUNNING 状态执行, >5.0A -> FAULT, PB10 电源控制 */
 void Sys_Safety_Task(void)
 {
     /* 仅 RUNNING 状态执行安全监测: 非运行状态 PWM 已关, 无过流可能 */
@@ -212,6 +221,7 @@ void Sys_Safety_Task(void)
  *  3. 运行调度 (原 Sys_Run.c)
  * ═══════════════════════════════════════════════════════════════ */
 
+/** @brief 200ms 周期驱动 LED 任务 */
 static void Sys_Run_Led_Tick(void)
 {
     static uint32_t last = 0;
@@ -221,6 +231,7 @@ static void Sys_Run_Led_Tick(void)
     }
 }
 
+/** @brief 50ms 周期驱动蜂鸣器任务 */
 static void Sys_Run_Buzzer_Tick(void)
 {
     static uint32_t last = 0;
@@ -230,6 +241,7 @@ static void Sys_Run_Buzzer_Tick(void)
     }
 }
 
+/** @brief IDLE 状态运行: UI + LED + 蜂鸣器 + Key + ADC + 网络 + 安全 + WDG/WFI */
 void Sys_Run_Idle(void)
 {
     Ui_Controller_Task();
@@ -243,6 +255,7 @@ void Sys_Run_Idle(void)
     __WFI();
 }
 
+/** @brief SWEEP 状态运行: UI + 软启动扫频 + 黑匣子 + 全 Task + WDG/WFI */
 void Sys_Run_Sweep(void)
 {
     static uint32_t last_bb_s = 0; uint32_t now_s = Sys_Timer_Get_Tick();
@@ -265,6 +278,7 @@ void Sys_Run_Sweep(void)
     __WFI();
 }
 
+/** @brief RUNNING 状态运行: UI + 频率斜坡 + 黑匣子 + 全 Task + WDG/WFI */
 void Sys_Run_Running(void)
 {
     static uint32_t last_bb = 0; uint32_t now = Sys_Timer_Get_Tick();
@@ -285,6 +299,7 @@ void Sys_Run_Running(void)
     __WFI();
 }
 
+/** @brief FAULT 状态运行: UI + 取消斜坡 + 全 Task (Key+ADC+网络+安全) + WDG/WFI */
 void Sys_Run_Fault(void)
 {
     Ui_Controller_Task();

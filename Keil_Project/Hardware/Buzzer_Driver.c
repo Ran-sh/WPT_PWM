@@ -27,6 +27,7 @@
 
 static Buzzer_Driver_State s_state = BUZZER_DRIVER_STATE_OFF;
 
+/** @brief 初始化 PB15 推挽输出, 初始低电平 -> 蜂鸣器静音 */
 void Buzzer_Driver_Init(void)
 {
     GPIO_InitTypeDef cfg;
@@ -40,6 +41,7 @@ void Buzzer_Driver_Init(void)
     GPIO_ResetBits(BUZZER_DRIVER_PORT, BUZZER_DRIVER_PIN);  /* 初始低电平, 静音 */
 }
 
+/** @brief 周期任务: 根据 s_state 自动控制 ON/OFF/BEEP 间歇蜂鸣 */
 void Buzzer_Driver_Task(void)
 {
     static uint32_t s_last_beep = 0;               /* 上次翻转时间戳 */
@@ -72,6 +74,7 @@ void Buzzer_Driver_Task(void)
     }
 }
 
+/** @brief 设置蜂鸣器工作模式 (OFF=静音, ON=持续响, BEEP=间歇 200ms/800ms) */
 void Buzzer_Driver_Set_State(Buzzer_Driver_State state)
 {
     s_state = state;
