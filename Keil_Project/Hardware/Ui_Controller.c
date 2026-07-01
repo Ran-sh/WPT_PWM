@@ -88,13 +88,26 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 #include <stdio.h>
 #include <string.h>
 
+/* ════════════════════════════════════════════════════════════
+ *  V4.4.0 Settings State (must be before Uc_*() macros)
+ * ════════════════════════════════════════════════════════════ */
+static uint8_t  s_language         = 0;     /* 0=Chinese, 1=English */
+static uint8_t  s_font_size        = 1;     /* 0=Small, 1=Medium(default) */
+static uint8_t  s_backlight_val    = 248;   /* 48-248, default 248 */
+static uint8_t  s_color_preset     = 0;     /* 0-5 preset, 255=custom */
+static uint16_t s_color_fg         = 0xFFFF;/* RGB565 default white */
+static uint16_t s_color_bg         = 0x0000;/* RGB565 default black */
+static uint16_t s_color_accent     = 0xFFE0;/* RGB565 default yellow */
+
+/* Settings sub-page cursor */
+static uint8_t  s_setting_cursor   = 0;
+static uint8_t  s_icon_page        = 0;
+static uint8_t  s_icon_cursor      = 0;
+static uint8_t  s_bl_breathing     = 1;
+static uint32_t s_bl_last_action_ms = 0;
+
 /* ═══════════════════════════════════════════════════════════════
- *  Dynamic Color System (V4.4.0)
- *
- *  UI_COLOR_* macros → Uc_*() inline functions.
- *  Classic preset = same as old #define values.
- *  s_color_bg/fg/accent are written by Apply_Color_Preset() (Settings→Color page)
- *  and read by every Uc_*() call in all page draw code.
+ *  Dynamic Color System (V4.4.0) — Uc_*() inline helpers
  * ═══════════════════════════════════════════════════════════════ */
 static uint16_t Uc_Bg(void)      { return s_color_bg; }
 static uint16_t Uc_Title(void)   { return s_color_accent; }
@@ -177,30 +190,6 @@ static uint8_t s_ema_ok = 0;
 /* User freq stepping */
 static uint32_t s_user_target_hz = 100000;
 static uint8_t  s_user_target_synced = 0;
-
-/* ═══════════════════════════════════════════════════════════════
- *  V4.4.0 Settings State
- * ═══════════════════════════════════════════════════════════════ */
-static uint8_t  s_language         = 0;     /* 0=Chinese, 1=English */
-static uint8_t  s_font_size        = 1;     /* 0=Small, 1=Medium(default) */
-static uint8_t  s_backlight_val    = 248;   /* 48-248, default 248 */
-static uint8_t  s_color_preset     = 0;     /* 0-5 preset, 255=custom */
-
-/* ═══════════════════════════════════════════════════════════════
- *  Dynamic Color State (declared ABOVE Uc_*() functions)
- * ═══════════════════════════════════════════════════════════════ */
-static uint16_t s_color_fg         = 0xFFFF;/* RGB565 default white */
-static uint16_t s_color_bg         = 0x0000;/* RGB565 default black */
-static uint16_t s_color_accent     = 0xFFE0;/* RGB565 default yellow */
-
-/* Settings sub-page cursor */
-static uint8_t  s_setting_cursor   = 0;
-static uint8_t  s_icon_page        = 0;     /* 0=icons 0-29, 1=icon 30 */
-static uint8_t  s_icon_cursor      = 0;     /* 0-29 within page */
-
-/* Backlight breathing */
-static uint8_t  s_bl_breathing     = 1;     /* 1=auto breathing */
-static uint32_t s_bl_last_action_ms = 0;
 
 /* ═══════════════════════════════════════════════════════════════
  *  Color Preset Table (V4.4.0)
