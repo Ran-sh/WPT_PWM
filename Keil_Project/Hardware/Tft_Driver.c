@@ -641,15 +641,7 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
         case ICON_ID_WIFI_OFF:    rom_data = WIFI_OFF_ICON;    break;
         case ICON_ID_WIFI_REMOVE: rom_data = WIFI_REMOVE_ICON; break;
         case ICON_ID_MQTT_NO:     rom_data = MQTT_NO_ICON;     break;
-        case ICON_ID_STAR:
-            /* > arrow instead of star, rendered from ROM */;
-            {
-                static const uint8_t ICON_ARROW[32] = {
-                    0x00,0x00,0x00,0x00,0x00,0x00,0x04,0x00,0x08,0x00,0x10,0x00,0x20,0x00,0x40,0x00,
-                    0x80,0x00,0x80,0x00,0x40,0x00,0x20,0x00,0x10,0x00,0x08,0x00,0x04,0x00,0x00,0x00
-                };
-                rom_data = ICON_ARROW; break;
-            }
+        case ICON_ID_STAR:         rom_data = WIFI_OFF_ICON; break; /* 暂用 WIFI_OFF */
         default: return 0;
     }
     (void)frame;
