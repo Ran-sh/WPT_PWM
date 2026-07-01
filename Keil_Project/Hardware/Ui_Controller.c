@@ -1617,12 +1617,6 @@ static void Draw_Setting_Full(void)
     }
 }
 
-static void Setting_Cursor_Update(uint8_t old_cursor)
-{
-    Erase_Cursor(2 + old_cursor);
-    Draw_Cursor(2 + s_setting_cursor);
-}
-
 static void Handle_Setting_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
                                  Key_Driver_Event k2, Key_Driver_Event k3)
 {

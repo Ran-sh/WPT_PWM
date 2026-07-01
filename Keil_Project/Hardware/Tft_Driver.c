@@ -641,7 +641,6 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
      *  Flash 路径通过 W25Q_Read icon_table→data 实现.
      *  为快速修复, 先实现 Flash-only 路径, ROM 回退仅保留 STAR/WIFI/MQTT. */
     uint8_t row; uint16_t* p;
-    uint16_t icon_data[16];  /* 2 bytes per row for Decode_CN_Row */
 
     if (icon_id > 30) return 0;
 
