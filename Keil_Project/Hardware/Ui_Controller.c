@@ -95,8 +95,6 @@ static uint8_t  s_language         = 0;     /* 0=Chinese, 1=English */
 static uint8_t  s_font_size        = 1;     /* 0=Small, 1=Medium(default) */
 static uint8_t  s_backlight_val    = 248;   /* 48-248, default 248 */
 static uint8_t  s_color_preset     = 0;     /* 0-5 preset, 255=custom */
-    /* Referenced by Apply_Color_Preset() & Ui_Controller_Apply_Settings() */
-    (volatile void)s_color_preset;
 static uint16_t s_color_fg         = 0xFFFF;/* RGB565 default white */
 static uint16_t s_color_bg         = 0x0000;/* RGB565 default black */
 static uint16_t s_color_accent     = 0xFFE0;/* RGB565 default yellow */
