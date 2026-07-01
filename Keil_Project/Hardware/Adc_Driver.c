@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Adc_Driver.c
-/** @brief ADC 模拟量采集驱动 — V4.3.2 */
+/** @brief ADC 模拟量采集驱动 - V4.3.2 */
 
 #include "Adc_Driver.h"
 #include "Sys_Timer.h"

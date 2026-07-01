@@ -1,12 +1,12 @@
 /**
  ******************************************************************************
  * @file    Hardware/Buzzer_Driver.c
-/** @brief 有源蜂鸣器驱动 — V4.3.2 */
+/** @brief 有源蜂鸣器驱动 - V4.3.2 */
 
 #include "Buzzer_Driver.h"
 #include "Sys_Timer.h"
 
-#define BUZZER_DRIVER_PIN         GPIO_Pin_15   /* PB15 — 蜂鸣器 I/O */
+#define BUZZER_DRIVER_PIN         GPIO_Pin_15   /* PB15 - 蜂鸣器 I/O */
 #define BUZZER_DRIVER_PORT        GPIOB         /* 端口 B */
 #define BUZZER_DRIVER_BEEP_ON_MS  200    /* BEEP 响 200ms */
 #define BUZZER_DRIVER_BEEP_OFF_MS 800    /* BEEP 停 800ms */

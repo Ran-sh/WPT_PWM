@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Inverter_Control.c
-/** @brief 逆变器控制 — 软启动状态机 + 频率斜坡 (V4.3.2) */
+/** @brief 逆变器控制 - 软启动状态机 + 频率斜坡 (V4.3.2) */
 
 #include "Inverter_Control.h"
 #include "Pwm_Driver.h"

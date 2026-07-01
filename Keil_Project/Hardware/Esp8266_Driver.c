@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Esp8266_Driver.c
-/** @brief ESP8266 串口通信驱动 — V4.3.2 */
+/** @brief ESP8266 串口通信驱动 - V4.3.2 */
 
 #include "Esp8266_Driver.h"
 #include "Sys_Timer.h"
@@ -42,14 +42,14 @@ static void Esp8266_Driver_Config_GPIO_Once(void)
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_GPIOA, ENABLE);
 
-    /* RST: PA1, 初始高 — 不用复位时保持高 */
+    /* RST: PA1, 初始高 - 不用复位时保持高 */
     gpio.GPIO_Pin   = ESP8266_DRIVER_RST_PIN;
     gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(ESP8266_DRIVER_RST_PORT, &gpio);
     GPIO_SetBits(ESP8266_DRIVER_RST_PORT, ESP8266_DRIVER_RST_PIN);
 
-    /* CH_PD/EN: PB11, 初始低 — 默认断电 */
+    /* CH_PD/EN: PB11, 初始低 - 默认断电 */
     gpio.GPIO_Pin   = ESP8266_DRIVER_CH_PD_PIN;
     GPIO_Init(ESP8266_DRIVER_CH_PD_PORT, &gpio);
     GPIO_ResetBits(ESP8266_DRIVER_CH_PD_PORT, ESP8266_DRIVER_CH_PD_PIN);

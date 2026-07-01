@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.c
-/** @brief W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 (V4.3.2) */
+/** @brief W25Q128 16MB SPI NOR Flash - SPI1 分时复用驱动 (V4.3.2) */
 
 #include "W25Q_Driver.h"
 #include "Sys_Core.h"       /* g_sys_state */
@@ -204,7 +204,7 @@ void W25Q_Driver_Erase_Sector(uint32_t addr)
 }
 
 /* ═══════════════════════════════════════════════
- *  Font_Header_Load — 上电校验字库头部
+ *  Font_Header_Load - 上电校验字库头部
  * ═══════════════════════════════════════════════ */
 
 /** @brief 加载并 CRC32 校验 Font Header, 返回 1=有效
@@ -223,7 +223,7 @@ uint8_t Font_Header_Load(Font_Header *hdr)
 }
 
 /* ═══════════════════════════════════════════════
- *  Font_Index_Binary_Search — 总线独占 二分检索
+ *  Font_Index_Binary_Search - 总线独占 二分检索
  *  V4.3.2 FIX: uint16_t→uint32_t, 修复高位 offset 截断
  * ═══════════════════════════════════════════════ */
 

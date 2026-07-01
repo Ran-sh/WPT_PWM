@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
-/** @brief ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V4.3.2 全字库双路径) */
+/** @brief ST7735 128x160 TFT 彩屏驱动 - SPI1+DMA (V4.3.2 全字库双路径) */
 
 #include "Tft_Driver.h"
 #include "TFT_Font_Data.h"
@@ -57,7 +57,7 @@ static void Tft_Driver_WrDat(uint8_t d)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  SPI 模式切换 — 8bit(命令) ↔ 16bit(像素 DMA)
+ *  SPI 模式切换 - 8bit(命令) ↔ 16bit(像素 DMA)
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Tft_SPI_8bit(void)
@@ -123,7 +123,7 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  像素泵送 — 双重空闲死等, 防切帧地雷
+ *  像素泵送 - 双重空闲死等, 防切帧地雷
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Tft_DMA_Fill(uint32_t pixel_count, uint16_t color)
@@ -167,7 +167,7 @@ static void SetWin(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  Tft_Driver_Init — 开机三级锁死 (V4.3.0r2 深水区重构)
+ *  Tft_Driver_Init - 开机三级锁死 (V4.3.0r2 深水区重构)
  *
  *  L1: AFIO+JTAG禁用 绝对第一行, 净化时钟图层
  *  L2: Flash CS(PA12) 强推挽锁高, 封杀开机对灌短路
@@ -182,7 +182,7 @@ void Tft_Driver_Init(void)
     TIM_TimeBaseInitTypeDef  tim_base;
     TIM_OCInitTypeDef        oc;
 
-    /* ══ L1: 绝对第一行 — AFIO+JTAG 统合接管, 净化时钟图层 ══ */
+    /* ══ L1: 绝对第一行 - AFIO+JTAG 统合接管, 净化时钟图层 ══ */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
     GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE); /* 释放 PB3/PB4, 封杀毛刺 */
 
@@ -293,7 +293,7 @@ void Tft_Driver_Init(void)
 }
 
 /* ===============================================================
- *  Tft_Driver_Font_Init — 字库初始化 (W25Q_Driver_Init 之后调用)
+ *  Tft_Driver_Font_Init - 字库初始化 (W25Q_Driver_Init 之后调用)
  *  读取 Flash 字库头, CRC32 校验通过则启用全字库 20897 字,
  *  否则 s_font_flash_valid 保持 0 → ROM 76 字自动回退
  * ============================================================= */
@@ -378,7 +378,7 @@ static void Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16_t bg, uint
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  ASCII 渲染 — 双路径: Flash 流式读取 / ROM 字模回退
+ *  ASCII 渲染 - 双路径: Flash 流式读取 / ROM 字模回退
  * ═══════════════════════════════════════════════════════════════ */
 
 /** @brief 在指定行列绘制 ASCII 字符 (双路径: Flash 流式 / ROM 字模回退) */
@@ -462,7 +462,7 @@ void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  中文渲染 — 双路径: Flash 二分查找 (6763字) / ROM 线性回退 (76字)
+ *  中文渲染 - 双路径: Flash 二分查找 (6763字) / ROM 线性回退 (76字)
  * ═══════════════════════════════════════════════════════════════ */
 
 static uint8_t Tft_Is_UTF8_CN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
@@ -534,7 +534,7 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  WiFi 图标 — 片内 ROM 读取
+ *  WiFi 图标 - 片内 ROM 读取
  * ═══════════════════════════════════════════════════════════════ */
 
 /** @brief 绘制 16x16 WiFi 信号动画图标 (frame: 0~3 逐帧扩散) */
@@ -569,7 +569,7 @@ void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  5×10 微型数字 — 片内保留 (120B, 零 Flash 等待)
+ *  5×10 微型数字 - 片内保留 (120B, 零 Flash 等待)
  * ═══════════════════════════════════════════════════════════════ */
 
 static const uint8_t FONT_5X10[12][10] = {
@@ -618,7 +618,7 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  Icon By ID — 按编号绘制 16x16 图标 (ROM lookup)
+ *  Icon By ID - 按编号绘制 16x16 图标 (ROM lookup)
  * ═══════════════════════════════════════════════════════════════ */
 
 /** @brief 按 icon_id 绘制 16x16 图标 (11=BATTERY ~ 30=CLOCK) */
@@ -655,7 +655,7 @@ void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
 }
 
 /* ===============================================================
- *  SPLASH 开机动画 — 纯代码实现 (V4.3.2)
+ *  SPLASH 开机动画 - 纯代码实现 (V4.3.2)
  *
  *  布局 (160×128):
  *  +----------------------------------+
@@ -671,7 +671,7 @@ void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
  *    Phase 2 (3200ms): 4字x8帧x50ms = 400ms/字, 每字渐亮
  *    Hold   (400ms):   全亮定格
  *
- *  使用字库: ROM 76 字 — 无 线 充 电, 不依赖 Flash
+ *  使用字库: ROM 76 字 - 无 线 充 电, 不依赖 Flash
  * ============================================================= */
 
 /** @brief SPLASH 开机动画: 背光渐亮 + 无 线 充 电 / WPT 逐字点亮 ~2.0s */

@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
-/** @brief 人机界面控制器 V4.3.2 — 9 页面 + 圆弧能量条 + 增量刷新 */
+/** @brief 人机界面控制器 V4.3.2 - 9 页面 + 圆弧能量条 + 增量刷新 */
 
 #include "Ui_Controller.h"
 #include "Sys_Core.h"
@@ -116,7 +116,7 @@ static uint8_t  s_was_fault_state = 0;
 static uint8_t  s_no_wifi_mode    = 0;
 static uint8_t  s_last_page       = 0xFF;
 
-/* EMA filtering (V/I from Sys_Safety, F is raw digital — no EMA lag) */
+/* EMA filtering (V/I from Sys_Safety, F is raw digital - no EMA lag) */
 static float   s_ema_v = 0.0f, s_ema_i = 0.0f, s_ema_f = 0.0f;
 static uint8_t s_ema_ok = 0;
 
@@ -132,7 +132,7 @@ static uint8_t s_last_sub_visible   = 0;    /* tracked sub-menu visible_top */
 static uint8_t s_last_sweep_stopped = 0xFF; /* tracked sweep pause state */
 static uint8_t s_last_wifi_cs       = 0xFF; /* tracked WiFi connection status */
 
-/* Cached last formatted value strings — avoid redrawing unchanged values */
+/* Cached last formatted value strings - avoid redrawing unchanged values */
 static char    s_last_f_str[21];
 static char    s_last_v_str[21];
 static char    s_last_i_str[21];
@@ -207,7 +207,7 @@ static void Fmt_F(char* buf, float f)
 }
 
 /* ================================================================
- *  Draw_Header: line0 title(left) — icons via Draw_TopRight_Icons
+ *  Draw_Header: line0 title(left) - icons via Draw_TopRight_Icons
  * ================================================================ */
 static void Draw_Header(const char* title)
 {
@@ -216,11 +216,11 @@ static void Draw_Header(const char* title)
 }
 
 /* ================================================================
- *  Cursor: ICON_STAR at pixel x=0 — draw/erase (16x16 pixel update)
+ *  Cursor: ICON_STAR at pixel x=0 - draw/erase (16x16 pixel update)
  * ================================================================ */
 static void Draw_Cursor(uint8_t line)
 {
-    /* ICON_STAR (diamond) at left edge — black star on cyan bg for selected row */
+    /* ICON_STAR (diamond) at left edge - black star on cyan bg for selected row */
     Tft_Driver_Draw_Single_Icon(0, (uint16_t)line * TFT_FONT_HEIGHT,
                                 ICON_STAR, UI_COLOR_BG, UI_COLOR_VALUE);
 }
@@ -253,7 +253,7 @@ static void Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t 
 }
 
 /* ================================================================
- *  Page draw: MAIN_MENU (4 items) — covers all 8 rows
+ *  Page draw: MAIN_MENU (4 items) - covers all 8 rows
  * ================================================================ */
 static void Draw_Main_Menu_Full(void)
 {
@@ -336,7 +336,7 @@ static void Main_Menu_Dynamic_Update(void)
 }
 
 /* ================================================================
- *  Page draw: MONITOR_SUB_MENU (5 items, 4-row window) — covers all 8 rows
+ *  Page draw: MONITOR_SUB_MENU (5 items, 4-row window) - covers all 8 rows
  * ================================================================ */
 static const char* Sub_Item_Name(uint8_t idx)
 {
@@ -386,7 +386,7 @@ static void Sub_Menu_Cursor_Update(uint8_t old_cursor)
     uint8_t new_line = 2 + (s_menu_cursor - new_visible);
 
     if (new_visible != old_visible) {
-        /* Scroll happened — redraw all 4 visible lines */
+        /* Scroll happened - redraw all 4 visible lines */
         uint8_t i, line;
         Erase_Cursor(old_line);
 
@@ -411,7 +411,7 @@ static void Sub_Menu_Cursor_Update(uint8_t old_cursor)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  SWEEP page — covers all 8 rows
+ *  SWEEP page - covers all 8 rows
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Sweep_Full(void)
 {
@@ -536,7 +536,7 @@ static void Sweep_Dynamic_Update(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  MONITOR_SUMMARY (line 2=F, 3=V, 4=I) — covers all 8 rows
+ *  MONITOR_SUMMARY (line 2=F, 3=V, 4=I) - covers all 8 rows
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Summary_Full(void)
 {
@@ -620,7 +620,7 @@ static void Summary_Dynamic_Update(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  Ring Gauge Engine — sin table + polar coords + thick line + hub
+ *  Ring Gauge Engine - sin table + polar coords + thick line + hub
  * ═══════════════════════════════════════════════════════════════ */
 static const int16_t GAUGE_SIN[] = {
       0,   175,   349,   523,   698,   872,  1045,  1219,  1392,  1564,
@@ -751,7 +751,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
     if (val < cfg->range_min) val = cfg->range_min;
     if (val > cfg->range_max) val = cfg->range_max;
 
-    /* ── 1. Global physical clear — pure full-screen gauge, no header/divider ── */
+    /* ── 1. Global physical clear - pure full-screen gauge, no header/divider ── */
     Tft_Driver_Clear(UI_COLOR_BG);
 
     /* ── 2. Compute needle angle (0=left, 180=right) ── */
@@ -1114,7 +1114,7 @@ static void Curr_Dynamic_Update(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  WIFI_SETUP — covers all 8 rows
+ *  WIFI_SETUP - covers all 8 rows
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_WiFi_Full(void)
 {
@@ -1205,7 +1205,7 @@ static void WiFi_Dynamic_Update(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  FAULT — fully static, covers all 8 rows
+ *  FAULT - fully static, covers all 8 rows
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Fault_Full(void)
 {
@@ -1419,7 +1419,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         if (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE) {
             return;
         }
-        /* 清除配网凭证并重启 ESP — 发送 CMD:CLEAR 触发 ESP.restart() */
+        /* 清除配网凭证并重启 ESP - 发送 CMD:CLEAR 触发 ESP.restart() */
         Esp8266_Driver_Send_String("CMD:CLEAR\n");
         /* 强制进入主动离线: Manual_Disconnect 已改为无条件设 OFFLINE_ACTIVE */
         App_Network_Manual_Disconnect();
@@ -1454,7 +1454,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
 }
 
 /* ================================================================
- *  Main Scheduler — V4.2.0 incremental refresh architecture
+ *  Main Scheduler - V4.2.0 incremental refresh architecture
  *
  *  Phase 0: Global Top-Right Icons Manager (Always On, Auto-Sync)
  *  Phase 1: Fault edge detection → may set s_page, s_page_drawn=0
@@ -1463,7 +1463,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
  *  Phase 4: Page change → s_page_drawn=0; all tracking invalidated
  *  Phase 5: 200ms tick → dynamic incremental update (values only)
  *  Phase 6: Cursor boundary clamp
- *  Phase 7: Draw — full page only when s_page_drawn==0
+ *  Phase 7: Draw - full page only when s_page_drawn==0
  * ================================================================ */
 void Ui_Controller_Task(void)
 {
@@ -1576,7 +1576,7 @@ void Ui_Controller_Task(void)
     }
 
     /* ════════════════════════════════════════════════════════════
-     *  Phase 7: Draw — full or incremental
+     *  Phase 7: Draw - full or incremental
      * ════════════════════════════════════════════════════════════ */
 
     if (!s_page_drawn) {
@@ -1597,7 +1597,7 @@ void Ui_Controller_Task(void)
         s_page_drawn = 1;
         cursor_changed = 0;
     } else {
-        /* ── Incremental updates — only touch changed pixels ── */
+        /* ── Incremental updates - only touch changed pixels ── */
 
         if (cursor_changed) {
             switch (s_page) {
@@ -1643,7 +1643,7 @@ void Ui_Controller_Force_Page(Ui_Page page)
     s_page_drawn = 0;  /* 强制全量重绘 */
 }
 
-/** @brief 外部强制跳转到目标页面并重置菜单光标 @note   远程 CMD:ON/OFF 专用 — 除页面跳转外, 还强制重置 s_menu_cursor=0 防止远端操作后本地菜单光标停留在已失效的旧菜单项上 */
+/** @brief 外部强制跳转到目标页面并重置菜单光标 @note   远程 CMD:ON/OFF 专用 - 除页面跳转外, 还强制重置 s_menu_cursor=0 防止远端操作后本地菜单光标停留在已失效的旧菜单项上 */
 void Ui_Controller_Force_Page_And_Reset(Ui_Page page)
 {
     s_page        = page;

@@ -1,17 +1,17 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.c
-/** @brief LED 指示灯驱动 — V4.3.2 (5 LEDs) */
+/** @brief LED 指示灯驱动 - V4.3.2 (5 LEDs) */
 
 #include "Led_Driver.h"
 #include "Sys_Timer.h"
 
-#define LED_DRIVER_WIFI_PIN    GPIO_Pin_4   /* PB4 — WiFi状态灯 */
-#define LED_DRIVER_PWM_PIN     GPIO_Pin_3   /* PB3 — PWM运行灯 */
-#define LED_DRIVER_COM_PIN     GPIO_Pin_10  /* PA10 — 通信灯 */
-#define LED_DRIVER_POWER_PIN   GPIO_Pin_11  /* PA11 — 供电状态灯 */
-#define LED_DRIVER_TEMP_PIN    GPIO_Pin_12  /* PA12 — 已让给 W25Q128 Flash CS, LED_TEMP 禁用 */
-#define LED_DRIVER_SYSTEM_PIN  GPIO_Pin_15  /* PA15 — 系统心跳灯 */
+#define LED_DRIVER_WIFI_PIN    GPIO_Pin_4   /* PB4 - WiFi状态灯 */
+#define LED_DRIVER_PWM_PIN     GPIO_Pin_3   /* PB3 - PWM运行灯 */
+#define LED_DRIVER_COM_PIN     GPIO_Pin_10  /* PA10 - 通信灯 */
+#define LED_DRIVER_POWER_PIN   GPIO_Pin_11  /* PA11 - 供电状态灯 */
+#define LED_DRIVER_TEMP_PIN    GPIO_Pin_12  /* PA12 - 已让给 W25Q128 Flash CS, LED_TEMP 禁用 */
+#define LED_DRIVER_SYSTEM_PIN  GPIO_Pin_15  /* PA15 - 系统心跳灯 */
 
 #define LED_DRIVER_PORT_A      GPIOA
 #define LED_DRIVER_PORT_B      GPIOB
@@ -110,7 +110,7 @@ void Led_Driver_Task(void)
     Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_PWM_PIN,   s_pwm_state,   &s_pwm_last);
     Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_COM_PIN,   s_com_state,   &s_com_last);
     Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_POWER_PIN, s_power_state, &s_power_last);
-    /* PA12=TEMP 已禁用 — 让给 W25Q128 Flash CS */
+    /* PA12=TEMP 已禁用 - 让给 W25Q128 Flash CS */
 
     /* SYSTEM: 心跳闪烁 (500ms) */
     {
