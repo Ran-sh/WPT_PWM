@@ -101,51 +101,59 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 #define UI_OVERCURRENT_THRESHOLD_A 5.0f
 #define UI_POWER_V_THRESHOLD_V     12.0f
 
-/* -------- Runtime language fallback (Flash valid->CN, else EN) -------- */
-static const char* Ui_Lang(const char* zh, const char* en)
-{
-    if (Tft_Driver_Is_Font_Flash_Valid()) return zh;
-    return en;
-}
+/* -------- Chinese strings (UTF-8 hex) -------- */
+#define S_WPT_PWM   "\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95"         /* 主菜单 */
+#define S_SWEEP     "\xe6\x89\xab\xe9\xa2\x91\xe4\xb8\xad"         /* 扫频中 */
+#define S_MONITOR   "\xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b" /* 状态监测 */
+#define S_MON_FREQ  "\xe9\xa2\x91\xe7\x8e\x87\xe8\xa1\xa8\xe7\x9b\x98" /* 频率表盘 */
+#define S_MON_VOLT  "\xe7\x94\xb5\xe5\x8e\x8b\xe8\xa1\xa8\xe7\x9b\x98" /* 电压表盘 */
+#define S_MON_CURR  "\xe7\x94\xb5\xe6\xb5\x81\xe8\xa1\xa8\xe7\x9b\x98" /* 电流表盘 */
+#define S_LAUNCH    "\xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91" /* 无线配网 */
+#define S_FREQ      "\xe9\xa2\x91\xe7\x8e\x87"                       /* freq */
+#define S_VOLTAGE   "\xe7\x94\xb5\xe5\x8e\x8b"                       /* voltage */
+#define S_CURRENT   "\xe7\x94\xb5\xe6\xb5\x81"                       /* current */
+#define S_CLEAR_WIFI "\xe6\xb8\x85\xe9\x99\xa4WIFI"                  /* clear WIFI */
+#define S_WIFI_ONLINE  "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe6\x88\x90" "\xe5\x8a\x9f" /* 连接成功 */
+#define S_WIFI_CONN    "\xe8\xbf\x9e\xe6\x8e\xa5" "\xe4\xb8\xad"               /* 连接中 */
+#define S_WIFI_OFFLINE "\xe5\xb7\xb2" "\xe7\xa6\xbb" "\xe7\xba\xbf"           /* 已离线 */
+#define S_WIFI_IDLE    "\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5"                   /* 未连接 */
+#define S_WIFI_FORMAT  "\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81" /* 无线状态 */
+#define S_SUMMARY   "\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b" /* 综合监测 */
+#define S_BACK      "\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95" /* 返回主菜单 */
+#define S_LABEL_FREQ   "\xe9\xa2\x91\xe7\x8e\x87" " kHz"
+#define S_LABEL_VOLT   "\xe7\x94\xb5\xe5\x8e\x8b" " V"
+#define S_LABEL_CURR   "\xe7\x94\xb5\xe6\xb5\x81" " A"
+#define S_DIV       "--------------------"           /* divider */
 
-/* -------- Chinese/English dual strings (Flash valid=CN, else EN) -------- */
-#define S_WPT_PWM   Ui_Lang("\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95",         "MAIN MENU")
-#define S_SWEEP     Ui_Lang("\xe6\x89\xab\xe9\xa2\x91\xe4\xb8\xad",         "SWEEPING")
-#define S_MONITOR   Ui_Lang("\xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b", "MONITOR")
-#define S_MON_FREQ  Ui_Lang("\xe9\xa2\x91\xe7\x8e\x87\xe8\xa1\xa8\xe7\x9b\x98", "FREQ GAUGE")
-#define S_MON_VOLT  Ui_Lang("\xe7\x94\xb5\xe5\x8e\x8b\xe8\xa1\xa8\xe7\x9b\x98", "VOLT GAUGE")
-#define S_MON_CURR  Ui_Lang("\xe7\x94\xb5\xe6\xb5\x81\xe8\xa1\xa8\xe7\x9b\x98", "CURR GAUGE")
-#define S_LAUNCH    Ui_Lang("\xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91", "WiFi SETUP")
-#define S_FREQ      Ui_Lang("\xe9\xa2\x91\xe7\x8e\x87",                       "FREQ")
-#define S_VOLTAGE   Ui_Lang("\xe7\x94\xb5\xe5\x8e\x8b",                       "VOLT")
-#define S_CURRENT   Ui_Lang("\xe7\x94\xb5\xe6\xb5\x81",                       "CURR")
-#define S_CLEAR_WIFI Ui_Lang("\xe6\xb8\x85\xe9\x99\xa4WIFI",                  "CLR WIFI")
-#define S_WIFI_ONLINE  Ui_Lang("\xe8\xbf\x9e\xe6\x8e\xa5" "\xe6\x88\x90" "\xe5\x8a\x9f", "ONLINE")
-#define S_WIFI_CONN    Ui_Lang("\xe8\xbf\x9e\xe6\x8e\xa5" "\xe4\xb8\xad",               "CONN...")
-#define S_WIFI_OFFLINE Ui_Lang("\xe5\xb7\xb2" "\xe7\xa6\xbb" "\xe7\xba\xbf",           "OFFLINE")
-#define S_WIFI_IDLE    Ui_Lang("\xe6\x9c\xaa\xe8\xbf\x9e\xe6\x8e\xa5",                   "IDLE")
-#define S_WIFI_FORMAT  Ui_Lang("\xe6\x97\xa0\xe7\xba\xbf\xe7\x8a\xb6\xe6\x80\x81", "WiFi")
-#define S_SUMMARY   Ui_Lang("\xe7\xbb\xbc\xe5\x90\x88\xe7\x9b\x91\xe6\xb5\x8b", "SUMMARY")
-#define S_BACK      Ui_Lang("\xe8\xbf\x94\xe5\x9b\x9e\xe4\xb8\xbb\xe8\x8f\x9c\xe5\x8d\x95", "BACK")
-#define S_LABEL_FREQ   Ui_Lang("\xe9\xa2\x91\xe7\x8e\x87" " kHz",  "FREQ kHz")
-#define S_LABEL_VOLT   Ui_Lang("\xe7\x94\xb5\xe5\x8e\x8b" " V",    "VOLT V")
-#define S_LABEL_CURR   Ui_Lang("\xe7\x94\xb5\xe6\xb5\x81" " A",    "CURR A")
-/* S_DIV is pure ASCII, no change needed */
-#define S_DIV       "--------------------"
-#define S_PAUSE     Ui_Lang("\xe5\xb7\xb2\xe6\x9a\x82\xe5\x81\x9c",           "PAUSED")
-#define S_OVERCUR   Ui_Lang("\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4", "OVERCURRENT")
-#define S_PWM_OFF   Ui_Lang("PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad",       "PWM OFF")
-#define S_FAULT_TITLE Ui_Lang("\xe6\x95\x85\xe9\x9a\x9c\xe9\xa1\xb5",           "FAULT")
-#define S_RESET_HINT Ui_Lang("\xe6\x8c\x89" "KEY0" "\xe5\xa4\x8d\xe4\xbd\x8d" "\xe9\x87\x8d\xe5\x90\xaf", "KEY0=RESET")
-#define S_LONG_CLEAR   Ui_Lang("\xe9\x95\xbf\xe6\x8c\x89\xe6\xb8\x85\xe9\x99\xa4WIFI", "LONG=CLEAR")
-#define S_DISCONNECT   Ui_Lang("\xe6\x96\xad\xe5\xbc\x80",                      "DISCONN")
-#define S_CONNECT      Ui_Lang("\xe8\xbf\x9e\xe6\x8e\xa5",                      "CONNECT")
+#define S_PAUSE     "\xe5\xb7\xb2\xe6\x9a\x82\xe5\x81\x9c"           /* 已暂停 */
+#define S_OVERCUR   "\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4" /* 过流保护 */
+#define S_PWM_OFF   "PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad"       /* PWM已关断 */
+#define S_FAULT_TITLE "\xe6\x95\x85\xe9\x9a\x9c\xe9\xa1\xb5"           /* 故障页 */
+#define S_RESET_HINT "\xe6\x8c\x89" "KEY0" "\xe5\xa4\x8d\xe4\xbd\x8d" "\xe9\x87\x8d\xe5\x90\xaf"
+#define S_LONG_CLEAR      "\xe9\x95\xbf\xe6\x8c\x89\xe6\xb8\x85\xe9\x99\xa4WIFI"  /* 长按清除WiFi */
+#define S_DISCONNECT      "\xe6\x96\xad\xe5\xbc\x80"                      /* 断开 */
+#define S_CONNECT         "\xe8\xbf\x9e\xe6\x8e\xa5"                      /* 连接 */
 
-/* ── Main menu inline items (1/3/4 with number prefix) ── */
-#define S_M1_STOP   Ui_Lang("1. \xe5\x81\x9c\xe6\xad\xa2PWM",    "1. STOP PWM")
-#define S_M1_START  Ui_Lang("1. \xe5\x90\xaf\xe5\x8a\xa8PWM",    "1. START PWM")
-#define S_M3_WIFI   Ui_Lang("3. \xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91", "3. WiFi SETUP")
-#define S_M4_FAULT  Ui_Lang("4. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4", "4. CLR FAULT")
+/* V4.4.0 Settings strings */
+#define S_SETTINGS        "\xe8\xae\xbe\xe7\xbd\xae"        /* 设置 */
+#define S_SETTINGS_LANG   "\xe8\xaf\xad\xe8\xa8\x80"        /* 语言 */
+#define S_SETTINGS_ICONS  "\xe5\x9b\xbe\xe6\xa0\x87"        /* 图标 */
+#define S_SETTINGS_FONT   "\xe5\xad\x97\xe4\xbd\x93"        /* 字体 */
+#define S_SETTINGS_BL     "\xe4\xba\xae\xe5\xba\xa6"        /* 亮度 */
+#define S_SETTINGS_COLOR  "\xe9\xa2\x9c\xe8\x89\xb2"        /* 颜色 */
+#define S_TITLE_LANG      S_SETTINGS_LANG
+#define S_TITLE_ICONS     S_SETTINGS_ICONS
+#define S_TITLE_FONT      "\xe5\xad\x97\xe4\xbd\x93\xe5\xa4\xa7\xe5\xb0\x8f" /* 字体大小 */
+#define S_TITLE_BL        "\xe4\xba\xae\xe5\xba\xa6\xe8\xb0\x83\xe8\x8a\x82" /* 亮度调节 */
+#define S_TITLE_COLOR     "\xe9\xa2\x9c\xe8\x89\xb2\xe6\x96\xb9\xe6\xa1\x88" /* 颜色方案 */
+#define S_ON_RETURN       "[ON]\xe8\xbf\x94\xe5\x9b\x9e"   /* [ON]返回 */
+#define S_EN_SETTINGS     "Settings"
+#define S_EN_LANG         "Language"
+#define S_EN_ICONS        "Icons"
+#define S_EN_FONT         "Font Size"
+#define S_EN_BL           "Brightness"
+#define S_EN_COLOR        "Color"
+#define S_FLASH_REQUIRED  "Flash required"
 
 /* -------- Page state variables -------- */
 static Ui_Page  s_page            = UI_PAGE_MAIN_MENU;
@@ -160,7 +168,49 @@ static uint8_t s_ema_ok = 0;
 
 /* User freq stepping */
 static uint32_t s_user_target_hz = 100000;
+/* ════════════════════════════════════════════════════════════
+ *  V4.4.0 Settings State
+ * ════════════════════════════════════════════════════════════ */
+static uint8_t  s_language         = 0;     /* 0=Chinese, 1=English */
+static uint8_t  s_font_size        = 1;     /* 0=Small, 1=Medium(default) */
+static uint8_t  s_backlight_val    = 248;   /* 48-248, default 248 */
+static uint16_t s_color_fg         = 0xFFFF;/* RGB565 default white */
+static uint16_t s_color_bg         = 0x0000;/* RGB565 default black */
+static uint16_t s_color_accent     = 0xFFE0;/* RGB565 default yellow */
+static uint8_t  s_color_preset     = 0;     /* 0-5 preset, 255=custom */
+
+/* User freq stepping */
+static uint32_t s_user_target_hz = 100000;
 static uint8_t  s_user_target_synced = 0;
+
+/* Settings sub-page cursor */
+static uint8_t  s_setting_cursor   = 0;
+static uint8_t  s_icon_page        = 0;     /* 0=icons 0-29, 1=icon 30 */
+static uint8_t  s_icon_cursor      = 0;     /* 0-29 within page */
+
+/* Backlight breathing */
+static uint8_t  s_bl_breathing     = 1;     /* 1=auto breathing */
+static uint32_t s_bl_last_action_ms = 0;
+
+/* ═══════════════════════════════════════════════════════════════
+ *  Color Preset Table (V4.4.0)
+ * ═══════════════════════════════════════════════════════════════ */
+typedef struct {
+    const char* name_cn;
+    const char* name_en;
+    uint16_t bg;
+    uint16_t fg;
+    uint16_t accent;
+} ColorPreset;
+
+static const ColorPreset COLOR_PRESETS[6] = {
+    {"\xe9\xbb\x98\xe8\xae\xa4","Classic",  0x0000,0xFFFF,0xFFE0},
+    {"\xe7\x90\xa5\xe7\x8f\x80","Amber",    0x001A,0xFD20,0xFC00},
+    {"\xe9\x9d\x92\xe9\x9c\x93","Cyber",    0x000A,0x07FF,0x07E0},
+    {"\xe6\x8a\xa4\xe7\x9c\xbc","EyeCare",  0x18E3,0xBE77,0x8E4C},
+    {"\xe9\xab\x98\xe5\xaf\xb9\xe6\xaf\x94","HiContrast",0x0000,0xFFFF,0x07E0},
+    {"\xe6\x9a\x96\xe7\x99\xbd","Warm",     0x1C18,0xFFE0,0xFD88},
+};
 
 /* ── Incremental refresh state (V4.2.0) ── */
 static uint8_t s_page_drawn         = 0;    /* 0=need full redraw, 1=static content present */
@@ -233,7 +283,7 @@ static void Fmt_V(char* buf, float v)
     int x = (int)(v * 100.0f + 0.5f);
     if (x < 0) x = 0;
     if (x > 99999) x = 99999;
-    snprintf(buf, 21, "%sV:%03d.%02dV", S_VOLTAGE, x/100, x%100);
+    snprintf(buf, 21, S_VOLTAGE "V:%03d.%02dV", x/100, x%100);
 }
 
 static void Fmt_I(char* buf, float c)
@@ -241,12 +291,12 @@ static void Fmt_I(char* buf, float c)
     char sign = (c < 0) ? '-' : '+';
     float v = (c < 0) ? -c : c;
     int x = (int)(v * 1000.0f + 0.5f);
-    snprintf(buf, 21, "%sI:%c%d.%03dA", S_CURRENT, sign, (int)(x/1000), (int)(x%1000));
+    snprintf(buf, 21, S_CURRENT "I:%c%d.%03dA", sign, (int)(x/1000), (int)(x%1000));
 }
 
 static void Fmt_F(char* buf, float f)
 {
-    snprintf(buf, 21, "%sF:%3d.%01dkHz", S_FREQ, (int)f, (int)((f-(int)f)*10+0.5f)%10);
+    snprintf(buf, 21, "\xe9\xa2\x91\xe7\x8e\x87" "F:%3d.%01dkHz", (int)f, (int)((f-(int)f)*10+0.5f)%10);
 }
 
 /* ================================================================
@@ -296,42 +346,43 @@ static void Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t 
 }
 
 /* ================================================================
- *  Page draw: MAIN_MENU (4 items) — covers all 8 rows
+ *  Page draw: MAIN_MENU (4/5 items) — covers all 8 rows
  * ================================================================ */
 static void Draw_Main_Menu_Full(void)
 {
     uint8_t is_running = 0;
     uint8_t is_fault   = 0;
-    uint8_t i;
+    uint8_t i, item_count;
     {
         Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
         is_running = (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE);
         is_fault   = (ss == INVERTER_CONTROL_SS_STATE_FAULT);
     }
+    item_count = is_fault ? 5 : 4;
 
-    Draw_Header(S_WPT_PWM);       /* row 0 */
-    Draw_Divider(1);              /* row 1 */
+    Draw_Header(S_WPT_PWM);
+    Draw_Divider(1);
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < item_count; i++) {
         const char* text;
         uint8_t enabled = 1;
         switch (i) {
             case 0:
-                text = is_running ? S_M1_STOP : S_M1_START;
+                text = is_running
+                    ? "1. \xe5\x81\x9c\xe6\xad\xa2PWM"
+                    : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";
                 break;
-            case 1: text = Ui_Lang("2. \xe7\x8a\xb6\xe6\x80\x81\xe7\x9b\x91\xe6\xb5\x8b", "2. MONITOR"); break;
-            case 2: text = S_M3_WIFI; break;
-            case 3:
-                text = S_M4_FAULT;
-                enabled = is_fault ? 1 : 0;
-                break;
+            case 1: text = "2. " S_MONITOR; break;
+            case 2: text = "3. \xe6\x97\xa0\xe7\xba\xbf\xe9\x85\x8d\xe7\xbd\x91"; break;
+            case 3: text = "4. " S_SETTINGS; break;
+            case 4: text = "5. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4"; break;
             default: text = ""; break;
         }
         Erase_Line(2 + i);
-        Draw_Menu_Text(2 + i, 2, text, enabled);    /* text at col=2, leaves col-0/1 for star */
+        Draw_Menu_Text(2 + i, 2, text, enabled);
     }
 
-    Draw_Cursor(2 + s_menu_cursor);   /* rows 2-5 */
+    Draw_Cursor(2 + s_menu_cursor);
 
     Erase_Line(6);
     Erase_Line(7);
@@ -359,14 +410,16 @@ static void Main_Menu_Dynamic_Update(void)
     }
 
     if (is_running != s_last_is_running) {
-        const char* text = is_running ? S_M1_STOP : S_M1_START;
+        const char* text = is_running
+            ? "1. \xe5\x81\x9c\xe6\xad\xa2PWM"
+            : "1. \xe5\x90\xaf\xe5\x8a\xa8PWM";
         Draw_Menu_Text(2, 2, text, 1);
         if (s_menu_cursor == 0) Draw_Cursor(2);
         s_last_is_running = is_running;
     }
 
     if (is_fault != s_last_is_fault_menu) {
-        const char* text = S_M4_FAULT;
+        const char* text = "4. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4";
         uint8_t enabled = is_fault ? 1 : 0;
         Draw_Menu_Text(5, 2, text, enabled);
         if (s_menu_cursor == 3) Draw_Cursor(5);
@@ -463,7 +516,7 @@ static void Draw_Sweep_Full(void)
     Draw_Divider(1);              /* row 1 */
 
     /* row 2: Frequency */
-    snprintf(buf, sizeof(buf), "%sF:%3lu.%1lukHz", S_FREQ,
+    snprintf(buf, sizeof(buf), S_FREQ "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
@@ -522,7 +575,7 @@ static void Sweep_Dynamic_Update(void)
     char buf[21];
 
     /* Frequency */
-    snprintf(buf, sizeof(buf), "%sF:%3lu.%1lukHz", S_FREQ,
+    snprintf(buf, sizeof(buf), S_FREQ "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
@@ -589,7 +642,7 @@ static void Draw_Summary_Full(void)
 
     /* row 2: Freq */
     if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), "%sF:0.0kHz", S_FREQ); }
+    else            { snprintf(buf, sizeof(buf), S_FREQ "F:0.0kHz"); }
     Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
@@ -625,7 +678,7 @@ static void Summary_Dynamic_Update(void)
 
     /* Frequency */
     if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), "%sF:---.-kHz", S_FREQ); }
+    else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
         Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
@@ -1182,7 +1235,7 @@ static void Draw_WiFi_Full(void)
     /* row 2: Status */
     {
         char buf[42];
-        snprintf(buf, sizeof(buf), "%s: %s", S_WIFI_FORMAT, status_text);
+        snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
         Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
         strncpy(s_last_status_buf, buf, sizeof(s_last_status_buf));
         s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
@@ -1220,7 +1273,7 @@ static void WiFi_Dynamic_Update(void)
 
     if (cs != s_last_wifi_cs) {
         char buf[42];
-        snprintf(buf, sizeof(buf), "%s: %s", S_WIFI_FORMAT, status_text);
+        snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
         if (strncmp(buf, s_last_status_buf, sizeof(s_last_status_buf)) != 0) {
             Erase_Line(2);
             Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
@@ -1314,7 +1367,11 @@ static void Handle_Keys_by_Page(Ui_Page page,
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU: {
-                uint8_t max_cursor = (g_sys_state == SYS_STATE_FAULT) ? 3 : 2;
+                uint8_t max_cursor = 3;
+                {
+                    Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
+                    if (ss == INVERTER_CONTROL_SS_STATE_FAULT) max_cursor = 4;
+                }
                 if (s_menu_cursor == 0) s_menu_cursor = max_cursor;
                 else s_menu_cursor--;
                 break;
@@ -1344,7 +1401,11 @@ static void Handle_Keys_by_Page(Ui_Page page,
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU: {
-                uint8_t max_cursor = (g_sys_state == SYS_STATE_FAULT) ? 3 : 2;
+                uint8_t max_cursor = 3;
+                {
+                    Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
+                    if (ss == INVERTER_CONTROL_SS_STATE_FAULT) max_cursor = 4;
+                }
                 if (s_menu_cursor >= max_cursor) s_menu_cursor = 0;
                 else s_menu_cursor++;
                 break;
@@ -1393,6 +1454,10 @@ static void Handle_Keys_by_Page(Ui_Page page,
                         s_page = UI_PAGE_WIFI_SETUP;
                         break;
                     case 3:
+                        s_page = UI_PAGE_SETTING;
+                        s_setting_cursor = 0;
+                        break;
+                    case 4:
                         if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_FAULT) {
                             s_page = UI_PAGE_FAULT;
                         }
@@ -1488,7 +1553,463 @@ static void Handle_Keys_by_Page(Ui_Page page,
                 s_page = UI_PAGE_MONITOR_SUB_MENU;
                 s_menu_cursor = 0;
                 break;
+            case UI_PAGE_SETTING:
+                s_page = UI_PAGE_MAIN_MENU;
+                s_menu_cursor = 3;
+                break;
+            case UI_PAGE_SETTING_LANG:
+            case UI_PAGE_SETTING_ICONS:
+            case UI_PAGE_SETTING_FONT:
+            case UI_PAGE_SETTING_BL:
+            case UI_PAGE_SETTING_COLOR:
+                s_page = UI_PAGE_SETTING;
+                s_setting_cursor = 0;
+                break;
         }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  V4.4.0 Settings Pages
+ * ═══════════════════════════════════════════════════════════════ */
+
+/* ── Dynamic Color Helpers ── */
+static uint16_t Uc_Bg(void)     { return s_color_bg; }
+static uint16_t Uc_Title(void)   { return s_color_accent; }
+static uint16_t Uc_Text(void)   { return s_color_fg; }
+static uint16_t Uc_Value(void)  { return s_color_accent; }
+
+/* ── Settings Menu Item Text ── */
+static const char* Get_Menu_Setting_Text(uint8_t idx)
+{
+    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
+    switch (idx) {
+        case 0: return is_cn ? "\xe8\xaf\xad\xe8\xa8\x80  Language"     : "1. Language";
+        case 1: return is_cn ? "\xe5\x9b\xbe\xe6\xa0\x87  Icons"        : "2. Icons";
+        case 2: return is_cn ? "\xe5\xad\x97\xe4\xbd\x93  Font"         : "3. Font Size";
+        case 3: return is_cn ? "\xe4\xba\xae\xe5\xba\xa6  Brightness"   : "4. Brightness";
+        case 4: return is_cn ? "\xe9\xa2\x9c\xe8\x89\xb2  Color"        : "5. Color";
+        default: return "";
+    }
+}
+
+/* ── Settings Item Name (Chinese-only, for sub-page titles) ── */
+static const char* Get_Setting_Item_Name(uint8_t idx)
+{
+    switch (idx) {
+        case 0: return S_SETTINGS_LANG;
+        case 1: return S_SETTINGS_ICONS;
+        case 2: return S_SETTINGS_FONT;
+        case 3: return S_SETTINGS_BL;
+        case 4: return S_SETTINGS_COLOR;
+        default: return "";
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  S1. SETTING Main Menu
+ * ═══════════════════════════════════════════════════════════════ */
+static void Draw_Setting_Full(void)
+{
+    uint8_t i;
+    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
+    uint8_t has_flash = Tft_Driver_Is_Font_Flash_Valid();
+
+    /* Row 0: Title */
+    Draw_Header(is_cn ? S_SETTINGS : S_EN_SETTINGS);
+    Draw_Divider(1);
+
+    /* Row 2-6: 5 menu items */
+    for (i = 0; i < 5; i++) {
+        const char* text = Get_Menu_Setting_Text(i);
+        uint8_t enabled = (i == 1) ? has_flash : 1;  /* Icons requires Flash */
+        Erase_Line(2 + i);
+        Draw_Menu_Text(2 + i, 2, text, enabled);
+    }
+
+    Draw_Cursor(2 + s_setting_cursor);
+
+    /* Row 7: hint */
+    Erase_Line(7);
+    {
+        const char* hint = is_cn ? S_ON_RETURN : "[ON]Back";
+        uint8_t col = Right(hint);
+        Tft_Driver_Show_String(7, col, hint, UI_COLOR_DIM, UI_COLOR_BG);
+    }
+}
+
+static void Setting_Cursor_Update(uint8_t old_cursor)
+{
+    Erase_Cursor(2 + old_cursor);
+    Draw_Cursor(2 + s_setting_cursor);
+}
+
+static void Handle_Setting_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
+                                 Key_Driver_Event k2, Key_Driver_Event k3)
+{
+    (void)k3;
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {
+        if (s_setting_cursor == 0) s_setting_cursor = 4;
+        else s_setting_cursor--;
+    }
+    if (k2 == KEY_DRIVER_EVENT_CLICK) {
+        if (s_setting_cursor >= 4) s_setting_cursor = 0;
+        else s_setting_cursor++;
+    }
+    if (k0 == KEY_DRIVER_EVENT_CLICK) {
+        if (s_setting_cursor == 1 && !Tft_Driver_Is_Font_Flash_Valid()) return;
+        switch (s_setting_cursor) {
+            case 0: s_page = UI_PAGE_SETTING_LANG;  break;
+            case 1: s_page = UI_PAGE_SETTING_ICONS; s_icon_page = 0; s_icon_cursor = 0; break;
+            case 2: s_page = UI_PAGE_SETTING_FONT;  break;
+            case 3: s_page = UI_PAGE_SETTING_BL;    s_bl_breathing = 1; s_bl_last_action_ms = Sys_Timer_Get_Tick(); break;
+            case 4: s_page = UI_PAGE_SETTING_COLOR; break;
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  S2. Language
+ * ═══════════════════════════════════════════════════════════════ */
+static void Draw_Lang_Full(void)
+{
+    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
+    uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
+
+    Draw_Header(is_cn ? S_TITLE_LANG : S_EN_LANG);
+
+    Erase_Line(3);
+    Tft_Driver_Show_String(3, 3, "  Chinese",
+        (s_language == 0 && flash_ok) ? UI_COLOR_VALUE : UI_COLOR_TEXT, UI_COLOR_BG);
+    Erase_Line(4);
+    Tft_Driver_Show_String(4, 3, "  English",
+        (s_language == 1 || !flash_ok) ? UI_COLOR_VALUE : UI_COLOR_TEXT, UI_COLOR_BG);
+
+    Draw_Cursor(s_language == 0 ? 3 : 4);
+
+    Erase_Line(7);
+    {
+        const char* hint = is_cn ? "\xe4\xb8\x8a\xe4\xb8\x8b\xe9\x80\x89\xe6\x8b\xa9 \xe7\xa1\xae\xe8\xae\xa4\xe5\x88\x87\xe6\x8d\xa2"
+                                 : "UP/DN Select PAGE Confirm";
+        Tft_Driver_Show_String(7, 0, hint, UI_COLOR_DIM, UI_COLOR_BG);
+    }
+}
+
+static void Handle_Lang_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
+                              Key_Driver_Event k2, Key_Driver_Event k3)
+{
+    uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
+    (void)k0; (void)k3;
+
+    if (!flash_ok) return;
+    if (k1 == KEY_DRIVER_EVENT_CLICK || k2 == KEY_DRIVER_EVENT_CLICK) {
+        uint8_t old_lang = s_language;
+        s_language = (s_language == 0) ? 1 : 0;
+        if (old_lang != s_language) {
+            Erase_Cursor(old_lang == 0 ? 3 : 4);
+            Draw_Cursor(s_language == 0 ? 3 : 4);
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  S3. Icon Browser
+ * ═══════════════════════════════════════════════════════════════ */
+#define ICON_COLS     5
+#define ICON_ROWS     6
+#define ICON_CELL_SZ  18
+#define ICON_GRID_X   ((160 - ICON_COLS * ICON_CELL_SZ) / 2)
+#define ICON_PER_PAGE (ICON_COLS * ICON_ROWS)
+
+static const char* Get_Icon_Name(uint8_t icon_id)
+{
+    static const char* names[] = {
+        "WIFI_SIG","WIFI_CONN","WIFI_OFF","WIFI_RMV",
+        "MQTT","MQTT_YES","MQTT_NO","MQTT_ANIM",
+        "STAR","STAR_CUR","ROCKET",
+        "BATTERY","WARNING","CHECK","CROSS",
+        "POWER","LIGHTNING","TEMP","FAN",
+        "LOCK","HOME","GEAR","REFRESH",
+        "ARROW_UP","ARROW_DN","ARROW_LT","ARROW_RT",
+        "SIGNAL","GLOBE","CHART","CLOCK"
+    };
+    if (icon_id >= 31) return "?";
+    return names[icon_id];
+}
+
+static void Draw_Icons_Full(void)
+{
+    uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
+    uint8_t is_cn = (s_language == 0 && flash_ok);
+
+    if (!flash_ok) {
+        Draw_Header("Icons");
+        Tft_Driver_Show_String(3, 2, S_FLASH_REQUIRED, UI_COLOR_ALARM, UI_COLOR_BG);
+        return;
+    }
+
+    {
+        char buf[24];
+        snprintf(buf, 24, "%s [%d/2]", is_cn ? S_TITLE_ICONS : "Icons", s_icon_page + 1);
+        Draw_Header(buf);
+    }
+
+    {
+        uint8_t row, col;
+        for (row = 0; row < ICON_ROWS; row++) {
+            for (col = 0; col < ICON_COLS; col++) {
+                uint8_t icon_id = (uint8_t)(s_icon_page * ICON_PER_PAGE + row * ICON_COLS + col);
+                uint16_t x = (uint16_t)(ICON_GRID_X + col * ICON_CELL_SZ);
+                uint16_t y = (uint16_t)(row * ICON_CELL_SZ + 16);
+                if (icon_id < 31) {
+                    uint8_t cursor_id = (uint8_t)(s_icon_page * ICON_PER_PAGE + s_icon_cursor);
+                    uint16_t fg = UI_COLOR_TEXT;
+                    uint16_t bg = UI_COLOR_BG;
+                    if (icon_id == cursor_id) {
+                        Tft_Driver_Fill_Rect(x - 1, y - 1, 18, 18, UI_COLOR_VALUE);
+                        bg = UI_COLOR_VALUE;
+                    }
+                    Tft_Driver_Draw_Icon_By_Id(x, y, icon_id, 0, fg, bg);
+                }
+            }
+        }
+    }
+
+    Erase_Line(7);
+    {
+        uint8_t icon_id = (uint8_t)(s_icon_page * ICON_PER_PAGE + s_icon_cursor);
+        if (icon_id < 31) {
+            char buf[32];
+            snprintf(buf, 32, "%s [%d]", Get_Icon_Name(icon_id), icon_id);
+            uint8_t col = Center(buf);
+            Tft_Driver_Show_String(7, col, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+        }
+    }
+}
+
+static void Handle_Icons_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
+                               Key_Driver_Event k2, Key_Driver_Event k3)
+{
+    (void)k0; (void)k3;
+    if (!Tft_Driver_Is_Font_Flash_Valid()) return;
+
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {  /* F_UP */
+        if (s_icon_cursor == 0) {
+            if (s_icon_page > 0) { s_icon_page--; s_icon_cursor = ICON_PER_PAGE - 1; }
+        } else s_icon_cursor--;
+    }
+    if (k2 == KEY_DRIVER_EVENT_CLICK) {  /* F_DOWN */
+        uint8_t max_on_page = (s_icon_page == 0) ? ICON_PER_PAGE - 1 : 0;
+        if (s_icon_cursor >= max_on_page) {
+            if (s_icon_page == 0) { s_icon_page++; s_icon_cursor = 0; }
+        } else s_icon_cursor++;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  S4. Font Size
+ * ═══════════════════════════════════════════════════════════════ */
+static void Draw_Font_Full(void)
+{
+    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
+
+    {
+        const char* title = is_cn ? S_TITLE_FONT : S_EN_FONT;
+        uint8_t col = Center(title);
+        Draw_Header(title);
+    }
+
+    Erase_Line(3);
+    Tft_Driver_Show_String(3, 2, (s_font_size == 1) ? "* Medium (default)" : "  Medium (default)",
+        (s_font_size == 1) ? UI_COLOR_VALUE : UI_COLOR_TEXT, UI_COLOR_BG);
+    Erase_Line(4);
+    Tft_Driver_Show_String(4, 2, (s_font_size == 0) ? "* Small" : "  Small",
+        (s_font_size == 0) ? UI_COLOR_VALUE : UI_COLOR_TEXT, UI_COLOR_BG);
+
+    Draw_Cursor((s_font_size == 0) ? 4 : 3);
+
+    Erase_Line(5);
+    if (is_cn)
+        Tft_Driver_Show_CN_String(5, Center("\xe9\xa2\x84\xe8\xa7\x88:\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5"),
+            "\xe9\xa2\x84\xe8\xa7\x88:\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5", UI_COLOR_DATA, UI_COLOR_BG);
+    else
+        Tft_Driver_Show_String(5, Center("Preview: WPT System"), "Preview: WPT System", UI_COLOR_DATA, UI_COLOR_BG);
+    Erase_Line(6);
+    Tft_Driver_Show_String(6, Center("ABCDEFGH 1234567890"), "ABCDEFGH 1234567890", UI_COLOR_DATA, UI_COLOR_BG);
+}
+
+static void Handle_Font_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
+                              Key_Driver_Event k2, Key_Driver_Event k3)
+{
+    (void)k0; (void)k3;
+    if (k1 == KEY_DRIVER_EVENT_CLICK || k2 == KEY_DRIVER_EVENT_CLICK) {
+        uint8_t old = s_font_size;
+        s_font_size = (s_font_size == 0) ? 1 : 0;
+        if (old != s_font_size) {
+            Erase_Cursor((old == 0) ? 4 : 3);
+            Draw_Cursor((s_font_size == 0) ? 4 : 3);
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  S5. Backlight Brightness
+ * ═══════════════════════════════════════════════════════════════ */
+static void Draw_BL_Full(void)
+{
+    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
+
+    {
+        const char* title = is_cn ? S_TITLE_BL : S_EN_BL;
+        Draw_Header(title);
+    }
+
+    {
+        uint16_t bar_x = 16, bar_y = 3 * 16 + 4, bar_w = 128, bar_h = 8;
+        uint16_t fill_w = (uint16_t)((uint32_t)s_backlight_val * bar_w / 255);
+        Tft_Driver_Fill_Rect(bar_x, bar_y, bar_w, bar_h, UI_COLOR_DIM);
+        if (fill_w > 0)
+            Tft_Driver_Fill_Rect(bar_x, bar_y, fill_w, bar_h, UI_COLOR_VALUE);
+    }
+
+    {
+        char buf[16];
+        snprintf(buf, 16, "%d / 255", s_backlight_val);
+        uint8_t col = Center(buf);
+        Tft_Driver_Erase_Pixel_Area(0, 4 * 16, 160, 16);
+        Tft_Driver_Show_String(4, col, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    }
+
+    {
+        const char* hint = is_cn ? "[F_UP +]  [F_DOWN -]" : "[F_UP +]  [F_DOWN -]";
+        uint8_t col = Center(hint);
+        Tft_Driver_Show_String(6, col, hint, UI_COLOR_TEXT, UI_COLOR_BG);
+    }
+
+    Tft_Driver_Set_Backlight(s_backlight_val);
+}
+
+static void BL_Dynamic_Update(void)
+{
+    if (!s_bl_breathing) {
+        if (Sys_Timer_Get_Tick() - s_bl_last_action_ms >= 2000)
+            s_bl_breathing = 1;
+        return;
+    }
+
+    /* triangle-wave breathing 48↔248, 2.5s period */
+    {
+        uint32_t now = Sys_Timer_Get_Tick();
+        uint32_t half_t = now % 2500;
+        uint8_t new_val;
+        if (half_t < 1250)
+            new_val = (uint8_t)(48 + (uint32_t)(200) * half_t / 1250);
+        else
+            new_val = (uint8_t)(48 + (uint32_t)(200) * (2500 - half_t) / 1250);
+
+        if (new_val != s_backlight_val) {
+            s_backlight_val = new_val;
+            {
+                uint16_t bar_x = 16, bar_y = 3 * 16 + 4, bar_w = 128, bar_h = 8;
+                uint16_t fill_w = (uint16_t)((uint32_t)s_backlight_val * bar_w / 255);
+                Tft_Driver_Fill_Rect(bar_x, bar_y, bar_w, bar_h, UI_COLOR_DIM);
+                if (fill_w > 0)
+                    Tft_Driver_Fill_Rect(bar_x, bar_y, fill_w, bar_h, UI_COLOR_VALUE);
+            }
+            {
+                char buf[16];
+                snprintf(buf, 16, "%d / 255", s_backlight_val);
+                uint8_t col = Center(buf);
+                Tft_Driver_Erase_Pixel_Area(0, 4 * 16, 160, 16);
+                Tft_Driver_Show_String(4, col, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+            }
+            Tft_Driver_Set_Backlight(s_backlight_val);
+        }
+    }
+}
+
+static void Handle_BL_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
+                            Key_Driver_Event k2, Key_Driver_Event k3)
+{
+    int16_t step = 0;
+    (void)k0; (void)k3;
+
+    if (k1 == KEY_DRIVER_EVENT_CLICK)       { step = 8;  s_bl_breathing = 0; s_bl_last_action_ms = Sys_Timer_Get_Tick(); }
+    if (k2 == KEY_DRIVER_EVENT_CLICK)       { step = -8; s_bl_breathing = 0; s_bl_last_action_ms = Sys_Timer_Get_Tick(); }
+    if (k1 == KEY_DRIVER_EVENT_LONG_PRESS)  { step = 32;  s_bl_breathing = 0; s_bl_last_action_ms = Sys_Timer_Get_Tick(); }
+    if (k2 == KEY_DRIVER_EVENT_LONG_PRESS)  { step = -32; s_bl_breathing = 0; s_bl_last_action_ms = Sys_Timer_Get_Tick(); }
+
+    if (step != 0) {
+        int16_t new_val = (int16_t)s_backlight_val + step;
+        if (new_val < 48) new_val = 48;
+        if (new_val > 248) new_val = 248;
+        s_backlight_val = (uint8_t)new_val;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  S6. Color Scheme
+ * ═══════════════════════════════════════════════════════════════ */
+static void Apply_Color_Preset(uint8_t preset_idx)
+{
+    const ColorPreset* p = &COLOR_PRESETS[preset_idx];
+    s_color_fg      = p->fg;
+    s_color_bg      = p->bg;
+    s_color_accent  = p->accent;
+    s_color_preset  = preset_idx;
+}
+
+static void Draw_Color_Full(void)
+{
+    uint8_t i;
+    uint8_t is_cn = (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid());
+
+    Draw_Header(is_cn ? S_TITLE_COLOR : S_EN_COLOR);
+
+    for (i = 0; i < 6; i++) {
+        char buf[24];
+        const char* name = is_cn ? COLOR_PRESETS[i].name_cn : COLOR_PRESETS[i].name_en;
+        snprintf(buf, 24, "  %s", name);
+        Erase_Line(2 + i);
+        Draw_Menu_Text(2 + i, 2, buf, 1);
+    }
+
+    Draw_Cursor(2 + s_setting_cursor);
+}
+
+static void Handle_Color_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
+                               Key_Driver_Event k2, Key_Driver_Event k3)
+{
+    (void)k3;
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {
+        if (s_setting_cursor == 0) s_setting_cursor = 5;
+        else s_setting_cursor--;
+    }
+    if (k2 == KEY_DRIVER_EVENT_CLICK) {
+        if (s_setting_cursor >= 5) s_setting_cursor = 0;
+        else s_setting_cursor++;
+    }
+    if (k0 == KEY_DRIVER_EVENT_CLICK) {
+        Apply_Color_Preset(s_setting_cursor);
+        s_page_drawn = 0;  /* full redraw with new colors */
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ *  Settings Key Dispatch
+ * ═══════════════════════════════════════════════════════════════ */
+static uint8_t Handle_Settings_Keys(Ui_Page page,
+    Key_Driver_Event k0, Key_Driver_Event k1,
+    Key_Driver_Event k2, Key_Driver_Event k3)
+{
+    switch (page) {
+        case UI_PAGE_SETTING:       Handle_Setting_Keys(k0,k1,k2,k3); return 1;
+        case UI_PAGE_SETTING_LANG:  Handle_Lang_Keys(k0,k1,k2,k3); return 1;
+        case UI_PAGE_SETTING_ICONS: Handle_Icons_Keys(k0,k1,k2,k3); return 1;
+        case UI_PAGE_SETTING_FONT:  Handle_Font_Keys(k0,k1,k2,k3); return 1;
+        case UI_PAGE_SETTING_BL:    Handle_BL_Keys(k0,k1,k2,k3); return 1;
+        case UI_PAGE_SETTING_COLOR: Handle_Color_Keys(k0,k1,k2,k3); return 1;
+        default: return 0;
     }
 }
 
@@ -1578,7 +2099,9 @@ void Ui_Controller_Task(void)
     {
         Key_Driver_Event ke[4];
         Key_Driver_Get_All_Events(ke);
-        Handle_Keys_by_Page(s_page, ke[0], ke[1], ke[2], ke[3]);
+        /* Route to settings handler if on a settings sub-page */
+        if (!Handle_Settings_Keys(s_page, ke[0], ke[1], ke[2], ke[3]))
+            Handle_Keys_by_Page(s_page, ke[0], ke[1], ke[2], ke[3]);
     }
     if (s_menu_cursor != old_cursor) cursor_changed = 1;
 
@@ -1607,11 +2130,18 @@ void Ui_Controller_Task(void)
 
     /* ── Phase 6: Cursor boundary clamp ── */
     if (s_page == UI_PAGE_MAIN_MENU) {
-        uint8_t max_cursor = (g_sys_state == SYS_STATE_FAULT) ? 3 : 2;
+        uint8_t max_cursor = 3;
+        {
+            Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
+            if (ss == INVERTER_CONTROL_SS_STATE_FAULT) max_cursor = 4;
+        }
         if (s_menu_cursor > max_cursor) s_menu_cursor = max_cursor;
     }
     if (s_page == UI_PAGE_MONITOR_SUB_MENU) {
         if (s_menu_cursor > 4) s_menu_cursor = 0;
+    }
+    if (s_page == UI_PAGE_SETTING) {
+        if (s_setting_cursor > 4) s_setting_cursor = 0;
     }
 
     /* ════════════════════════════════════════════════════════════
@@ -1631,6 +2161,12 @@ void Ui_Controller_Task(void)
             case UI_PAGE_MONITOR_CURR:     Draw_Curr_Full();        break;
             case UI_PAGE_WIFI_SETUP:       Draw_WiFi_Full();        break;
             case UI_PAGE_FAULT:            Draw_Fault_Full();       break;
+            case UI_PAGE_SETTING:          Draw_Setting_Full();     break;
+            case UI_PAGE_SETTING_LANG:     Draw_Lang_Full();        break;
+            case UI_PAGE_SETTING_ICONS:    Draw_Icons_Full();       break;
+            case UI_PAGE_SETTING_FONT:     Draw_Font_Full();        break;
+            case UI_PAGE_SETTING_BL:       Draw_BL_Full();          break;
+            case UI_PAGE_SETTING_COLOR:    Draw_Color_Full();       break;
         }
         Update_Leds(s_page);
         s_page_drawn = 1;
@@ -1663,6 +2199,12 @@ void Ui_Controller_Task(void)
                 case UI_PAGE_MONITOR_CURR:     Curr_Dynamic_Update();     break;
                 case UI_PAGE_WIFI_SETUP:       WiFi_Dynamic_Update();     break;
                 case UI_PAGE_FAULT:            /* static */               break;
+                case UI_PAGE_SETTING:          /* static */               break;
+                case UI_PAGE_SETTING_LANG:     /* static */               break;
+                case UI_PAGE_SETTING_ICONS:    /* static */               break;
+                case UI_PAGE_SETTING_FONT:     /* static */               break;
+                case UI_PAGE_SETTING_BL:       BL_Dynamic_Update();       break;
+                case UI_PAGE_SETTING_COLOR:    /* static */               break;
             }
             Update_Leds(s_page);
         }
@@ -1695,4 +2237,24 @@ void Ui_Controller_Force_Page_And_Reset(Ui_Page page)
     s_page        = page;
     s_menu_cursor = 0;
     s_page_drawn  = 0;
+}
+
+/**
+ * @brief  [V4.4.0] 从 App_Storage 加载设置参数并应用到 UI
+ * @note   Sys_Post_Init 中 App_Storage_Init 之后调用
+ */
+void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
+                                   uint8_t preset, uint16_t fg, uint16_t bg)
+{
+    s_language      = lang;
+    s_font_size     = font;
+    s_backlight_val = bl;
+    if (preset < 6) {
+        Apply_Color_Preset(preset);
+    } else {
+        s_color_fg     = fg;
+        s_color_bg     = bg;
+        s_color_preset = 255;
+    }
+    Tft_Driver_Set_Backlight(s_backlight_val);
 }

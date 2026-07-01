@@ -218,7 +218,8 @@
       "Bash(sed -i 's/* @brief   Network application layer —/* @brief   网络应用层 —/' Keil_Project/User/App_Network.c)",
       "Bash(sed -i \"s/* @brief   ST7735 128x160 TFT color display driver — public interface/* @brief   ST7735 128x160 TFT 彩屏显示驱动 — V4.3.2/\" Keil_Project/Hardware/Tft_Driver.h)",
       "Bash(sed -i \"s/  ════ W25Q128 实际接线 ════/  ==== W25Q128 实物接线 ====/\" Keil_Project/Hardware/W25Q_Driver.h)",
-      "Bash(awk -F: '{sum+=$2} END {print \"总数: \" sum}')"
+      "Bash(awk -F: '{sum+=$2} END {print \"总数: \" sum}')",
+      "Bash(bash \"C:\\\\Users\\\\48376\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.1.0\\\\skills\\\\brainstorming\\\\scripts\\\\start-server.sh\" --project-dir \"D:\\\\Claude Code Project\\\\WPT_PWM_V4.0_ONENET_TFT\")"
     ]
   }
 }

@@ -12,9 +12,9 @@
 
 #include "stm32f10x.h"
 
-/** @brief UI 页面枚举 (9 页两级栈式导航) */
+/** @brief UI 页面枚举 (15 页两级栈式导航, V4.4.0 +6) */
 typedef enum {
-    UI_PAGE_MAIN_MENU          = 0,   /* 主菜单 - 4项 */
+    UI_PAGE_MAIN_MENU          = 0,   /* 主菜单 - 4/5项 */
     UI_PAGE_MONITOR_SUB_MENU   = 1,   /* 监测子菜单 - 5项 */
     UI_PAGE_SWEEP              = 2,   /* 扫频页 - 频率进度 */
     UI_PAGE_MONITOR_SUMMARY    = 3,   /* 综合监测 - F/V/I 同屏 */
@@ -22,7 +22,14 @@ typedef enum {
     UI_PAGE_MONITOR_VOLT       = 5,   /* 监测电压 - 仪表盘 */
     UI_PAGE_MONITOR_CURR       = 6,   /* 监测电流 - 仪表盘 */
     UI_PAGE_WIFI_SETUP         = 7,   /* 无线配网 - 状态+清除 */
-    UI_PAGE_FAULT              = 8    /* 故障清除 - 过流锁存 */
+    UI_PAGE_FAULT              = 8,   /* 故障清除 - 过流锁存 */
+    /* V4.4.0 新增 */
+    UI_PAGE_SETTING            = 9,   /* 设置主菜单 */
+    UI_PAGE_SETTING_LANG       = 10,  /* 语言切换 */
+    UI_PAGE_SETTING_ICONS      = 11,  /* 图标浏览 */
+    UI_PAGE_SETTING_FONT       = 12,  /* 字体大小 */
+    UI_PAGE_SETTING_BL         = 13,  /* 亮度调节 */
+    UI_PAGE_SETTING_COLOR      = 14,  /* 颜色方案 */
 } Ui_Page;
 
 /** @brief 主循环周期调用 - 200ms: 渲染+按键分发+边沿检测 */
@@ -35,5 +42,8 @@ void    Ui_Controller_Force_Page(Ui_Page page);
 void    Ui_Controller_Force_Page_And_Reset(Ui_Page page);
 /** @brief 是否处于无WiFi模式 (远程指令门控用) */
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void);
+/** @brief [V4.4.0] 加载持久化设置参数 (由 Sys_Post_Init 调用) */
+void    Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
+                                      uint8_t preset, uint16_t fg, uint16_t bg);
 
 #endif /* UI_CONTROLLER_H */

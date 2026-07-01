@@ -74,8 +74,8 @@
  *  @note  仅初始化 TFT 硬件, 不访问 W25Q128 (Flash 驱动尚未就绪) */
 void Tft_Driver_Init(void);
 /** @brief 初始化 Flash 字库 (W25Q_Driver_Init 之后调用)
- *  @note  读取并校验 W25Q128 中的 Font Header (V2 48B), 有效则启用 Flash 全字库 + 图标,
- *         无效则自动回退 ROM 4 字 */
+ *  @note  读取并校验 W25Q128 中的 Font Header, 有效则启用 Flash 全字库路径,
+ *         无效则自动回退 ROM 76 字 */
 void Tft_Driver_Font_Init(void);
 /** @brief 全屏填充单色 */
 void Tft_Driver_Clear(uint16_t color);
@@ -122,7 +122,7 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
  *  @note  Delay_Ms 步进, 不依赖 W25Q Flash */
 void Tft_Driver_Show_Splash(void);
 
-/** @brief 查询 Flash 字库是否就绪 (1=Flash V2 20902字+31图标, 0=ROM 4字回退)
+/** @brief 查询 Flash 字库是否就绪 (1=Flash 6763字+31图标, 0=ROM 回退 76字)
  *  @note  Sys_Startup_Screen 用此在启动末行显示加载状态 */
 uint8_t Tft_Driver_Is_Font_Flash_Valid(void);
 

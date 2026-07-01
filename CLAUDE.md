@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.3.2 |
+| **版本** | V4.4.0 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
@@ -188,7 +188,7 @@ WPT_PWM_V4.0_ONENET_TFT/                        ← ~14110 行逻辑代码 (全�
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
 │   ├── Hardware/                               ← 硬件驱动 — 3946 行
-│   │   ├── Ui_Controller.c/h                   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1690+39行)
+│   │   ├── Ui_Controller.c/h                   ← 15页面 UI 状态机 + 圆弧能量条仪表盘 + 设置系统 (2260+45行)
 │   │   ├── Tft_Driver.c/h                      ← ST7735 SPI1 全双工+DMA + Flash/ROM 双路径字库 + SPLASH (742+98行)
 │   │   ├── W25Q_Driver.c/h                     ← [V4.3.2] 16MB SPI Flash + CS翻转二分搜索 + BSRR防毛刺 (294+106行)
 │   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (441行, ROM 回退后备)

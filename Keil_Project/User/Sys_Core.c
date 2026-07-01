@@ -139,6 +139,14 @@ void Sys_Post_Init(void)
     IWDG_Enable();
     DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;
 
+    /* V4.4.0: Load persistent settings into UI */
+    {
+        uint8_t lang, font, bl, preset;
+        uint16_t fg, bg;
+        App_Storage_Load_Settings(&lang, &font, &bl, &preset, &fg, &bg);
+        Ui_Controller_Apply_Settings(lang, font, bl, preset, fg, bg);
+    }
+
     App_Network_Start_Connect();
 }
 

@@ -39,13 +39,13 @@
 #define FONT_CJK_COUNT        20902U    /* U+4E00~U+9FFF */
 #define FONT_CHAR_BYTES       32U       /* 16×16 LSB-first, 经 bit_reverse */
 
-/* ── Font_Header — V2 48B (设计文档 §3 位对位一致, V4.3.2 图标表扩展) ── */
+/* ── Font_Header — 硬件对齐 32B (设计文档 §3 位对位一致) ── */
 typedef struct {
     uint16_t magic;             /* 0x00 魔数 0x574B */
-    uint8_t  version;           /* 0x02 V2=图标表可用 */
+    uint8_t  version;           /* 0x02 */
     uint8_t  reserved;          /* 0x03 */
     uint32_t total_size;        /* 0x04 字库分区总字节数 */
-    uint32_t crc32;             /* 0x08 CRC32 (校验 0x0C→0x2F 的 36B) */
+    uint32_t crc32;             /* 0x08 CRC32 (校验 0x0C→0x1F 的 20B) */
     uint16_t ascii_offset;      /* 0x0C */
     uint16_t ascii_count;       /* 0x0E */
     uint16_t ascii_bytes;       /* 0x10 */
@@ -54,13 +54,7 @@ typedef struct {
     uint16_t cjk_index_count;   /* 0x18 */
     uint16_t cjk_data_bytes;    /* 0x1A */
     uint32_t cjk_data_offset;   /* 0x1C */
-    /* ── V2 扩展: 图标表指针 (0x20-0x2F) ── */
-    uint32_t icon_table_offset; /* 0x20 Icon Table header byte offset */
-    uint16_t icon_count;        /* 0x24 图标条目数 */
-    uint16_t icon_reserved;     /* 0x26 0 */
-    uint32_t icon_data_offset;  /* 0x28 Icon 帧数据基址 */
-    uint32_t reserved3;         /* 0x2C alignment pad */
-} Font_Header;                  /* 0x30 = 48B */
+} Font_Header;                  /* 0x20 = 32B */
 
 /* ══ 公开接口 ══ */
 
@@ -105,9 +99,8 @@ uint8_t W25Q_SPI_Transfer(uint8_t tx);
  *  @retval data_offset  相对 CJK_Data_BASE 的字模偏移(32位), 0xFFFFFFFF=未找到 */
 uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr);
 
-/** @brief 加载并校验 Font Header (V2 48B), 返回 1=有效 0=无效
- *  @note  内部调用 CRC32_Compute (需 extern 声明, 见 App_Storage.h)
- *          V2 校验版本号 >= 2, CRC32 覆盖 0x0C→0x2F (36B) */
+/** @brief 加载并校验 Font Header, 返回 1=有效 0=无效
+ *  @note  内部调用 CRC32_Compute (需 extern 声明, 见 App_Storage.h) */
 uint8_t Font_Header_Load(Font_Header *hdr);
 
 #endif /* W25Q_DRIVER_H */

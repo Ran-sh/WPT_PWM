@@ -229,18 +229,16 @@ void W25Q_Driver_Erase_Sector(uint32_t addr)
  *  Font_Header_Load — 上电校验字库头部
  * ═══════════════════════════════════════════════ */
 
-/** @brief 加载并 CRC32 校验 Font Header (V2 48B), 返回 1=有效
- *  @note  依赖 extern CRC32_Compute (App_Storage.c)
- *          V2: 版本号 >= 2 + CRC32 覆盖 0x0C→0x2F (36B) */
+/** @brief 加载并 CRC32 校验 Font Header, 返回 1=有效
+ *  @note  依赖 extern CRC32_Compute (App_Storage.c) */
 uint8_t Font_Header_Load(Font_Header *hdr)
 {
     uint32_t crc_stored; uint32_t crc_computed;
     if (!s_chip_ok || hdr == 0) return 0;
     W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)hdr, sizeof(Font_Header));
     if (hdr->magic != FONT_MAGIC) return 0;
-    if (hdr->version < 2) return 0;                              /* V2+ 才含图标表字段 */
     crc_stored = hdr->crc32; hdr->crc32 = 0;                    /* 临时清零用于计算 */
-    crc_computed = CRC32_Compute((uint8_t*)hdr + 0x0C, 36);     /* 0x0C→0x2F (36B) */
+    crc_computed = CRC32_Compute((uint8_t*)hdr + 0x0C, 20);     /* 0x0C→0x1F */
     hdr->crc32 = crc_stored;
     return (crc_stored == crc_computed) ? 1 : 0;
 }

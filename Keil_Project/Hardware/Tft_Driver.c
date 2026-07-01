@@ -25,9 +25,8 @@
  *  |      DFF(SPI1_CR1 bit11): 8b(poll) <-> 16b(DMA) atomic swi  |
  *  +------------------------------------------------------------+
  *
- * @note    V4.3.2: Flash V2 48B header (icon_table_offset)
- *          全字库 20897 字 + 31图标/54帧 -> 仅 Flash 读取
- *          ROM 仅 SPLASH: ASCII 95 + CN 4字 (无/线/充/电)
+ * @note    V4.3.2: Flash 20897 chars (CRC32) -> ROM 76 fallback
+ *          SPLASH pure-code 8-frame fade-in (STM32 ROM, no W25Q)
  ******************************************************************************
  */
 
@@ -50,21 +49,10 @@ extern uint32_t CRC32_Compute(const uint8_t *data, uint32_t len);
 
 #define TFT_DMA_MAX_PIXELS  65535
 
-/* ── DMA 状态 + Flash 字库缓存 ── */
+/* ── DMA 状态 ── */
 static uint8_t s_dma_configured = 0;
-static uint8_t  s_font_flash_valid = 0;     /* 1=Flash V2 font header CRC32 valid */
-static Font_Header g_font_header;           /* RAM-cached header 48B from W25Q (V2) */
-
-/* ── Icon Table RAM cache (Font_Init 一次加载) ── */
-#define ICON_TABLE_MAX 32
-typedef struct {
-    uint16_t icon_id;
-    uint16_t n_frames;
-    uint16_t data_offset;   /* relative to g_font_header.icon_data_offset */
-} IconEntry;
-static IconEntry s_icon_table[ICON_TABLE_MAX];
-static uint8_t   s_icon_count = 0;
-static uint32_t  s_icon_data_base = 0;
+static uint8_t  s_font_flash_valid = 0;     /* 1=Flash font header CRC32 valid */
+static Font_Header g_font_header;           /* RAM-cached header 32B from W25Q */
 
 /* ── 像素缓冲区 ── */
 static uint16_t s_dma_buf[256];
@@ -332,50 +320,20 @@ void Tft_Driver_Init(void)
 
 /* ===============================================================
  *  Tft_Driver_Font_Init — 字库初始化 (W25Q_Driver_Init 之后调用)
- *  V2: 48B header CRC32 覆盖 0x0C->0x2F, 解析 icon_table 缓存
- *  CRC32 有效则启用 Flash 全字库 20897 字 + 31 图标/54 帧
+ *  读取 Flash 字库头, CRC32 校验通过则启用全字库 20897 字,
+ *  否则 s_font_flash_valid 保持 0 → ROM 76 字自动回退
  * ============================================================= */
 
 void Tft_Driver_Font_Init(void)
 {
     uint32_t crc_stored; uint32_t crc_computed;
-    s_font_flash_valid = 0; s_icon_count = 0; s_icon_data_base = 0;
-
     W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)&g_font_header, sizeof(Font_Header));
-    if (g_font_header.magic != FONT_MAGIC) return;
-    if (g_font_header.version < 2) return;                   /* V2+ 才含 icon 字段 */
-
-    crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
-    crc_computed = CRC32_Compute((uint8_t*)&g_font_header + 0x0C, 36);
-    g_font_header.crc32 = crc_stored;
-    if (crc_stored != crc_computed) return;
-
-    s_font_flash_valid = 1;
-
-    /* ── Parse Icon Table from Flash ── */
-    {
-        uint8_t  ihdr[16];  /* 16B icon table header */
-        uint8_t  ientry[8]; /* 8B per entry */
-        uint16_t i, n_entries, n_frames, io_id, io_frames, io_doff;
-        W25Q_Driver_Read(g_font_header.icon_table_offset, ihdr, 16);
-        n_entries = ihdr[0] | ((uint16_t)ihdr[1] << 8);
-        n_frames  = ihdr[2] | ((uint16_t)ihdr[3] << 8);
-        (void)n_frames;  /* total frames count, unused at runtime */
-
-        if (n_entries > ICON_TABLE_MAX) n_entries = ICON_TABLE_MAX;
-        s_icon_count = (uint8_t)n_entries;
-        s_icon_data_base = g_font_header.icon_data_offset;
-
-        for (i = 0; i < n_entries; i++) {
-            W25Q_Driver_Read(g_font_header.icon_table_offset + 16 + (uint32_t)i * 8,
-                             ientry, 8);
-            io_id     = ientry[0] | ((uint16_t)ientry[1] << 8);
-            io_frames = ientry[2] | ((uint16_t)ientry[3] << 8);
-            io_doff   = ientry[4] | ((uint16_t)ientry[5] << 8);
-            s_icon_table[i].icon_id     = io_id;
-            s_icon_table[i].n_frames    = io_frames;
-            s_icon_table[i].data_offset = io_doff;
-        }
+    s_font_flash_valid = 0;
+    if (g_font_header.magic == FONT_MAGIC) {
+        crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
+        crc_computed = CRC32_Compute((uint8_t*)&g_font_header + 0x0C, 20);
+        g_font_header.crc32 = crc_stored;
+        s_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
     }
 }
 
@@ -518,7 +476,7 @@ void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  中文渲染 — 双路径: Flash 二分查找 (20902字) / ROM 4字回退 (SPLASH)
+ *  中文渲染 — 双路径: Flash 二分查找 (6763字) / ROM 线性回退 (76字)
  * ═══════════════════════════════════════════════════════════════ */
 
 static uint8_t Tft_Is_UTF8_CN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
@@ -552,7 +510,7 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
         }
         Tft_DMA_Send(s_dma_buf, 256);
     } else {
-        /* ── ROM 回退: CN_INDEX 线性查找 (4字: 无/线/充/电) ── */
+        /* ── ROM 回退: CN_INDEX 线性查找 (76字) ── */
         uint8_t g_idx; uint8_t i;
         g_idx = 0xFF;
         for (i = 0; i < TFT_CN_FONT_CHAR_COUNT; i++) {
@@ -589,77 +547,36 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  Icon 绘制 — Flash V2 优先, ROM 3 图标回退 (WIFI/MQTT 消极态)
+ *  WiFi 图标 — 片内 ROM 读取
  * ═══════════════════════════════════════════════════════════════ */
 
-/** @brief 统一图标绘制: Flash V2 优先, ROM 3图标回退 (WIFI_OFF/WIFI_REMOVE/MQTT_NO)
- *  @param icon_id 0-30, see ICON_ID_* defines in Tft_Driver.h
- *  @param frame   0..n_frames-1, clamped internally
- *  @param x,y     top-left TFT pixel coordinates
- *  @param fg,bg   foreground/background RGB565 colors
- *  @retval 1=success, 0=not found
- *  @note   Flash 正常 -> 31 图标全量; Flash 无效 -> ROM 全量回退 (WiFi 4+6+2, MQTT 4+6, Star 1)
- ****************************************************************************** */
-uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
-    uint8_t icon_id, uint8_t frame, uint16_t fg, uint16_t bg)
+void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t fg, uint16_t bg)
 {
-    uint8_t row;
-    uint16_t *p;
-    const uint8_t *rom_data = 0;
+    uint8_t row; uint16_t* p;
+    if (frame > 3) frame = 3;
 
-    /* ── Flash 优先 ── */
-    if (s_font_flash_valid && s_icon_count > 0) {
-        uint8_t  i;
-        uint8_t  found = 0;
-        uint16_t n_frames = 0;
-        uint16_t data_off  = 0;
-        for (i = 0; i < s_icon_count; i++) {
-            if (s_icon_table[i].icon_id == icon_id) {
-                n_frames = s_icon_table[i].n_frames;
-                data_off = s_icon_table[i].data_offset;
-                found = 1;
-                break;
-            }
-        }
-        if (found && n_frames > 0) {
-            uint32_t frame_addr;
-            uint8_t  frame_data[32];
-            if (frame >= n_frames) frame = (uint8_t)(n_frames - 1);
-            SetWin(x, y, x + 15, y + 15);
-            p = s_dma_buf;
-            frame_addr = s_icon_data_base + (uint32_t)data_off + (uint32_t)frame * 32U;
-            W25Q_Driver_Read(frame_addr, frame_data, 32);
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(frame_data[row * 2], frame_data[row * 2 + 1],
-                              fg, bg, p + row * 16);
-            Tft_DMA_Send(s_dma_buf, 256);
-            return 1;
-        }
-    }
-
-    /* ── ROM 回退: 全量 WiFi/MQTT/Star 图标 ── */
-    switch (icon_id) {
-        case ICON_ID_WIFI_SIGNAL:
-            if (frame > 3) frame = 3; rom_data = WIFI_ICON[frame];     break;
-        case ICON_ID_WIFI_CONNECT_ANIM:
-            if (frame > 5) frame = 5; rom_data = WIFI_CONNECT_ANIM[frame]; break;
-        case ICON_ID_WIFI_OFF:       rom_data = WIFI_OFF_ICON;         break;
-        case ICON_ID_WIFI_REMOVE:    rom_data = WIFI_REMOVE_ICON;      break;
-        case ICON_ID_MQTT_BASE:      rom_data = MQTT_ICON;             break;
-        case ICON_ID_MQTT_YES:       rom_data = MQTT_YES_ICON;         break;
-        case ICON_ID_MQTT_NO:        rom_data = MQTT_NO_ICON;          break;
-        case ICON_ID_MQTT_ANIM:
-            if (frame > 5) frame = 5; rom_data = MQTT_ANIM[frame];      break;
-        case ICON_ID_STAR:           rom_data = ICON_STAR;             break;
-        default: return 0;
-    }
-    (void)frame;
     SetWin(x, y, x + 15, y + 15);
+
     p = s_dma_buf;
     for (row = 0; row < 16; row++)
-        Decode_CN_Row(rom_data[row * 2], rom_data[row * 2 + 1], fg, bg, p + row * 16);
+        Decode_CN_Row(WIFI_ICON[frame][row * 2], WIFI_ICON[frame][row * 2 + 1],
+                       fg, bg, p + row * 16);
+
     Tft_DMA_Send(s_dma_buf, 256);
-    return 1;
+}
+
+void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
+                                  uint16_t fg, uint16_t bg)
+{
+    uint8_t row; uint16_t* p;
+
+    SetWin(x, y, x + 15, y + 15);
+
+    p = s_dma_buf;
+    for (row = 0; row < 16; row++)
+        Decode_CN_Row(data[row * 2], data[row * 2 + 1], fg, bg, p + row * 16);
+
+    Tft_DMA_Send(s_dma_buf, 256);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -710,6 +627,42 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
     }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+ *  Icon By ID — 按编号绘制 16x16 图标 (ROM lookup)
+ * ═══════════════════════════════════════════════════════════════ */
+
+void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
+                                 uint16_t fg, uint16_t bg)
+{
+    uint8_t row; uint16_t* p;
+    SetWin(x, y, x + 15, y + 15);
+    p = s_dma_buf;
+    switch (icon_id) {
+        case 11: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_BATTERY[row*2],    ICON_BATTERY[row*2+1],    fg, bg, p + row*16); break;
+        case 12: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_WARNING[row*2],    ICON_WARNING[row*2+1],    fg, bg, p + row*16); break;
+        case 13: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CHECK[row*2],      ICON_CHECK[row*2+1],      fg, bg, p + row*16); break;
+        case 14: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CROSS[row*2],      ICON_CROSS[row*2+1],      fg, bg, p + row*16); break;
+        case 15: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_POWER[row*2],      ICON_POWER[row*2+1],      fg, bg, p + row*16); break;
+        case 16: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_LIGHTNING[row*2],  ICON_LIGHTNING[row*2+1],  fg, bg, p + row*16); break;
+        case 17: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_TEMP[row*2],       ICON_TEMP[row*2+1],       fg, bg, p + row*16); break;
+        case 18: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_FAN[row*2],        ICON_FAN[row*2+1],        fg, bg, p + row*16); break;
+        case 19: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_LOCK[row*2],       ICON_LOCK[row*2+1],       fg, bg, p + row*16); break;
+        case 20: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_HOME[row*2],       ICON_HOME[row*2+1],       fg, bg, p + row*16); break;
+        case 21: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_GEAR[row*2],       ICON_GEAR[row*2+1],       fg, bg, p + row*16); break;
+        case 22: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_REFRESH[row*2],    ICON_REFRESH[row*2+1],    fg, bg, p + row*16); break;
+        case 23: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_UP[row*2],   ICON_ARROW_UP[row*2+1],   fg, bg, p + row*16); break;
+        case 24: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_DN[row*2],   ICON_ARROW_DN[row*2+1],   fg, bg, p + row*16); break;
+        case 25: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_LT[row*2],   ICON_ARROW_LT[row*2+1],   fg, bg, p + row*16); break;
+        case 26: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_RT[row*2],   ICON_ARROW_RT[row*2+1],   fg, bg, p + row*16); break;
+        case 27: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_SIGNAL[row*2],     ICON_SIGNAL[row*2+1],     fg, bg, p + row*16); break;
+        case 28: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_GLOBE[row*2],      ICON_GLOBE[row*2+1],      fg, bg, p + row*16); break;
+        case 29: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CHART[row*2],      ICON_CHART[row*2+1],      fg, bg, p + row*16); break;
+        case 30: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CLOCK[row*2],      ICON_CLOCK[row*2+1],      fg, bg, p + row*16); break;
+        default: { uint8_t i; for (i = 0; i < 256; i++) p[i] = bg; } break;
+    }
+    Tft_DMA_Send(s_dma_buf, 256);
+}
+
 /* ===============================================================
  *  SPLASH 开机动画 — 纯代码实现 (V4.3.2)
  *
@@ -727,7 +680,7 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
  *    Phase 2 (3200ms): 4字x8帧x50ms = 400ms/字, 每字渐亮
  *    Hold   (400ms):   全亮定格
  *
- *  使用字库: ROM ASCII 95 + CN 4字, SPLASH 不依赖 Flash
+ *  使用字库: ROM 76 字 — 无 线 充 电, 不依赖 Flash
  * ============================================================= */
 
 void Tft_Driver_Show_Splash(void)
