@@ -20,8 +20,8 @@
 #include "Buzzer_Driver.h"
 #include "Sys_Timer.h"
 
-#define BUZZER_DRIVER_PIN         GPIO_Pin_15
-#define BUZZER_DRIVER_PORT        GPIOB
+#define BUZZER_DRIVER_PIN         GPIO_Pin_15   /* PB15 — 蜂鸣器 I/O */
+#define BUZZER_DRIVER_PORT        GPIOB         /* 端口 B */
 #define BUZZER_DRIVER_BEEP_ON_MS  200    /* BEEP 响 200ms */
 #define BUZZER_DRIVER_BEEP_OFF_MS 800    /* BEEP 停 800ms */
 
@@ -42,22 +42,22 @@ void Buzzer_Driver_Init(void)
 
 void Buzzer_Driver_Task(void)
 {
-    static uint32_t s_last_beep = 0;
-    static uint8_t  s_beep_on   = 0;
+    static uint32_t s_last_beep = 0;               /* 上次翻转时间戳 */
+    static uint8_t  s_beep_on   = 0;               /* 当前蜂鸣器电平状态 */
 
-    if (s_state == BUZZER_DRIVER_STATE_OFF) {
+    if (s_state == BUZZER_DRIVER_STATE_OFF) {      /* 静音 -> 拉低关断 */
         GPIO_ResetBits(BUZZER_DRIVER_PORT, BUZZER_DRIVER_PIN);
         s_beep_on = 0;
         return;
     }
 
-    if (s_state == BUZZER_DRIVER_STATE_ON) {
+    if (s_state == BUZZER_DRIVER_STATE_ON) {       /* 持续响 -> 拉高导通 */
         GPIO_SetBits(BUZZER_DRIVER_PORT, BUZZER_DRIVER_PIN);
         s_beep_on = 0;
         return;
     }
 
-    /* BEEP 间歇模式: 200ms 响 + 800ms 停 (引起注意但避免持续刺耳) */
+    /* BEEP 间歇模式: 200ms ON + 800ms OFF = 20% 占空比, 引起注意但不刺耳 */
     {
         uint32_t now    = Sys_Timer_Get_Tick();
         uint32_t period = s_beep_on ? BUZZER_DRIVER_BEEP_ON_MS
