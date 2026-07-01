@@ -67,6 +67,7 @@ static uint8_t s_chip_ok = 0;
  * ═══════════════════════════════════════════════ */
 
 /** @brief PA6 → Input floating (Flash MISO), CS 拉低 → 门控闭合 */
+/** @brief 进入 Flash 独占模式: PA6->MISO + CS=L, 独占 SPI 总线 */
 void W25Q_Enter_Mode(void)
 {
     GPIOA->CRL &= ~(0x0FU << 24); GPIOA->CRL |= (0x04U << 24); /* PA6=Input floating */
@@ -75,6 +76,7 @@ void W25Q_Enter_Mode(void)
 
 /** @brief CS 拉高 → 门控释放, PA6 → GPIO_Out_PP (恢复 TFT DC 角色)
  *  @note  先置 ODR HIGH (TFT DC=DATA), 再切方向, 防切向瞬间低电平毛刺导致 TFT 误收命令 */
+/** @brief 退出 Flash 独占模式: CS=H + PA6->DC, 释放总线归还 TFT */
 void W25Q_Leave_Mode(void)
 {
     FLASH_CS_HIGH();                                             /* 门控: 释放 Flash */
@@ -98,6 +100,7 @@ uint8_t W25Q_SPI_Transfer(uint8_t tx)
  * ═══════════════════════════════════════════════ */
 
 /** @brief SPI1 → 8位帧 */
+/** @brief SPI1 -> 8bit 帧模式 (原子闪切 DFF 位) */
 void W25Q_SPI_8bit(void)
 {
     SPI_Cmd(SPI1, DISABLE); SPI1->CR1 &= ~SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE); /* 原子清 DFF */
@@ -116,6 +119,7 @@ static void W25Q_SPI_16bit(void)
 
 /** @brief 死等 W25Q128 Busy 位清零 (SR1 BIT0), 超时护底
  *  @note  任何读/写/擦除的 if-else 进入和退出边界必须调用 */
+/** @brief 阻塞等待 W25Q128 Busy 位清零 (超时护底) */
 void W25Q_Wait_Busy_Timeout(void)
 {
     uint32_t deadline; uint8_t sr1;
@@ -182,6 +186,7 @@ uint8_t W25Q_Driver_Read_SR1(void)
     return sr1;
 }
 
+/** @brief 通用 SPI 读: 任意地址任意长度 (0x03 命令, 轮询) */
 void W25Q_Driver_Read(uint32_t addr, uint8_t *buf, uint16_t len)
 {
     if (!s_chip_ok || buf == 0 || len == 0) return;
@@ -196,6 +201,7 @@ void W25Q_Driver_Read(uint32_t addr, uint8_t *buf, uint16_t len)
     W25Q_Leave_Mode();                                   /* CS=H, PA6→DC */
 }
 
+/** @brief 页写入: <=256B, 自动发写使能+等 Busy (调用方保证不跨页) */
 void W25Q_Driver_Write_Page(uint32_t addr, const uint8_t *buf, uint16_t len)
 {
     if (!s_chip_ok || buf == 0 || len == 0 || len > W25Q_PAGE_SIZE) return;
@@ -210,6 +216,7 @@ void W25Q_Driver_Write_Page(uint32_t addr, const uint8_t *buf, uint16_t len)
     W25Q_Leave_Mode(); W25Q_Wait_Busy_Timeout();         /* L2: 退出边界 ~3ms */
 }
 
+/** @brief 扇区擦除: 4KB (0x20), 发波态硬件拦截, 阻塞 ~45ms */
 void W25Q_Driver_Erase_Sector(uint32_t addr)
 {
     /* ══ L4: 发波态绝对禁擦 ══ */
@@ -254,6 +261,7 @@ uint8_t Font_Header_Load(Font_Header *hdr)
  *          CS 脉冲期间 PA6 保持 MISO 角色 (仅切 CS 线, 不重配 GPIO)
  *          Entry+Exit 各一次 Leave_Mode, 中途不归还总线
  *  @retval U32 offset 相对 CJK_Data_BASE, 0xFFFFFFFF=未找到 */
+/** @brief 总线独占二分搜索 CJK 字模索引 (6763 条 Unicode 升序, 5.85us/字) */
 uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
 {
     uint16_t lo, hi, mid, mid_uc; uint32_t addr, found_off;

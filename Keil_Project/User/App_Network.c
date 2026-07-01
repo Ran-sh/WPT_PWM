@@ -57,6 +57,7 @@ static uint32_t               s_connect_start = 0;
 static int8_t                 s_rssi          = -100;
 static uint32_t               s_last_esp_ms   = 0;
 
+/** @brief 启动联网流程: IDLE -> WIFI -> MQTT -> ONLINE (非阻塞) */
 uint8_t App_Network_Start_Connect(void)
 {
     s_conn_state    = APP_NETWORK_CONN_WIFI;
@@ -77,6 +78,7 @@ uint8_t App_Network_Soft_Reset(void)
     return 0;
 }
 
+/** @brief 手动连接: 复位 OFFLINE 标志 -> 重启联网状态机 */
 void App_Network_Manual_Connect(void)
 {
     /* 仅从主动离线恢复: 清除离线标记, 开始连接 */
@@ -90,6 +92,7 @@ void App_Network_Manual_Connect(void)
     }
 }
 
+/** @brief 手动断开: 进入 OFFLINE_ACTIVE 模式, 需手动恢复 */
 void App_Network_Manual_Disconnect(void)
 {
     /* 进入主动离线: STM32 侧 OFFLINE_ACTIVE (忽略所有帧, 需手动ON恢复)
@@ -120,6 +123,7 @@ void App_Network_Resume_From_Offline(void)
     }
 }
 
+/** @brief 获取当前连接状态枚举值 */
 uint8_t App_Network_Get_Connect_Status(void)
 {
     return (uint8_t)s_conn_state;
@@ -127,11 +131,13 @@ uint8_t App_Network_Get_Connect_Status(void)
 
 uint8_t App_Network_Get_Retry_Count(void)  { return s_retry_count; }
 
+/** @brief 查询是否在线 (ONLINE 状态) */
 uint8_t App_Network_Is_Connected(void)
 {
     return (s_conn_state == APP_NETWORK_CONN_ONLINE);
 }
 
+/** @brief 查询是否离线 (PASSIVE 或 ACTIVE) */
 uint8_t App_Network_Is_Offline(void)
 {
     return (s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE
@@ -211,11 +217,13 @@ static void App_Network_Check_Offline_Recovery(void)
     }
 }
 
+/** @brief 查询是否正在连接 (WIFI 或 MQTT 状态) */
 uint8_t App_Network_Is_Connecting(void)
 {
     return (s_conn_state == APP_NETWORK_CONN_WIFI || s_conn_state == APP_NETWORK_CONN_MQTT);
 }
 
+/** @brief 网络周期任务: 驱动 WiFi 状态机 + MQTT 心跳 + 离线恢复嗅探 */
 void App_Network_Task(void)
 {
     /* 驱动 ESP8266 硬件初始化状态机 (非阻塞) */
