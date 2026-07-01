@@ -2,11 +2,12 @@
  ******************************************************************************
  * @file    Hardware/Buzzer_Driver.h
  * @brief   有源蜂鸣器驱动 — V4.3.2
- * @note    PB15 -> NPN S8050 基极(串 1k), 集电极->蜂鸣器->5V
- *          高电平驱动, 有源 2.7kHz 电磁式
+ *
+ *  接线: PB15 -> R(1k) -> S8050 基极(NPN), 集电极->蜂鸣器->VCC, 发射极->GND
+ *        高电平驱动, HIGH=S8050导通=蜂鸣器响, 2.7kHz 有源电磁式
+ *        BEEP 模式: 200ms 响 / 800ms 停 (20% 占空比, 足够引起注意但避免持续刺耳)
  ******************************************************************************
  */
-
 #ifndef BUZZER_DRIVER_H
 #define BUZZER_DRIVER_H
 
@@ -18,13 +19,12 @@ typedef enum {
     BUZZER_DRIVER_STATE_BEEP = 2
 } Buzzer_Driver_State;
 
-/** @brief 初始化蜂鸣器 GPIO (PB15 推挽输出) */
+/** @brief 初始化 PB15 推挽输出, 初始低电平 (蜂鸣器静音) */
 void Buzzer_Driver_Init(void);
-/** @brief 周期驱动蜂鸣器 (根据状态自动 BEEP ON/OFF) */
+/** @brief 周期任务: 根据当前状态自动控制蜂鸣器 ON/OFF/BEEP 交替 */
 void Buzzer_Driver_Task(void);
-/** @brief 设置蜂鸣器状态 (OFF=静音, BEEP=间歇蜂鸣)
- *  @param state 目标状态
- */
+/** @brief 设置蜂鸣器工作状态
+ *  @param state  OFF=静音, ON=持续响, BEEP=间歇蜂鸣 (200ms/800ms) */
 void Buzzer_Driver_Set_State(Buzzer_Driver_State state);
 
 #endif /* BUZZER_DRIVER_H */
