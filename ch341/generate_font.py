@@ -3,8 +3,8 @@
 generate_font.py — GB2312 一级汉字 + ASCII + 图标 → W25Q128 字库镜像 (2MB)
 V1.1  2026-06-29  移除 bit_reverse_byte, 字模 LSB-first 匹配 ROM; CRC32 改用 STM32 算法
 V1.2  2026-07-01  V4.3.2: ROM 精简 -> Flash V2 48B header (图标表偏移字段), CRC 覆盖 0x0C->0x2F
-V1.3  2026-07-01  V4.3.2: 中文字体 -> 华文楷体 STKAITI.TTF; ASCII -> Arial
-依赖: Pillow (pip install Pillow), 华文楷体 STKAITI.TTF (Win自带), Arial
+V1.3  2026-07-01  V4.3.2: ASCII 宋体 + CJK 仿宋 (SIMFANG.TTF)
+依赖: Pillow (pip install Pillow), simsun.ttc (Windows 自带 16px 宋体)
 """
 
 import struct, zlib, os, sys
@@ -260,24 +260,17 @@ def bit_reverse_byte(b: int) -> int:
     return b
 
 
-def render_ascii(letter_font, symbol_font):
-    """PIL 渲染 ASCII 0x20~0x7E -> 8×16 LSB-first, 95字x16B=1520B
-       字母数字用 letter_font (Arial), 符号用 symbol_font (宋体, 与 ROM 一致)"""
+def render_ascii(font) -> bytes:
+    """PIL 渲染 ASCII 0x20~0x7E → 8×16 LSB-first, 95字×16B=1520B"""
     data = bytearray()
     for cp in range(ASCII_START, ASCII_END + 1):
-        ch = chr(cp)
-        # 字母+数字=Arial, 其余符号=宋体 (保持与 ROM 同风格)
-        if ch.isalpha() or ch.isdigit():
-            font = letter_font
-        else:
-            font = symbol_font
         img = Image.new('1', (8, 16), 0); draw = ImageDraw.Draw(img)
-        draw.text((0, 0), ch, font=font, fill=1)
+        draw.text((0, 0), chr(cp), font=font, fill=1)
         for row in range(16):
             byte_val = 0
             for col in range(8):
-                if img.getpixel((col, row)): byte_val |= (1 << col)
-            data.append(byte_val)
+                if img.getpixel((col, row)): byte_val |= (1 << col)  # LSB-first: bit0=最左像素
+            data.append(byte_val)                    # LSB-first, 与 Decode_Char_Row 一致
     return bytes(data)
 
 
@@ -393,24 +386,23 @@ def main():
         "CRC32 自测失败! 与 STM32 CRC32_Compute 不一致"
     print("[OK] CRC32 自测通过: STM32 CRC32('1234') = 0x596A3B55")
 
-    # 加载字体: 中文=华文楷体(STKaiti), ASCII 字母数字=Arial, ASCII 符号=宋体(与ROM一致)
-    stkaiti_path = os.path.expandvars(r"%SystemRoot%\Fonts\STKAITI.TTF")
-    arial_path   = os.path.expandvars(r"%SystemRoot%\Fonts\arial.ttf")
+    # 加载字体: ASCII=宋体(simsun), CJK=仿宋(SIMFANG)
     simsun_path  = os.path.expandvars(r"%SystemRoot%\Fonts\simsun.ttc")
+    fangsong_path = os.path.expandvars(r"%SystemRoot%\Fonts\SIMFANG.TTF")
 
-    for p, n in [(stkaiti_path, "华文楷体"), (arial_path, "Arial"), (simsun_path, "宋体")]:
-        if not os.path.exists(p): raise RuntimeError(f"未找到字体: {p} ({n})")
+    if not os.path.exists(simsun_path):
+        raise RuntimeError(f"未找到 宋体: {simsun_path}")
+    if not os.path.exists(fangsong_path):
+        raise RuntimeError(f"未找到 仿宋: {fangsong_path}")
 
-    cjk_font    = ImageFont.truetype(stkaiti_path, 16)
-    ascii_font  = ImageFont.truetype(arial_path, 16)    # 字母+数字
-    sym_font    = ImageFont.truetype(simsun_path, 16)   # 符号 ({}[]。、等)
-    print(f"[OK] 中文: {stkaiti_path} ({cjk_font.getname()[0]} 华文楷体)")
-    print(f"[OK] 字母/数字: {arial_path} ({ascii_font.getname()[0]})")
-    print(f"[OK] 符号: {simsun_path} ({sym_font.getname()[0]} 宋体, 与ROM一致)")
+    ascii_font = ImageFont.truetype(simsun_path, 16)
+    cjk_font   = ImageFont.truetype(fangsong_path, 16)
+    print(f"[OK] ASCII: {simsun_path} ({ascii_font.getname()[0]} 宋体, 与ROM一致)")
+    print(f"[OK] CJK:   {fangsong_path} ({cjk_font.getname()[0]} 仿宋)")
 
-    # ASCII (字母数字=Arial, 符号=宋体)
-    print("[..] 渲染 ASCII 95 字 (字母数字=Arial, 符号=宋体)...")
-    ascii_data = render_ascii(ascii_font, sym_font)
+    # ASCII
+    print("[..] 渲染 ASCII 95 字...")
+    ascii_data = render_ascii(ascii_font)
     assert len(ascii_data) == ASCII_COUNT * 16, f"ASCII 大小异常: {len(ascii_data)}"
 
     # CJK
