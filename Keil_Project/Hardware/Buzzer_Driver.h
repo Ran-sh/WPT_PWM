@@ -19,12 +19,12 @@ typedef enum {
     BUZZER_DRIVER_STATE_BEEP = 2
 } Buzzer_Driver_State;
 
-/** @brief 初始化 PB15 推挽输出, 初始低电平 (蜂鸣器静音) */
+/** @brief 初始化 PB15 推挽输出, 初始低电平 -> 蜂鸣器静音 */
 void Buzzer_Driver_Init(void);
-/** @brief 周期任务: 根据当前状态自动控制蜂鸣器 ON/OFF/BEEP 交替 */
+/** @brief 周期调用: 根据 s_state 自动控制 ON/OFF/BEEP 交替 */
 void Buzzer_Driver_Task(void);
-/** @brief 设置蜂鸣器工作状态
- *  @param state  OFF=静音, ON=持续响, BEEP=间歇蜂鸣 (200ms/800ms) */
+/** @brief 设置蜂鸣器工作模式
+ *  @param state  OFF=静音, ON=持续响, BEEP=200ms/800ms 间歇 */
 void Buzzer_Driver_Set_State(Buzzer_Driver_State state);
 
 #endif /* BUZZER_DRIVER_H */
