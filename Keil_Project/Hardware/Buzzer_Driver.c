@@ -22,8 +22,8 @@
 
 #define BUZZER_DRIVER_PIN         GPIO_Pin_15
 #define BUZZER_DRIVER_PORT        GPIOB
-#define BUZZER_DRIVER_BEEP_ON_MS  200
-#define BUZZER_DRIVER_BEEP_OFF_MS 800
+#define BUZZER_DRIVER_BEEP_ON_MS  200    /* BEEP 响 200ms */
+#define BUZZER_DRIVER_BEEP_OFF_MS 800    /* BEEP 停 800ms */
 
 static Buzzer_Driver_State s_state = BUZZER_DRIVER_STATE_OFF;
 
