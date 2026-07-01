@@ -636,12 +636,20 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
         }
     }
 
-    /* ── ROM 回退: 3 个消极态图标 + ICON_STAR 菜单光标 ── */
+    /* ── ROM 回退: 全量 WiFi/MQTT/Star 图标 ── */
     switch (icon_id) {
-        case ICON_ID_WIFI_OFF:    rom_data = WIFI_OFF_ICON;    break;
-        case ICON_ID_WIFI_REMOVE: rom_data = WIFI_REMOVE_ICON; break;
-        case ICON_ID_MQTT_NO:     rom_data = MQTT_NO_ICON;     break;
-        case ICON_ID_STAR:         rom_data = WIFI_OFF_ICON; break; /* 暂用 WIFI_OFF */
+        case ICON_ID_WIFI_SIGNAL:
+            if (frame > 3) frame = 3; rom_data = WIFI_ICON[frame];     break;
+        case ICON_ID_WIFI_CONNECT_ANIM:
+            if (frame > 5) frame = 5; rom_data = WIFI_CONNECT_ANIM[frame]; break;
+        case ICON_ID_WIFI_OFF:       rom_data = WIFI_OFF_ICON;         break;
+        case ICON_ID_WIFI_REMOVE:    rom_data = WIFI_REMOVE_ICON;      break;
+        case ICON_ID_MQTT_BASE:      rom_data = MQTT_ICON;             break;
+        case ICON_ID_MQTT_YES:       rom_data = MQTT_YES_ICON;         break;
+        case ICON_ID_MQTT_NO:        rom_data = MQTT_NO_ICON;          break;
+        case ICON_ID_MQTT_ANIM:
+            if (frame > 5) frame = 5; rom_data = MQTT_ANIM[frame];      break;
+        case ICON_ID_STAR:           rom_data = ICON_STAR;             break;
         default: return 0;
     }
     (void)frame;
