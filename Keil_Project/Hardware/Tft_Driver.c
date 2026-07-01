@@ -589,10 +589,10 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  Icon 绘制 — Flash V2 Icon Table + ROM 3图标回退
+ *  Icon 绘制 — Flash V2 优先, ROM 3 图标回退 (WIFI/MQTT 消极态)
  * ═══════════════════════════════════════════════════════════════ */
 
-/** @brief 统一图标绘制: Flash V2 优先, ROM 3图标回退 (WIFI_OFF/WIFI_REMOVE/MQTT_NO_ICON)
+/** @brief 统一图标绘制: Flash V2 优先, ROM 3图标回退 (WIFI_OFF/WIFI_REMOVE/MQTT_NO)
  *  @param icon_id 0-30, see ICON_ID_* defines in Tft_Driver.h
  *  @param frame   0..n_frames-1, clamped internally
  *  @param x,y     top-left TFT pixel coordinates
@@ -601,15 +601,16 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
 uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
     uint8_t icon_id, uint8_t frame, uint16_t fg, uint16_t bg)
 {
-    uint8_t row, i;
+    uint8_t row;
     uint16_t *p;
-    uint8_t  found = 0;
-    uint16_t n_frames = 0;
-    uint16_t data_off = 0;
     const uint8_t *rom_data = 0;
 
-    /* Flash path: icon table lookup */
+    /* ── Flash 优先 ── */
     if (s_font_flash_valid && s_icon_count > 0) {
+        uint8_t  i;
+        uint8_t  found = 0;
+        uint16_t n_frames = 0;
+        uint16_t data_off  = 0;
         for (i = 0; i < s_icon_count; i++) {
             if (s_icon_table[i].icon_id == icon_id) {
                 n_frames = s_icon_table[i].n_frames;
@@ -619,32 +620,29 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
             }
         }
         if (found && n_frames > 0) {
+            uint32_t frame_addr;
+            uint8_t  frame_data[32];
             if (frame >= n_frames) frame = (uint8_t)(n_frames - 1);
             SetWin(x, y, x + 15, y + 15);
             p = s_dma_buf;
-            {
-                uint32_t frame_addr;
-                uint8_t  frame_data[32];
-                frame_addr = s_icon_data_base + (uint32_t)data_off + (uint32_t)frame * 32U;
-                W25Q_Driver_Read(frame_addr, frame_data, 32);
-                for (row = 0; row < 16; row++)
-                    Decode_CN_Row(frame_data[row * 2], frame_data[row * 2 + 1],
-                                  fg, bg, p + row * 16);
-            }
+            frame_addr = s_icon_data_base + (uint32_t)data_off + (uint32_t)frame * 32U;
+            W25Q_Driver_Read(frame_addr, frame_data, 32);
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(frame_data[row * 2], frame_data[row * 2 + 1],
+                              fg, bg, p + row * 16);
             Tft_DMA_Send(s_dma_buf, 256);
             return 1;
         }
     }
 
-    /* ROM fallback: 3 static icons only */
+    /* ── ROM 回退: 仅 3 个消极态图标 (Flash 无效时仍可见) ── */
     switch (icon_id) {
-        case ICON_ID_WIFI_OFF:       rom_data = WIFI_OFF_ICON;    break;
-        case ICON_ID_WIFI_REMOVE:    rom_data = WIFI_REMOVE_ICON; break;
-        case ICON_ID_MQTT_NO:       rom_data = MQTT_NO_ICON;     break;
+        case ICON_ID_WIFI_OFF:    rom_data = WIFI_OFF_ICON;    break;
+        case ICON_ID_WIFI_REMOVE: rom_data = WIFI_REMOVE_ICON; break;
+        case ICON_ID_MQTT_NO:     rom_data = MQTT_NO_ICON;     break;
         default: return 0;
     }
-    (void)frame;  /* ROM icons are single-frame */
-
+    (void)frame;
     SetWin(x, y, x + 15, y + 15);
     p = s_dma_buf;
     for (row = 0; row < 16; row++)
