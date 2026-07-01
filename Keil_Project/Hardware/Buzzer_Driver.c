@@ -2,6 +2,7 @@
  ******************************************************************************
  * @file    Hardware/Buzzer_Driver.c
  * @brief   有源蜂鸣器驱动 - V4.3.2
+ */
 
 #include "Buzzer_Driver.h"
 #include "Sys_Timer.h"

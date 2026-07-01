@@ -2,6 +2,7 @@
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
  * @brief   人机界面控制器 V4.3.2 - 9 页面 + 圆弧能量条 + 增量刷新
+ */
 
 #include "Ui_Controller.h"
 #include "Sys_Core.h"

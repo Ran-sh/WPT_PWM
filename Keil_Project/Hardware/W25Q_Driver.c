@@ -2,6 +2,7 @@
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.c
  * @brief   W25Q128 16MB SPI NOR Flash - SPI1 分时复用驱动 (V4.3.2)
+ */
 
 #include "W25Q_Driver.h"
 #include "Sys_Core.h"       /* g_sys_state */
