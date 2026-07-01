@@ -344,7 +344,7 @@ static void Fmt_V(char* buf, float v)
     int x = (int)(v * 100.0f + 0.5f);
     if (x < 0) x = 0;
     if (x > 99999) x = 99999;
-    snprintf(buf, 21, Pick_CN_EN(S_VOLTAGE_CN, S_VOLTAGE_EN) "V:%03d.%02dV", x/100, x%100);
+    snprintf(buf, 21, "%sV:%03d.%02dV", Pick_CN_EN(S_VOLTAGE_CN, S_VOLTAGE_EN), x/100, x%100);
 }
 
 static void Fmt_I(char* buf, float c)
@@ -352,12 +352,12 @@ static void Fmt_I(char* buf, float c)
     char sign = (c < 0) ? '-' : '+';
     float v = (c < 0) ? -c : c;
     int x = (int)(v * 1000.0f + 0.5f);
-    snprintf(buf, 21, Pick_CN_EN(S_CURRENT_CN, S_CURRENT_EN) "I:%c%d.%03dA", sign, (int)(x/1000), (int)(x%1000));
+    snprintf(buf, 21, "%sI:%c%d.%03dA", Pick_CN_EN(S_CURRENT_CN, S_CURRENT_EN), sign, (int)(x/1000), (int)(x%1000));
 }
 
 static void Fmt_F(char* buf, float f)
 {
-    snprintf(buf, 21, Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:%3d.%01dkHz", (int)f, (int)((f-(int)f)*10+0.5f)%10);
+    snprintf(buf, 21, "%sF:%3d.%01dkHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN), (int)f, (int)((f-(int)f)*10+0.5f)%10);
 }
 
 /* ================================================================
@@ -578,7 +578,7 @@ static void Draw_Sweep_Full(void)
     Draw_Divider(1);              /* row 1 */
 
     /* row 2: Frequency */
-    snprintf(buf, sizeof(buf), Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:%3lu.%1lukHz",
+    snprintf(buf, sizeof(buf), "%sF:%3lu.%1lukHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN),
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     Tft_Driver_Show_CN_String(2, 0, buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
@@ -637,7 +637,7 @@ static void Sweep_Dynamic_Update(void)
     char buf[21];
 
     /* Frequency */
-    snprintf(buf, sizeof(buf), Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:%3lu.%1lukHz",
+    snprintf(buf, sizeof(buf), "%sF:%3lu.%1lukHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN),
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
@@ -704,7 +704,7 @@ static void Draw_Summary_Full(void)
 
     /* row 2: Freq */
     if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:0.0kHz"); }
+    else            { snprintf(buf, sizeof(buf), "%sF:0.0kHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN)); }
     Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
@@ -740,7 +740,7 @@ static void Summary_Dynamic_Update(void)
 
     /* Frequency */
     if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), Pick_CN_EN(S_FREQ_CN, S_FREQ_EN) "F:---.-kHz"); }
+    else            { snprintf(buf, sizeof(buf), "%sF:---.-kHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN)); }
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
         Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
