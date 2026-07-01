@@ -1,27 +1,47 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.c
- * @brief   LED 指示灯驱动 - V4.3.2 (5 LEDs)
+ * @brief   LED 指示灯驱动 — V4.3.2 (5 LEDs)
  *
- *  接线: JTAG 禁用 -> PB3/PB4/PA15 释放为 GPIO
- *  +---------------------------------------------------------+
- *  |  PA15 -> LED_SYSTEM (黄) 心跳   PB4 -> LED_WIFI (蓝)    |
- *  |  PB3  -> LED_PWM    (绿) PWM    PA10-> LED_COM  (蓝)    |
- *  |  PA11 -> LED_POWER  (绿) 电源   PA12-> W25Q128_CS       |
- *  |  每个 LED: GPIO -> R(220) -> LED 阳极 -> GND           |
- *  +---------------------------------------------------------+
+ *  Pinout (JTAG disabled -> PB3/PB4/PA15 freed as GPIO):
+ *  +----------------------------------------------------------+
+ *  |                    STM32F103C8T6                          |
+ *  |                                                           |
+ *  |    PA15 --- GPIO_PP --- LED_SYSTEM (yellow) heartbeat     |
+ *  |              ON=normal  BLINK_SLOW=abnormal  BLINK_FAST=  |
+ *  |                                                           |
+ *  |    PB4  --- GPIO_PP --- LED_WIFI   (blue)  WiFi status    |
+ *  |              ON=online  BLINK_SLOW=reconnect  OFF=offlin  |
+ *  |                                                           |
+ *  |    PB3  --- GPIO_PP --- LED_PWM    (green) PWM running    |
+ *  |              ON=running  BLINK_SLOW=sweep  OFF=idle       |
+ *  |                                                           |
+ *  |    PA10 --- GPIO_PP --- LED_COM    (blue)  comm activity  |
+ *  |              ON=tx/rx  OFF=idle                           |
+ *  |                                                           |
+ *  |    PA11 --- GPIO_PP --- LED_POWER  (green) power indicat  |
+ *  |              ON=12V enabled  OFF=12V disabled             |
+ *  |                                                           |
+ *  |    PA12 === W25Q128_CS (reassigned to Flash, LED_TEMP of  |
+ *  |                                                           |
+ *  |    Each LED: GPIO -> R (220 ohm) -> LED anode -> GND      |
+ *  +----------------------------------------------------------+
+ *
+ * @note    PA15=LED_SYSTEM, PB4=LED_WIFI, PB3=LED_PWM,
+ *          PA10=LED_COM, PA11=LED_POWER
+ *          PA12 reassigned to W25Q128 Flash CS
  ******************************************************************************
  */
 
 #include "Led_Driver.h"
 #include "Sys_Timer.h"
 
-#define LED_DRIVER_WIFI_PIN    GPIO_Pin_4   /* PB4 - WiFi状态灯 */
-#define LED_DRIVER_PWM_PIN     GPIO_Pin_3   /* PB3 - PWM运行灯 */
-#define LED_DRIVER_COM_PIN     GPIO_Pin_10  /* PA10 - 通信灯 */
-#define LED_DRIVER_POWER_PIN   GPIO_Pin_11  /* PA11 - 供电状态灯 */
-#define LED_DRIVER_TEMP_PIN    GPIO_Pin_12  /* PA12 - 已让给 W25Q128 Flash CS, LED_TEMP 禁用 */
-#define LED_DRIVER_SYSTEM_PIN  GPIO_Pin_15  /* PA15 - 系统心跳灯 */
+#define LED_DRIVER_WIFI_PIN    GPIO_Pin_4   /* PB4 — WiFi状态灯 */
+#define LED_DRIVER_PWM_PIN     GPIO_Pin_3   /* PB3 — PWM运行灯 */
+#define LED_DRIVER_COM_PIN     GPIO_Pin_10  /* PA10 — 通信灯 */
+#define LED_DRIVER_POWER_PIN   GPIO_Pin_11  /* PA11 — 供电状态灯 */
+#define LED_DRIVER_TEMP_PIN    GPIO_Pin_12  /* PA12 — 已让给 W25Q128 Flash CS, LED_TEMP 禁用 */
+#define LED_DRIVER_SYSTEM_PIN  GPIO_Pin_15  /* PA15 — 系统心跳灯 */
 
 #define LED_DRIVER_PORT_A      GPIOA
 #define LED_DRIVER_PORT_B      GPIOB
@@ -41,7 +61,6 @@ static uint32_t s_pwm_last   = 0;
 static uint32_t s_com_last   = 0;
 static uint32_t s_power_last = 0;
 
-/** @brief 驱动单个 LED 引脚: 根据状态 ON/OFF/SLOW 闪烁/FAST 闪烁 */
 static void Drive_Pin(GPIO_TypeDef* port, uint16_t pin,
                       Led_Driver_State state, uint32_t* p_last)
 {
@@ -71,8 +90,6 @@ static void Drive_Pin(GPIO_TypeDef* port, uint16_t pin,
     }
 }
 
-/** @brief 初始化 5 LED GPIO + 禁用 JTAG 释放 PB3/PB4 (PA12 已让给 Flash CS) */
-/** @brief 初始化 5 LED GPIO + 禁用 JTAG (PB3/PB4/PA15), 上电自检 500ms */
 void Led_Driver_Init(void)
 {
     GPIO_InitTypeDef cfg;
@@ -112,15 +129,13 @@ void Led_Driver_Init(void)
         LED_DRIVER_PWM_PIN | LED_DRIVER_WIFI_PIN);
 }
 
-/** @brief 周期驱动所有 LED: 根据状态自动 ON/OFF/SLOW/FAST 闪烁 */
-/** @brief 周期驱动所有 LED: WiFi/PWM/COM/POWER 状态灯 + SYSTEM 心跳 */
 void Led_Driver_Task(void)
 {
     Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_WIFI_PIN,  s_wifi_state,  &s_wifi_last);
     Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_PWM_PIN,   s_pwm_state,   &s_pwm_last);
     Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_COM_PIN,   s_com_state,   &s_com_last);
     Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_POWER_PIN, s_power_state, &s_power_last);
-    /* PA12=TEMP 已禁用 - 让给 W25Q128 Flash CS */
+    /* PA12=TEMP 已禁用 — 让给 W25Q128 Flash CS */
 
     /* SYSTEM: 心跳闪烁 (500ms) */
     {
@@ -135,15 +150,9 @@ void Led_Driver_Task(void)
     }
 }
 
-/** @brief 设置 WiFi 状态 LED (PB4): ON=在线, SLOW=重连, OFF=离线 */
 void Led_Driver_Set_WiFi(Led_Driver_State state)   { s_wifi_state  = state; }
-/** @brief 设置 PWM 运行 LED (PB3): ON=运行, SLOW=扫频, OFF=停机 */
 void Led_Driver_Set_Pwm(Led_Driver_State state)    { s_pwm_state   = state; }
-/** @brief 设置通信 LED (PA10): ON=数据收发, OFF=空闲 */
 void Led_Driver_Set_Com(Led_Driver_State state)    { s_com_state   = state; }
-/** @brief 设置电源 LED (PA11): ON=12V 使能, OFF=12V 关断 */
 void Led_Driver_Set_Power(Led_Driver_State state)  { s_power_state = state; }
-/** @brief [已禁用] PA12 已让给 W25Q128 Flash CS */
-void Led_Driver_Set_Temp(Led_Driver_State state)   { /* PA12->Flash CS, 函数保留占位 */ }
-/** @brief 控制系统心跳 LED (PA15): 1=闪烁, 0=灭 */
+void Led_Driver_Set_Temp(Led_Driver_State state)   { /* PA12→Flash CS, 函数保留占位 */ }
 void Led_Driver_Set_System(uint8_t on_off)          { s_system_on   = on_off; }

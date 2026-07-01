@@ -56,7 +56,6 @@ static const uint8_t CRC8_TABLE[256] = {
     0xDE,0xD9,0xD0,0xD7,0xC2,0xC5,0xCC,0xCB,0xE6,0xE1,0xE8,0xEF,0xFA,0xFD,0xF4,0xF3
 };
 
-/** @brief CRC8 查表计算 (多项式 0x07, 256B ROM 表) */
 static uint8_t CRC8_Compute(const uint8_t *data, uint8_t len)
 {
     uint8_t crc = 0x00;
@@ -67,7 +66,6 @@ static uint8_t CRC8_Compute(const uint8_t *data, uint8_t len)
 /* ═══════════════════════════════════════════════
  *  CRC32 (多项式 0x04C11DB7, 含 final XOR, 与 WinRAR/STM32 CRC 外设一致)
  * ═══════════════════════════════════════════════ */
-/** @brief CRC32 计算 (多项式 0x04C11DB7, refin=false, 与 STM32 CRC 外设一致) */
 uint32_t CRC32_Compute(const uint8_t *data, uint32_t len)
 {
     uint32_t crc = 0xFFFFFFFFU; uint32_t i, j;
@@ -90,7 +88,6 @@ static uint32_t s_fault_lock_addr = 0;   /* 故障锁存区写入地址 */
  * ═══════════════════════════════════════════════ */
 
 /** @brief 安全默认出厂值 */
-/** @brief 写入出厂安全默认值 (SSID/密码清零, 100kHz 默认频率) */
 static void App_Storage_Defaults(App_Storage_Config *cfg)
 {
     uint8_t i;
@@ -106,7 +103,6 @@ static void App_Storage_Defaults(App_Storage_Config *cfg)
     cfg->language      = 0;
 }
 
-/** @brief 从 Flash 双副本加载参数配置 (A 优先, A坏读取B, 全坏回默认) */
 uint8_t App_Storage_Load_Config(App_Storage_Config *cfg)
 {
     uint32_t stored_crc, computed_crc;
@@ -136,7 +132,6 @@ uint8_t App_Storage_Load_Config(App_Storage_Config *cfg)
     return 0;
 }
 
-/** @brief 保存参数配置到 Flash 双副本 (先写 A 再写 B, 保持至少一份有效) */
 void App_Storage_Save_Config(const App_Storage_Config *cfg)
 {
     App_Storage_Config tmp;
@@ -156,7 +151,6 @@ void App_Storage_Save_Config(const App_Storage_Config *cfg)
     W25Q_Driver_Write_Page(W25Q_ADDR_CFG_B, (uint8_t*)&tmp, sizeof(App_Storage_Config));
 }
 
-/** @brief 恢复出厂设置并写入 Flash */
 void App_Storage_Write_Factory_Defaults(void)
 {
     App_Storage_Config defs;
@@ -169,7 +163,6 @@ void App_Storage_Write_Factory_Defaults(void)
  * ═══════════════════════════════════════════════ */
 
 /** @brief 封包: 浮点参数 → 14B 紧凑二进制 */
-/** @brief 封装黑匣子条目: 浮点参数 -> 14B 紧凑二进制 + CRC8 校验 */
 static void Blackbox_Pack(float v, float i, uint16_t freq, uint8_t state,
                           Blackbox_Entry_Packed *out)
 {
@@ -181,7 +174,6 @@ static void Blackbox_Pack(float v, float i, uint16_t freq, uint8_t state,
     out->crc8      = CRC8_Compute((uint8_t*)out, 12);        /* 前12B */
 }
 
-/** @brief 黑匣子定时记录 (1s/条, SWEEP+RUNNING 状态, 循环写入) */
 void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
 {
     uint32_t addr, pos_in_page;
@@ -213,7 +205,6 @@ void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
     s_log_seq++;
 }
 
-/** @brief 故障锁存: 保留故障前后 5s 窗口数据, 禁止循环覆盖 */
 void Blackbox_Lock_Fault_Snapshot(void)
 {
     uint32_t i, lock_addr;
@@ -241,10 +232,8 @@ void Blackbox_Lock_Fault_Snapshot(void)
     s_fault_lock_addr += BLACKBOX_ENTRY_SIZE * 50U;
 }
 
-/** @brief 获取黑匣子已写入条目总数 */
 uint32_t Blackbox_Get_Entry_Count(void) { return s_log_seq; }
 
-/** @brief 按索引读取黑匣子条目 (0=最旧) */
 uint8_t Blackbox_Read_Entry(uint32_t index, Blackbox_Entry_Packed *out)
 {
     uint32_t addr, effective_start, total_size;
@@ -264,7 +253,6 @@ uint8_t Blackbox_Read_Entry(uint32_t index, Blackbox_Entry_Packed *out)
  *  上电自检 (仅 SYS_STATE_INIT 调用一次, ~200ms)
  * ═══════════════════════════════════════════════ */
 
-/** @brief 初始化存储层: 恢复黑匣子写指针 (从 Flash Block 0 头部) */
 void App_Storage_Init(void)
 {
     /* ── 恢复黑匣子写指针 (从 Block 0 头部读取) ── */

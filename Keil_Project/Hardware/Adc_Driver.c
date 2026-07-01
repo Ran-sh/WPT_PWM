@@ -1,12 +1,28 @@
 /**
  ******************************************************************************
  * @file    Hardware/Adc_Driver.c
- * @brief   ADC 模拟量采集驱动 - V4.3.2
+ * @brief   ADC 模拟量采集驱动 — V4.3.2
  *
- *  接线: PB0=ADC_CH8 电流(CC6920BSO 132mV/A), PB1=ADC_CH9 电压(20:1分压)
- *        ADC1+DMA1 双通道 144241 周期互质采样, 64 样本滑动窗口
+ *  Pinout:
+ *  +--------------------------------------------------------+
+ *  |                     STM32F103C8T6                       |
+ *  |                                                         |
+ *  |    PB0 --- ADC_CH8 ---+--- Current sensor CC6920BSO     |
+ *  |                        |   (132mV/A, 0~50A range)       |
+ *  |    PB1 --- ADC_CH9 ---+--- Voltage divider 20:1         |
+ *  |                            (0~60V -> 0~3.0V)            |
+ *  |                                                         |
+ *  |    Sampling: 144241 CPU cycle trigger,                  |
+ *  |    coprime with 100kHz PWM -> covers 720 phases         |
+ *  |    gcd(144241, 720) = 1                                 |
+ *  |    64-sample sliding window, EMA a=0.25 (tau~800ms)     |
+ *  +--------------------------------------------------------+
+ *
+ * @note    PB0=ADC_CH8(I), PB1=ADC_CH9(V)
  ******************************************************************************
  */
+
+#include "Adc_Driver.h"
 #include "Sys_Timer.h"
 
 #define ADC_DRIVER_VREF_MCU            3.30f
@@ -26,27 +42,26 @@ typedef char Adc_Driver_Assert_HSE_72MHz[(HSE_VALUE == 8000000) ? 1 : -1];  /* �
 #define ADC_DRIVER_CAL_SAMPLES      50
 #define ADC_DRIVER_CAL_INTERVAL_MS  10
 
-/* ── 滑动窗口: 64 样本环形缓冲, 保持运行累加和避免反复求和 ── */
+/* ── 滑动窗口抽象 ── */
 typedef struct {
-    uint16_t buf[ADC_DRIVER_FILTER_WINDOW];   /* 64 样本环形缓冲 */
-    uint8_t  idx;                              /* 当前写入位置 */
-    uint8_t  filled;                           /* 已填充样本数 (满后锁定 64) */
-    uint32_t accum;                            /* 运行累加和, O(1) 计算均值 */
+    uint16_t buf[ADC_DRIVER_FILTER_WINDOW];
+    uint8_t  idx;
+    uint8_t  filled;
+    uint32_t accum;
 } Adc_Driver_Filter_Window;
 
-/* 推入新样本: 窗口满后减去最老值 -> 维持 64 样本滚动平均, O(1) 非 O(N) */
+/* 推入新 ADC 样本到滑动窗口: 窗口未满时仅累加, 满后减去最老值 → 维持 64 样本滚动平均 */
 static void Adc_Driver_Filter_Push(Adc_Driver_Filter_Window* fw, uint16_t new_val)
 {
     uint16_t old = fw->buf[fw->idx];
     fw->buf[fw->idx] = new_val;
     fw->accum += new_val;
     if (fw->filled >= ADC_DRIVER_FILTER_WINDOW)
-        fw->accum -= old;                        /* 满后滚出最老样本 */
+        fw->accum -= old;
     fw->idx = (fw->idx + 1) % ADC_DRIVER_FILTER_WINDOW;
     if (fw->filled < ADC_DRIVER_FILTER_WINDOW) fw->filled++;
 }
 
-/* 累加和 / 样本数 = 平均值 -> 0~3.30V 原始电压 */
 static float Adc_Driver_Filter_To_Voltage(const Adc_Driver_Filter_Window* fw)
 {
     if (fw->filled == 0) return 0.0f;
@@ -54,35 +69,34 @@ static float Adc_Driver_Filter_To_Voltage(const Adc_Driver_Filter_Window* fw)
 }
 
 /* ── 模块状态 ── */
-static volatile uint16_t s_adc_raw[2];         /* DMA 循环刷新: [0]=电流, [1]=电压 */
-static Adc_Driver_Filter_Window s_v_filter;    /* 电压 64 样本滑动窗口 */
-static Adc_Driver_Filter_Window s_c_filter;    /* 电流 64 样本滑动窗口 */
-static float s_voltage       = 0.0f;           /* 滤波后电压值 (V) */
-static float s_current       = 0.0f;           /* 滤波后电流值 (A) */
-static float s_raw_pin_v     = 1.65f;          /* ADC 引脚原始电压 (校准前) */
-static float   s_i_offset    = 1.65f;          /* 电流零点偏移 (校准锁定值) */
-static uint8_t s_calibrated  = 0;              /* 校准完成标志 */
-static uint8_t s_cal_count   = 0;              /* 校准样本计数 */
-static float   s_cal_accum   = 0.0f;           /* 校准累加值 */
+static volatile uint16_t s_adc_raw[2];   /* DMA 循环刷新: [0]=电流, [1]=电压 */
 
-/** @brief 初始化 ADC1 + DMA1 双通道连续扫描, 144241 周期互质采样 */
+static Adc_Driver_Filter_Window s_v_filter;
+static Adc_Driver_Filter_Window s_c_filter;
+
+static float s_voltage       = 0.0f;
+static float s_current       = 0.0f;
+static float s_raw_pin_v     = 1.65f;
+
+static float   s_i_offset    = 1.65f;
+static uint8_t s_calibrated  = 0;
+static uint8_t s_cal_count   = 0;
+static float   s_cal_accum   = 0.0f;
+
 void Adc_Driver_Init(void)
 {
     ADC_InitTypeDef  adc;
     GPIO_InitTypeDef gpio;
     DMA_InitTypeDef  dma;
 
-    /* 时钟: DMA1 + ADC1 + GPIOB */
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_GPIOB, ENABLE);
-    RCC_ADCCLKConfig(RCC_PCLK2_Div6);          /* ADC 时钟 = 72MHz/6 = 12MHz */
+    RCC_ADCCLKConfig(RCC_PCLK2_Div6);
 
-    /* PB0/PB1 模拟输入 */
     gpio.GPIO_Pin  = GPIO_Pin_0 | GPIO_Pin_1;
     gpio.GPIO_Mode = GPIO_Mode_AIN;
     GPIO_Init(GPIOB, &gpio);
 
-    /* DMA1_Channel1: ADC->DR -> s_adc_raw[2], 循环模式, 16bit 半字 */
     DMA_DeInit(DMA1_Channel1);
     dma.DMA_PeripheralBaseAddr = (uint32_t)&(ADC1->DR);
     dma.DMA_MemoryBaseAddr     = (uint32_t)s_adc_raw;
@@ -98,7 +112,6 @@ void Adc_Driver_Init(void)
     DMA_Init(DMA1_Channel1, &dma);
     DMA_Cmd(DMA1_Channel1, ENABLE);
 
-    /* ADC1: 独立模式, 扫描+连续, 2 通道 (CH8/CH9) */
     adc.ADC_Mode               = ADC_Mode_Independent;
     adc.ADC_ScanConvMode       = ENABLE;
     adc.ADC_ContinuousConvMode = ENABLE;
@@ -107,88 +120,84 @@ void Adc_Driver_Init(void)
     adc.ADC_NbrOfChannel       = 2;
     ADC_Init(ADC1, &adc);
 
-    /* CH8=电流 (序列1), CH9=电压 (序列2), 239.5 ADC 周期采样时间 */
     ADC_RegularChannelConfig(ADC1, ADC_Channel_8, 1, ADC_SampleTime_239Cycles5);
     ADC_RegularChannelConfig(ADC1, ADC_Channel_9, 2, ADC_SampleTime_239Cycles5);
 
     ADC_DMACmd(ADC1, ENABLE);
     ADC_Cmd(ADC1, ENABLE);
 
-    { volatile uint16_t i; for (i = 0; i < 100; i++) __NOP(); }  /* 等待 ADC 稳定 */
+    { volatile uint16_t i; for (i = 0; i < 100; i++) __NOP(); }
 
     ADC_ResetCalibration(ADC1);
     while (ADC_GetResetCalibrationStatus(ADC1));
     ADC_StartCalibration(ADC1);
     while (ADC_GetCalibrationStatus(ADC1));
 
-    ADC_SoftwareStartConvCmd(ADC1, ENABLE);  /* 启动连续转换 */
+    ADC_SoftwareStartConvCmd(ADC1, ENABLE);
 }
 
-/** @brief 周期任务: DMA 滑动窗口滤波 + 电压/电流 EMA 更新 */
 void Adc_Driver_Filter_Task(void)
 {
     static uint32_t last_cyc = 0;
     uint32_t now, delta;
 
-    /* DWT 周期计时: 约 144241 周期 (~2ms) 触发一次采样, 与 PWM 互质防拍频 */
-    now = Sys_Timer_Get_Cycles(); delta = now - last_cyc;
-    if (delta < ADC_DRIVER_FILTER_PERIOD_CYCLES) return;
+    now = Sys_Timer_Get_Cycles(); delta = now - last_cyc;            /* uint32 回绕安全 */
+    if (delta < ADC_DRIVER_FILTER_PERIOD_CYCLES) return;             /* 距上次采样不足 */
     if (delta > ADC_DRIVER_FILTER_PERIOD_CYCLES * 2) {
-        last_cyc = now; return;                /* 时基被夺 >2倍周期, 丢弃此采样 */
+        last_cyc = now; return;                                      /* 时基剥夺 >2倍, 弃样护窗 */
     }
     last_cyc = now;
 
-    /* 电压: 原始值 -> 电压 -> x20 分压比 */
     Adc_Driver_Filter_Push(&s_v_filter, s_adc_raw[1]);
     s_voltage = Adc_Driver_Filter_To_Voltage(&s_v_filter) * ADC_DRIVER_VOLTAGE_DIVIDER;
 
-    /* 电流: (原始电压 - 零点偏移) / 灵敏度 * 校准系数 */
     Adc_Driver_Filter_Push(&s_c_filter, s_adc_raw[0]);
     s_raw_pin_v = Adc_Driver_Filter_To_Voltage(&s_c_filter);
     s_current   = (s_raw_pin_v - s_i_offset) / ADC_DRIVER_CURRENT_SENSITIVITY * ADC_DRIVER_CURRENT_CAL_FACTOR;
 }
 
-/** @brief 冷启动电流零点自测算: 50 样本均值 -> s_i_offset */
 void Adc_Driver_Calibrate_Offset(void)
 {
     static uint32_t last_cal = 0;
 
-    if (s_calibrated) return;                  /* 已校准则跳过 */
+    /* 一次校准完成后锁定, 避免运行时有电流导致零点漂移 */
+    if (s_calibrated) return;
 
     if (Sys_Timer_Get_Tick() - last_cal < ADC_DRIVER_CAL_INTERVAL_MS) return;
     last_cal = Sys_Timer_Get_Tick();
 
-    if (s_c_filter.filled < ADC_DRIVER_FILTER_WINDOW) return;  /* 窗口未满 */
+    if (s_c_filter.filled < ADC_DRIVER_FILTER_WINDOW) return;
 
     s_cal_accum += s_raw_pin_v;
     s_cal_count++;
     if (s_cal_count >= ADC_DRIVER_CAL_SAMPLES) {
-        s_i_offset   = s_cal_accum / (float)ADC_DRIVER_CAL_SAMPLES;  /* 50 样本均值 = 零点电压 */
+        s_i_offset   = s_cal_accum / (float)ADC_DRIVER_CAL_SAMPLES;
         s_calibrated = 1;
     }
 }
 
-/** @brief 获取 EMA 滤波后的实时电压值 (V) */
 float Adc_Driver_Get_Voltage(void) { return s_voltage; }
-/** @brief 获取 EMA 滤波后的实时电流值 (A) */
 float Adc_Driver_Get_Current(void) { return s_current; }
 
-/** @brief 从 Flash 固化值写入校准参数 (W25Q128 参数区加载后调用)
- *  @note  若偏移值在 0.5~2.8V 合理范围则直接采纳, 否则保持默认 */
+/** @brief V4.3.0: 从 Flash 固化值写入校准参数 (W25Q128 参数区加载后调用) */
 void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
 {
-    if (i_offset > 0.5f && i_offset < 2.8f) {
+    if (i_offset > 0.5f && i_offset < 2.8f) {            /* 合理性守卫: 1.65V 附近 */
         s_i_offset   = i_offset;
-        s_calibrated = 1;                      /* 锁定, 禁止自测算覆盖 */
+        s_calibrated = 1;                                /* 锁定, 禁止自测算覆盖 */
     }
-    /* v_gain/freq_trim 保留给后续模块扩展 */
+    if (v_gain > 0.0f) {
+        /** @note s_v_gain 当前在 filter 中使用硬编码 20:1 分压比,
+         *        后续可扩展为可变增益 */
+    }
+    /** @note freq_trim_hz 保留给 Inverter_Control 适配 */
 }
 
-/** @brief 获取当前 ADC 电流零点偏移值 (回写 Flash 配置用) */
+/** @brief V4.3.0: 获取当前 ADC 电流零点值 (用于回写 Flash 配置) */
 float Adc_Driver_Get_Current_Offset(void) { return s_i_offset; }
 
-/** @brief 强制解锁校准状态机 (双副本全损时启用冷启动自测算) */
+/** @brief V4.3.0: 强制解锁校准状态机 (双副本全损→冷启动自测算) */
 void Adc_Driver_Force_Recalibrate(void)
 {
-    s_calibrated = 0; s_cal_count = 0; s_cal_accum = 0.0f;
+    s_calibrated = 0; s_cal_count = 0; s_cal_accum = 0.0f; /* 原子解锁 */
 }

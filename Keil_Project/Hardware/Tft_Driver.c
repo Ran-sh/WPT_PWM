@@ -1,7 +1,35 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 128x160 TFT 彩屏驱动 - SPI1+DMA (V4.3.2 全字库双路径)
+ * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V4.3.2 全字库双路径)
+ *
+ *  Pinout (SPI1 TDM: TFT + W25Q128 share bus):
+ *  +------------------------------------------------------------+
+ *  |    STM32F103C8T6              ST7735 128x160 Green Tab      |
+ *  |                                                             |
+ *  |    PA5 --- SPI1_SCK ------------------> SCL  (18MHz)        |
+ *  |    PA7 --- SPI1_MOSI ------------------> SDA  (shared data  |
+ *  |    PA4 --- GPIO_PP --------------------> CS   (active low)  |
+ *  |    PA6 --- GPIO_PP --------------------> DC   (cmd/data)    |
+ *  |    PA0 --- GPIO_PP --------------------> RESET              |
+ *  |    PB6 --- TIM4_CH1 -------------------> BL   (backlight P  |
+ *  |                                                             |
+ *  |    PA6 --- SPI1_MISO <------------------ W25Q128 DO (Flash  |
+ *  |    PA12 -- GPIO_PP --------------------> W25Q128 /CS (Flas  |
+ *  |                                                             |
+ *  |    SPI Mode3 (CPOL=H, CPHA=2Edge), full-duplex              |
+ *  |    160x128 landscape, MADCTL=0xA0, SetWin offset X+1 Y+2    |
+ *  |    DMA1_Channel3 pixel pump, WrCmd/WrDat 8-bit polling      |
+ *  |                                                             |
+ *  |    PA6 dynamic: TFT(DC) <--> W25Q128(MISO)                  |
+ *  |      DFF(SPI1_CR1 bit11): 8b(poll) <-> 16b(DMA) atomic swi  |
+ *  +------------------------------------------------------------+
+ *
+ * @note    V4.3.2: Flash V2 48B header (icon_table_offset)
+ *          全字库 20897 字 + 31图标/54帧 -> 仅 Flash 读取
+ *          ROM 仅 SPLASH: ASCII 95 + CN 4字 (无/线/充/电)
+ ******************************************************************************
+ */
 
 #include "Tft_Driver.h"
 #include "TFT_Font_Data.h"
@@ -22,10 +50,21 @@ extern uint32_t CRC32_Compute(const uint8_t *data, uint32_t len);
 
 #define TFT_DMA_MAX_PIXELS  65535
 
-/* ── DMA 状态 ── */
+/* ── DMA 状态 + Flash 字库缓存 ── */
 static uint8_t s_dma_configured = 0;
-static uint8_t  s_font_flash_valid = 0;     /* 1=Flash font header CRC32 valid */
-static Font_Header g_font_header;           /* RAM-cached header 32B from W25Q */
+static uint8_t  s_font_flash_valid = 0;     /* 1=Flash V2 font header CRC32 valid */
+static Font_Header g_font_header;           /* RAM-cached header 48B from W25Q (V2) */
+
+/* ── Icon Table RAM cache (Font_Init 一次加载) ── */
+#define ICON_TABLE_MAX 32
+typedef struct {
+    uint16_t icon_id;
+    uint16_t n_frames;
+    uint16_t data_offset;   /* relative to g_font_header.icon_data_offset */
+} IconEntry;
+static IconEntry s_icon_table[ICON_TABLE_MAX];
+static uint8_t   s_icon_count = 0;
+static uint32_t  s_icon_data_base = 0;
 
 /* ── 像素缓冲区 ── */
 static uint16_t s_dma_buf[256];
@@ -57,7 +96,7 @@ static void Tft_Driver_WrDat(uint8_t d)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  SPI 模式切换 - 8bit(命令) ↔ 16bit(像素 DMA)
+ *  SPI 模式切换 — 8bit(命令) ↔ 16bit(像素 DMA)
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Tft_SPI_8bit(void)
@@ -123,7 +162,7 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  像素泵送 - 双重空闲死等, 防切帧地雷
+ *  像素泵送 — 双重空闲死等, 防切帧地雷
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Tft_DMA_Fill(uint32_t pixel_count, uint16_t color)
@@ -167,14 +206,13 @@ static void SetWin(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  Tft_Driver_Init - 开机三级锁死 (V4.3.0r2 深水区重构)
+ *  Tft_Driver_Init — 开机三级锁死 (V4.3.0r2 深水区重构)
  *
  *  L1: AFIO+JTAG禁用 绝对第一行, 净化时钟图层
  *  L2: Flash CS(PA12) 强推挽锁高, 封杀开机对灌短路
  *  L3: PA6(共享引脚) ODR 显式初始高, 防飘移
  * ═══════════════════════════════════════════════════════════════ */
 
-/** @brief 初始化 ST7735 TFT: 硬件复位+寄存器序列+背光 PWM, 不访问 W25Q */
 void Tft_Driver_Init(void)
 {
     GPIO_InitTypeDef  gpio;
@@ -182,7 +220,7 @@ void Tft_Driver_Init(void)
     TIM_TimeBaseInitTypeDef  tim_base;
     TIM_OCInitTypeDef        oc;
 
-    /* ══ L1: 绝对第一行 - AFIO+JTAG 统合接管, 净化时钟图层 ══ */
+    /* ══ L1: 绝对第一行 — AFIO+JTAG 统合接管, 净化时钟图层 ══ */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
     GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE); /* 释放 PB3/PB4, 封杀毛刺 */
 
@@ -293,27 +331,55 @@ void Tft_Driver_Init(void)
 }
 
 /* ===============================================================
- *  Tft_Driver_Font_Init - 字库初始化 (W25Q_Driver_Init 之后调用)
- *  读取 Flash 字库头, CRC32 校验通过则启用全字库 20897 字,
- *  否则 s_font_flash_valid 保持 0 → ROM 76 字自动回退
+ *  Tft_Driver_Font_Init — 字库初始化 (W25Q_Driver_Init 之后调用)
+ *  V2: 48B header CRC32 覆盖 0x0C->0x2F, 解析 icon_table 缓存
+ *  CRC32 有效则启用 Flash 全字库 20897 字 + 31 图标/54 帧
  * ============================================================= */
 
-/** @brief 初始化 Flash 字库: 读 Font_Header + CRC32 校验 -> 有效则启用 Flash 全字库路径 */
 void Tft_Driver_Font_Init(void)
 {
     uint32_t crc_stored; uint32_t crc_computed;
+    s_font_flash_valid = 0; s_icon_count = 0; s_icon_data_base = 0;
+
     W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)&g_font_header, sizeof(Font_Header));
-    s_font_flash_valid = 0;
-    if (g_font_header.magic == FONT_MAGIC) {
-        crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
-        crc_computed = CRC32_Compute((uint8_t*)&g_font_header + 0x0C, 20);
-        g_font_header.crc32 = crc_stored;
-        s_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
+    if (g_font_header.magic != FONT_MAGIC) return;
+    if (g_font_header.version < 2) return;                   /* V2+ 才含 icon 字段 */
+
+    crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
+    crc_computed = CRC32_Compute((uint8_t*)&g_font_header + 0x0C, 36);
+    g_font_header.crc32 = crc_stored;
+    if (crc_stored != crc_computed) return;
+
+    s_font_flash_valid = 1;
+
+    /* ── Parse Icon Table from Flash ── */
+    {
+        uint8_t  ihdr[16];  /* 16B icon table header */
+        uint8_t  ientry[8]; /* 8B per entry */
+        uint16_t i, n_entries, n_frames, io_id, io_frames, io_doff;
+        W25Q_Driver_Read(g_font_header.icon_table_offset, ihdr, 16);
+        n_entries = ihdr[0] | ((uint16_t)ihdr[1] << 8);
+        n_frames  = ihdr[2] | ((uint16_t)ihdr[3] << 8);
+        (void)n_frames;  /* total frames count, unused at runtime */
+
+        if (n_entries > ICON_TABLE_MAX) n_entries = ICON_TABLE_MAX;
+        s_icon_count = (uint8_t)n_entries;
+        s_icon_data_base = g_font_header.icon_data_offset;
+
+        for (i = 0; i < n_entries; i++) {
+            W25Q_Driver_Read(g_font_header.icon_table_offset + 16 + (uint32_t)i * 8,
+                             ientry, 8);
+            io_id     = ientry[0] | ((uint16_t)ientry[1] << 8);
+            io_frames = ientry[2] | ((uint16_t)ientry[3] << 8);
+            io_doff   = ientry[4] | ((uint16_t)ientry[5] << 8);
+            s_icon_table[i].icon_id     = io_id;
+            s_icon_table[i].n_frames    = io_frames;
+            s_icon_table[i].data_offset = io_doff;
+        }
     }
 }
 
 /* 公开字库状态查询 (供 Sys_Startup_Screen 显示) */
-/** @brief 查询 Flash 字库是否有效 (1=Flash 20897字, 0=ROM 76字回退) */
 uint8_t Tft_Driver_Is_Font_Flash_Valid(void)
 {
     return s_font_flash_valid;
@@ -323,20 +389,17 @@ uint8_t Tft_Driver_Is_Font_Flash_Valid(void)
  *  基础绘图
  * ═══════════════════════════════════════════════════════════════ */
 
-/** @brief 全屏填充单色 (DMA 填充) */
 void Tft_Driver_Clear(uint16_t color)
 {
     SetWin(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
     Tft_DMA_Fill((uint32_t)TFT_WIDTH * TFT_HEIGHT, color);
 }
 
-/** @brief 设置背光 PWM 占空比 (0=灭, 255=最亮, TIM4_CH1) */
 void Tft_Driver_Set_Backlight(uint8_t v)
 {
     TIM_SetCompare1(TIM4, ((uint16_t)v * 999) / 255);
 }
 
-/** @brief 像素级填充矩形 (坐标+宽高, 含边界裁剪) */
 void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
 {
     uint32_t total;
@@ -349,7 +412,6 @@ void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16
     Tft_DMA_Fill(total, color);
 }
 
-/** @brief 黑底擦除指定像素区域 (等价 Fill_Rect 黑色) */
 void Tft_Driver_Erase_Pixel_Area(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
     Tft_Driver_Fill_Rect(x, y, w, h, TFT_COLOR_BLACK);
@@ -359,7 +421,6 @@ void Tft_Driver_Erase_Pixel_Area(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
  *  位图解码器 (原样保留, LSB-first)
  * ═══════════════════════════════════════════════════════════════ */
 
-/** @brief 解码 1 字节 ASCII 字模行 -> 8 像素 (LSB-first) */
 static void Decode_Char_Row(uint8_t byte_val, uint16_t fg, uint16_t bg, uint16_t* out)
 {
     uint8_t b;
@@ -367,7 +428,6 @@ static void Decode_Char_Row(uint8_t byte_val, uint16_t fg, uint16_t bg, uint16_t
         out[b] = (byte_val & (0x01 << b)) ? fg : bg;
 }
 
-/** @brief 解码 2 字节 CJK 字模行 -> 16 像素 (LSB-first) */
 static void Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16_t bg, uint16_t* out)
 {
     uint8_t b;
@@ -378,10 +438,9 @@ static void Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16_t bg, uint
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  ASCII 渲染 - 双路径: Flash 流式读取 / ROM 字模回退
+ *  ASCII 渲染 — 双路径: Flash 流式读取 / ROM 字模回退
  * ═══════════════════════════════════════════════════════════════ */
 
-/** @brief 在指定行列绘制 ASCII 字符 (双路径: Flash 流式 / ROM 字模回退) */
 void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
                           uint16_t fg, uint16_t bg)
 {
@@ -420,7 +479,6 @@ void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
     }
 }
 
-/** @brief 绘制 ASCII 字符串 (自动逐字, 超行截断) */
 void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
                             uint16_t fg, uint16_t bg)
 {
@@ -432,7 +490,6 @@ void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
 
 static uint32_t Tft_Driver_Pw(uint32_t e) { uint32_t r = 1; while (e--) r *= 10; return r; }
 
-/** @brief 绘制无符号整数 (右对齐, 前导空格) */
 void Tft_Driver_Show_Num(uint8_t ln, uint8_t col, uint32_t v,
                          uint8_t len, uint16_t fg, uint16_t bg)
 {
@@ -442,7 +499,6 @@ void Tft_Driver_Show_Num(uint8_t ln, uint8_t col, uint32_t v,
             (char)('0' + (v / Tft_Driver_Pw(len - 1 - i)) % 10), fg, bg);
 }
 
-/** @brief 绘制浮点数 (右对齐, 指定整数+小数位数) */
 void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
                            uint8_t il, uint8_t fl, uint16_t fg, uint16_t bg)
 {
@@ -462,7 +518,7 @@ void Tft_Driver_Show_Float(uint8_t ln, uint8_t col, float v,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  中文渲染 - 双路径: Flash 二分查找 (6763字) / ROM 线性回退 (76字)
+ *  中文渲染 — 双路径: Flash 二分查找 (20902字) / ROM 4字回退 (SPLASH)
  * ═══════════════════════════════════════════════════════════════ */
 
 static uint8_t Tft_Is_UTF8_CN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
@@ -496,7 +552,7 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
         }
         Tft_DMA_Send(s_dma_buf, 256);
     } else {
-        /* ── ROM 回退: CN_INDEX 线性查找 (76字) ── */
+        /* ── ROM 回退: CN_INDEX 线性查找 (4字: 无/线/充/电) ── */
         uint8_t g_idx; uint8_t i;
         g_idx = 0xFF;
         for (i = 0; i < TFT_CN_FONT_CHAR_COUNT; i++) {
@@ -518,7 +574,6 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
     }
 }
 
-/** @brief 绘制中英文混合字符串 (自动识别 UTF-8 中文 + ASCII) */
 void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
                                 uint16_t fg, uint16_t bg)
 {
@@ -534,42 +589,59 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  WiFi 图标 - 片内 ROM 读取
+ *  Icon 绘制 — Flash V2 Icon Table 读取 (零 ROM 回退)
  * ═══════════════════════════════════════════════════════════════ */
 
-/** @brief 绘制 16x16 WiFi 信号动画图标 (frame: 0~3 逐帧扩散) */
-void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t fg, uint16_t bg)
+/** @brief 统一 Flash 图标绘制: (icon_id, frame) -> 16x16 pixel render
+ *  @param icon_id 0-30, see ICON_ID_* defines in Tft_Driver.h
+ *  @param frame   0..n_frames-1, clamped internally
+ *  @param x,y     top-left TFT pixel coordinates
+ *  @param fg,bg   foreground/background RGB565 colors
+ *  @retval 1=success, 0=Flash not valid or icon_id out of range */
+uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
+    uint8_t icon_id, uint8_t frame, uint16_t fg, uint16_t bg)
 {
-    uint8_t row; uint16_t* p;
-    if (frame > 3) frame = 3;
+    uint8_t row, i;
+    uint16_t *p;
+    uint8_t  found = 0;
+    uint16_t n_frames = 0;
+    uint16_t data_off = 0;
 
+    /* Guard: Flash must be valid with icon table loaded */
+    if (!s_font_flash_valid || s_icon_count == 0) return 0;
+
+    /* Linear scan icon table for icon_id */
+    for (i = 0; i < s_icon_count; i++) {
+        if (s_icon_table[i].icon_id == icon_id) {
+            n_frames = s_icon_table[i].n_frames;
+            data_off = s_icon_table[i].data_offset;
+            found = 1;
+            break;
+        }
+    }
+    if (!found || n_frames == 0) return 0;
+
+    /* Clamp frame */
+    if (frame >= n_frames) frame = (uint8_t)(n_frames - 1);
+
+    /* Read 32B frame from Flash, decode into DMA buffer */
     SetWin(x, y, x + 15, y + 15);
-
     p = s_dma_buf;
-    for (row = 0; row < 16; row++)
-        Decode_CN_Row(WIFI_ICON[frame][row * 2], WIFI_ICON[frame][row * 2 + 1],
-                       fg, bg, p + row * 16);
-
+    {
+        uint32_t frame_addr;
+        uint8_t  frame_data[32];
+        frame_addr = s_icon_data_base + (uint32_t)data_off + (uint32_t)frame * 32U;
+        W25Q_Driver_Read(frame_addr, frame_data, 32);
+        for (row = 0; row < 16; row++)
+            Decode_CN_Row(frame_data[row * 2], frame_data[row * 2 + 1],
+                          fg, bg, p + row * 16);
+    }
     Tft_DMA_Send(s_dma_buf, 256);
-}
-
-/** @brief 绘制 16x16 单帧图标 (32 字节 LSB-first 位图) */
-void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
-                                  uint16_t fg, uint16_t bg)
-{
-    uint8_t row; uint16_t* p;
-
-    SetWin(x, y, x + 15, y + 15);
-
-    p = s_dma_buf;
-    for (row = 0; row < 16; row++)
-        Decode_CN_Row(data[row * 2], data[row * 2 + 1], fg, bg, p + row * 16);
-
-    Tft_DMA_Send(s_dma_buf, 256);
+    return 1;
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  5×10 微型数字 - 片内保留 (120B, 零 Flash 等待)
+ *  5×10 微型数字 — 片内保留 (120B, 零 Flash 等待)
  * ═══════════════════════════════════════════════════════════════ */
 
 static const uint8_t FONT_5X10[12][10] = {
@@ -594,7 +666,6 @@ static uint8_t Map_5x10_Idx(char ch)
     return 11;
 }
 
-/** @brief 绘制 5x10 微型数字字符串 (像素坐标, DMA 发送) */
 void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
                                         const char* s,
                                         uint16_t fg, uint16_t bg)
@@ -617,45 +688,8 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  Icon By ID - 按编号绘制 16x16 图标 (ROM lookup)
- * ═══════════════════════════════════════════════════════════════ */
-
-/** @brief 按 icon_id 绘制 16x16 图标 (11=BATTERY ~ 30=CLOCK) */
-void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
-                                 uint16_t fg, uint16_t bg)
-{
-    uint8_t row; uint16_t* p;
-    SetWin(x, y, x + 15, y + 15);
-    p = s_dma_buf;
-    switch (icon_id) {
-        case 11: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_BATTERY[row*2],    ICON_BATTERY[row*2+1],    fg, bg, p + row*16); break;
-        case 12: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_WARNING[row*2],    ICON_WARNING[row*2+1],    fg, bg, p + row*16); break;
-        case 13: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CHECK[row*2],      ICON_CHECK[row*2+1],      fg, bg, p + row*16); break;
-        case 14: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CROSS[row*2],      ICON_CROSS[row*2+1],      fg, bg, p + row*16); break;
-        case 15: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_POWER[row*2],      ICON_POWER[row*2+1],      fg, bg, p + row*16); break;
-        case 16: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_LIGHTNING[row*2],  ICON_LIGHTNING[row*2+1],  fg, bg, p + row*16); break;
-        case 17: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_TEMP[row*2],       ICON_TEMP[row*2+1],       fg, bg, p + row*16); break;
-        case 18: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_FAN[row*2],        ICON_FAN[row*2+1],        fg, bg, p + row*16); break;
-        case 19: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_LOCK[row*2],       ICON_LOCK[row*2+1],       fg, bg, p + row*16); break;
-        case 20: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_HOME[row*2],       ICON_HOME[row*2+1],       fg, bg, p + row*16); break;
-        case 21: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_GEAR[row*2],       ICON_GEAR[row*2+1],       fg, bg, p + row*16); break;
-        case 22: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_REFRESH[row*2],    ICON_REFRESH[row*2+1],    fg, bg, p + row*16); break;
-        case 23: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_UP[row*2],   ICON_ARROW_UP[row*2+1],   fg, bg, p + row*16); break;
-        case 24: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_DN[row*2],   ICON_ARROW_DN[row*2+1],   fg, bg, p + row*16); break;
-        case 25: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_LT[row*2],   ICON_ARROW_LT[row*2+1],   fg, bg, p + row*16); break;
-        case 26: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_ARROW_RT[row*2],   ICON_ARROW_RT[row*2+1],   fg, bg, p + row*16); break;
-        case 27: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_SIGNAL[row*2],     ICON_SIGNAL[row*2+1],     fg, bg, p + row*16); break;
-        case 28: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_GLOBE[row*2],      ICON_GLOBE[row*2+1],      fg, bg, p + row*16); break;
-        case 29: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CHART[row*2],      ICON_CHART[row*2+1],      fg, bg, p + row*16); break;
-        case 30: for (row = 0; row < 16; row++) Decode_CN_Row(ICON_CLOCK[row*2],      ICON_CLOCK[row*2+1],      fg, bg, p + row*16); break;
-        default: { uint8_t i; for (i = 0; i < 256; i++) p[i] = bg; } break;
-    }
-    Tft_DMA_Send(s_dma_buf, 256);
-}
-
 /* ===============================================================
- *  SPLASH 开机动画 - 纯代码实现 (V4.3.2)
+ *  SPLASH 开机动画 — 纯代码实现 (V4.3.2)
  *
  *  布局 (160×128):
  *  +----------------------------------+
@@ -671,10 +705,9 @@ void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
  *    Phase 2 (3200ms): 4字x8帧x50ms = 400ms/字, 每字渐亮
  *    Hold   (400ms):   全亮定格
  *
- *  使用字库: ROM 76 字 - 无 线 充 电, 不依赖 Flash
+ *  使用字库: ROM ASCII 95 + CN 4字, SPLASH 不依赖 Flash
  * ============================================================= */
 
-/** @brief SPLASH 开机动画: 背光渐亮 + 无 线 充 电 / WPT 逐字点亮 ~2.0s */
 void Tft_Driver_Show_Splash(void)
 {
     uint8_t i, bl, col;

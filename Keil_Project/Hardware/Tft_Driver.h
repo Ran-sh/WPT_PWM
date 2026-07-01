@@ -1,14 +1,12 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.h
- * @brief   ST7735 128x160 TFT 彩屏驱动 — V4.3.2
- *
- *  连接: SPI1 分时复用 (PA5=SCK, PA7=MOSI, PA6=DC/MISO 动态切换, PA4=TFT_CS,
- *        PA12=W25Q128_CS 双片选门控, PA0=TFT_RST, PB6=TIM4_CH1 背光 PWM)
- *        SPI Mode3 CPOL=H CPHA=2Edge, 全双工 (TFT 只写不读, Flash 读写)
- *        字库: Flash 20897 字 (CRC32 STM32 refin=false) -> ROM 76 字自动回退
- *        横屏 160x128 RGB565, MADCTL=0xA0, SetWin 偏移 X+1/Y+2
- *        DMA1_Channel3 像素泵送, WrCmd/WrDat 8bit 轮询, PA6 动态 DC/MISO
+ * @brief   ST7735 128x160 TFT 彩屏显示驱动 — V4.3.2
+ * @note    SPI1 分时复用 (PA5=SCK, PA7=MOSI, PA6=DC/MISO 动态, PA4=TFT_CS,
+ *          PA12=W25Q128_CS, PA0=RST, PB6=BL)
+ *          SPI Mode3, 全双工 (TFT 只写, Flash 读写)
+ *          字库: Flash V2 20897 字 + 31图标 (CRC32), ROM 仅 SPLASH 4汉字
+ *          横屏 160x128, RGB565, MADCTL=0xA0
  ******************************************************************************
  */
 
@@ -31,6 +29,39 @@
 #define TFT_COLOR_DARK_GREEN  0x03E0
 #define TFT_COLOR_DARK_BLUE   0x0018
 
+/* ── Flash Icon ID 常量 (V2 Font_Header icon_table 索引) ── */
+#define ICON_ID_WIFI_SIGNAL       0
+#define ICON_ID_WIFI_CONNECT_ANIM 1
+#define ICON_ID_WIFI_OFF          2
+#define ICON_ID_WIFI_REMOVE       3
+#define ICON_ID_MQTT_BASE         4
+#define ICON_ID_MQTT_YES          5
+#define ICON_ID_MQTT_NO           6
+#define ICON_ID_MQTT_ANIM         7
+#define ICON_ID_STAR              8
+#define ICON_ID_STAR_CURSOR_ANIM  9
+#define ICON_ID_ROCKET_ANIM       10
+#define ICON_ID_BATTERY           11
+#define ICON_ID_WARNING           12
+#define ICON_ID_CHECK             13
+#define ICON_ID_CROSS             14
+#define ICON_ID_POWER             15
+#define ICON_ID_LIGHTNING         16
+#define ICON_ID_TEMP              17
+#define ICON_ID_FAN               18
+#define ICON_ID_LOCK              19
+#define ICON_ID_HOME              20
+#define ICON_ID_GEAR              21
+#define ICON_ID_REFRESH           22
+#define ICON_ID_ARROW_UP          23
+#define ICON_ID_ARROW_DN          24
+#define ICON_ID_ARROW_LT          25
+#define ICON_ID_ARROW_RT          26
+#define ICON_ID_SIGNAL            27
+#define ICON_ID_GLOBE             28
+#define ICON_ID_CHART             29
+#define ICON_ID_CLOCK             30
+
 /* ── 显示参数 ── */
 #define TFT_WIDTH             160   /* 横屏宽 (物理160) */
 #define TFT_HEIGHT            128   /* 横屏高 (物理128) */
@@ -43,8 +74,8 @@
  *  @note  仅初始化 TFT 硬件, 不访问 W25Q128 (Flash 驱动尚未就绪) */
 void Tft_Driver_Init(void);
 /** @brief 初始化 Flash 字库 (W25Q_Driver_Init 之后调用)
- *  @note  读取并校验 W25Q128 中的 Font Header, 有效则启用 Flash 全字库路径,
- *         无效则自动回退 ROM 76 字 */
+ *  @note  读取并校验 W25Q128 中的 Font Header (V2 48B), 有效则启用 Flash 全字库 + 图标,
+ *         无效则自动回退 ROM 4 字 */
 void Tft_Driver_Font_Init(void);
 /** @brief 全屏填充单色 */
 void Tft_Driver_Clear(uint16_t color);
@@ -71,28 +102,27 @@ void Tft_Driver_Show_CN_String(uint8_t line, uint8_t column, const char* str,
 void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
 /** @brief 用黑底擦除指定像素区域 (等价 Fill_Rect 黑色, 语义明确) */
 void Tft_Driver_Erase_Pixel_Area(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
-/** @brief 绘制 16x16 WIFI 信号动画图标 (frame:0-3, 逐帧扩散) */
-void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t fg, uint16_t bg);
-/** @brief 绘制 16x16 单帧图标 (32字节 LSB-first 位图) */
-void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
-                                  uint16_t fg, uint16_t bg);
-/** @brief 在 TFT 像素坐标绘制 5×10 微型数字字符串 (7px步进, DMA发送) */
+
+/** @brief 在 TFT 像素坐标绘制 5x10 微型数字字符串 (7px步进, DMA发送) */
 void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
                                        const char* s,
                                        uint16_t fg, uint16_t bg);
 
-/** @brief 按 icon_id 绘制 16x16 图标 (现有 ROM 数组, Flash Table 模式待扩展)
- *  @param icon_id  11=BATTERY 12=WARNING 13=CHECK 14=CROSS 15=POWER 16=LIGHTNING
- *                   17=TEMP 18=FAN 19=LOCK 20=HOME 21=GEAR 22=REFRESH
- *                   23=ARROW_UP 24=ARROW_DN 25=ARROW_LT 26=ARROW_RT
- *                   27=SIGNAL 28=GLOBE 29=CHART 30=CLOCK */
-void Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
-                                 uint16_t fg, uint16_t bg);
+/** @brief 统一 Flash 图标绘制: (icon_id, frame) -> 16x16 pixel render
+ *  @param x,y     top-left TFT pixel coordinates (0-based pixel)
+ *  @param icon_id 0-30, see ICON_ID_* defines above
+ *  @param frame   0..n_frames-1, clamped internally
+ *  @param fg,bg   foreground/background RGB565 colors
+ *  @retval 1=success, 0=Flash not valid or icon_id out of range
+ *  @note   Flash V2 Font_Header required; no ROM fallback for icons */
+uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
+    uint8_t icon_id, uint8_t frame, uint16_t fg, uint16_t bg);
 
-/** @brief SPLASH 开机动画 — 背光渐亮 + 无 线 充 电 / WPT 两行逐字点亮 ~2.0s */
+/** @brief 显示 SPLASH 开机动画 (纯代码: 背光渐亮 + 逐字点亮, ~4.8s, ROM 4 字)
+ *  @note  Delay_Ms 步进, 不依赖 W25Q Flash */
 void Tft_Driver_Show_Splash(void);
 
-/** @brief 查询 Flash 字库是否就绪 (1=Flash 6763字, 0=ROM 回退 76字)
+/** @brief 查询 Flash 字库是否就绪 (1=Flash V2 20902字+31图标, 0=ROM 4字回退)
  *  @note  Sys_Startup_Screen 用此在启动末行显示加载状态 */
 uint8_t Tft_Driver_Is_Font_Flash_Valid(void);
 

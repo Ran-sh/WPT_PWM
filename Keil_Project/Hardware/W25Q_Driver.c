@@ -1,7 +1,37 @@
 /**
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.c
- * @brief   W25Q128 16MB SPI NOR Flash - SPI1 分时复用驱动 (V4.3.2)
+ * @brief   W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 (V4.3.2)
+ *
+ *  Pinout (shares SPI1 with TFT, PA6 dynamic swap):
+ *  +------------------------------------------------------------+
+ *  |    STM32F103C8T6               W25Q128 (16MB SPI NOR Flash  |
+ *  |                                                             |
+ *  |    PA5  --- SPI1_SCK ------------------> CLK  (shared w/ T  |
+ *  |    PA7  --- SPI1_MOSI ------------------> DI   (shared w/   |
+ *  |    PA6  --- SPI1_MISO <------------------ DO   (dynamic sw  |
+ *  |    PA12 --- GPIO_PP --------------------> /CS  (GPIO gated  |
+ *  |              BSRR atomic toggle, glitch-free                |
+ *  |                                                             |
+ *  |    Partition layout (16MB, 0x000000 ~ 0xFFFFFF):            |
+ *  |      [0x000000~0x1FFFFF] Font lib (2MB)  <- CH341A burn     |
+ *  |      [0x200000~0x2FFFFF] Font reserve (1MB)                 |
+ *  |      [0x300000~0x301FFF] Params dual-copy (8KB)             |
+ *  |      [0x400000~0x7FFFFF] Blackbox log (4MB)                 |
+ *  |      [0x800000~0xFFFFFF] Unused (8MB)                       |
+ *  |                                                             |
+ *  |    CS toggle rule: CS high+low before EVERY CMD_READ,       |
+ *  |      else Flash command decoder ignores second read         |
+ *  |                                                             |
+ *  |    Four hardware deadlock guards:                           |
+ *  |      L1: Write enable (0x06) cascaded + CS edge latch       |
+ *  |      L2: Busy bit (SR1 BIT0) blocking wait with bounds      |
+ *  |      L3: DFF (SPI1 CR1 bit11) atomic 8b<->16b no-glitch     |
+ *  |      L4: Wave-active (SWEEP/RUNNING) global erase ban (45m  |
+ *  +------------------------------------------------------------+
+ *
+ * @note    ARMCC V5 SPL, pure C89, no // comments
+ ******************************************************************************
  */
 
 #include "W25Q_Driver.h"
@@ -37,7 +67,6 @@ static uint8_t s_chip_ok = 0;
  * ═══════════════════════════════════════════════ */
 
 /** @brief PA6 → Input floating (Flash MISO), CS 拉低 → 门控闭合 */
-/** @brief 进入 Flash 独占模式: PA6->MISO + CS=L, 独占 SPI 总线 */
 void W25Q_Enter_Mode(void)
 {
     GPIOA->CRL &= ~(0x0FU << 24); GPIOA->CRL |= (0x04U << 24); /* PA6=Input floating */
@@ -46,7 +75,6 @@ void W25Q_Enter_Mode(void)
 
 /** @brief CS 拉高 → 门控释放, PA6 → GPIO_Out_PP (恢复 TFT DC 角色)
  *  @note  先置 ODR HIGH (TFT DC=DATA), 再切方向, 防切向瞬间低电平毛刺导致 TFT 误收命令 */
-/** @brief 退出 Flash 独占模式: CS=H + PA6->DC, 释放总线归还 TFT */
 void W25Q_Leave_Mode(void)
 {
     FLASH_CS_HIGH();                                             /* 门控: 释放 Flash */
@@ -70,7 +98,6 @@ uint8_t W25Q_SPI_Transfer(uint8_t tx)
  * ═══════════════════════════════════════════════ */
 
 /** @brief SPI1 → 8位帧 */
-/** @brief SPI1 -> 8bit 帧模式 (原子闪切 DFF 位) */
 void W25Q_SPI_8bit(void)
 {
     SPI_Cmd(SPI1, DISABLE); SPI1->CR1 &= ~SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE); /* 原子清 DFF */
@@ -89,7 +116,6 @@ static void W25Q_SPI_16bit(void)
 
 /** @brief 死等 W25Q128 Busy 位清零 (SR1 BIT0), 超时护底
  *  @note  任何读/写/擦除的 if-else 进入和退出边界必须调用 */
-/** @brief 阻塞等待 W25Q128 Busy 位清零 (超时护底) */
 void W25Q_Wait_Busy_Timeout(void)
 {
     uint32_t deadline; uint8_t sr1;
@@ -134,7 +160,6 @@ void W25Q_Driver_Init(void)
     s_chip_ok = 1;
 }
 
-/** @brief 读 JEDEC ID: 24bit 0xEF4018=W25Q128, 失败返回0 */
 uint32_t W25Q_Driver_Read_JEDEC_ID(void)
 {
     uint32_t id;
@@ -147,7 +172,6 @@ uint32_t W25Q_Driver_Read_JEDEC_ID(void)
     return id;
 }
 
-/** @brief 读状态寄存器 1 (用于外部 Busy 检查) */
 uint8_t W25Q_Driver_Read_SR1(void)
 {
     uint8_t sr1;
@@ -158,7 +182,6 @@ uint8_t W25Q_Driver_Read_SR1(void)
     return sr1;
 }
 
-/** @brief 通用 SPI 读: 任意地址任意长度 (0x03 命令, 轮询) */
 void W25Q_Driver_Read(uint32_t addr, uint8_t *buf, uint16_t len)
 {
     if (!s_chip_ok || buf == 0 || len == 0) return;
@@ -173,7 +196,6 @@ void W25Q_Driver_Read(uint32_t addr, uint8_t *buf, uint16_t len)
     W25Q_Leave_Mode();                                   /* CS=H, PA6→DC */
 }
 
-/** @brief 页写入: <=256B, 自动发写使能+等 Busy (调用方保证不跨页) */
 void W25Q_Driver_Write_Page(uint32_t addr, const uint8_t *buf, uint16_t len)
 {
     if (!s_chip_ok || buf == 0 || len == 0 || len > W25Q_PAGE_SIZE) return;
@@ -188,7 +210,6 @@ void W25Q_Driver_Write_Page(uint32_t addr, const uint8_t *buf, uint16_t len)
     W25Q_Leave_Mode(); W25Q_Wait_Busy_Timeout();         /* L2: 退出边界 ~3ms */
 }
 
-/** @brief 扇区擦除: 4KB (0x20), 发波态硬件拦截, 阻塞 ~45ms */
 void W25Q_Driver_Erase_Sector(uint32_t addr)
 {
     /* ══ L4: 发波态绝对禁擦 ══ */
@@ -205,26 +226,27 @@ void W25Q_Driver_Erase_Sector(uint32_t addr)
 }
 
 /* ═══════════════════════════════════════════════
- *  Font_Header_Load - 上电校验字库头部
+ *  Font_Header_Load — 上电校验字库头部
  * ═══════════════════════════════════════════════ */
 
-/** @brief 加载并 CRC32 校验 Font Header, 返回 1=有效
- *  @note  依赖 extern CRC32_Compute (App_Storage.c) */
-/** @brief 加载并校验 Font Header (magic + CRC32), 返回 1=有效 */
+/** @brief 加载并 CRC32 校验 Font Header (V2 48B), 返回 1=有效
+ *  @note  依赖 extern CRC32_Compute (App_Storage.c)
+ *          V2: 版本号 >= 2 + CRC32 覆盖 0x0C→0x2F (36B) */
 uint8_t Font_Header_Load(Font_Header *hdr)
 {
     uint32_t crc_stored; uint32_t crc_computed;
     if (!s_chip_ok || hdr == 0) return 0;
     W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)hdr, sizeof(Font_Header));
     if (hdr->magic != FONT_MAGIC) return 0;
+    if (hdr->version < 2) return 0;                              /* V2+ 才含图标表字段 */
     crc_stored = hdr->crc32; hdr->crc32 = 0;                    /* 临时清零用于计算 */
-    crc_computed = CRC32_Compute((uint8_t*)hdr + 0x0C, 20);     /* 0x0C→0x1F */
+    crc_computed = CRC32_Compute((uint8_t*)hdr + 0x0C, 36);     /* 0x0C→0x2F (36B) */
     hdr->crc32 = crc_stored;
     return (crc_stored == crc_computed) ? 1 : 0;
 }
 
 /* ═══════════════════════════════════════════════
- *  Font_Index_Binary_Search - 总线独占 二分检索
+ *  Font_Index_Binary_Search — 总线独占 二分检索
  *  V4.3.2 FIX: uint16_t→uint32_t, 修复高位 offset 截断
  * ═══════════════════════════════════════════════ */
 
@@ -234,7 +256,6 @@ uint8_t Font_Header_Load(Font_Header *hdr)
  *          CS 脉冲期间 PA6 保持 MISO 角色 (仅切 CS 线, 不重配 GPIO)
  *          Entry+Exit 各一次 Leave_Mode, 中途不归还总线
  *  @retval U32 offset 相对 CJK_Data_BASE, 0xFFFFFFFF=未找到 */
-/** @brief 总线独占二分搜索 CJK 字模索引 (6763 条 Unicode 升序, 5.85us/字) */
 uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
 {
     uint16_t lo, hi, mid, mid_uc; uint32_t addr, found_off;

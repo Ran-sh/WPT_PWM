@@ -1,7 +1,26 @@
 /**
  ******************************************************************************
  * @file    Hardware/Inverter_Control.c
- * @brief   逆变器控制 - 软启动状态机 + 频率斜坡 (V4.3.2)
+ * @brief   逆变器控制 — 软启动状态机 + 频率斜坡 ( V4.3.2
+ *
+ *  Pinout (via dependent modules):
+ *  +----------------------------------------------------------+
+ *  |                       STM32F103C8T6                       |
+ *  |                                                           |
+ *  |    PA8  --- TIM1_CH1  ---+--- Full-bridge CH1   (Pwm_Dri  |
+ *  |    PA9  --- TIM1_CH2  ---+--- Full-bridge CH2   (Pwm_Dri  |
+ *  |    PB13 --- TIM1_CH1N ---+--- FB CH1N complement (Pwm_Dr  |
+ *  |    PB14 --- TIM1_CH2N ---+--- FB CH2N complement (Pwm_Dr  |
+ *  |                                                           |
+ *  |    PB10 --- GPIO_PP ---------- 12V power enable (Sys_Cor  |
+ *  |              (HIGH=enable, LOW=disable)                   |
+ *  |                                                           |
+ *  |    Soft-start: freq ramp 150kHz -> 100kHz, 1kHz step, 20  |
+ *  |    FAULT: instant brake, all ramps cancel, PWM disabled   |
+ *  +----------------------------------------------------------+
+ *
+ * @note    Soft-start 150k->100kHz non-blocking, PWM deadtime 1000ns
+ ******************************************************************************
  */
 
 #include "Inverter_Control.h"
@@ -23,7 +42,6 @@ static void Inverter_Control_Set_State_Atomic(Inverter_Control_Soft_Start_State 
     /* Cortex-M3 对 32-bit 对齐存储保证单指令原子写入, Get_State 无需禁用 IRQ */
 }
 
-/** @brief 触发软启动: IDLE -> SWEEP, 频率从 150kHz 向下斜坡 */
 void Inverter_Control_Soft_Start_Trigger(void)
 {
     if (s_ss_state != INVERTER_CONTROL_SS_STATE_IDLE) return;
@@ -36,7 +54,6 @@ void Inverter_Control_Soft_Start_Trigger(void)
     Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_SWEEP);
 }
 
-/** @brief 软启动周期任务: 驱动频率斜坡 150k->100kHz, 非阻塞 */
 void Inverter_Control_Soft_Start_Task(void)
 {
     if (s_ss_state != INVERTER_CONTROL_SS_STATE_SWEEP) return;
@@ -57,7 +74,6 @@ void Inverter_Control_Soft_Start_Task(void)
     }
 }
 
-/** @brief 停止软启动: 关 PWM -> 回 IDLE */
 void Inverter_Control_Soft_Start_Stop(void)
 {
     Pwm_Driver_Disable();
@@ -65,7 +81,6 @@ void Inverter_Control_Soft_Start_Stop(void)
     Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_IDLE);
 }
 
-/** @brief 故障刹车: 立即关断 PWM, 进入 FAULT 状态 */
 void Inverter_Control_Soft_Start_Fault(void)
 {
     Pwm_Driver_Disable();
@@ -73,7 +88,6 @@ void Inverter_Control_Soft_Start_Fault(void)
     Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_FAULT);
 }
 
-/** @brief 复位软启动状态机 (FAULT 恢复后调用) */
 void Inverter_Control_Soft_Start_Reset(void)
 {
     Pwm_Driver_Disable();
@@ -82,13 +96,11 @@ void Inverter_Control_Soft_Start_Reset(void)
     Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_IDLE);
 }
 
-/** @brief 获取软启动状态机当前状态 (原子读取, 无需关 IRQ) */
 Inverter_Control_Soft_Start_State Inverter_Control_Soft_Start_Get_State(void)
 {
     return s_ss_state;
 }
 
-/** @brief 获取软启动当前实际频率 (Hz) */
 uint32_t Inverter_Control_Soft_Start_Get_Current_Freq(void)
 {
     return s_ss_current_freq;
@@ -101,8 +113,6 @@ uint32_t Inverter_Control_Soft_Start_Get_Current_Freq(void)
 static uint32_t                    s_ramp_target  = 0;
 static uint32_t s_ramp_last_ms  = 0;
 
-/** @brief 触发频率斜坡到目标值 (1kHz/步, 非阻塞)
- *  @param target_hz 目标频率 (Hz) */
 void Inverter_Control_Freq_Ramp_Trigger(uint32_t target_hz)
 {
     if (target_hz < PWM_DRIVER_FREQ_MIN_HZ) target_hz = PWM_DRIVER_FREQ_MIN_HZ;
@@ -113,7 +123,6 @@ void Inverter_Control_Freq_Ramp_Trigger(uint32_t target_hz)
     s_ramp_last_ms = Sys_Timer_Get_Tick();
 }
 
-/** @brief 频率斜坡周期任务: 逐级调到目标频率 */
 void Inverter_Control_Freq_Ramp_Task(void)
 {
     if (s_ramp_state == INVERTER_CONTROL_RAMP_IDLE) return;
@@ -144,13 +153,11 @@ void Inverter_Control_Freq_Ramp_Task(void)
     }
 }
 
-/** @brief 获取频率斜坡目标值 (Hz) */
 uint32_t Inverter_Control_Freq_Ramp_Get_Target(void)
 {
     return s_ramp_target;
 }
 
-/** @brief 取消当前频率斜坡 (FAULT 或手动停止时调用) */
 void Inverter_Control_Freq_Ramp_Cancel(void)
 {
     s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;

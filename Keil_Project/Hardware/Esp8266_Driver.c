@@ -1,7 +1,25 @@
 /**
  ******************************************************************************
  * @file    Hardware/Esp8266_Driver.c
- * @brief   ESP8266 串口通信驱动 - V4.3.2
+ * @brief   ESP8266 串口通信驱动 — V4.3.2
+ *
+ *  Pinout:  STM32 <-> ESP8266 (USART2 + control)
+ *  +------------------------------------------------------------+
+ *  |    STM32F103C8T6                      ESP8266               |
+ *  |                                                             |
+ *  |    PA2  --- USART2_TX  ----------------->  RXD              |
+ *  |    PA3  --- USART2_RX  <-----------------  TXD              |
+ *  |    PA1  --- GPIO_PP    ----------------->  RST              |
+ *  |    PB11 --- GPIO_PP    ----------------->  CH_PD / EN       |
+ *  |                                                             |
+ *  |    UART: 115200-8-N-1, plain JSON, zero AT commands         |
+ *  |    Sequence: CH_PD high -> 100ms -> RST pulse(100ms) -> 4s  |
+ *  |    RX: RXNE ISR -> ring buf(3x256B) -> Try_Copy_Rx_Frame    |
+ *  |    TX: polling TXE + TC dual confirm                        |
+ *  +------------------------------------------------------------+
+ *
+ * @note    CH_PD=PB11 (EN), RST=PA1, USART2=PA2/PA3
+ ******************************************************************************
  */
 
 #include "Esp8266_Driver.h"
@@ -43,14 +61,14 @@ static void Esp8266_Driver_Config_GPIO_Once(void)
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_GPIOA, ENABLE);
 
-    /* RST: PA1, 初始高 - 不用复位时保持高 */
+    /* RST: PA1, 初始高 — 不用复位时保持高 */
     gpio.GPIO_Pin   = ESP8266_DRIVER_RST_PIN;
     gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(ESP8266_DRIVER_RST_PORT, &gpio);
     GPIO_SetBits(ESP8266_DRIVER_RST_PORT, ESP8266_DRIVER_RST_PIN);
 
-    /* CH_PD/EN: PB11, 初始低 - 默认断电 */
+    /* CH_PD/EN: PB11, 初始低 — 默认断电 */
     gpio.GPIO_Pin   = ESP8266_DRIVER_CH_PD_PIN;
     GPIO_Init(ESP8266_DRIVER_CH_PD_PORT, &gpio);
     GPIO_ResetBits(ESP8266_DRIVER_CH_PD_PORT, ESP8266_DRIVER_CH_PD_PIN);
@@ -98,7 +116,6 @@ static void Esp8266_Driver_Config_USART_Once(void)
  *  公开接口
  * ═══════════════════════════════════════════════════════════════ */
 
-/** @brief 启动 ESP8266 硬件初始化: RST 脉冲 + BOOT_WAIT */
 void Esp8266_Driver_Start_Init(void)
 {
     /* 硬件只配一次, 避免反复 USART_Init 干扰正在接收的数据 */
@@ -125,7 +142,6 @@ void Esp8266_Driver_Start_Init(void)
     s_init_state = ESP8266_DRIVER_INIT_RST_PULSE;
 }
 
-/** @brief 周期驱动 ESP8266 初始化状态机 */
 void Esp8266_Driver_Init_Task(void)
 {
     switch (s_init_state) {
@@ -161,14 +177,11 @@ void Esp8266_Driver_Init_Task(void)
     }
 }
 
-/** @brief 查询 ESP8266 是否就绪 (初始化完成, 串口可用) */
 uint8_t Esp8266_Driver_Is_Ready(void)
 {
     return (s_init_state == ESP8266_DRIVER_INIT_READY);
 }
 
-/** @brief 发送字符串到 ESP8266 (轮询 TXE+TC, 阻塞)
- *  @param str 以 \0 结尾的字符串 */
 void Esp8266_Driver_Send_String(const char* str)
 {
     while (*str) {
@@ -177,7 +190,6 @@ void Esp8266_Driver_Send_String(const char* str)
     }
 }
 
-/** @brief ISR 回调: 接收 1 字节到环形缓冲 */
 void Esp8266_Driver_Rx_Char(uint8_t ch)
 {
     if (ch == '\r' || ch == '\n') {
@@ -190,19 +202,16 @@ void Esp8266_Driver_Rx_Char(uint8_t ch)
     }
 }
 
-/** @brief 查询是否有新接收帧 (非阻塞) */
 uint8_t Esp8266_Driver_Get_Rx_Flag(void)
 {
     return s_rx_frame_flag;
 }
 
-/** @brief 获取接收缓冲区只读指针 (配合 Get_Rx_Flag 使用) */
 const char* Esp8266_Driver_Get_Rx_Buffer(void)
 {
     return s_rx_buf;
 }
 
-/** @brief 清空接收缓冲 (临界区保护) */
 void Esp8266_Driver_Clear_Rx_Buffer(void)
 {
     uint32_t primask = __get_PRIMASK();
@@ -232,7 +241,13 @@ uint16_t Esp8266_Driver_Copy_Rx_Frame(char* dst, uint16_t max_len)
     return len;
 }
 
-/** @brief 原子检查+复制: flag-check + frame-copy + clear 在同一临界区内完成 @note   消除 Get_Rx_Flag()→Copy_Rx_Frame() 之间的中断窗口: 若检测到帧标志后 ISR 又写入新帧, 旧原子方案会在 Copy 内清标志, 导致新帧标志也一并被清零, 帧静默丢失。 本函数将"判断+复制"合一, 返回 0 (无帧) 或有效帧长, 调用方无需先调 Get_Rx_Flag。 */
+/**
+ * @brief  原子检查+复制: flag-check + frame-copy + clear 在同一临界区内完成
+ * @note   消除 Get_Rx_Flag()→Copy_Rx_Frame() 之间的中断窗口:
+ *         若检测到帧标志后 ISR 又写入新帧, 旧原子方案会在 Copy 内清标志,
+ *         导致新帧标志也一并被清零, 帧静默丢失。
+ *         本函数将"判断+复制"合一, 返回 0 (无帧) 或有效帧长, 调用方无需先调 Get_Rx_Flag。
+ */
 uint16_t Esp8266_Driver_Try_Copy_Rx_Frame(char* dst, uint16_t max_len)
 {
     uint16_t len = 0;

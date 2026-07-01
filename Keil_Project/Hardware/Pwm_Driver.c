@@ -1,7 +1,27 @@
 /**
  ******************************************************************************
  * @file    Hardware/Pwm_Driver.c
- * @brief   全桥 PWM 驱动 - V4.3.2
+ * @brief   全桥 PWM 驱动 — V4.3.2
+ *
+ *  Pinout (TIM1 full-bridge, default mapping):
+ *  +---------------------------------------------------------+
+ *  |                     STM32F103C8T6                        |
+ *  |                                                          |
+ *  |    PA8  --- TIM1_CH1  ---+--- High-side Q1 (PWM1)        |
+ *  |    PB13 --- TIM1_CH1N ---+--- Low-side  Q2 (complement,  |
+ *  |                                                          |
+ *  |    PA9  --- TIM1_CH2  ---+--- High-side Q3 (PWM2)        |
+ *  |    PB14 --- TIM1_CH2N ---+--- Low-side  Q4 (complement,  |
+ *  |                                                          |
+ *  |    Up mode, 50% duty, deadtime 1000ns                    |
+ *  |    Freq 95~150kHz (1kHz step)                            |
+ *  |    OC/OCN polarity=Low, UDIS shadow-register atomic upd  |
+ *  |    Power-on safe: TIM_Cmd(DISABLE)+MOE(DISABLE)          |
+ *  +---------------------------------------------------------+
+ *
+ * @note    PA8=CH1, PA9=CH2, PB13=CH1N, PB14=CH2N
+ *          Deadtime 1000ns, 50% duty, compile-time DTG calc
+ ******************************************************************************
  */
 
 #include "Pwm_Driver.h"
@@ -15,7 +35,6 @@
     ((PWM_DRIVER_DEADTIME_NS) * 72 + 500) / 1000
 typedef char Pwm_Driver_Deadtime_Check[(PWM_DRIVER_DEADTIME_CYCLES <= 127) ? 1 : -1];  /* 编译期断言: DTG 必须 ≤ 127 (7位线性段) */
 
-/** @brief 初始化 TIM1 全桥 PWM: 4通道+死区+预载, 初始全关零输出 */
 void Pwm_Driver_Init(void)
 {
     GPIO_InitTypeDef        gpio;
@@ -78,14 +97,9 @@ void Pwm_Driver_Init(void)
     TIM_CtrlPWMOutputs(TIM1, DISABLE);
 }
 
-/** @brief 开启 PWM 输出: 启动计数器 + MOE 使能 */
 void Pwm_Driver_Enable(void)  { TIM_Cmd(TIM1, ENABLE); TIM_CtrlPWMOutputs(TIM1, ENABLE); }
-/** @brief 关闭 PWM 输出: MOE 关断 + 计数器停止, 全桥归零 */
 void Pwm_Driver_Disable(void) { TIM_CtrlPWMOutputs(TIM1, DISABLE); TIM_Cmd(TIM1, DISABLE); }
 
-/** @brief 设置 PWM 频率并原子更新寄存器 (钳位 95~150kHz, 强制偶数 ticks 防偏磁)
- *  @param freq_hz 目标频率 (Hz)
- *  @retval 实际设定频率 (Hz) */
 uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz)
 {
     uint32_t ticks;
@@ -109,7 +123,6 @@ uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz)
     return SystemCoreClock / ticks;
 }
 
-/** @brief 获取当前 PWM 频率 (Hz), 从 TIM1->ARR 实时计算 */
 uint32_t Pwm_Driver_Get_Frequency(void)
 {
     uint32_t arr = TIM1->ARR;

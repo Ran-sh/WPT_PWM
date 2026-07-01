@@ -49,7 +49,6 @@
 #include "Sys_Timer.h"
 #include "App_Storage.h"
 
-/** @brief 程序入口: 初始化 -> SPLASH -> 1s停留 -> 主循环按状态分发 */
 int main(void)
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);         /* NVIC 优先级分组: 2位抢占 2位响应 */

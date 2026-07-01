@@ -1,15 +1,23 @@
 /**
  ******************************************************************************
  * @file    Hardware/Key_Driver.c
- * @brief   按键驱动 - V4.3.2 (4 keys)
+ * @brief   按键驱动 — V4.3.2 (4 keys)
  *
- *  接线: 全部 GPIO IPU 上拉, 按下=低电平
+ *  Pinout (4 keys, all IPU pull-up, press = LOW):
  *  +----------------------------------------------------------+
- *  |  PB8 -> F_UP  (频率+)   PB7 -> F_DOWN (频率-)          |
- *  |  PB5 -> PAGE  (确定/启停)  PB9 -> ON     (返回)         |
- *  |  每键独立 FSM: IDLE -> DEBOUNCE(10ms) -> PRESS          |
- *  |    -> WAIT_DOUBLE(200ms) -> LONG(3s)                    |
+ *  |                      STM32F103C8T6                        |
+ *  |                                                           |
+ *  |    PB8  --- IPU ---+--- Key --- GND    F_UP    (频率+)      |
+ *  |    PB7  --- IPU ---+--- Key --- GND    F_DOWN  (频率-)      |
+ *  |    PB5  --- IPU ---+--- Key --- GND    PAGE   (确定/启停)   |
+ *  |    PB9  --- IPU ---+--- Key --- GND    ON     (返回)         |
+ *  |                                                           |
+ *  |    Per-key FSM: IDLE -> DEBOUNCE(10ms) -> PRESS           |
+ *  |      -> WAIT_DOUBLE(200ms) -> LONG(3s)                    |
+ *  |    Batch read: Key_Driver_Read_Batch merges critical sec  |
  *  +----------------------------------------------------------+
+ *
+ * @note    PB5=PAGE(确定/启停), PB9=ON(返回), PB8=F_UP, PB7=F_DOWN
  ******************************************************************************
  */
 
@@ -47,7 +55,6 @@ static Key_Driver_Instance s_keys[KEY_DRIVER_COUNT] = {
     { GPIOB, GPIO_Pin_9, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0 }
 };
 
-/** @brief 初始化 4 键 GPIO: PB5/PB7/PB8/PB9 全部 IPU 上拉 */
 void Key_Driver_Init(void)
 {
     GPIO_InitTypeDef cfg;
@@ -116,7 +123,6 @@ static void Update_Fsm(Key_Driver_Instance* key)
     }
 }
 
-/** @brief 周期扫描 4 键 FSM (每 10ms), 自动去抖+单击/双击/长按判定 */
 void Key_Driver_Task(void)
 {
     static uint32_t last = 0;
@@ -130,7 +136,6 @@ void Key_Driver_Task(void)
     }
 }
 
-/** @brief 批量读取 4 键事件 (单次临界区, 阅后即焚, 减少 IRQ 抖动) */
 void Key_Driver_Get_All_Events(Key_Driver_Event out[4])
 {
     uint32_t primask = __get_PRIMASK();

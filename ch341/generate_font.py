@@ -2,8 +2,9 @@
 """
 generate_font.py — GB2312 一级汉字 + ASCII + 图标 → W25Q128 字库镜像 (2MB)
 V1.1  2026-06-29  移除 bit_reverse_byte, 字模 LSB-first 匹配 ROM; CRC32 改用 STM32 算法
-V1.2  2026-07-01  V4.3.2 同步: 图标无变更, 版本标记更新
-依赖: Pillow (pip install Pillow), simsun.ttc (Windows 自带 16px 宋体)
+V1.2  2026-07-01  V4.3.2: ROM 精简 -> Flash V2 48B header (图标表偏移字段), CRC 覆盖 0x0C->0x2F
+V1.3  2026-07-01  V4.3.2: 中文字体 -> 华文楷体 STKAITI.TTF; ASCII -> Arial
+依赖: Pillow (pip install Pillow), 华文楷体 STKAITI.TTF (Win自带), Arial
 """
 
 import struct, zlib, os, sys
@@ -13,7 +14,7 @@ FONT_DATA_BIN = "font_data.bin"
 FLASH_SIZE     = 2 * 1024 * 1024  # 2MB 满格, 烧录前补齐
 ALIGN          = 256              # 各区对齐到 256B 边界
 MAGIC          = 0x574B           # "WK"
-VERSION        = 1
+VERSION        = 2
 
 # ── CJK 范围: GB2312 一级 0x4E00~0x9FA0 (6763字) ──
 CJK_START  = 0x4E00
@@ -24,8 +25,7 @@ ASCII_END   = 0x7E
 ASCII_COUNT = ASCII_END - ASCII_START + 1  # 95
 
 # ═══════════════════════════════════════════════════════════════════
-# Icon data — 从 Keil_Project/Hardware/TFT_Font_Data.h 逐字节提取
-# 54 frames × 32B = 1728B, 编号与设计文档 §2 Icon Entry 一致
+# Icon data — 从 TFT_Font_Data.h ROM 同源, V2 全部 31 icons/54 frames ≡ Flash
 # ═══════════════════════════════════════════════════════════════════
 
 ICON_SPEC = [
@@ -260,17 +260,24 @@ def bit_reverse_byte(b: int) -> int:
     return b
 
 
-def render_ascii(font) -> bytes:
-    """PIL 渲染 ASCII 0x20~0x7E → 8×16 LSB-first, 95字×16B=1520B"""
+def render_ascii(letter_font, symbol_font):
+    """PIL 渲染 ASCII 0x20~0x7E -> 8×16 LSB-first, 95字x16B=1520B
+       字母数字用 letter_font (Arial), 符号用 symbol_font (宋体, 与 ROM 一致)"""
     data = bytearray()
     for cp in range(ASCII_START, ASCII_END + 1):
+        ch = chr(cp)
+        # 字母+数字=Arial, 其余符号=宋体 (保持与 ROM 同风格)
+        if ch.isalpha() or ch.isdigit():
+            font = letter_font
+        else:
+            font = symbol_font
         img = Image.new('1', (8, 16), 0); draw = ImageDraw.Draw(img)
-        draw.text((0, 0), chr(cp), font=font, fill=1)
+        draw.text((0, 0), ch, font=font, fill=1)
         for row in range(16):
             byte_val = 0
             for col in range(8):
-                if img.getpixel((col, row)): byte_val |= (1 << col)  # LSB-first: bit0=最左像素
-            data.append(byte_val)                    # LSB-first, 与 Decode_Char_Row 一致
+                if img.getpixel((col, row)): byte_val |= (1 << col)
+            data.append(byte_val)
     return bytes(data)
 
 
@@ -316,53 +323,62 @@ def align_to(n: int, boundary: int) -> int:
 
 
 def assemble_font_image(ascii_data: bytes,
-                        cjk_index: bytes, cjk_glyph: bytes) -> bytes:
-    """总装 Header + ASCII + IconTable + CJK Index + CJK Data → 2MB 镜像, 严格按设计文档 §2 布局"""
+                        cjk_index: bytes, cjk_glyph: bytes):
+    """总装 Header + ASCII + IconTable + CJK Index + CJK Data -> 2MB 镜像, 严格按设计文档 2 布局
+       V2 (48B header): 新增 icon_table_offset / icon_data_offset / icon_count, CRC 覆盖 0x0C->0x2F"""
 
     icon_table, icon_data = build_icon_table()
+    n_icon_entries = len(ICON_SPEC)
 
     # 各区偏移 (256B 对齐)
-    OFF_HEADER   = 0
-    OFF_ASCII    = 0x20
-    OFF_ICONS    = align_to(OFF_ASCII + len(ascii_data), ALIGN)
-    OFF_CJK_IDX  = align_to(OFF_ICONS + len(icon_table) + len(icon_data), ALIGN)
-    OFF_CJK_DAT  = align_to(OFF_CJK_IDX + len(cjk_index), ALIGN)
-    total_size   = OFF_CJK_DAT + len(cjk_glyph)
+    OFF_HEADER    = 0
+    OFF_ASCII     = 0x20
+    OFF_ICON_TABLE = align_to(OFF_ASCII + len(ascii_data), ALIGN)
+    OFF_ICON_DATA  = OFF_ICON_TABLE + len(icon_table)   # 表紧接数据, 无空洞
+    OFF_CJK_IDX   = align_to(OFF_ICON_DATA + len(icon_data), ALIGN)
+    OFF_CJK_DAT   = align_to(OFF_CJK_IDX + len(cjk_index), ALIGN)
+    total_size    = OFF_CJK_DAT + len(cjk_glyph)
 
-    # Header 32B 构建 (CRC 先留空)
-    hdr = bytearray(32)
-    struct.pack_into('<H', hdr, 0x00, MAGIC)               # magic  "WK"
-    hdr[0x02] = VERSION                                     # version
+    # Header 48B 构建 (CRC 先留空)
+    hdr = bytearray(48)
+    struct.pack_into('<H', hdr, 0x00, MAGIC)                # magic  "WK"
+    hdr[0x02] = VERSION                                      # version=2
     # 0x03 reserved
-    struct.pack_into('<I', hdr, 0x04, total_size)           # total_size LE
-    # 0x08 crc32 — 待填
-    struct.pack_into('<H', hdr, 0x0C, OFF_ASCII)            # ascii_offset LE
-    struct.pack_into('<H', hdr, 0x0E, ASCII_COUNT)          # ascii_count LE
-    struct.pack_into('<H', hdr, 0x10, 16)                   # ascii_bytes LE
+    struct.pack_into('<I', hdr, 0x04, total_size)            # total_size LE
+    # 0x08 crc32 -- 待填
+    struct.pack_into('<H', hdr, 0x0C, OFF_ASCII)             # ascii_offset LE
+    struct.pack_into('<H', hdr, 0x0E, ASCII_COUNT)           # ascii_count LE
+    struct.pack_into('<H', hdr, 0x10, 16)                    # ascii_bytes LE
     # 0x12 reserved2
-    struct.pack_into('<I', hdr, 0x14, OFF_CJK_IDX)          # cjk_index_offset LE
-    struct.pack_into('<H', hdr, 0x18, CJK_COUNT)            # cjk_index_count LE
-    struct.pack_into('<H', hdr, 0x1A, 32)                   # cjk_data_bytes LE
-    struct.pack_into('<I', hdr, 0x1C, OFF_CJK_DAT)          # cjk_data_offset LE
-    # 0x20 = 32B 终点
+    struct.pack_into('<I', hdr, 0x14, OFF_CJK_IDX)           # cjk_index_offset LE
+    struct.pack_into('<H', hdr, 0x18, CJK_COUNT)             # cjk_index_count LE
+    struct.pack_into('<H', hdr, 0x1A, 32)                    # cjk_data_bytes LE
+    struct.pack_into('<I', hdr, 0x1C, OFF_CJK_DAT)           # cjk_data_offset LE
+    # --- V2 扩展: 图标表指针 (0x20-0x2F) ---
+    struct.pack_into('<I', hdr, 0x20, OFF_ICON_TABLE)        # icon_table_offset LE
+    struct.pack_into('<H', hdr, 0x24, n_icon_entries)        # icon_count LE
+    struct.pack_into('<H', hdr, 0x26, 0)                     # icon_reserved
+    struct.pack_into('<I', hdr, 0x28, OFF_ICON_DATA)         # icon_data_offset LE
+    struct.pack_into('<I', hdr, 0x2C, 0)                     # reserved3
+    # 0x30 = 48B 终点
 
-    # CRC32 覆盖 0x0C→0x1F (20B), 写入 0x08 小端序
-    crc = compute_crc32(bytes(hdr[0x0C:0x20]))
+    # CRC32 覆盖 0x0C->0x2F (36B), 写入 0x08 小端序
+    crc = compute_crc32(bytes(hdr[0x0C:0x30]))
     struct.pack_into('<I', hdr, 0x08, crc)
 
     # 拼接全镜像
     img = bytearray()
-    img.extend(hdr)                                          # 0x000000 Header
-    img.extend(b'\x00' * (OFF_ASCII - len(img)))             # pad→0x20
-    img.extend(ascii_data)                                   # 0x000020 ASCII
-    img.extend(b'\x00' * (OFF_ICONS - len(img)))             # pad→Icon Base
-    img.extend(icon_table)                                   # Icon Table 元数据
-    img.extend(icon_data)                                    # Icon 位图数据
-    img.extend(b'\x00' * (OFF_CJK_IDX - len(img)))           # pad→CJK Index
-    img.extend(cjk_index)                                    # CJK Index [U16][U16]×6763
-    img.extend(b'\x00' * (OFF_CJK_DAT - len(img)))           # pad→CJK Data
-    img.extend(cjk_glyph)                                    # CJK Data 6763×32B
-    img.extend(b'\x00' * (FLASH_SIZE - len(img)))            # 补齐 2MB 满格, 干净背景槽
+    img.extend(hdr)                                           # 0x000000 Header 48B
+    img.extend(b'\x00' * (OFF_ASCII - len(img)))              # pad->0x20
+    img.extend(ascii_data)                                    # 0x000020 ASCII
+    img.extend(b'\x00' * (OFF_ICON_TABLE - len(img)))         # pad->Icon Table
+    img.extend(icon_table)                                    # Icon Table 元数据 (16B+Nx8B)
+    img.extend(icon_data)                                     # Icon 位图数据 (紧接)
+    img.extend(b'\x00' * (OFF_CJK_IDX - len(img)))            # pad->CJK Index
+    img.extend(cjk_index)                                     # CJK Index [U16][U16]x6763
+    img.extend(b'\x00' * (OFF_CJK_DAT - len(img)))            # pad->CJK Data
+    img.extend(cjk_glyph)                                     # CJK Data 6763x32B
+    img.extend(b'\x00' * (FLASH_SIZE - len(img)))             # 补齐 2MB 满格, 干净背景槽
 
     return bytes(img), hdr
 
@@ -377,26 +393,30 @@ def main():
         "CRC32 自测失败! 与 STM32 CRC32_Compute 不一致"
     print("[OK] CRC32 自测通过: STM32 CRC32('1234') = 0x596A3B55")
 
-    # 加载宋体 16px
-    font_paths = [
-        os.path.expandvars(r"%SystemRoot%\Fonts\simsun.ttc"),
-        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    ]
-    font = None
-    for fp in font_paths:
-        if os.path.exists(fp): font = ImageFont.truetype(fp, 16); print(f"[OK] 加载字体: {fp}"); break
-    if font is None: raise RuntimeError("未找到 simsun.ttc 或 NotoSansCJK, 请安装中文字体")
+    # 加载字体: 中文=华文楷体(STKaiti), ASCII 字母数字=Arial, ASCII 符号=宋体(与ROM一致)
+    stkaiti_path = os.path.expandvars(r"%SystemRoot%\Fonts\STKAITI.TTF")
+    arial_path   = os.path.expandvars(r"%SystemRoot%\Fonts\arial.ttf")
+    simsun_path  = os.path.expandvars(r"%SystemRoot%\Fonts\simsun.ttc")
 
-    # ASCII
-    print("[..] 渲染 ASCII 95 字...")
-    ascii_data = render_ascii(font)
+    for p, n in [(stkaiti_path, "华文楷体"), (arial_path, "Arial"), (simsun_path, "宋体")]:
+        if not os.path.exists(p): raise RuntimeError(f"未找到字体: {p} ({n})")
+
+    cjk_font    = ImageFont.truetype(stkaiti_path, 16)
+    ascii_font  = ImageFont.truetype(arial_path, 16)    # 字母+数字
+    sym_font    = ImageFont.truetype(simsun_path, 16)   # 符号 ({}[]。、等)
+    print(f"[OK] 中文: {stkaiti_path} ({cjk_font.getname()[0]} 华文楷体)")
+    print(f"[OK] 字母/数字: {arial_path} ({ascii_font.getname()[0]})")
+    print(f"[OK] 符号: {simsun_path} ({sym_font.getname()[0]} 宋体, 与ROM一致)")
+
+    # ASCII (字母数字=Arial, 符号=宋体)
+    print("[..] 渲染 ASCII 95 字 (字母数字=Arial, 符号=宋体)...")
+    ascii_data = render_ascii(ascii_font, sym_font)
     assert len(ascii_data) == ASCII_COUNT * 16, f"ASCII 大小异常: {len(ascii_data)}"
 
     # CJK
     print(f"[..] 渲染 GB2312 一级汉字 {CJK_COUNT} 字...")
     cjk_codes = list(range(CJK_START, CJK_END + 1))
-    cjk_index, cjk_glyph = render_cjk(font, cjk_codes)
+    cjk_index, cjk_glyph = render_cjk(cjk_font, cjk_codes)
     assert len(cjk_index) == CJK_COUNT * 6, f"CJK Index 大小异常: {len(cjk_index)}"  # 6B/条 <HI
     assert len(cjk_glyph) == CJK_COUNT * 32, f"CJK Data 大小异常: {len(cjk_glyph)}"
 
@@ -420,19 +440,30 @@ def main():
     img, hdr = assemble_font_image(ascii_data, cjk_index, cjk_glyph)
     assert len(img) == FLASH_SIZE, f"镜像大小异常: {len(img)} (期望 {FLASH_SIZE})"
 
+    # 读取 header 中的实际偏移用于输出
+    _ascii_off  = struct.unpack_from('<H', hdr, 0x0C)[0]
+    _icon_t_off = struct.unpack_from('<I', hdr, 0x20)[0]
+    _icon_n     = struct.unpack_from('<H', hdr, 0x24)[0]
+    _icon_d_off = struct.unpack_from('<I', hdr, 0x28)[0]
+    _cjk_i_off  = struct.unpack_from('<I', hdr, 0x14)[0]
+    _cjk_d_off  = struct.unpack_from('<I', hdr, 0x1C)[0]
+
+    icon_table, icon_data = build_icon_table()
+
     # 输出
     with open(FONT_DATA_BIN, 'wb') as f: f.write(img)
     print(f"[OK] 生成 {FONT_DATA_BIN} ({len(img)} 字节 = 2MB)")
-    print(f"     Header:    0x000000 ({len(hdr)}B)")
-    print(f"     ASCII:     0x{0x20:06X} ({len(ascii_data)}B)")
-    print(f"     Icons:     0x{align_to(0x20 + len(ascii_data), ALIGN):06X}")
-    print(f"     CJK Index: 0x{align_to(0x20 + len(ascii_data) + 1832 + 1728 + 255, ALIGN):06X} "
+    print(f"     Header:      0x000000 ({len(hdr)}B V2)")
+    print(f"     ASCII:       0x{_ascii_off:06X} ({len(ascii_data)}B)")
+    print(f"     Icon Table:  0x{_icon_t_off:06X} ({len(icon_table)}B, {_icon_n} entries)")
+    print(f"     Icon Data:   0x{_icon_d_off:06X} ({len(icon_data)}B)")
+    print(f"     CJK Index:   0x{_cjk_i_off:06X} "
           f"({len(cjk_index)}B, {CJK_COUNT} 条)")
-    print(f"     CJK Data:  0x{align_to(0x20 + len(ascii_data) + 1832 + 1728 + 255 + len(cjk_index) + 255, ALIGN):06X} "
+    print(f"     CJK Data:    0x{_cjk_d_off:06X} "
           f"({len(cjk_glyph)}B)")
-    print(f"     CRC32:     0x{struct.unpack_from('<I', hdr, 0x08)[0]:08X}")
+    print(f"     CRC32:       0x{struct.unpack_from('<I', hdr, 0x08)[0]:08X}")
     sector_cnt = (FLASH_SIZE + 4095) // 4096  # 2MB padding total, not just data
-    print(f"     擦除扇区:  {sector_cnt} 个 (0x000000~0x{sector_cnt * 4096:06X})")
+    print(f"     擦除扇区:    {sector_cnt} 个 (0x000000~0x{sector_cnt * 4096:06X})")
 
 
 if __name__ == '__main__':
