@@ -88,14 +88,22 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 #include <stdio.h>
 #include <string.h>
 
-#define UI_COLOR_BG      TFT_COLOR_BLACK
-#define UI_COLOR_TITLE   TFT_COLOR_YELLOW
-#define UI_COLOR_TEXT    TFT_COLOR_WHITE
-#define UI_COLOR_VALUE   TFT_COLOR_CYAN
-#define UI_COLOR_DATA    TFT_COLOR_BLUE
-#define UI_COLOR_ALARM   TFT_COLOR_RED
-#define UI_COLOR_OK      TFT_COLOR_GREEN
-#define UI_COLOR_DIM     TFT_COLOR_GRAY
+/* ═══════════════════════════════════════════════════════════════
+ *  Dynamic Color System (V4.4.0)
+ *
+ *  UI_COLOR_* macros → Uc_*() inline functions.
+ *  Classic preset = same as old #define values.
+ *  s_color_bg/fg/accent are written by Apply_Color_Preset() (Settings→Color page)
+ *  and read by every Uc_*() call in all page draw code.
+ * ═══════════════════════════════════════════════════════════════ */
+static uint16_t Uc_Bg(void)      { return s_color_bg; }
+static uint16_t Uc_Title(void)   { return s_color_accent; }
+static uint16_t Uc_Text(void)    { return s_color_fg; }
+static uint16_t Uc_Value(void)   { return s_color_accent; }
+static uint16_t Uc_Data(void)    { return s_color_fg; }
+#define Uc_Alarm()  TFT_COLOR_RED
+#define Uc_Ok()     TFT_COLOR_GREEN
+#define Uc_Dim()    TFT_COLOR_GRAY
 
 #define UI_REFRESH_MS              200
 #define UI_OVERCURRENT_THRESHOLD_A 5.0f
@@ -303,7 +311,7 @@ static void Fmt_F(char* buf, float f)
 static void Draw_Header(const char* title)
 {
     Tft_Driver_Erase_Pixel_Area(0, 0, TFT_WIDTH, TFT_FONT_HEIGHT);
-    Tft_Driver_Show_CN_String(0, 0, title, UI_COLOR_TITLE, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(0, 0, title, Uc_Title(), Uc_Bg());
 }
 
 /* ================================================================
@@ -313,7 +321,7 @@ static void Draw_Cursor(uint8_t line)
 {
     /* ICON_STAR (diamond) at left edge — black star on cyan bg for selected row */
     Tft_Driver_Draw_Icon_By_Id(0, (uint16_t)line * TFT_FONT_HEIGHT,
-                                ICON_ID_STAR, 0, UI_COLOR_BG, UI_COLOR_VALUE);
+                                ICON_ID_STAR, 0, Uc_Bg(), Uc_Value());
 }
 
 static void Erase_Cursor(uint8_t line)
@@ -332,15 +340,15 @@ static void Erase_Line(uint8_t line)
 
 static void Draw_Divider(uint8_t line)
 {
-    Tft_Driver_Show_String(line, 0, S_DIV, UI_COLOR_DIM, UI_COLOR_BG);
+    Tft_Driver_Show_String(line, 0, S_DIV, Uc_Dim(), Uc_Bg());
 }
 
 /* ── Draw menu text at line,col (precise erase excluding cursor zone, text at col>=2 for star) ── */
 static void Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t enabled)
 {
-    uint16_t color = enabled ? UI_COLOR_TEXT : UI_COLOR_DIM;
+    uint16_t color = enabled ? Uc_Text() : Uc_Dim();
     Tft_Driver_Erase_Pixel_Area(col * 8, (uint16_t)line * TFT_FONT_HEIGHT, TFT_WIDTH - col * 8, TFT_FONT_HEIGHT);
-    Tft_Driver_Show_CN_String(line, col, text, color, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(line, col, text, color, Uc_Bg());
 }
 
 /* ================================================================
@@ -516,7 +524,7 @@ static void Draw_Sweep_Full(void)
     /* row 2: Frequency */
     snprintf(buf, sizeof(buf), S_FREQ "F:%3lu.%1lukHz",
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
-    Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(2, 0, buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
 
@@ -538,23 +546,23 @@ static void Draw_Sweep_Full(void)
         if (!is_stopped) {
             Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                            14 * TFT_FONT_WIDTH, 8,
-                           (float)progress, 0.0f, 10.0f, UI_COLOR_BG);
+                           (float)progress, 0.0f, 10.0f, Uc_Bg());
             snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
-            if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+            if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
         } else {
-            Tft_Driver_Show_CN_String(3, 5, S_PAUSE, UI_COLOR_ALARM, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(3, 5, S_PAUSE, Uc_Alarm(), Uc_Bg());
         }
     }
 
     /* row 4: Voltage */
     Fmt_V(buf, Adc_Driver_Get_Voltage());
-    Tft_Driver_Show_CN_String(4, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(4, 0, buf, Uc_Data(), Uc_Bg());
     strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
     s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
 
     /* row 5: Current */
     Fmt_I(buf, Adc_Driver_Get_Current());
-    Tft_Driver_Show_CN_String(5, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(5, 0, buf, Uc_Data(), Uc_Bg());
     strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
@@ -577,7 +585,7 @@ static void Sweep_Dynamic_Update(void)
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
-        Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 0, buf, Uc_Value(), Uc_Bg());
         strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
         s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
     }
@@ -592,11 +600,11 @@ static void Sweep_Dynamic_Update(void)
             if (progress > 10) progress = 10;
             Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                            14 * TFT_FONT_WIDTH, 8,
-                           (float)progress, 0.0f, 10.0f, UI_COLOR_BG);
+                           (float)progress, 0.0f, 10.0f, Uc_Bg());
             snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
-            if (buf[0]) Tft_Driver_Show_String(3, 8, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+            if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
         } else {
-            Tft_Driver_Show_CN_String(3, 5, S_PAUSE, UI_COLOR_ALARM, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(3, 5, S_PAUSE, Uc_Alarm(), Uc_Bg());
         }
     }
 
@@ -604,7 +612,7 @@ static void Sweep_Dynamic_Update(void)
     Fmt_V(buf, Adc_Driver_Get_Voltage());
     if (strncmp(buf, s_last_v_str, sizeof(s_last_v_str)) != 0) {
         Erase_Line(4);
-        Tft_Driver_Show_CN_String(4, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(4, 0, buf, Uc_Data(), Uc_Bg());
         strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
         s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
     }
@@ -613,7 +621,7 @@ static void Sweep_Dynamic_Update(void)
     Fmt_I(buf, Adc_Driver_Get_Current());
     if (strncmp(buf, s_last_i_str, sizeof(s_last_i_str)) != 0) {
         Erase_Line(5);
-        Tft_Driver_Show_CN_String(5, 0, buf, UI_COLOR_DATA, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(5, 0, buf, Uc_Data(), Uc_Bg());
         strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
         s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
     }
@@ -641,19 +649,19 @@ static void Draw_Summary_Full(void)
     /* row 2: Freq */
     if (is_running) { Fmt_F(buf, s_ema_f); }
     else            { snprintf(buf, sizeof(buf), S_FREQ "F:0.0kHz"); }
-    Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
 
     /* row 3: Voltage */
     Fmt_V(buf, s_ema_v);
-    Tft_Driver_Show_CN_String(3, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(3, Center(buf), buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
     s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
 
     /* row 4: Current */
     Fmt_I(buf, s_ema_i);
-    Tft_Driver_Show_CN_String(4, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(4, Center(buf), buf, Uc_Value(), Uc_Bg());
     strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
@@ -679,7 +687,7 @@ static void Summary_Dynamic_Update(void)
     else            { snprintf(buf, sizeof(buf), S_FREQ "F:---.-kHz"); }
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
         Erase_Line(2);
-        Tft_Driver_Show_CN_String(2, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
         strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
         s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
     }
@@ -688,7 +696,7 @@ static void Summary_Dynamic_Update(void)
     Fmt_V(buf, s_ema_v);
     if (strncmp(buf, s_last_v_str, sizeof(s_last_v_str)) != 0) {
         Erase_Line(3);
-        Tft_Driver_Show_CN_String(3, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(3, Center(buf), buf, Uc_Value(), Uc_Bg());
         strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
         s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
     }
@@ -697,7 +705,7 @@ static void Summary_Dynamic_Update(void)
     Fmt_I(buf, s_ema_i);
     if (strncmp(buf, s_last_i_str, sizeof(s_last_i_str)) != 0) {
         Erase_Line(4);
-        Tft_Driver_Show_CN_String(4, Center(buf), buf, UI_COLOR_VALUE, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(4, Center(buf), buf, Uc_Value(), Uc_Bg());
         strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
         s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
     }
@@ -798,29 +806,29 @@ static void Draw_TopRight_Icons(void)
 
     /* ── WIFI icon (x=128) ── */
     if (s_no_wifi_mode || App_Network_Is_Offline()) {
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_OFF, 0, UI_COLOR_ALARM, UI_COLOR_BG);
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_OFF, 0, Uc_Alarm(), Uc_Bg());
     } else if (!Esp8266_Driver_Is_Ready()) {
         icon_frame = (uint8_t)(Sys_Timer_Get_Tick()/150) % 6;
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, icon_frame, blue_grad[icon_frame], UI_COLOR_BG);
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, icon_frame, blue_grad[icon_frame], Uc_Bg());
     } else if (cs == APP_NETWORK_CONN_ONLINE) {
         int8_t r = App_Network_Get_RSSI();
         if (r >= -50) icon_frame=3; else if (r >= -60) icon_frame=2; else if (r >= -70) icon_frame=1; else icon_frame=0;
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_SIGNAL, icon_frame, UI_COLOR_OK, UI_COLOR_BG);
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_SIGNAL, icon_frame, Uc_Ok(), Uc_Bg());
     } else if (App_Network_Is_Connecting()) {
         icon_frame = (uint8_t)(Sys_Timer_Get_Tick()/150) % 6;
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, icon_frame, blue_grad[icon_frame], UI_COLOR_BG);
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, icon_frame, blue_grad[icon_frame], Uc_Bg());
     } else {  /* IDLE */
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_REMOVE, 0, UI_COLOR_ALARM, UI_COLOR_BG);
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_REMOVE, 0, Uc_Alarm(), Uc_Bg());
     }
 
     /* ── MQTT cloud (x=144) ── */
     if (cs == APP_NETWORK_CONN_ONLINE) {
-        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_YES, 0, UI_COLOR_OK, UI_COLOR_BG);
+        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_YES, 0, Uc_Ok(), Uc_Bg());
     } else if (App_Network_Is_Connecting()) {
         uint8_t mqtt_frame = (uint8_t)(Sys_Timer_Get_Tick()/200) % 6;
-        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_ANIM, mqtt_frame, rainbow[mqtt_frame], UI_COLOR_BG);
+        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_ANIM, mqtt_frame, rainbow[mqtt_frame], Uc_Bg());
     } else {
-        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_NO, 0, UI_COLOR_ALARM, UI_COLOR_BG);
+        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_NO, 0, Uc_Alarm(), Uc_Bg());
     }
     #undef WX
     #undef MX
@@ -842,7 +850,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
     if (val > cfg->range_max) val = cfg->range_max;
 
     /* ── 1. Global physical clear — pure full-screen gauge, no header/divider ── */
-    Tft_Driver_Clear(UI_COLOR_BG);
+    Tft_Driver_Clear(Uc_Bg());
 
     /* ── 2. Compute needle angle (0=left, 180=right) ── */
     na = (uint16_t)((val - cfg->range_min) /
@@ -872,9 +880,9 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
 
         if (a <= na) {
             if (is_big || is_red)
-                color = is_red ? UI_COLOR_ALARM : UI_COLOR_TEXT;
+                color = is_red ? Uc_Alarm() : Uc_Text();
             else
-                color = UI_COLOR_DIM;
+                color = Uc_Dim();
         } else {
             color = slot_color;
         }
@@ -900,7 +908,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             uint16_t w;
             int32_t s, c;
             int16_t draw_x, draw_y;
-            uint16_t color = (v >= cfg->red_start) ? UI_COLOR_ALARM : UI_COLOR_TEXT;
+            uint16_t color = (v >= cfg->red_start) ? Uc_Alarm() : Uc_Text();
 
             s = GAUGE_SIN[a];
             c = (a <= 90) ? GAUGE_SIN[90 - a] : -GAUGE_SIN[a - 90];
@@ -922,7 +930,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             draw_y = y - 5 - (int32_t)(2 + 5) * s / 10000;
 
             Tft_Driver_Show_5x10_String_Pixel((uint16_t)draw_x, (uint16_t)draw_y,
-                                              nb, color, UI_COLOR_BG);
+                                              nb, color, Uc_Bg());
         }
     }
 
@@ -935,22 +943,22 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             if (cfg->label == 'F') {
                 Inverter_Control_Soft_Start_State st = Inverter_Control_Soft_Start_Get_State();
                 if      (st == INVERTER_CONTROL_SS_STATE_SWEEP)
-                    { status_text = "SWP"; status_color = UI_COLOR_VALUE; }
+                    { status_text = "SWP"; status_color = Uc_Value(); }
                 else if (st == INVERTER_CONTROL_SS_STATE_DONE)
-                    { status_text = "DON"; status_color = UI_COLOR_OK; }
+                    { status_text = "DON"; status_color = Uc_Ok(); }
                 else
-                    { status_text = "IDL"; status_color = UI_COLOR_DIM; }
+                    { status_text = "IDL"; status_color = Uc_Dim(); }
             } else {
                 float thr_warn = (cfg->label == 'V') ? 36.0f : 1.2f;
                 if (val >= cfg->red_start)
-                    { status_text = "HI"; status_color = UI_COLOR_ALARM; }
+                    { status_text = "HI"; status_color = Uc_Alarm(); }
                 else if (val >= thr_warn)
-                    { status_text = "WRN"; status_color = UI_COLOR_VALUE; }
+                    { status_text = "WRN"; status_color = Uc_Value(); }
                 else
-                    { status_text = "OK"; status_color = UI_COLOR_OK; }
+                    { status_text = "OK"; status_color = Uc_Ok(); }
             }
             Tft_Driver_Show_CN_String(4, Center(status_text), status_text,
-                                      status_color, UI_COLOR_BG);
+                                      status_color, Uc_Bg());
             strncpy(s_gauge_status_buf, status_text, sizeof(s_gauge_status_buf));
             s_gauge_status_buf[sizeof(s_gauge_status_buf) - 1] = '\0';
         }
@@ -963,7 +971,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
                  || Inverter_Control_Soft_Start_Get_State()
                      == INVERTER_CONTROL_SS_STATE_SWEEP);
             uint16_t num_color = (cfg->label == 'F' && !is_running_f)
-                ? UI_COLOR_DIM : TFT_COLOR_YELLOW;
+                ? Uc_Dim() : TFT_COLOR_YELLOW;
 
             if (cfg->label == 'C')
                 snprintf(buf, sizeof(buf), "%.3f", (double)val);
@@ -971,18 +979,18 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
                 snprintf(buf, sizeof(buf), "0");
             else
                 snprintf(buf, sizeof(buf), "%.2f", (double)val);
-            Tft_Driver_Show_CN_String(5, Center(buf), buf, num_color, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(5, Center(buf), buf, num_color, Uc_Bg());
             strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
             s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
         }
 
         /* -- Row 6 (Y=96): metric label with unit suffix, center-aligned ── */
         if (cfg->label == 'F')
-            Tft_Driver_Show_CN_String(6, Center(S_LABEL_FREQ), S_LABEL_FREQ, UI_COLOR_VALUE, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(6, Center(S_LABEL_FREQ), S_LABEL_FREQ, Uc_Value(), Uc_Bg());
         else if (cfg->label == 'V')
-            Tft_Driver_Show_CN_String(6, Center(S_LABEL_VOLT), S_LABEL_VOLT, UI_COLOR_VALUE, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(6, Center(S_LABEL_VOLT), S_LABEL_VOLT, Uc_Value(), Uc_Bg());
         else
-            Tft_Driver_Show_CN_String(6, Center(S_LABEL_CURR), S_LABEL_CURR, UI_COLOR_VALUE, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(6, Center(S_LABEL_CURR), S_LABEL_CURR, Uc_Value(), Uc_Bg());
     }
 
     /* ── 6. Footer: top-right icons only (gauge pages are full-screen, no divider/bottom bar) ── */
@@ -1040,9 +1048,9 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
                     }
                     ir = is_big ? R_BIG : R_FINE;
                     if (is_big || is_red)
-                        color = is_red ? UI_COLOR_ALARM : UI_COLOR_TEXT;
+                        color = is_red ? Uc_Alarm() : Uc_Text();
                     else
-                        color = UI_COLOR_DIM;
+                        color = Uc_Dim();
                     {
                         int16_t xo, yo, xi, yi;
                         Gauge_Polar(CPS(a), R_TICK, &xo, &yo);
@@ -1087,25 +1095,25 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         if (cfg->label == 'F') {
             Inverter_Control_Soft_Start_State st = Inverter_Control_Soft_Start_Get_State();
             if      (st == INVERTER_CONTROL_SS_STATE_SWEEP)
-                { status_text = "SWP"; status_color = UI_COLOR_VALUE; }
+                { status_text = "SWP"; status_color = Uc_Value(); }
             else if (st == INVERTER_CONTROL_SS_STATE_DONE)
-                { status_text = "DON"; status_color = UI_COLOR_OK; }
+                { status_text = "DON"; status_color = Uc_Ok(); }
             else
-                { status_text = "IDL"; status_color = UI_COLOR_DIM; }
+                { status_text = "IDL"; status_color = Uc_Dim(); }
         } else {
             float thr_warn = (cfg->label == 'V') ? 36.0f : 1.2f;
             if (val >= cfg->red_start)
-                { status_text = "HI"; status_color = UI_COLOR_ALARM; }
+                { status_text = "HI"; status_color = Uc_Alarm(); }
             else if (val >= thr_warn)
-                { status_text = "WRN"; status_color = UI_COLOR_VALUE; }
+                { status_text = "WRN"; status_color = Uc_Value(); }
             else
-                { status_text = "OK"; status_color = UI_COLOR_OK; }
+                { status_text = "OK"; status_color = Uc_Ok(); }
         }
 
         if (strncmp(status_text, s_gauge_status_buf, sizeof(s_gauge_status_buf)) != 0) {
             Tft_Driver_Erase_Pixel_Area(24, 64, 112, 16);
             Tft_Driver_Show_CN_String(4, Center(status_text), status_text,
-                                      status_color, UI_COLOR_BG);
+                                      status_color, Uc_Bg());
             strncpy(s_gauge_status_buf, status_text, sizeof(s_gauge_status_buf));
             s_gauge_status_buf[sizeof(s_gauge_status_buf) - 1] = '\0';
         }
@@ -1119,7 +1127,7 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
              || Inverter_Control_Soft_Start_Get_State()
                  == INVERTER_CONTROL_SS_STATE_SWEEP);
         uint16_t num_color = (cfg->label == 'F' && !is_running_f)
-            ? UI_COLOR_DIM : TFT_COLOR_YELLOW;
+            ? Uc_Dim() : TFT_COLOR_YELLOW;
 
         if (cfg->label == 'C')
             snprintf(buf, sizeof(buf), "%.3f", (double)val);
@@ -1129,7 +1137,7 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
             snprintf(buf, sizeof(buf), "%.2f", (double)val);
         if (strncmp(buf, s_gauge_val_str, sizeof(s_gauge_val_str)) != 0) {
             Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
-            Tft_Driver_Show_CN_String(5, Center(buf), buf, num_color, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(5, Center(buf), buf, num_color, Uc_Bg());
             strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
             s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
         }
@@ -1144,7 +1152,7 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         if (label_text != s_last_gauge_label) {
             s_last_gauge_label = label_text;
             Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
-            Tft_Driver_Show_CN_String(6, Center(label_text), label_text, UI_COLOR_VALUE, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(6, Center(label_text), label_text, Uc_Value(), Uc_Bg());
         }
     }
 
@@ -1167,7 +1175,7 @@ static void Draw_Freq_Full(void) {
     /* PWM 停止时频率显示 0 (电压电流继续实时监测) */
     if (!is_running) {
         Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
-        Tft_Driver_Show_CN_String(5, Center("0kHz"), "0kHz", UI_COLOR_DIM, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(5, Center("0kHz"), "0kHz", Uc_Dim(), Uc_Bg());
         strncpy(s_gauge_val_str, "0kHz", sizeof(s_gauge_val_str));
     }
     s_last_val_f = s_ema_f;
@@ -1234,7 +1242,7 @@ static void Draw_WiFi_Full(void)
     {
         char buf[42];
         snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
-        Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(2, 0, buf, Uc_Text(), Uc_Bg());
         strncpy(s_last_status_buf, buf, sizeof(s_last_status_buf));
         s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
     }
@@ -1244,9 +1252,9 @@ static void Draw_WiFi_Full(void)
     Erase_Line(4);
 
     /* row 5: action hint */
-    Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, Uc_Text(), Uc_Bg());
     /* row 6: long-press clear hint */
-    Tft_Driver_Show_CN_String(6, Right(S_LONG_CLEAR), S_LONG_CLEAR, UI_COLOR_ALARM, UI_COLOR_BG);
+    Tft_Driver_Show_CN_String(6, Right(S_LONG_CLEAR), S_LONG_CLEAR, Uc_Alarm(), Uc_Bg());
     Erase_Line(7);
 
     s_last_wifi_cs = cs;
@@ -1274,7 +1282,7 @@ static void WiFi_Dynamic_Update(void)
         snprintf(buf, sizeof(buf), S_WIFI_FORMAT ": %s", status_text);
         if (strncmp(buf, s_last_status_buf, sizeof(s_last_status_buf)) != 0) {
             Erase_Line(2);
-            Tft_Driver_Show_CN_String(2, 0, buf, UI_COLOR_TEXT, UI_COLOR_BG);
+            Tft_Driver_Show_CN_String(2, 0, buf, Uc_Text(), Uc_Bg());
             strncpy(s_last_status_buf, buf, sizeof(s_last_status_buf));
             s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
         }
@@ -1290,7 +1298,7 @@ static void WiFi_Dynamic_Update(void)
         } else {
             hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? S_DISCONNECT : S_CONNECT;
         }
-        Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, Uc_Text(), Uc_Bg());
     }
 }
 
@@ -1303,14 +1311,14 @@ static void Draw_Fault_Full(void)
     Draw_Divider(1);                /* row 1 */
 
     Tft_Driver_Show_CN_String(2, Center(S_OVERCUR),
-        S_OVERCUR, UI_COLOR_ALARM, UI_COLOR_BG);      /* row 2 */
+        S_OVERCUR, Uc_Alarm(), Uc_Bg());      /* row 2 */
     Tft_Driver_Show_CN_String(3, Center(S_PWM_OFF),
-        S_PWM_OFF, UI_COLOR_TEXT, UI_COLOR_BG);        /* row 3 */
+        S_PWM_OFF, Uc_Text(), Uc_Bg());        /* row 3 */
 
     Erase_Line(4);                  /* row 4: blank spacer */
 
     Tft_Driver_Show_CN_String(5, Center(S_RESET_HINT),
-        S_RESET_HINT, UI_COLOR_VALUE, UI_COLOR_BG);    /* row 5 */
+        S_RESET_HINT, Uc_Value(), Uc_Bg());    /* row 5 */
 
     Erase_Line(6);
     Erase_Line(7);
@@ -1613,7 +1621,7 @@ static void Draw_Setting_Full(void)
     {
         const char* hint = is_cn ? S_ON_RETURN : "[ON]Back";
         uint8_t col = Right(hint);
-        Tft_Driver_Show_String(7, col, hint, UI_COLOR_DIM, UI_COLOR_BG);
+        Tft_Driver_Show_String(7, col, hint, Uc_Dim(), Uc_Bg());
     }
 }
 
@@ -1653,10 +1661,10 @@ static void Draw_Lang_Full(void)
 
     Erase_Line(3);
     Tft_Driver_Show_String(3, 3, "  Chinese",
-        (s_language == 0 && flash_ok) ? UI_COLOR_VALUE : UI_COLOR_TEXT, UI_COLOR_BG);
+        (s_language == 0 && flash_ok) ? Uc_Value() : Uc_Text(), Uc_Bg());
     Erase_Line(4);
     Tft_Driver_Show_String(4, 3, "  English",
-        (s_language == 1 || !flash_ok) ? UI_COLOR_VALUE : UI_COLOR_TEXT, UI_COLOR_BG);
+        (s_language == 1 || !flash_ok) ? Uc_Value() : Uc_Text(), Uc_Bg());
 
     Draw_Cursor(s_language == 0 ? 3 : 4);
 
@@ -1664,7 +1672,7 @@ static void Draw_Lang_Full(void)
     {
         const char* hint = is_cn ? "\xe4\xb8\x8a\xe4\xb8\x8b\xe9\x80\x89\xe6\x8b\xa9 \xe7\xa1\xae\xe8\xae\xa4\xe5\x88\x87\xe6\x8d\xa2"
                                  : "UP/DN Select PAGE Confirm";
-        Tft_Driver_Show_String(7, 0, hint, UI_COLOR_DIM, UI_COLOR_BG);
+        Tft_Driver_Show_String(7, 0, hint, Uc_Dim(), Uc_Bg());
     }
 }
 
@@ -1717,7 +1725,7 @@ static void Draw_Icons_Full(void)
 
     if (!flash_ok) {
         Draw_Header("Icons");
-        Tft_Driver_Show_String(3, 2, S_FLASH_REQUIRED, UI_COLOR_ALARM, UI_COLOR_BG);
+        Tft_Driver_Show_String(3, 2, S_FLASH_REQUIRED, Uc_Alarm(), Uc_Bg());
         return;
     }
 
@@ -1736,11 +1744,11 @@ static void Draw_Icons_Full(void)
                 uint16_t y = (uint16_t)(row * ICON_CELL_SZ + 16);
                 if (icon_id < 31) {
                     uint8_t cursor_id = (uint8_t)(s_icon_page * ICON_PER_PAGE + s_icon_cursor);
-                    uint16_t fg = UI_COLOR_TEXT;
-                    uint16_t bg = UI_COLOR_BG;
+                    uint16_t fg = Uc_Text();
+                    uint16_t bg = Uc_Bg();
                     if (icon_id == cursor_id) {
-                        Tft_Driver_Fill_Rect(x - 1, y - 1, 18, 18, UI_COLOR_VALUE);
-                        bg = UI_COLOR_VALUE;
+                        Tft_Driver_Fill_Rect(x - 1, y - 1, 18, 18, Uc_Value());
+                        bg = Uc_Value();
                     }
                     Tft_Driver_Draw_Icon_By_Id(x, y, icon_id, 0, fg, bg);
                 }
@@ -1755,7 +1763,7 @@ static void Draw_Icons_Full(void)
             char buf[32];
             snprintf(buf, 32, "%s [%d]", Get_Icon_Name(icon_id), icon_id);
             uint8_t col = Center(buf);
-            Tft_Driver_Show_String(7, col, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+            Tft_Driver_Show_String(7, col, buf, Uc_Value(), Uc_Bg());
         }
     }
 }
@@ -1794,21 +1802,21 @@ static void Draw_Font_Full(void)
 
     Erase_Line(3);
     Tft_Driver_Show_String(3, 2, (s_font_size == 1) ? "* Medium (default)" : "  Medium (default)",
-        (s_font_size == 1) ? UI_COLOR_VALUE : UI_COLOR_TEXT, UI_COLOR_BG);
+        (s_font_size == 1) ? Uc_Value() : Uc_Text(), Uc_Bg());
     Erase_Line(4);
     Tft_Driver_Show_String(4, 2, (s_font_size == 0) ? "* Small" : "  Small",
-        (s_font_size == 0) ? UI_COLOR_VALUE : UI_COLOR_TEXT, UI_COLOR_BG);
+        (s_font_size == 0) ? Uc_Value() : Uc_Text(), Uc_Bg());
 
     Draw_Cursor((s_font_size == 0) ? 4 : 3);
 
     Erase_Line(5);
     if (is_cn)
         Tft_Driver_Show_CN_String(5, Center("\xe9\xa2\x84\xe8\xa7\x88:\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5"),
-            "\xe9\xa2\x84\xe8\xa7\x88:\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5", UI_COLOR_DATA, UI_COLOR_BG);
+            "\xe9\xa2\x84\xe8\xa7\x88:\xe6\x97\xa0\xe7\xba\xbf\xe5\x85\x85\xe7\x94\xb5", Uc_Data(), Uc_Bg());
     else
-        Tft_Driver_Show_String(5, Center("Preview: WPT System"), "Preview: WPT System", UI_COLOR_DATA, UI_COLOR_BG);
+        Tft_Driver_Show_String(5, Center("Preview: WPT System"), "Preview: WPT System", Uc_Data(), Uc_Bg());
     Erase_Line(6);
-    Tft_Driver_Show_String(6, Center("ABCDEFGH 1234567890"), "ABCDEFGH 1234567890", UI_COLOR_DATA, UI_COLOR_BG);
+    Tft_Driver_Show_String(6, Center("ABCDEFGH 1234567890"), "ABCDEFGH 1234567890", Uc_Data(), Uc_Bg());
 }
 
 static void Handle_Font_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
@@ -1840,9 +1848,9 @@ static void Draw_BL_Full(void)
     {
         uint16_t bar_x = 16, bar_y = 3 * 16 + 4, bar_w = 128, bar_h = 8;
         uint16_t fill_w = (uint16_t)((uint32_t)s_backlight_val * bar_w / 255);
-        Tft_Driver_Fill_Rect(bar_x, bar_y, bar_w, bar_h, UI_COLOR_DIM);
+        Tft_Driver_Fill_Rect(bar_x, bar_y, bar_w, bar_h, Uc_Dim());
         if (fill_w > 0)
-            Tft_Driver_Fill_Rect(bar_x, bar_y, fill_w, bar_h, UI_COLOR_VALUE);
+            Tft_Driver_Fill_Rect(bar_x, bar_y, fill_w, bar_h, Uc_Value());
     }
 
     {
@@ -1850,13 +1858,13 @@ static void Draw_BL_Full(void)
         snprintf(buf, 16, "%d / 255", s_backlight_val);
         uint8_t col = Center(buf);
         Tft_Driver_Erase_Pixel_Area(0, 4 * 16, 160, 16);
-        Tft_Driver_Show_String(4, col, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+        Tft_Driver_Show_String(4, col, buf, Uc_Value(), Uc_Bg());
     }
 
     {
         const char* hint = is_cn ? "[F_UP +]  [F_DOWN -]" : "[F_UP +]  [F_DOWN -]";
         uint8_t col = Center(hint);
-        Tft_Driver_Show_String(6, col, hint, UI_COLOR_TEXT, UI_COLOR_BG);
+        Tft_Driver_Show_String(6, col, hint, Uc_Text(), Uc_Bg());
     }
 
     Tft_Driver_Set_Backlight(s_backlight_val);
@@ -1885,16 +1893,16 @@ static void BL_Dynamic_Update(void)
             {
                 uint16_t bar_x = 16, bar_y = 3 * 16 + 4, bar_w = 128, bar_h = 8;
                 uint16_t fill_w = (uint16_t)((uint32_t)s_backlight_val * bar_w / 255);
-                Tft_Driver_Fill_Rect(bar_x, bar_y, bar_w, bar_h, UI_COLOR_DIM);
+                Tft_Driver_Fill_Rect(bar_x, bar_y, bar_w, bar_h, Uc_Dim());
                 if (fill_w > 0)
-                    Tft_Driver_Fill_Rect(bar_x, bar_y, fill_w, bar_h, UI_COLOR_VALUE);
+                    Tft_Driver_Fill_Rect(bar_x, bar_y, fill_w, bar_h, Uc_Value());
             }
             {
                 char buf[16];
                 snprintf(buf, 16, "%d / 255", s_backlight_val);
                 uint8_t col = Center(buf);
                 Tft_Driver_Erase_Pixel_Area(0, 4 * 16, 160, 16);
-                Tft_Driver_Show_String(4, col, buf, UI_COLOR_VALUE, UI_COLOR_BG);
+                Tft_Driver_Show_String(4, col, buf, Uc_Value(), Uc_Bg());
             }
             Tft_Driver_Set_Backlight(s_backlight_val);
         }
@@ -2123,7 +2131,7 @@ void Ui_Controller_Task(void)
 
     if (!s_page_drawn) {
         /* ── Full page draw (page entry) ── */
-        Tft_Driver_Clear(UI_COLOR_BG);  /* erase all previous-page residue */
+        Tft_Driver_Clear(Uc_Bg());  /* erase all previous-page residue */
         switch (s_page) {
             case UI_PAGE_MAIN_MENU:        Draw_Main_Menu_Full();   break;
             case UI_PAGE_MONITOR_SUB_MENU: Draw_Sub_Menu_Full();    break;
