@@ -5,11 +5,11 @@
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![Display](https://img.shields.io/badge/Display-ST7735%20160×128%20TFT-red)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-purple)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V4.5.0-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V4.5.1-brightgreen)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V4.5.0** (2026-07-02) — 设置系统重构: 8页设置 + PIC预览模型 + 字间距0/2/4/6px + 亮度滚动1-100% + 颜色6预设全屏重绘 + 纯像素间隙渲染。W25Q128 全字库 20897 字 + SPLASH 纯代码开机动画 + Dual-MCU 双脑架构 + 全局状态机 + 圆弧能量条仪表盘 + OneNET MQTT 多端控制。
+> **V4.5.1** (2026-07-02) — 全平台安全审查修复 (16项): ESP8266 Token占位符化 + 配网密码 + CMD:CLEAR二次确认 + DMA/SPI超时护底 + 环形缓冲 + 黑匣子指针持久化 + strtol溢出防护 + 乐观缓存回滚。W25Q128 全字库 20897 字 + SPLASH 纯代码开机动画 + Dual-MCU 双脑架构 + 全局状态机 + 圆弧能量条仪表盘 + OneNET MQTT 多端控制。
 
 ---
 
@@ -31,7 +31,8 @@
 
 | 版本 | 日期 | 主要变更 |
 |:---|:---|:---|
-| **V4.5.0** | **2026-07-02** | **设置系统重构: 8页PIC预览 + 字间距/亮度/颜色全功能 + 纯像素间隙渲染** |
+| **V4.5.1** | **2026-07-02** | **全平台安全审查修复 (16项): Token安全 + DMA超时 + 环形缓冲 + 黑匣子持久化 + 乐观缓存回滚** |
+| V4.5.0 | 2026-07-02 | 设置系统重构: 8页PIC预览 + 字间距/亮度/颜色全功能 + 纯像素间隙渲染 |
 | V4.3.2 | 2026-06-29 | W25Q128 全字库修复: 初始化铁序 + CRC32 修正 + SPLASH 纯代码 + CS 翻转 |
 | V4.3.0 | 2026-06-22 | W25Q128 16MB SPI Flash: 全字库 + 黑匣子 + 双副本参数 + 四大防线 |
 | V4.2.1 | 2026-06-17 | 全项目 README 重写 + 4分支统一分支表 |

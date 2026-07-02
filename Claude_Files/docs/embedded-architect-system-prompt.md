@@ -10,7 +10,7 @@ description: >
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
   Dual-MCU/双脑/JSON透传, Sys_Timer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, 技术白皮书, 开发者指南, 嵌入式架构师, OneNET, MQTT, TFT/ST7735.
-  V4.2.2 naming convention: Module_Name_Verb_Noun — all public functions follow PascalCase+underscore.
+  V4.5.1 naming convention: Module_Name_Verb_Noun — all public functions follow PascalCase+underscore.
   Key modules: Sys_Timer, Sys_Core, Pwm_Driver, Inverter_Control, Adc_Driver,
   Key_Driver, Esp8266_Driver, App_Network, Ui_Controller, Tft_Driver, Led_Driver, Buzzer_Driver.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
@@ -59,7 +59,7 @@ description: >
   Arduino, non-STMicro MCUs, or any MCU without SPL (ESP32/ESP-IDF, nRF, MSP430, PIC).
 ---
 
-# 资深嵌入式系统架构师技能包 (V4.2.2)
+# 资深嵌入式系统架构师技能包 (V4.5.1)
 
 ## 1. 角色设定
 
@@ -234,10 +234,11 @@ WPT_PWM_V4.0_ONENET_TFT/
 └── CLAUDE.md         ← 项目指南
 ```
 
-## 3. 审查历史速查 (V4.0.0→V4.2.2)
+## 3. 审查历史速查 (V4.0.0→V4.5.1)
 
 | 版本 | 关键修复 |
 |:---|:---|
+| V4.5.1 | **全平台安全审查修复 (16项)**: C1:ESP8266 Token占位符化 + C2:配网密码 + H4:DMA/SPI超时 + H6:环形缓冲 + H1:黑匣子指针持久化 + H2:故障锁存跨页擦除 + H12:strtol + H7:WIFI_CONN死代码 + H11:公共MQTT门控 + H14:CLEAR二次确认 + H5:进度条防闪烁 + H9:乐观缓存回滚 + H10:SW BASE路径 + M2:USART2 RXNE优先 + M3:STATUS正向过滤 |
 | V4.5.0 | 设置系统重构: 8页设置 + PIC预览模型 + 字间距0-6px + 亮度二级菜单(手动/呼吸灯) + 颜色6预设全屏重绘 + Tft_Driver 纯像素间隙渲染 + Center/Right 自适应间距 + Draw_Header 内置图标 + Key_Driver ID命名去歧义 + ARMCC V5 hex-escape兼容 + App_Storage 196B校验 + 死代码清理(font_size/BL_Dynamic/Key_GetEvent) |
 | V4.3.2 | W25Q128 全字库修复: 初始化铁序 (TFT→W25Q→SysTick→Font→SPLASH) + Tft_Driver_Font_Init 拆分 + SPLASH 纯代码8帧渐亮 + 二分搜索 CS 翻转 + CRC32 算法修正 (Python zlib→STM32 refin=false) + bit_reverse_byte 删除 (字模不再镜像) |
 | V4.0.0 | 8轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 |
@@ -260,7 +261,7 @@ Vx.y.z 三数字体系：
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.2.4
+当前版本: V4.5.1
   V4 = 固定大版本 (TFT 彩屏架构)
   .2 = 两次中版本升级
   .2 = 当前小版本号
@@ -403,6 +404,19 @@ Vx.y.z 三数字体系：
 |:---|:---|:---|:---|
 | 54 | 全部 .c 文件编译报 `#7 unrecognized token` + `#77-D no storage class` — 行数 n*30+ | 16 个 .c 文件头部接线图使用 Unicode box-drawing 字符 (`┌└├│` 等), ARMCC V5 C89 只支持 ASCII | **ARMCC 项目中所有 .c/.h 注释只能用 ASCII 画框 (`+``-``|`), 禁止 Unicode box-drawing; 见 rules/common/armcc-c89-comment-rules.md** |
 | 55 | Sys_Timer.c 注释内嵌套 `/* */` 导致编译错误 | 接线图中的 `/* 业务逻辑 */` 被 ARMCC 解释为嵌套注释 | **注释中避免写 C 代码示例, 或用 `//` 替代 `/* */`** |
+
+### 4.11 2026-07-02: V4.5.1 全平台安全审查教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 56 | ESP8266 Token 硬编码在源码 + git 历史中, 任何人可获取设备控制权 | 开发阶段为方便直接写死凭证, 习惯了"自己用"的心态 | **源码中永远不放真实凭证, 始终用占位符 + 配置注入; 已泄露的 Token 立即在平台轮换** |
+| 57 | 配网热点 `STM32_WPT_Config` 无密码, 30m 内任意设备可劫持 WiFi | WiFiManager 默认 AP 无密码, 开发者未意识到攻击面 | **所有对外 AP 必须有密码, 最低 8 位; 生产环境 debug output 必须关闭** |
+| 58 | TFT DMA/SPI 忙等循环无超时: 外设挂死 = 系统硬锁 = 看门狗无法复位 | 嵌入式忙等的惯性写法: `while(!flag);` 不留出路 | **所有外设忙等循环必须加时间护底, 超时后强制释放总线/复位外设** |
+| 59 | ESP8266 单缓冲静默丢帧: 连续 2 帧到达时第 2 帧无处可存 | 设计时假设"帧间隔 > 消费速度", 实际 ESP 初始化阶段可连续发多条 STATUS | **异步通信接收端必须用环形缓冲, 槽数 ≥ 发送方连发帧数上限** |
+| 60 | 黑匣子日志每次重启从头开始: 写指针从未回写 Flash | Flash 写消耗大 (扇区擦除 45ms), 开发者不愿高频写入; 但"完全不写"导致数据完全丢失 | **掉电保持数据必须在生命周期关键点回写: 至少每 N 条记录或状态转换时** |
+| 61 | `atol()` 无溢出检测: 超大输入可绕过边界检查 | 标准库函数假设"调用方已验证输入", 忽略了 C 标准定义的 undefined behavior | **解析外部输入用 `strtol`/`strtoul` + endp 验证, 禁止 `atoi`/`atol`** |
+| 62 | 审查修改后编译出 2 个 warning (unused variable): `hint_text` + `block_start` | 重构删除代码路径后忘记删除对应的变量声明 | **每次重构后必须全量编译并检查 warning; ARMCC #177-D 是未使用变量最直接信号** |
+| 63 | 4 个并行审查代理发现的问题无重复, 覆盖互补 | 代理分工按平台 (STM32应用/STM32硬件/ESP+Web/安全) 天然隔离 | **大规模审查用 4+ 代理并行, 按物理边界分工 (MCU/前端/安全), 每个代理只看自己的领域** |
 | 56 | SPLASH 开机动画样式单一 | 旧版纯 8 帧背光渐亮, 4 行文字同色渐变, 无图形元素、无闪烁动画、无进度条 | **SPLASH 设计参考手机开机: 标题脉冲闪烁 + 图标装饰 + 副标题交替渐亮 + 进度条填充** |
 | 57 | 接线图方框宽度不一致 | 手动编辑 16 个文件时按内容截断, 没有统一约束 | **接线图用脚本统一方框宽度, 按顶边框 `+---+` 确定全局宽度** |
 | 58 | .h 文件头部放置详细接线图 (W25Q_Driver.h 含 8 Pin 逐脚描述) | 接线信息写在 .h 导致头文件臃肿, 且重复于 .c | **接线图只放在 .c 文件头部, .h 用一行 "接线详见 xxx.c" 引用, 保持头文件简短** |

@@ -17,9 +17,9 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V4.5.0 |
+| **文档版本** | V4.5.1 |
 | **最后更新** | 2026-07-02 |
-| **对应固件版本** | V4.5.0 (分支 `4.0TFT`) |
+| **对应固件版本** | V4.5.1 (分支 `4.0TFT`) |
 | **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) |
 | **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages) |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接, 备选) |
@@ -29,6 +29,7 @@
 
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
+| V4.5.1 | 2026-07-02 | **全平台安全审查修复 (16项)**: ESP8266 Token占位符化+配网密码+CMD:CLEAR二次确认+公共MQTT门控 + STM32 DMA超时护底+环形缓冲+黑匣子指针持久化+故障锁存跨页擦除+strtol防溢出+USART2 RXNE优先 + 扫频进度条防闪烁 + Web乐观缓存回滚+SW BASE路径修复 |
 | V4.5.0 | 2026-07-02 | 设置系统重构: 8页设置(语言/字间距/图标/亮度二级/颜色6预设) + PIC预览+确认模型 + 字间距纯像素间隙0-6px + 亮度1-100%滚动翻阅 + 颜色全屏重绘 + Key_Driver ID命名去歧义 + ARMCC V5 hex-escape兼容 |
 | V2.2.0 | 2026-05-24 | 全篇重构: 调试避坑模块、配图标注、双主题小程序、频率渐变斜坡、Cloudflare部署 |
 | V4.3.2 | 2026-06-29 | W25Q128 全字库修复: 初始化铁序修正 (TFT→SysTick→W25Q→Font→SPLASH) + Tft_Driver_Font_Init 拆分 + SPLASH 纯代码8帧渐亮 (不依赖 W25Q 位图分区) + 二分搜索 CS 翻转 + CRC32 算法修正 (Python zlib→STM32 refin=false) + bit_reverse_byte 删除 (字模不再镜像) + ch341 工具链精简 (仅字库烧录) |
