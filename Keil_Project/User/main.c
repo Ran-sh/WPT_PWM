@@ -11,11 +11,11 @@
  *  |    PA1   ESP8266 RST        PB1   ADC_CH9  (电压分压)       |
  *  |    PA2   USART2_TX          PB3   LED_PWM  (绿, JTAG 释放)  |
  *  |    PA3   USART2_RX          PB4   LED_WIFI (蓝, JTAG 释放)  |
- *  |    PA4   TFT_CS             PB5   ON 按键 (IPU, 确定/启停)   |
+ *  |    PA4   TFT_CS             PB5   PAGE 按键 (IPU, 确定/启停)   |
  *  |    PA5   SPI1_SCK           PB6   TFT 背光 (TIM4_CH1)       |
  *  |    PA6   TFT_DC/Flash MISO  PB7   F_DOWN 按键 (IPU)         |
  *  |    PA7   SPI1_MOSI          PB8   F_UP 按键 (IPU)           |
- *  |    PA8   TIM1_CH1           PB9   PAGE 按键 (IPU, 翻页/返回) |
+ *  |    PA8   TIM1_CH1           PB9   ON 按键 (IPU, 翻页/返回) |
  *  |    PA9   TIM1_CH2           PB10  PowerCtrl (高=使能 12V)   |
  *  |    PA10  LED_COM (蓝)       PB11  ESP8266 CH_PD (EN)        |
  *  |    PA11  LED_POWER (绿)     PB13  TIM1_CH1N (全桥)          |
@@ -60,9 +60,11 @@ int main(void)
     Tft_Driver_Font_Init();                                 /* Flash 字库头校验 -> s_font_flash_valid */
     App_Storage_Init();                                     /* 参数双副本加载 + 黑匣子指针恢复 */
 
-    Sys_Startup_Screen();                                   /* 开机动画: 背光渐亮 + 逐字点亮 ~4.8s */
-    Sys_Post_Init();                                        /* LED/ADC/WDG/ESP 联网启动 */
-    Sys_Timer_Delay_Ms(1000);                               /* 开机画面停留 1s, 用户看清屏幕 */
+    Sys_Startup_Screen();                                   /* SPLASH ~4.8s */
+    Sys_Timer_Delay_Ms(1000);                               /* 停留 1s */
+    Tft_Driver_Clear(TFT_COLOR_BLACK);                      /* 一次清屏, 消除 SPLASH 残留 */
+
+    Sys_Post_Init();                                        /* IWDG+ESP (IWDG 1.6s) */
 
     g_sys_state = SYS_STATE_IDLE;                           /* 切到空闲态, 开始正常调度 */
 

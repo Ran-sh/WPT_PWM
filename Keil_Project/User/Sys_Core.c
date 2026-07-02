@@ -19,7 +19,7 @@
  *  |    -- ESP8266 --                                            |
  *  |    PA2=TX  PA3=RX  PA1=RST  PB11=EN                         |
  *  |    -- Keys --                                               |
- *  |    PB9=ON/OFF  PB8=F+  PB7=F-  PB5=PAGE                     |
+ *  |    PB9=ON(返回) PB8=F+ PB7=F- PB5=PAGE(确定)                 |
  *  |    -- LEDs --                                               |
  *  |    PA15=SYSTEM  PB4=WIFI  PB3=PWM  PA10=COM  PA11=POWER     |
  *  |    -- Power control --                                      |
@@ -100,6 +100,8 @@ void Sys_Hardware_Init(void)
     Buzzer_Driver_Init();
     Adc_Driver_Init();
     Key_Driver_Init();
+    /* V4.5.0: PAGE (PB5, 确定/启停) 键跳过双击检测 — 释放去抖后立即发 CLICK, ~22ms 延迟 */
+    Key_Driver_Configure(KEY_DRIVER_ID_PAGE, 1);
 }
 
 void Sys_Startup_Screen(void)
@@ -128,23 +130,25 @@ void Sys_Post_Init(void)
         s_sys_config.adc_i_offset = Adc_Driver_Get_Current_Offset();
     }
 
-    /* 背光: 从配置加载 */
-    if (s_sys_config.backlight > 0)
-        Tft_Driver_Set_Backlight(s_sys_config.backlight);
+    /* V4.5.0: 背光已由 Ui_Controller_Apply_Settings 映射 1-100 → 0-255 PWM 控制,
+     *   此处仅做额外保底: 如果配置值 >0 且在 Ui_Controller_Apply_Settings 之前,
+     *   按新标度映射后设置 (1-100% → 0-255)。 */
+    if (s_sys_config.backlight > 0 && s_sys_config.backlight <= 100)
+        Tft_Driver_Set_Backlight((s_sys_config.backlight * 255 + 50) / 100);
 
     IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);
     IWDG_SetPrescaler(IWDG_Prescaler_64);
-    IWDG_SetReload(1000);
+    IWDG_SetReload(4000);   /* 4000 × ~1.6ms = ~6.4s (LSI ~40kHz typ); worst-case LSI 60kHz: 4000×1.07ms=4.3s */
     IWDG_ReloadCounter();
     IWDG_Enable();
     DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;
 
-    /* V4.4.0: Load persistent settings into UI */
+    /* V4.5.0: Load persistent settings into UI (includes letter_spacing) */
     {
-        uint8_t lang, font, bl, preset;
+        uint8_t lang, font, bl, spacing, preset;
         uint16_t fg, bg;
-        App_Storage_Load_Settings(&lang, &font, &bl, &preset, &fg, &bg);
-        Ui_Controller_Apply_Settings(lang, font, bl, preset, fg, bg);
+        App_Storage_Load_Settings(&lang, &font, &bl, &spacing, &preset, &fg, &bg);
+        Ui_Controller_Apply_Settings(lang, font, bl, spacing, preset, fg, bg);
     }
 
     App_Network_Start_Connect();
@@ -179,7 +183,7 @@ float Sys_Safety_Get_EMA_Current(void)  { return s_safety_ema_i; }
 
 /**
  * @brief  重置过流 EMA 滤波缓存, 防止 FAULT 复位后 EMA 残留值立即重新触发过流
- * @note   FAULT 状态下 KEY0 单击复位时, Sys_Safety 持有的 EMA 电流值可能仍 > 5.0A,
+ * @note   FAULT 状态下 PAGE 单击复位时, Sys_Safety 持有的 EMA 电流值可能仍 > 5.0A,
  *         若不重置, Sys_Safety_Task 下一圈又会将 g_sys_state 拉回 FAULT, 造成"消除无效"。
  *         调用后将 EMA 重置为当前 ADC 原始值, 同时锁定新状态让 EMA 重新收敛。
  */

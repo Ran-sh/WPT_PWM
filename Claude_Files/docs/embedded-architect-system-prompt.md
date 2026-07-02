@@ -238,6 +238,7 @@ WPT_PWM_V4.0_ONENET_TFT/
 
 | 版本 | 关键修复 |
 |:---|:---|
+| V4.5.0 | 设置系统重构: 8页设置 + PIC预览模型 + 字间距0-6px + 亮度二级菜单(手动/呼吸灯) + 颜色6预设全屏重绘 + Tft_Driver 纯像素间隙渲染 + Center/Right 自适应间距 + Draw_Header 内置图标 + Key_Driver ID命名去歧义 + ARMCC V5 hex-escape兼容 + App_Storage 196B校验 + 死代码清理(font_size/BL_Dynamic/Key_GetEvent) |
 | V4.3.2 | W25Q128 全字库修复: 初始化铁序 (TFT→W25Q→SysTick→Font→SPLASH) + Tft_Driver_Font_Init 拆分 + SPLASH 纯代码8帧渐亮 + 二分搜索 CS 翻转 + CRC32 算法修正 (Python zlib→STM32 refin=false) + bit_reverse_byte 删除 (字模不再镜像) |
 | V4.0.0 | 8轮全链路审查: MQTT超时+TOCTOU+FAULT防重触+ESP去抖+数据一致性铁律 |
 | V4.1.0 | 小程序全重写: 单数据模型+双API并行+动态卡片+底部栏Component |
@@ -405,6 +406,16 @@ Vx.y.z 三数字体系：
 | 56 | SPLASH 开机动画样式单一 | 旧版纯 8 帧背光渐亮, 4 行文字同色渐变, 无图形元素、无闪烁动画、无进度条 | **SPLASH 设计参考手机开机: 标题脉冲闪烁 + 图标装饰 + 副标题交替渐亮 + 进度条填充** |
 | 57 | 接线图方框宽度不一致 | 手动编辑 16 个文件时按内容截断, 没有统一约束 | **接线图用脚本统一方框宽度, 按顶边框 `+---+` 确定全局宽度** |
 | 58 | .h 文件头部放置详细接线图 (W25Q_Driver.h 含 8 Pin 逐脚描述) | 接线信息写在 .h 导致头文件臃肿, 且重复于 .c | **接线图只放在 .c 文件头部, .h 用一行 "接线详见 xxx.c" 引用, 保持头文件简短** |
+
+### 4.11 2026-07-02: V4.5.0 设置系统重构教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 59 | 字间距0/2/4/6px 视觉效果不可见 | TFT_Driver_Show_CN_String 间距间隙用 Fill_Rect(bg) 填充，但列步进用整数列单位 (spacing/8)，2/4px 换算为 0 个额外列 | **纯像素级渲染函数必须跟踪像素位置，不能混用列步进和像素偏移；统一用 cur_x += char_w + spacing 的像素累加模式** |
+| 60 | 亮度调节全屏闪烁 | Handle_BL_Manual_Keys F+/F- 设 s_page_drawn=0 导致 Phase 7 做 Tft_Driver_Clear 全屏清 | **增量刷新场景不要在 key handler 里设 s_page_drawn=0，直接在 handler 内部画增量区域** |
+| 61 | 颜色方案背景不全屏 | Draw_Color_Full 只画页面内容(行2-7)，不填满整个屏幕背景 | **颜色切换必须 Clear(Uc_Bg()) 全屏 + 下一页循环 Phase 7 全量重绘** |
+| 62 | ARMCC #870-D 警告: 中文 "无小中大" 损坏 | 中文字符在文件编辑中被编码为无效多字节序列 | **ARMCC V5 所有 inline 中文必须用 UTF-8 hex escape 序列，禁止直接写中文字符** |
+| 63 | KEY_DRIVER_ID_ON_OFF/PAGE 宏名与实际引脚相反 | 宏定义时 ON_OFF=0 指向 PB5=PAGE，PAGE=3 指向 PB9=ON | **驱动层宏命名必须与物理引脚标签一致，不能在命名层抽象物理映射** |
 
 ### 4.5 "更新全部内容"执行检查清单
 

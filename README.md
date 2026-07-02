@@ -5,11 +5,11 @@
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![Display](https://img.shields.io/badge/Display-ST7735%20160×128%20TFT-red)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-purple)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V4.3.2-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V4.5.0-brightgreen)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V4.3.2** (2026-06-29) — W25Q128 全字库 20897 字 (CH341A 烧录, CRC32 STM32 校验) + SPLASH 纯代码开机动画 + 初始化铁序修正。Dual-MCU 双脑架构 + 全局状态机 + 圆弧能量条仪表盘 + OneNET MQTT 多端控制。
+> **V4.5.0** (2026-07-02) — 设置系统重构: 8页设置 + PIC预览模型 + 字间距0/2/4/6px + 亮度滚动1-100% + 颜色6预设全屏重绘 + 纯像素间隙渲染。W25Q128 全字库 20897 字 + SPLASH 纯代码开机动画 + Dual-MCU 双脑架构 + 全局状态机 + 圆弧能量条仪表盘 + OneNET MQTT 多端控制。
 
 ---
 
@@ -17,7 +17,8 @@
 
 - **圆弧能量条仪表盘**: 电压/电流/频率独立表盘, 1px Bres_Line 锐利刻度, 三行信息舱
 - **全局系统状态机**: INIT→IDLE→SWEEP→RUNNING→FAULT, 按状态子集调度 Task
-- **TFT 彩屏 9 页面**: 两级菜单 + 仪表盘 + 配网 + 故障, 200ms 增量刷新
+- **TFT 彩屏 17 页面**: 两级菜单 + 仪表盘 + 配网 + 故障 + 8页设置系统, 200ms 增量刷新
+- **V4.5.0 设置系统**: 语言/字间距(0-6px)/图标浏览/亮度(手动+呼吸灯)/颜色(6预设), PIC预览+确认模型
 - **双 EMA 滤波链**: Sys_Safety 安全级滤波 (V/I) + Ui_Controller 显示级滤波, 频率无 EMA 零迟滞
 - **安全剥离**: PB10 电源控制 + 过流检测从 UI 解耦到 Sys_Safety 独立模块
 - **4 键操作**: ON/OFF (单击/双击/长按), PAGE, F+, F-
@@ -30,6 +31,7 @@
 
 | 版本 | 日期 | 主要变更 |
 |:---|:---|:---|
+| **V4.5.0** | **2026-07-02** | **设置系统重构: 8页PIC预览 + 字间距/亮度/颜色全功能 + 纯像素间隙渲染** |
 | V4.3.2 | 2026-06-29 | W25Q128 全字库修复: 初始化铁序 + CRC32 修正 + SPLASH 纯代码 + CS 翻转 |
 | V4.3.0 | 2026-06-22 | W25Q128 16MB SPI Flash: 全字库 + 黑匣子 + 双副本参数 + 四大防线 |
 | V4.2.1 | 2026-06-17 | 全项目 README 重写 + 4分支统一分支表 |

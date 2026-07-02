@@ -19,22 +19,22 @@ typedef enum {
     KEY_DRIVER_EVENT_LONG_PRESS  = 3
 } Key_Driver_Event;
 
-/* V4.3.2 4 键: PB5=PAGE(确定/启停), PB8=频率+, PB7=频率-, PB9=ON(返回) */
-#define KEY_DRIVER_ID_ON_OFF    0
+/* V4.5.0 4 键: index 0=PB5=PAGE(确定/启停), index 3=PB9=ON(返回) */
+#define KEY_DRIVER_ID_PAGE      0
 #define KEY_DRIVER_ID_FREQ_UP   1
 #define KEY_DRIVER_ID_FREQ_DOWN 2
-#define KEY_DRIVER_ID_PAGE      3
+#define KEY_DRIVER_ID_ON_OFF    3
 
 /** @brief 初始化 4 键 GPIO (全 IPU) */
 void             Key_Driver_Init(void);
+/** @brief 配置按键选项 (在 Key_Driver_Init 之后调用)
+ *  @param key_id   按键编号 (0-3)
+ *  @param no_double 1=跳过双击检测, 释放去抖后立即发 CLICK (紧急启停键用) */
+void             Key_Driver_Configure(uint8_t key_id, uint8_t no_double);
 /** @brief 周期驱动 4 键 FSM (每10ms调用) */
 void             Key_Driver_Task(void);
-/** @brief 获取按键事件并清空 (临界区保护, 阅后即焚)
- *  @param  key_id 按键编号 (0=ON/OFF 1=F+ 2=F- 3=PAGE)
- *  @return 事件类型 (NONE/CLICK/DOUBLE_CLICK/LONG_PRESS)
- */
-Key_Driver_Event Key_Driver_Get_Event(uint8_t key_id);
-/** @brief 批量获取 4 键事件 (单次临界区, 减少 IRQ 抖动) */
+/** @brief 批量获取 4 键事件 (单次临界区, 减少 IRQ 抖动)
+ *  @param  out[4] 按键事件数组 (0=PAGE/确定 1=F+ 2=F- 3=ON/返回) */
 void             Key_Driver_Get_All_Events(Key_Driver_Event out[4]);
 
 #endif /* KEY_DRIVER_H */

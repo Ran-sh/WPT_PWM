@@ -87,7 +87,7 @@ static uint32_t s_fault_lock_addr = 0;   /* 故障锁存区写入地址 */
  *  参数配置 (P3) — 双副本 CRC32 闭锁
  * ═══════════════════════════════════════════════ */
 
-/** @brief 安全默认出厂值 */
+/** @brief 安全默认出厂值 — V4.5.0: BL 1-100%, font 小号, letter_spacing 0 */
 static void App_Storage_Defaults(App_Storage_Config *cfg)
 {
     uint8_t i;
@@ -99,10 +99,11 @@ static void App_Storage_Defaults(App_Storage_Config *cfg)
     cfg->adc_v_gain    = 1.0f;
     cfg->freq_trim_hz = 0;
     cfg->default_freq  = 100;      /* 100kHz 安全中频 */
-    cfg->backlight     = 248;
-    cfg->language      = 0;
-    cfg->font_size     = 1;       /* 中号 */
-    cfg->color_preset  = 0;       /* Classic */
+    cfg->backlight     = 100;      /* V4.5.0: 100% */
+    cfg->language      = 0;        /* CN */
+    cfg->font_size     = 0;        /* V4.5.0: 小号(1x) */
+    cfg->letter_spacing = 0;       /* V4.5.0: 0px gap */
+    cfg->color_preset  = 0;        /* Classic */
     cfg->color_fg      = 0xFFFF;
     cfg->color_bg      = 0x0000;
 }
@@ -166,39 +167,44 @@ void App_Storage_Write_Factory_Defaults(void)
  *  V4.4.0 Settings Convenience
  * ═══════════════════════════════════════════════ */
 void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
-                                uint8_t* preset, uint16_t* fg, uint16_t* bg)
+                                uint8_t* spacing, uint8_t* preset,
+                                uint16_t* fg, uint16_t* bg)
 {
     App_Storage_Config cfg;
     if (App_Storage_Load_Config(&cfg)) {
-        *lang   = cfg.language;
-        *font   = cfg.font_size;
-        *bl     = cfg.backlight;
-        *preset = cfg.color_preset;
-        *fg     = cfg.color_fg;
-        *bg     = cfg.color_bg;
+        *lang    = cfg.language;
+        *font    = cfg.font_size;
+        *bl      = cfg.backlight;
+        *spacing = cfg.letter_spacing;
+        *preset  = cfg.color_preset;
+        *fg      = cfg.color_fg;
+        *bg      = cfg.color_bg;
     } else {
-        *lang   = 0;
-        *font   = 1;
-        *bl     = 248;
-        *preset = 0;
-        *fg     = 0xFFFF;
-        *bg     = 0x0000;
+        *lang    = 0;
+        *font    = 0;
+        *bl      = 100;
+        *spacing = 0;
+        *preset  = 0;
+        *fg      = 0xFFFF;
+        *bg      = 0x0000;
     }
 }
 
 void App_Storage_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
-                                uint8_t preset, uint16_t fg, uint16_t bg)
+                                uint8_t spacing, uint8_t preset,
+                                uint16_t fg, uint16_t bg)
 {
     App_Storage_Config cfg;
     if (App_Storage_Load_Config(&cfg) == 0) {
         App_Storage_Defaults(&cfg);
     }
-    cfg.language     = lang;
-    cfg.font_size    = font;
-    cfg.backlight    = bl;
-    cfg.color_preset = preset;
-    cfg.color_fg     = fg;
-    cfg.color_bg     = bg;
+    cfg.language       = lang;
+    cfg.font_size      = font;
+    cfg.backlight      = bl;
+    cfg.letter_spacing = spacing;
+    cfg.color_preset   = preset;
+    cfg.color_fg       = fg;
+    cfg.color_bg       = bg;
     App_Storage_Save_Config(&cfg);
 }
 

@@ -55,7 +55,17 @@ static uint8_t  s_font_flash_valid = 0;     /* 1=Flash font header CRC32 valid *
 static Font_Header g_font_header;           /* RAM-cached header 32B from W25Q */
 
 /* ── 像素缓冲区 ── */
-static uint16_t s_dma_buf[256];
+/* Max scaled char: 16×2=32 cols × 16×2=32 rows × 2 bytes = 2048 B for CN.
+ * 1024 half-words fits MCU 20KB SRAM (~2KB). 1× scale uses 128 entries. */
+static uint16_t s_dma_buf[1024];
+
+/* ── Font scale (V4.5.0: pixel-doubling support) ── */
+static uint8_t s_font_scale = 1;   /* 1=1x(8x16/16x16), 2=2x(16x32/32x32) */
+
+/* ── Letter spacing (V4.5.0: inter-char gap, 0-3 pixels) ── */
+static uint8_t s_letter_spacing = 0;
+
+static Tft_Config g_tft_config = {1, 0, 0xFFFF, 0x0000};
 
 static void Tft_Driver_Dly(uint32_t us)
 {
@@ -344,6 +354,42 @@ uint8_t Tft_Driver_Is_Font_Flash_Valid(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
+ *  V4.5.0 Tft_Config public API
+ * ═══════════════════════════════════════════════════════════════ */
+
+const Tft_Config* Tft_Driver_Get_Config(void)
+{
+    g_tft_config.font_scale     = s_font_scale;
+    g_tft_config.letter_spacing = s_letter_spacing;
+    return &g_tft_config;
+}
+
+void Tft_Driver_Set_Font_Scale(uint8_t scale)
+{
+    if (scale < 1) scale = 1;
+    if (scale > 2) scale = 2;
+    s_font_scale = scale;
+    g_tft_config.font_scale = scale;
+}
+
+uint8_t Tft_Driver_Get_Font_Scale(void)
+{
+    return s_font_scale;
+}
+
+void Tft_Driver_Set_Letter_Spacing(uint8_t sp)
+{
+    if (sp > 6) sp = 6;
+    s_letter_spacing = sp;
+    g_tft_config.letter_spacing = sp;
+}
+
+uint8_t Tft_Driver_Get_Letter_Spacing(void)
+{
+    return s_letter_spacing;
+}
+
+/* ═══════════════════════════════════════════════════════════════
  *  基础绘图
  * ═══════════════════════════════════════════════════════════════ */
 
@@ -379,19 +425,42 @@ void Tft_Driver_Erase_Pixel_Area(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
  *  位图解码器 (原样保留, LSB-first)
  * ═══════════════════════════════════════════════════════════════ */
 
-static void Decode_Char_Row(uint8_t byte_val, uint16_t fg, uint16_t bg, uint16_t* out)
+static void Decode_Char_Row(uint8_t byte_val, uint16_t fg, uint16_t bg,
+                           uint16_t* out, uint8_t scale)
 {
     uint8_t b;
-    for (b = 0; b < 8; b++)
-        out[b] = (byte_val & (0x01 << b)) ? fg : bg;
+    if (scale == 1) {
+        for (b = 0; b < 8; b++)
+            out[b] = (byte_val & (0x01 << b)) ? fg : bg;
+    } else {
+        /* 2x pixel doubling: each source pixel becomes 2×1 output pixels */
+        for (b = 0; b < 8; b++) {
+            uint16_t c = (byte_val & (0x01 << b)) ? fg : bg;
+            out[b * 2]     = c;
+            out[b * 2 + 1] = c;
+        }
+    }
 }
 
-static void Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16_t bg, uint16_t* out)
+static void Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16_t bg,
+                          uint16_t* out, uint8_t scale)
 {
     uint8_t b;
-    for (b = 0; b < 8; b++) {
-        out[b]     = (lo & (0x01 << b)) ? fg : bg;
-        out[b + 8] = (hi & (0x01 << b)) ? fg : bg;
+    if (scale == 1) {
+        for (b = 0; b < 8; b++) {
+            out[b]     = (lo & (0x01 << b)) ? fg : bg;
+            out[b + 8] = (hi & (0x01 << b)) ? fg : bg;
+        }
+    } else {
+        /* 2x pixel doubling: each 16-wide source row becomes 32-wide */
+        for (b = 0; b < 8; b++) {
+            uint16_t cl = (lo & (0x01 << b)) ? fg : bg;
+            uint16_t ch = (hi & (0x01 << b)) ? fg : bg;
+            out[b * 2]     = cl;
+            out[b * 2 + 1] = cl;
+            out[b * 2 + 16] = ch;
+            out[b * 2 + 17] = ch;
+        }
     }
 }
 
@@ -403,37 +472,66 @@ void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
                           uint16_t fg, uint16_t bg)
 {
     uint8_t idx; uint16_t* p;
+    uint8_t char_w = TFT_FONT_WIDTH  * s_font_scale;  /* 8 or 16 */
+    uint8_t char_h = TFT_FONT_HEIGHT * s_font_scale;  /* 16 or 32 */
+    uint8_t row;
+    uint16_t line_h_scaled = (uint16_t)TFT_FONT_HEIGHT * s_font_scale;
 
-    if (line >= TFT_LINE_COUNT || col >= TFT_CHAR_PER_LINE) return;
+    if (line * TFT_FONT_HEIGHT + char_h > TFT_HEIGHT) return;
+    if (col * TFT_FONT_WIDTH  + char_w > TFT_WIDTH) return;
     if ((uint8_t)ch < 32 || (uint8_t)ch > 126) ch = ' ';
 
     idx = (uint8_t)(ch - 32);
 
     if (s_font_flash_valid) {
-        /* ── Flash 路径: 流式读取 16 行 (每行 1B), 不经 RAM 缓存 ── */
-        uint8_t row; uint32_t base;
-        SetWin(col * 8, line * 16, col * 8 + 7, line * 16 + 15);
-        base = g_font_header.ascii_offset + (uint32_t)idx * 16;  /* idx = ch-32, 0..94 */
+        uint32_t base;
+        SetWin(col * TFT_FONT_WIDTH, line * line_h_scaled,
+               col * TFT_FONT_WIDTH + char_w - 1,
+               line * line_h_scaled + char_h - 1);
+        base = g_font_header.ascii_offset + (uint32_t)idx * 16;
         p = s_dma_buf;
-        for (row = 0; row < 16; row++) {
-            uint8_t byte_val;
-            W25Q_Driver_Read(base + (uint32_t)row, &byte_val, 1);
-            Decode_Char_Row(byte_val, fg, bg, p + row * 8);
+        if (s_font_scale == 1) {
+            for (row = 0; row < 16; row++) {
+                uint8_t byte_val;
+                W25Q_Driver_Read(base + (uint32_t)row, &byte_val, 1);
+                Decode_Char_Row(byte_val, fg, bg, p + row * 8, 1);
+            }
+            Tft_DMA_Send(s_dma_buf, 128);
+        } else {
+            /* 2x: duplicate each row */
+            for (row = 0; row < 16; row++) {
+                uint8_t byte_val;
+                uint8_t r;
+                W25Q_Driver_Read(base + (uint32_t)row, &byte_val, 1);
+                Decode_Char_Row(byte_val, fg, bg, p, 2);
+                /* copy doubled row to second line */
+                for (r = 0; r < 16; r++) p[32 + r] = p[r];
+                p += 32;
+            }
+            Tft_DMA_Send(s_dma_buf, 16 * 32);  /* 16 rows × 16 cols = 256 → 512 B */
         }
-        Tft_DMA_Send(s_dma_buf, 128);
         return;
     }
 
     {
-        /* ── ROM 回退: 片内 TFT_FONT_8X16 字模 ── */
-        uint8_t r; uint16_t x0, y0;
-        x0 = col  * TFT_FONT_WIDTH;
-        y0 = line * TFT_FONT_HEIGHT;
-        SetWin(x0, y0, x0 + TFT_FONT_WIDTH - 1, y0 + TFT_FONT_HEIGHT - 1);
+        uint16_t x0, y0;
+        x0 = col * TFT_FONT_WIDTH;
+        y0 = line * line_h_scaled;
+        SetWin(x0, y0, x0 + char_w - 1, y0 + char_h - 1);
         p = s_dma_buf;
-        for (r = 0; r < 16; r++)
-            Decode_Char_Row(TFT_FONT_8X16[idx][r], fg, bg, p + r * 8);
-        Tft_DMA_Send(s_dma_buf, 128);
+        if (s_font_scale == 1) {
+            for (row = 0; row < 16; row++)
+                Decode_Char_Row(TFT_FONT_8X16[idx][row], fg, bg, p + row * 8, 1);
+            Tft_DMA_Send(s_dma_buf, 128);
+        } else {
+            for (row = 0; row < 16; row++) {
+                uint8_t r;
+                Decode_Char_Row(TFT_FONT_8X16[idx][row], fg, bg, p, 2);
+                for (r = 0; r < 16; r++) p[32 + r] = p[r];
+                p += 32;
+            }
+            Tft_DMA_Send(s_dma_buf, 16 * 32);
+        }
     }
 }
 
@@ -485,32 +583,54 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
                                uint16_t fg, uint16_t bg)
 {
     uint8_t row; uint16_t* p;
+    uint8_t char_w = (uint16_t)TFT_FONT_WIDTH * 2 * s_font_scale;  /* 16 or 32 */
+    uint8_t char_h = (uint16_t)TFT_FONT_HEIGHT * s_font_scale;     /* 16 or 32 */
+    uint16_t buf_x_start = col * TFT_FONT_WIDTH;
+    uint16_t buf_y_start = ln  * ((uint16_t)TFT_FONT_HEIGHT * s_font_scale);
+    uint32_t base = 0; /* init to quiet ARMCC warning */
 
-    if (ln >= TFT_LINE_COUNT || col + 1 >= TFT_CHAR_PER_LINE) return;
+    if (buf_y_start + char_h > TFT_HEIGHT) return;
+    if (buf_x_start + char_w > TFT_WIDTH) return;
 
     if (s_font_flash_valid) {
-        /* ── Flash 路径: UTF-8 → Unicode → 二分查找 → 流式读取 16 行 ── */
-        uint32_t unicode; uint32_t data_offset; uint32_t base;
+        uint32_t unicode; uint32_t data_offset;
         unicode  = ((uint32_t)(utf8[0] & 0x0F) << 12);
         unicode |= ((uint32_t)(utf8[1] & 0x3F) << 6);
         unicode |= ((uint32_t)(utf8[2] & 0x3F));
         data_offset = W25Q_Font_Index_Binary_Search((uint16_t)unicode, &g_font_header);
         if (data_offset == 0xFFFFFFFFUL) {
-            SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
-            Tft_DMA_Fill(256, bg);
+            SetWin(buf_x_start, buf_y_start, buf_x_start + char_w - 1, buf_y_start + char_h - 1);
+            Tft_DMA_Fill((uint32_t)char_w * char_h, bg);
             return;
         }
         base = g_font_header.cjk_data_offset + (uint32_t)data_offset;
-        SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
-        p = s_dma_buf;
-        for (row = 0; row < 16; row++) {
-            uint8_t lo_hi[2];
-            W25Q_Driver_Read(base + (uint32_t)row * 2, lo_hi, 2);
-            Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p + row * 16);
+    }
+
+    SetWin(buf_x_start, buf_y_start, buf_x_start + char_w - 1, buf_y_start + char_h - 1);
+    p = s_dma_buf;
+
+    if (s_font_flash_valid) {
+        if (s_font_scale == 1) {
+            for (row = 0; row < 16; row++) {
+                uint8_t lo_hi[2];
+                W25Q_Driver_Read(base + (uint32_t)row * 2, lo_hi, 2);
+                Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p + row * 16, 1);
+            }
+            Tft_DMA_Send(s_dma_buf, 256);
+        } else {
+            /* 2x: 16×16 → 32×32, row-doubling in DMA buf */
+            for (row = 0; row < 16; row++) {
+                uint8_t lo_hi[2]; uint8_t r;
+                W25Q_Driver_Read(base + (uint32_t)row * 2, lo_hi, 2);
+                Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p, 2);
+                /* copy doubled row into second line */
+                for (r = 0; r < 32; r++) p[64 + r] = p[r];
+                p += 64;
+            }
+            Tft_DMA_Send(s_dma_buf, 16 * 64);  /* 16 src rows × 32 cols × 2 (row-double) = 1024 */
         }
-        Tft_DMA_Send(s_dma_buf, 256);
     } else {
-        /* ── ROM 回退: CN_INDEX 线性查找 (76字) ── */
+        /* ROM fallback */
         uint8_t g_idx; uint8_t i;
         g_idx = 0xFF;
         for (i = 0; i < TFT_CN_FONT_CHAR_COUNT; i++) {
@@ -519,29 +639,57 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
             }
         }
         if (g_idx == 0xFF) {
-            SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
-            Tft_DMA_Fill(256, bg);
+            Tft_DMA_Fill((uint32_t)char_w * char_h, bg);
             return;
         }
-        SetWin(col * 8, ln * 16, col * 8 + 15, ln * 16 + 15);
-        p = s_dma_buf;
-        for (row = 0; row < 16; row++)
-            Decode_CN_Row(CN_FONT_16X16[g_idx][row * 2], CN_FONT_16X16[g_idx][row * 2 + 1],
-                           fg, bg, p + row * 16);
-        Tft_DMA_Send(s_dma_buf, 256);
+        if (s_font_scale == 1) {
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(CN_FONT_16X16[g_idx][row * 2], CN_FONT_16X16[g_idx][row * 2 + 1],
+                               fg, bg, p + row * 16, 1);
+            Tft_DMA_Send(s_dma_buf, 256);
+        } else {
+            for (row = 0; row < 16; row++) {
+                uint8_t r;
+                Decode_CN_Row(CN_FONT_16X16[g_idx][row * 2], CN_FONT_16X16[g_idx][row * 2 + 1],
+                               fg, bg, p, 2);
+                for (r = 0; r < 32; r++) p[64 + r] = p[r];
+                p += 64;
+            }
+            Tft_DMA_Send(s_dma_buf, 16 * 64);
+        }
     }
 }
 
 void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
                                 uint16_t fg, uint16_t bg)
 {
-    while (*s && col < TFT_CHAR_PER_LINE) {
-        if (Tft_Is_UTF8_CN((uint8_t)*s) && *(s+1) && *(s+2)) {
-            Tft_Driver_CN_Draw(ln, col, (const uint8_t*)s, fg, bg);
-            col += 2; s += 3;
-        } else {
-            Tft_Driver_Show_Char(ln, col, *s, fg, bg);
-            col++; s++;
+    uint8_t as_char_w = TFT_FONT_WIDTH  * s_font_scale;  /* ASCII width: 8 or 16 */
+    uint8_t cn_char_w = TFT_FONT_WIDTH  * 2 * s_font_scale; /* CN width: 16 or 32 */
+    uint8_t max_x = TFT_WIDTH - as_char_w;
+
+    /* V4.5.0: pure pixel-gap spacing.  Each char drawn at pixel position cur_x,
+     *   then cur_x += char_w + s_letter_spacing.  Background fill bridges the gap. */
+    {
+        uint16_t cur_x = (uint16_t)col * TFT_FONT_WIDTH;
+        while (*s && cur_x <= max_x) {
+            if (Tft_Is_UTF8_CN((uint8_t)*s) && *(s+1) && *(s+2)) {
+                if (cur_x + cn_char_w > TFT_WIDTH) break;
+                /* Redraw spacer region as BG first, then draw glyph */
+                if (s_letter_spacing > 0)
+                    Tft_Driver_Fill_Rect(cur_x, (uint16_t)ln * (TFT_FONT_HEIGHT * s_font_scale),
+                        s_letter_spacing, (uint16_t)TFT_FONT_HEIGHT * s_font_scale, bg);
+                Tft_Driver_CN_Draw(ln, (uint8_t)(cur_x / TFT_FONT_WIDTH), (const uint8_t*)s, fg, bg);
+                cur_x += cn_char_w + s_letter_spacing;
+                s += 3;
+            } else {
+                if (cur_x + as_char_w > TFT_WIDTH) break;
+                if (s_letter_spacing > 0)
+                    Tft_Driver_Fill_Rect(cur_x, (uint16_t)ln * (TFT_FONT_HEIGHT * s_font_scale),
+                        s_letter_spacing, (uint16_t)TFT_FONT_HEIGHT * s_font_scale, bg);
+                Tft_Driver_Show_Char(ln, (uint8_t)(cur_x / TFT_FONT_WIDTH), *s, fg, bg);
+                cur_x += as_char_w + s_letter_spacing;
+                s++;
+            }
         }
     }
 }
@@ -560,7 +708,7 @@ void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t f
     p = s_dma_buf;
     for (row = 0; row < 16; row++)
         Decode_CN_Row(WIFI_ICON[frame][row * 2], WIFI_ICON[frame][row * 2 + 1],
-                       fg, bg, p + row * 16);
+                       fg, bg, p + row * 16, 1);
 
     Tft_DMA_Send(s_dma_buf, 256);
 }
@@ -574,7 +722,7 @@ void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
 
     p = s_dma_buf;
     for (row = 0; row < 16; row++)
-        Decode_CN_Row(data[row * 2], data[row * 2 + 1], fg, bg, p + row * 16);
+        Decode_CN_Row(data[row * 2], data[row * 2 + 1], fg, bg, p + row * 16, 1);
 
     Tft_DMA_Send(s_dma_buf, 256);
 }
@@ -642,30 +790,33 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
      *  为快速修复, 先实现 Flash-only 路径, ROM 回退仅保留 STAR/WIFI/MQTT. */
     uint8_t row; uint16_t* p;
 
-    if (icon_id > 30) return 0;
+    if (icon_id > 34) return 0;
 
     SetWin(x, y, x + 15, y + 15);
     p = s_dma_buf;
 
     /* Try Flash path first */
     if (s_font_flash_valid) {
-        /* Read icon frame from Flash icon_data area */
+        /* Read icon frame from Flash icon_data area
+         * Flash layout (from generate_font.py OFF_ICONS):
+         *   0x000700: Icon Table Header 16B
+         *   0x000710: Icon Entries 31×8B = 248B
+         *   0x000808: Icon Bitmap Data
+         * Entry 8B: [id:2][n_frames:2][data_offset:2][reserved:2] */
         uint32_t icon_idx_base, icon_data_base, data_offset, frame_offset;
         uint8_t n_frames, icon_entry[8];
-        /* Locate icon entry: icon_table = hdr + 32 */
-        icon_idx_base = 0x000060;  /* icon_table offset in Flash */
-        /* Read 8-byte entry: [id:2][n_frames:2][data_offset:4] */
+        icon_idx_base = 0x000710U;  /* icon entries start */
+        /* Read 8-byte entry: [id:2][n_frames:2][data_offset:2][reserved:2] */
         W25Q_Driver_Read(icon_idx_base + (uint32_t)icon_id * 8, icon_entry, 8);
         n_frames     = icon_entry[2] | (uint16_t)icon_entry[3] << 8;
-        data_offset  = (uint32_t)icon_entry[4] | (uint32_t)icon_entry[5] << 8
-                    | (uint32_t)icon_entry[6] << 16 | (uint32_t)icon_entry[7] << 24;
-        icon_data_base = 0x000060 + 16 + (uint32_t)31 * 8;  /* after table */
+        data_offset  = (uint32_t)icon_entry[4] | (uint32_t)icon_entry[5] << 8;
+        icon_data_base = 0x000808U;  /* icon bitmap data start */
         if (frame >= n_frames) frame = n_frames - 1;
         frame_offset = icon_data_base + data_offset + (uint32_t)frame * 32;
         for (row = 0; row < 16; row++) {
             uint8_t lo_hi[2];
             W25Q_Driver_Read(frame_offset + (uint32_t)row * 2, lo_hi, 2);
-            Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p + row * 16);
+            Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p + row * 16, 1);
         }
         Tft_DMA_Send(s_dma_buf, 256);
         return 1;
@@ -673,26 +824,44 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
 
     /* ROM fallback: only WIFI (0-3), MQTT (4-7), STAR (8) */
     switch (icon_id) {
-        case 0: case 1: case 2: case 3:
+        case 0:  /* WIFI_SIGNAL: 按 frame 选信号强度帧 */
             if (frame > 3) frame = 3;
             for (row = 0; row < 16; row++)
-                Decode_CN_Row(WIFI_ICON[frame][row*2], WIFI_ICON[frame][row*2+1], fg, bg, p + row*16);
+                Decode_CN_Row(WIFI_ICON[frame][row*2], WIFI_ICON[frame][row*2+1], fg, bg, p + row*16, 1);
+            break;
+        case 1:  /* WIFI_CONNECT_ANIM: 按 frame 选动画帧 */
+            if (frame > 5) frame = 5;
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(WIFI_CONNECT_ANIM[frame][row*2], WIFI_CONNECT_ANIM[frame][row*2+1], fg, bg, p + row*16, 1);
+            break;
+        case 2:  /* WIFI_OFF — 带×的静态图标 */
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(WIFI_OFF_ICON[row*2], WIFI_OFF_ICON[row*2+1], fg, bg, p + row*16, 1);
+            break;
+        case 3:  /* WIFI_REMOVE — 带减号的静态图标 */
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(WIFI_REMOVE_ICON[row*2], WIFI_REMOVE_ICON[row*2+1], fg, bg, p + row*16, 1);
             break;
         case 4:
             for (row = 0; row < 16; row++)
-                Decode_CN_Row(MQTT_ICON[row*2], MQTT_ICON[row*2+1], fg, bg, p + row*16);
+                Decode_CN_Row(MQTT_ICON[row*2], MQTT_ICON[row*2+1], fg, bg, p + row*16, 1);
             break;
         case 5:
             for (row = 0; row < 16; row++)
-                Decode_CN_Row(MQTT_YES_ICON[row*2], MQTT_YES_ICON[row*2+1], fg, bg, p + row*16);
+                Decode_CN_Row(MQTT_YES_ICON[row*2], MQTT_YES_ICON[row*2+1], fg, bg, p + row*16, 1);
             break;
         case 6:
             for (row = 0; row < 16; row++)
-                Decode_CN_Row(MQTT_NO_ICON[row*2], MQTT_NO_ICON[row*2+1], fg, bg, p + row*16);
+                Decode_CN_Row(MQTT_NO_ICON[row*2], MQTT_NO_ICON[row*2+1], fg, bg, p + row*16, 1);
+            break;
+        case 7:  /* MQTT_ANIM: 按 frame 选动画帧 */
+            if (frame > 5) frame = 5;
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(MQTT_ANIM[frame][row*2], MQTT_ANIM[frame][row*2+1], fg, bg, p + row*16, 1);
             break;
         case 8:
             for (row = 0; row < 16; row++)
-                Decode_CN_Row(ICON_STAR[row*2], ICON_STAR[row*2+1], fg, bg, p + row*16);
+                Decode_CN_Row(ICON_STAR[row*2], ICON_STAR[row*2+1], fg, bg, p + row*16, 1);
             break;
         default: { uint8_t i; for (i = 0; i < 256; i++) p[i] = bg; } break;
     }
@@ -739,7 +908,7 @@ void Tft_Driver_Show_Splash(void)
     }
 
     /* 版本号: 右下角暗灰 (Row 7 col14, 屏亮后第一个字渐亮时出现) */
-    Tft_Driver_Show_String(7, 14, "V4.3.2", 0x3186U, TFT_COLOR_BLACK);
+    Tft_Driver_Show_String(7, 14, "V4.5.0", 0x3186U, TFT_COLOR_BLACK);
 
     /* Phase 2: 两行同时逐字点亮, 每字 8帧渐亮x50ms=400ms, 4字=1600ms */
     for (col = 0; col < 4; col++) {

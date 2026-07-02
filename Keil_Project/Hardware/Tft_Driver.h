@@ -61,6 +61,10 @@
 #define ICON_ID_GLOBE             28
 #define ICON_ID_CHART             29
 #define ICON_ID_CLOCK             30
+#define ICON_ID_EXTRA1            31
+#define ICON_ID_EXTRA2            32
+#define ICON_ID_EXTRA3            33
+#define ICON_ID_EXTRA4            34
 
 /* ── 显示参数 ── */
 #define TFT_WIDTH             160   /* 横屏宽 (物理160) */
@@ -69,6 +73,25 @@
 #define TFT_LINE_COUNT        8     /* 128/16 = 8 */
 #define TFT_FONT_WIDTH        8
 #define TFT_FONT_HEIGHT       16
+
+/* ── V4.5.0 Driver Config ── */
+typedef struct {
+    uint8_t  font_scale;     /* 1=1x native, 2=2x pixel-doubled */
+    uint8_t  letter_spacing; /* V4.5.0 extra pixel gap between chars (0-6 default 0) */
+    uint16_t default_fg;     /* fallback FG when caller passes 0 */
+    uint16_t default_bg;     /* fallback BG when caller passes 0 */
+} Tft_Config;
+
+/** @brief Query current driver config (const, atomic read) */
+const Tft_Config* Tft_Driver_Get_Config(void);
+/** @brief Set font scale (1x or 2x pixel-doubling). 1=8x16/16x16 native, 2=16x32/32x32 scaled. */
+void Tft_Driver_Set_Font_Scale(uint8_t scale);
+/** @brief Get current font scale */
+uint8_t Tft_Driver_Get_Font_Scale(void);
+/** @brief [V4.5.0] Set letter spacing extra pixels (0-6) applied after each char */
+void Tft_Driver_Set_Letter_Spacing(uint8_t sp);
+/** @brief [V4.5.0] Get current letter spacing */
+uint8_t Tft_Driver_Get_Letter_Spacing(void);
 
 /** @brief 初始化 ST7735 TFT (硬件复位+寄存器序列+背光 PWM)
  *  @note  仅初始化 TFT 硬件, 不访问 W25Q128 (Flash 驱动尚未就绪) */
@@ -110,7 +133,7 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
 
 /** @brief 统一 Flash 图标绘制: (icon_id, frame) -> 16x16 pixel render
  *  @param x,y     top-left TFT pixel coordinates (0-based pixel)
- *  @param icon_id 0-30, see ICON_ID_* defines above
+ *  @param icon_id 0-34, see ICON_ID_* defines above
  *  @param frame   0..n_frames-1, clamped internally
  *  @param fg,bg   foreground/background RGB565 colors
  *  @retval 1=success, 0=Flash not valid or icon_id out of range
