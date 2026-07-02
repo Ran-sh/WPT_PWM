@@ -30,25 +30,35 @@
 
 /* ── WiFi 配网 ── */
 #define WIFI_AP_NAME          "STM32_WPT_Config"
+#define WIFI_AP_PASSWORD      "wpt2026conf"  /* 配网热点密码 (建议按设备定制) */
 #define WIFI_AP_TIMEOUT_S     180
 
-/* ── OneNET MQTT 设备凭证 ── */
+/* ── OneNET MQTT 设备凭证 ──
+ * ⚠️ 安全警告: 以下为占位值, 部署前必须替换为实际凭证!
+ *    1. 登录 OneNET Studio → 设备管理 → 设备详情 获取产品ID/设备名/Token
+ *    2. Token 在 OneNET 平台生成, 过期时间建议 1 年以内
+ *    3. 切勿将实际 Token 提交到 Git 仓库
+ *    4. 生产环境建议用 EEPROM/SPIFFS 动态存储 Token (通过配网页面上传) */
 #define MQTT_SERVER           "mqtts.heclouds.com"
 #define MQTT_PORT             1883
-#define ONENET_PRODUCT_ID     "1iS397oJFL"
-#define ONENET_DEVICE_NAME    "20260001"
-#define ONENET_TOKEN          "version=2018-10-31&res=products%2F1iS397oJFL%2Fdevices%2F20260001&et=2063362960&method=md5&sign=phYCE26jNI80tiXEeMxxRA%3D%3D"
+#define ONENET_PRODUCT_ID     "YOUR_PRODUCT_ID"       /* ← 替换为实际产品 ID */
+#define ONENET_DEVICE_NAME    "YOUR_DEVICE_NAME"      /* ← 替换为实际设备名称 */
+#define ONENET_TOKEN          "YOUR_ONENET_TOKEN"     /* ← 替换为实际 Token */
 
-/* ── OneNET 物模型主题 ── */
-#define MQTT_TOPIC_PROPERTY_POST      "$sys/1iS397oJFL/20260001/thing/property/post"
-#define MQTT_TOPIC_PROPERTY_SET       "$sys/1iS397oJFL/20260001/thing/property/set"
-#define MQTT_TOPIC_PROPERTY_SET_REPLY "$sys/1iS397oJFL/20260001/thing/property/set_reply"
+/* ── OneNET 物模型主题 (由 PRODUCT_ID + DEVICE_NAME 自动拼接) ── */
+#define MQTT_TOPIC_PROPERTY_POST      "$sys/" ONENET_PRODUCT_ID "/" ONENET_DEVICE_NAME "/thing/property/post"
+#define MQTT_TOPIC_PROPERTY_SET       "$sys/" ONENET_PRODUCT_ID "/" ONENET_DEVICE_NAME "/thing/property/set"
+#define MQTT_TOPIC_PROPERTY_SET_REPLY "$sys/" ONENET_PRODUCT_ID "/" ONENET_DEVICE_NAME "/thing/property/set_reply"
 
-/* ── 公共 Broker (Web 控制台) ── */
+/* ── 公共 Broker (Web 控制台) ──
+ * ⚠️ 安全警告: public broker 无认证, 任何人均可订阅/发布
+ *    若不需要公共访问, 注释 PUBLIC_MQTT_ENABLED 即可完全禁用 */
+#define PUBLIC_MQTT_ENABLED   1       /* 0=禁用公共 Broker */
 #define PUBLIC_MQTT_SERVER    "broker.emqx.io"
 #define PUBLIC_MQTT_PORT      1883
-#define PUBLIC_TOPIC_DATA     "wpt/20260001/data"
-#define PUBLIC_TOPIC_CMD      "wpt/20260001/cmd"
+#define PUBLIC_TOPIC_DATA     "wpt/" ONENET_DEVICE_NAME "/data"
+#define PUBLIC_TOPIC_CMD      "wpt/" ONENET_DEVICE_NAME "/cmd"
+#define PUBLIC_CMD_AUTH_KEY   ""      /* 若不为空, 公共指令需以此 Key 开头 (HMAC 预留) */
 
 /* ── 重连间隔 ── */
 #define RECONNECT_INTERVAL_MS 5000
@@ -211,6 +221,16 @@ static void Mqtt_Task_On_OneNET_Message(char* topic, byte* payload, unsigned int
 
 static void Mqtt_Task_On_Public_Message(char* topic, byte* payload, unsigned int length)
 {
+#if PUBLIC_MQTT_ENABLED
+    /* 公共 Broker 指令鉴权: 若 PUBLIC_CMD_AUTH_KEY 非空, 需以此 Key 开头 */
+    if (PUBLIC_CMD_AUTH_KEY[0] != '\0') {
+        if (length < strlen(PUBLIC_CMD_AUTH_KEY) ||
+            memcmp(payload, PUBLIC_CMD_AUTH_KEY, strlen(PUBLIC_CMD_AUTH_KEY)) != 0) {
+            return;  /* 鉴权失败, 静默丢弃 */
+        }
+        payload += strlen(PUBLIC_CMD_AUTH_KEY);
+        length  -= strlen(PUBLIC_CMD_AUTH_KEY);
+    }
 #ifdef DEBUG
     Serial.print("[Public] <<< CMD: ");
     Serial.write(payload, length);
@@ -218,6 +238,7 @@ static void Mqtt_Task_On_Public_Message(char* topic, byte* payload, unsigned int
 #endif
     Serial.write(payload, length);
     Serial.print("\n");
+#endif /* PUBLIC_MQTT_ENABLED */
 }
 
 /* ── 连接维护: 驱动 Conn_State 状态机 ── */
@@ -232,7 +253,7 @@ static void Mqtt_Task_Maintain_Connection(void)
         case MQTT_CONN_STATE_WIFI_CONN:
             if (WiFi.status() == WL_CONNECTED) {
                 s_conn_state = MQTT_CONN_STATE_MQTT_CONN;
-                if (WIFI.status() != WL_CONNECTED) {
+            } else if (now - s_conn_retry_ms >= WIFI_RETRY_INTERVAL_MS) {
                 /* 持续重试, 不设上限 — 上限判断由 STM32 App_Network 负责 */
                 s_conn_retry_cnt++;
                 s_conn_retry_ms = now;
@@ -249,12 +270,16 @@ static void Mqtt_Task_Maintain_Connection(void)
                 s_mqtt_client.connect(ONENET_DEVICE_NAME, ONENET_PRODUCT_ID, ONENET_TOKEN);
             if (one_ok) s_mqtt_client.subscribe(MQTT_TOPIC_PROPERTY_SET);
 
+#if PUBLIC_MQTT_ENABLED
             boolean pub_ok = s_mqtt_public.connected() ||
                 s_mqtt_public.connect(ONENET_DEVICE_NAME);
             if (pub_ok) {
                 s_mqtt_public.setCallback(Mqtt_Task_On_Public_Message);
                 s_mqtt_public.subscribe(PUBLIC_TOPIC_CMD);
             }
+#else
+            boolean pub_ok = true;  /* 公共 Broker 禁用时跳过 */
+#endif
 
             if (one_ok && pub_ok) {
                 s_conn_state = MQTT_CONN_STATE_ONLINE;
@@ -369,9 +394,11 @@ static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
     serializeJson(tx, buf, sizeof(buf));
     s_mqtt_client.publish(MQTT_TOPIC_PROPERTY_POST, buf);
 
+#if PUBLIC_MQTT_ENABLED
     if (s_mqtt_public.connected()) {
         s_mqtt_public.publish(PUBLIC_TOPIC_DATA, stm32_json);
     }
+#endif
 }
 
 
@@ -395,10 +422,21 @@ static void Serial_Parse_Process_Line(const char* line)
         return;
     }
 
-    /* CMD:CLEAR — 清除配网凭证并重启, 进入配网模式 (需手动重新配网) */
+    /* CMD:CLEAR — 清除配网凭证并重启, 进入配网模式 (需二次确认防误触)
+     * 第一次收到 → 回复 CLEAR_CONFIRM? 等待确认
+     * 5s 内再次收到 → 执行清除+重启 */
     if (Str_Starts_With(line, "CMD:CLEAR")) {
+        static unsigned long s_clear_first_ms = 0;
+        unsigned long now = millis();
+        if (s_clear_first_ms == 0 || now - s_clear_first_ms > 5000) {
+            s_clear_first_ms = now;
+            Serial.print("STATUS:CLEAR_CONFIRM?\n");
+            return;
+        }
+        /* 第二次确认 → 执行清除 */
+        s_clear_first_ms = 0;
 #ifdef DEBUG
-        Serial.println("[System] CMD:CLEAR — resetting WiFi...");
+        Serial.println("[System] CMD:CLEAR confirmed — resetting WiFi...");
 #endif
         WiFiManager wm;
         wm.resetSettings();
@@ -453,20 +491,21 @@ void setup()
     WiFi.mode(WIFI_STA);
 
     WiFiManager wifi_manager;
-    wifi_manager.setDebugOutput(true);
+    wifi_manager.setDebugOutput(false);       /* 生产环境关闭调试输出 (防 WiFi SSID 泄露) */
     wifi_manager.setConfigPortalTimeout(WIFI_AP_TIMEOUT_S);
 
 #ifdef DEBUG
+    wifi_manager.setDebugOutput(true);
     Serial.println("[WiFi] Starting WiFiManager autoConnect...");
 #endif
 
-    if (!wifi_manager.autoConnect(WIFI_AP_NAME)) {
+    if (!wifi_manager.autoConnect(WIFI_AP_NAME, WIFI_AP_PASSWORD)) {
 #ifdef DEBUG
         Serial.println("[WiFi] No saved WiFi — starting Config Portal...");
         Serial.print("[WiFi] Connect to AP: ");
         Serial.println(WIFI_AP_NAME);
 #endif
-        wifi_manager.startConfigPortal(WIFI_AP_NAME);
+        wifi_manager.startConfigPortal(WIFI_AP_NAME, WIFI_AP_PASSWORD);
     }
 
 #ifdef DEBUG

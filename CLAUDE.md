@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.5.0 |
+| **版本** | V4.5.1 |
 | **语言** | 中文交流，代码注释中英混合 |
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
@@ -23,7 +23,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.5.0
+当前版本: V4.5.1
 
 涉及版本号的位置 (全项目必须统一):
   文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.3.2
@@ -296,17 +296,18 @@ int main(void) {
 - **状态机对齐**: Conn_State 与 STM32 App_Network 一致 (IDLE/WIFI/MQTT/ONLINE/OFFLINE_PASSIVE/OFFLINE_ACTIVE)
 - **持续重试**: ESP 侧不设重试上限, 上限判断由 STM32 负责; WiFi 断开后每 3s 重试 WiFi.begin()
 - **CMD:WIFI_DISC**: 断开 WiFi 但保留凭证, 进入 OFFLINE_PASSIVE 持续嗅探恢复
-- **CMD:CLEAR**: 清除配网凭证+ESP.restart(), 进入配网模式
+- **CMD:CLEAR**: 清除配网凭证+ESP.restart(), 进入配网模式; **V4.5.1: 二次确认 (5s 窗口, 第一次回复 CLEAR_CONFIRM? 第二次才执行)**
 - **指令去抖**: Mqtt_Task_Parse_Command 2s 窗口内相同 payload 直接丢弃
 - **Switch 状态**: 仅 `s==2` (SS_DONE) 上报 true, `s==1` (SWEEP) 为过渡态不上报
 - **遥测频率**: 仅在 running 时上报真实 F 值, 否则上报 0 (完全透传 STM32)
 - **SetFreq 量化**: `(val/1000)*1000`, 与 STM32 PWM 1kHz 步进一致
+- **V4.5.1 安全加固**: Token 占位符化 (部署前替换) + 配网热点加密码 (WIFI_AP_PASSWORD) + 公共 MQTT Broker 门控 (PUBLIC_MQTT_ENABLED) + 指令鉴权预留 (PUBLIC_CMD_AUTH_KEY) + WiFiManager debug 生产关闭
 
 ## 网页端 (Cloudflare Pages)
 
 - **登录守卫**: 所有 6 个受保护页面顶部内置 `lastLoginTime` 检查，7 天过期后自动跳转 `/login.html`
 - **XSS 防护**: `config.js` 提供 `escapeHtml()` 函数，所有 `innerHTML` 插值前必须通过此函数转义用户可控字符串
-- **乐观更新**: `setProperty` 成功后立即写 localStorage + 3s 乐观锁
+- **乐观更新**: `setProperty` 成功后立即写 localStorage + 3s 乐观锁; **V4.5.1: 重试全部失败后回滚乐观缓存**
 - **重试**: `setProperty` 网络/业务错误各重试 3 次 (500ms/800ms)
 - **连接指示**: 在线(绿) / 离线(黄) / 失败(红) / 未配置(灰), `/device/detail` 优先 + 数据非空兜底
 - **数据模型**: `config.js` DEFAULT_DATA_MODEL → sensors(V/I/F) + controls(Switch/SetFreq)
@@ -394,6 +395,7 @@ JTAG 禁用释放 PB3/PB4/PB5/PA15。
 | SPI | Mode 3, 18MHz, DMA1_Channel3, **全双工** (V4.3.0: MISO 用于 Flash 读取) |
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 |
+| **DMA 超时** | **V4.5.1: 4个忙等循环加 200ms 超时护底, 超时强制释放 CS 防系统硬锁** |
 | **字库路径** | **Flash 20897 字 (CRC32 STM32 refin=false 校验) → ROM 76 字 (自动回退)** |
 | 字库位序 | 全部 LSB-first, 统一在 `TFT_Font_Data.h` / `generate_font.py` (无 bit_reverse) |
 | 图标 | WIFI(4+动画6帧), MQTT(3态+动画6帧), ICON_STAR, 20 新图标 |
@@ -481,6 +483,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V4.5.1 | **全平台安全审查修复 (16项)**: ESP8266 Token占位符化(防泄露)+配网热点加密码+CMD:CLEAR二次确认(5s窗口)+公共MQTT Broker门控+WIFI_CONN死代码修复+WiFiManager debug关; STM32 Tft_Driver DMA/SPI忙等4循环200ms超时护底; Esp8266_Driver 3槽环形缓冲(防连续帧丢失); App_Storage 黑匣子指针每60条回写Block0(重启可恢复)+故障锁存扇区跨页保护; App_Network strtol替代atol+OFFLINE恢复STATUS正向过滤; USART2 RXNE先于ORE(防有效字节丢弃); Ui_Controller 扫频进度条+WiFi行变更检测(消除200ms闪烁); Web setProperty重试失败回滚乐观缓存+SW BASE路径修复; 编译0错误0警告 |
 | V4.5.0 | 设置系统重构: 8页设置(语言/字间距/图标/亮度二级菜单手动+呼吸灯/颜色方案) + PIC预览模型(PAGE=确定/ON=取消) + 字体大小→字间距(0/2/4/6px真实像素差) + 亮度1-100%滚动翻阅即时生效 + 色彩6预设全屏重绘 + Tft_Driver 纯像素间隙渲染 + Center/Right 自适应间距布局 + Draw_Header 自动画图标(dedup) + Key_Driver ID命名去歧义(PAGE=0/ON=3) + ARMCC V5 hex-escape兼容(零#870-D警告) + App_Storage_Config 结构体196B校验 + 死代码清理(Key_GetEvent/font_size/BL_Dynamic) |
 | V4.3.2 | W25Q128 全字库修复 + 开机动画重写: SPLASH 逐字渐亮~4.8s(背光渐变+两行逐字+版本号右下角) + 按键交换(PB5=PAGE确定/PB9=ON返回) + 底部栏全删 + Task/IWDG/WFI 移入状态机 + main.c 每行注释 + UI 页面标题中文化 + 接线图纯 ASCII(ARMCC V5 C89兼容) + CRC32/CS翻转/bit_reverse/generate_font.py 修正 |
 | V4.3.1 | CH341+Python Flash 字库烧录: generate_font.py(GB2312 6763字+图标 2MB镜像) + burn_flash.py(flashrom 备份+擦除+烧写+逐字节校验) + W25Q_Font_Index_Binary_Search(总线独占二分检索 5.85μs/字) + Tft_Driver Flash/ROM 双路径(单字单检索 16×提速) + Font_Header CRC32 小端序铁律 |

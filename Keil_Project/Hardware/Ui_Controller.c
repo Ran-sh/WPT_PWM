@@ -677,21 +677,40 @@ static void Sweep_Dynamic_Update(void)
         s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
     }
 
-    /* Progress bar */
+    /* Progress bar — V4.5.0: 变更检测防闪烁, 仅在进度变化时重绘 */
     {
+        static uint32_t s_last_progress = 0xFFFFFFFFU;
+        static uint8_t  s_last_stopped  = 0xFF;
         uint32_t progress;
-        Tft_Driver_Erase_Pixel_Area(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT + 8);
+        uint8_t  draw = 0;
+
         if (!is_stopped) {
             progress = (SOFTSTART_START_FREQ_HZ - f) * 10
                      / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
             if (progress > 10) progress = 10;
-            Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
-                           14 * TFT_FONT_WIDTH, 8,
-                           (float)progress, 0.0f, 10.0f, Uc_Bg());
-            snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
-            if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
+            if (progress != s_last_progress || s_last_stopped != 0) {
+                draw = 1;
+                s_last_progress = progress;
+                s_last_stopped  = 0;
+            }
         } else {
-            Tft_Driver_Show_CN_String(3, 5, Pick_CN_EN(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
+            if (s_last_stopped != 1) {
+                draw = 1;
+                s_last_stopped = 1;
+            }
+        }
+
+        if (draw) {
+            Tft_Driver_Erase_Pixel_Area(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT + 8);
+            if (!is_stopped) {
+                Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+                               14 * TFT_FONT_WIDTH, 8,
+                               (float)progress, 0.0f, 10.0f, Uc_Bg());
+                snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
+                if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
+            } else {
+                Tft_Driver_Show_CN_String(3, 5, Pick_CN_EN(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
+            }
         }
     }
 
@@ -1356,7 +1375,6 @@ static void WiFi_Dynamic_Update(void)
     uint8_t cs = App_Network_Get_Connect_Status();
     uint8_t retry = App_Network_Get_Retry_Count();
     const char* status_text;
-    const char* hint_text;
     uint8_t need_hint_update = 0;
 
     if (cs == APP_NETWORK_CONN_ONLINE)
@@ -1381,15 +1399,21 @@ static void WiFi_Dynamic_Update(void)
         s_last_wifi_cs = cs;
     }
 
-    Erase_Line(3);
-
+    /* V4.5.0: 仅在提示文本变化时擦除重绘, 消除 200ms 闪烁 */
     if (need_hint_update) {
+        static char s_last_hint[32] = "";
+        const char* new_hint;
         if (App_Network_Is_Offline()) {
-            hint_text = Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
+            new_hint = Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
         } else {
-            hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? Pick_CN_EN(S_DISCONNECT_CN, S_DISCONNECT_EN) : Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
+            new_hint = (cs == APP_NETWORK_CONN_ONLINE) ? Pick_CN_EN(S_DISCONNECT_CN, S_DISCONNECT_EN) : Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
         }
-        Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, Uc_Text(), Uc_Bg());
+        if (strncmp(s_last_hint, new_hint, sizeof(s_last_hint)) != 0) {
+            Erase_Line(3);
+            Tft_Driver_Show_CN_String(5, Right(new_hint), new_hint, Uc_Text(), Uc_Bg());
+            strncpy(s_last_hint, new_hint, sizeof(s_last_hint));
+            s_last_hint[sizeof(s_last_hint) - 1] = '\0';
+        }
     }
 }
 

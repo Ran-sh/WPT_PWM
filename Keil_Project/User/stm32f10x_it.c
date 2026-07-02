@@ -70,18 +70,19 @@ void SysTick_Handler(void)
   */
 void USART2_IRQHandler(void)
 {
-    /* ── 优先处理溢出错误，防止中断锁死 ── */
-    if (USART_GetFlagStatus(USART2, USART_FLAG_ORE) != RESET)
-    {
-        USART_ReceiveData(USART2);  /* 读 DR 清除 ORE (溢出数据丢弃) */
-    }
-
-    /* ── 正常接收 ── */
+    /* V4.5.0: 先 RXNE 后 ORE — 优先消费有效字节, 再清溢出标志.
+     *   旧顺序 (ORE 先) 会因读 DR 清 RXNE 而丢弃 ORE 前最后一个有效字节. */
     if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
     {
         uint8_t ch = USART_ReceiveData(USART2);
         Esp8266_Driver_Rx_Char(ch);
         USART_ClearITPendingBit(USART2, USART_IT_RXNE);
+    }
+
+    /* ── 溢出错误处理: 读 DR 清除 ORE (溢出数据已丢弃, 不可恢复) ── */
+    if (USART_GetFlagStatus(USART2, USART_FLAG_ORE) != RESET)
+    {
+        USART_ReceiveData(USART2);  /* 哑读清除 ORE */
     }
 }
 

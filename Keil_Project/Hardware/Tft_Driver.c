@@ -135,11 +135,14 @@ static void Tft_DMA_Init(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  DMA 核心传输
+ *  DMA 核心传输 (V4.5.0: 超时护底防硬锁)
  * ═══════════════════════════════════════════════════════════════ */
+
+#define TFT_DMA_TIMEOUT_MS  200   /* DMA/SPI 忙等超时: 65535 半字@9MHz≈73ms, 200ms 足够 */
 
 static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_mem)
 {
+    uint32_t deadline;
     DMA_Cmd(DMA1_Channel3, DISABLE);
     DMA1_Channel3->CMAR  = (uint32_t)buf;
     DMA1_Channel3->CNDTR = (uint16_t)count;
@@ -150,12 +153,25 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
     TFT_DC_DATA(); TFT_CS_LOW();
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, ENABLE);
 
-    while (DMA_GetFlagStatus(DMA1_FLAG_TC3) == RESET);    /* 死等内存搬迁 */
+    deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
+    while (DMA_GetFlagStatus(DMA1_FLAG_TC3) == RESET) {
+        if (Sys_Timer_Get_Tick() - deadline < 0x80000000U) continue;  /* 未超时 */
+        /* 超时: 紧急清理, 释放 SPI 总线, 防止系统硬锁 */
+        SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
+        DMA_Cmd(DMA1_Channel3, DISABLE);
+        TFT_CS_HIGH();
+        return;
+    }
     DMA_ClearFlag(DMA1_FLAG_TC3);
 
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
     DMA_Cmd(DMA1_Channel3, DISABLE);
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET); /* 死等移位寄存器吐尽 */
+    deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET) {
+        if (Sys_Timer_Get_Tick() - deadline < 0x80000000U) continue;
+        TFT_CS_HIGH();  /* 超时强制释放 CS, 防止 SPI 总线永久占用 */
+        return;
+    }
     TFT_CS_HIGH();
 }
 
@@ -165,24 +181,34 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
 
 static void Tft_DMA_Fill(uint32_t pixel_count, uint16_t color)
 {
+    uint32_t deadline;
     if (pixel_count == 0) return;
     if (pixel_count > TFT_DMA_MAX_PIXELS) pixel_count = TFT_DMA_MAX_PIXELS;
     if (!s_dma_configured) Tft_DMA_Init();
 
     Tft_SPI_16bit();
     Tft_DMA_Transfer(&color, pixel_count, 0);
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET); /* 死等末帧泵尽 */
+    deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET) {
+        if (Sys_Timer_Get_Tick() - deadline < 0x80000000U) continue;
+        break;  /* 超时护底, 强制切回 8bit */
+    }
     Tft_SPI_8bit();
 }
 
 static void Tft_DMA_Send(const uint16_t* buf, uint32_t pixel_count)
 {
+    uint32_t deadline;
     if (pixel_count == 0) return;
     if (!s_dma_configured) Tft_DMA_Init();
 
     Tft_SPI_16bit();
     Tft_DMA_Transfer(buf, pixel_count, 1);
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET); /* 死等末帧泵尽 */
+    deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET) {
+        if (Sys_Timer_Get_Tick() - deadline < 0x80000000U) continue;
+        break;  /* 超时护底, 强制切回 8bit */
+    }
     Tft_SPI_8bit();
 }
 

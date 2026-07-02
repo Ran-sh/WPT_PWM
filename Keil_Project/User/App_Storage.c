@@ -82,6 +82,21 @@ static uint32_t s_log_wr_ptr  = 0;       /* 当前写偏移 (相对 BLACKBOX 基
 static uint32_t s_log_seq     = 0;       /* 总写入条数 */
 static uint32_t s_log_wrapped = 0;       /* 循环次数 */
 static uint32_t s_fault_lock_addr = 0;   /* 故障锁存区写入地址 */
+static uint32_t s_log_last_save = 0;     /* 上次写回 Block 0 时的 s_log_seq */
+
+/* V4.5.0: Blackbox_Save_Header — 每 60 条日志写回一次指针到 Block 0,
+ *   防止重启后丢失全部历史数据. 不每帧写 (减少 Flash 磨损). */
+static void Blackbox_Save_Header(void)
+{
+    uint32_t ptr_buf[3];
+    if (s_log_seq - s_log_last_save < 60) return;  /* 未到 60 条, 跳过 */
+    s_log_last_save = s_log_seq;
+    ptr_buf[0] = s_log_wr_ptr;
+    ptr_buf[1] = s_fault_lock_addr;
+    ptr_buf[2] = s_log_wrapped;
+    W25Q_Driver_Erase_Sector(W25Q_ADDR_BLACKBOX);              /* Block 0 头 4KB */
+    W25Q_Driver_Write_Page(W25Q_ADDR_BLACKBOX, (uint8_t*)ptr_buf, 12);
+}
 
 /* ═══════════════════════════════════════════════
  *  参数配置 (P3) — 双副本 CRC32 闭锁
@@ -253,21 +268,29 @@ void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
     W25Q_Driver_Write_Page(addr, (uint8_t*)&entry, BLACKBOX_ENTRY_SIZE);
     s_log_wr_ptr += BLACKBOX_ENTRY_SIZE;
     s_log_seq++;
+
+    /* V4.5.0: 每 60 条写回指针到 Block 0, 重启后可恢复 */
+    Blackbox_Save_Header();
 }
 
 void Blackbox_Lock_Fault_Snapshot(void)
 {
     uint32_t i, lock_addr;
-    uint32_t block_start;
 
     /* 在锁存保护区分配一个新块 (每块 64KB = 4680 条) */
     lock_addr = W25Q_ADDR_BLACKBOX_END -
                 (BLACKBOX_LOCK_BLOCKS * 65536U) +
                 (s_fault_lock_addr % (BLACKBOX_LOCK_BLOCKS * 65536U));
 
-    /* 擦除目标保护块 */
-    block_start = lock_addr & ~(65536U - 1U);
-    W25Q_Driver_Erase_Sector(block_start);                   /* 块头 4KB (L4: 不在发波态) */
+    /* V4.5.0: 擦除目标扇区 (4KB) + 跨页保护扇区.
+     *   50条×14B=700B, 锁存地址若靠近扇区末尾可能跨页, 多擦一个扇区保安全. */
+    {
+        uint32_t sec_start = lock_addr & ~(4096U - 1U);
+        W25Q_Driver_Erase_Sector(sec_start);                     /* 主扇区 (L4: FAULT 放行) */
+        if ((lock_addr & 4095U) + 50U * BLACKBOX_ENTRY_SIZE > 4096U) {
+            W25Q_Driver_Erase_Sector(sec_start + 4096U);         /* 跨页: 擦下一扇区 */
+        }
+    }
 
     /* 前5s+后5s 数据: 从循环日志区拷贝 (实际实现: 读→写锁存区) */
     for (i = 0; i < 50U && i < s_log_seq; i++) {

@@ -43,9 +43,14 @@ typedef enum {
     ESP8266_DRIVER_INIT_READY           /* 就绪 */
 } Esp8266_Driver_Init_State;
 
-static char    s_rx_buf[ESP8266_DRIVER_RX_BUF_SIZE];
+/* V4.5.0: 3 槽环形缓冲, 防 ESP 连续发送多条帧时丢弃后续帧
+ *   ISR 写入当前槽 (s_rx_ring_wr), 主循环从 s_rx_ring_rd 读取
+ *   s_rx_frame_count > 0 表示有待消费帧, Try_Copy_Rx_Frame 消费一帧后 count-- */
+static char    s_rx_buf[ESP8266_DRIVER_RX_RING_SIZE][ESP8266_DRIVER_RX_BUF_SIZE];
 static volatile uint16_t s_rx_index = 0;
-static volatile uint8_t  s_rx_frame_flag = 0;
+static volatile uint8_t  s_rx_ring_wr = 0;  /* ISR 正在写入的槽位 */
+static volatile uint8_t  s_rx_ring_rd = 0;  /* 主循环下次读取的槽位 */
+static volatile uint8_t  s_rx_frame_count = 0;  /* 待消费帧数 (0..RING_SIZE) */
 
 static Esp8266_Driver_Init_State s_init_state = ESP8266_DRIVER_INIT_IDLE;
 static uint32_t                  s_init_timer = 0;
@@ -122,13 +127,17 @@ void Esp8266_Driver_Start_Init(void)
     Esp8266_Driver_Config_GPIO_Once();
     Esp8266_Driver_Config_USART_Once();
 
-    /* 清空接收缓冲 */
+    /* 清空环形接收缓冲 */
     {
         uint32_t primask = __get_PRIMASK();
         __disable_irq();
-        s_rx_buf[0]     = '\0';
+        s_rx_buf[0][0]  = '\0';
+        s_rx_buf[1][0]  = '\0';
+        s_rx_buf[2][0]  = '\0';
         s_rx_index      = 0;
-        s_rx_frame_flag = 0;
+        s_rx_ring_wr    = 0;
+        s_rx_ring_rd    = 0;
+        s_rx_frame_count = 0;
         __set_PRIMASK(primask);
     }
 
@@ -168,7 +177,7 @@ void Esp8266_Driver_Init_Task(void)
             {
                 uint32_t primask = __get_PRIMASK();
                 __disable_irq();
-                if (s_rx_frame_flag) {
+                if (s_rx_frame_count > 0) {
                     s_init_state = ESP8266_DRIVER_INIT_READY;
                 }
                 __set_PRIMASK(primask);
@@ -192,58 +201,68 @@ void Esp8266_Driver_Send_String(const char* str)
 
 void Esp8266_Driver_Rx_Char(uint8_t ch)
 {
+    uint8_t wr = s_rx_ring_wr;
     if (ch == '\r' || ch == '\n') {
-        if (s_rx_index > 0 && !s_rx_frame_flag) {
-            s_rx_buf[s_rx_index] = '\0';
-            s_rx_frame_flag = 1;
+        if (s_rx_index > 0 && s_rx_frame_count < ESP8266_DRIVER_RX_RING_SIZE) {
+            s_rx_buf[wr][s_rx_index] = '\0';
+            s_rx_index = 0;
+            s_rx_frame_count++;
+            /* 推进写指针到下一个空闲槽 */
+            s_rx_ring_wr = (wr + 1) % ESP8266_DRIVER_RX_RING_SIZE;
         }
-    } else if (!s_rx_frame_flag && s_rx_index < ESP8266_DRIVER_RX_BUF_SIZE - 1) {
-        s_rx_buf[s_rx_index++] = ch;
+    } else if (s_rx_frame_count < ESP8266_DRIVER_RX_RING_SIZE
+               && s_rx_index < ESP8266_DRIVER_RX_BUF_SIZE - 1) {
+        s_rx_buf[wr][s_rx_index++] = ch;
     }
 }
 
 uint8_t Esp8266_Driver_Get_Rx_Flag(void)
 {
-    return s_rx_frame_flag;
+    return (s_rx_frame_count > 0) ? 1 : 0;
 }
 
 const char* Esp8266_Driver_Get_Rx_Buffer(void)
 {
-    return s_rx_buf;
+    return s_rx_buf[s_rx_ring_rd];  /* 返回最早未消费帧 */
 }
 
 void Esp8266_Driver_Clear_Rx_Buffer(void)
 {
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
-    s_rx_buf[0]     = '\0';
+    s_rx_buf[0][0]  = '\0';
     s_rx_index      = 0;
-    s_rx_frame_flag = 0;
+    s_rx_ring_wr    = 0;
+    s_rx_ring_rd    = 0;
+    s_rx_frame_count = 0;
     __set_PRIMASK(primask);
 }
 
 uint16_t Esp8266_Driver_Copy_Rx_Frame(char* dst, uint16_t max_len)
 {
     uint16_t len = 0;
-    uint32_t primask;
+    uint32_t primask; uint8_t rd;
     if (max_len < 2) return 0;
     primask = __get_PRIMASK();
     __disable_irq();
-    while (s_rx_buf[len] && len < max_len - 1) {
-        dst[len] = s_rx_buf[len];
+    if (s_rx_frame_count == 0) { __set_PRIMASK(primask); return 0; }
+    rd = s_rx_ring_rd;
+    while (s_rx_buf[rd][len] && len < max_len - 1) {
+        dst[len] = s_rx_buf[rd][len];
         len++;
     }
-    dst[len]        = '\0';
-    s_rx_buf[0]     = '\0';
-    s_rx_index      = 0;
-    s_rx_frame_flag = 0;
+    dst[len]            = '\0';
+    s_rx_buf[rd][0]     = '\0';
+    s_rx_ring_rd        = (rd + 1) % ESP8266_DRIVER_RX_RING_SIZE;
+    s_rx_frame_count--;
     __set_PRIMASK(primask);
     return len;
 }
 
 /**
  * @brief  原子检查+复制: flag-check + frame-copy + clear 在同一临界区内完成
- * @note   消除 Get_Rx_Flag()→Copy_Rx_Frame() 之间的中断窗口:
+ * @note   V4.5.0: 3 槽环形缓冲, 消费最旧帧 (s_rx_ring_rd), 推进读指针
+ *         消除 Get_Rx_Flag()→Copy_Rx_Frame() 之间的中断窗口:
  *         若检测到帧标志后 ISR 又写入新帧, 旧原子方案会在 Copy 内清标志,
  *         导致新帧标志也一并被清零, 帧静默丢失。
  *         本函数将"判断+复制"合一, 返回 0 (无帧) 或有效帧长, 调用方无需先调 Get_Rx_Flag。
@@ -251,22 +270,23 @@ uint16_t Esp8266_Driver_Copy_Rx_Frame(char* dst, uint16_t max_len)
 uint16_t Esp8266_Driver_Try_Copy_Rx_Frame(char* dst, uint16_t max_len)
 {
     uint16_t len = 0;
-    uint32_t primask;
+    uint32_t primask; uint8_t rd;
     if (max_len < 2) return 0;
     primask = __get_PRIMASK();
     __disable_irq();
-    if (!s_rx_frame_flag) {
+    if (s_rx_frame_count == 0) {
         __set_PRIMASK(primask);
         return 0;
     }
-    while (s_rx_buf[len] && len < max_len - 1) {
-        dst[len] = s_rx_buf[len];
+    rd = s_rx_ring_rd;
+    while (s_rx_buf[rd][len] && len < max_len - 1) {
+        dst[len] = s_rx_buf[rd][len];
         len++;
     }
-    dst[len]        = '\0';
-    s_rx_buf[0]     = '\0';
-    s_rx_index      = 0;
-    s_rx_frame_flag = 0;
+    dst[len]            = '\0';
+    s_rx_buf[rd][0]     = '\0';
+    s_rx_ring_rd        = (rd + 1) % ESP8266_DRIVER_RX_RING_SIZE;
+    s_rx_frame_count--;
     __set_PRIMASK(primask);
     return len;
 }

@@ -200,8 +200,9 @@ static void App_Network_Check_Offline_Recovery(void)
         if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
             return;
 
-        /* 仅响应 STATUS 类帧 (排除遥控 CMD 帧) */
-        if (strstr(local_buf, "STATUS:")) {
+        /* V4.5.0: 仅响应正向 STATUS 帧 (排除 STATUS:DISCONNECTED 防重连震荡) */
+        if (strstr(local_buf, "STATUS:MQTT") || strstr(local_buf, "STATUS:ONLINE")
+            || strstr(local_buf, "STATUS:RSSI=")) {
             s_conn_state    = APP_NETWORK_CONN_WIFI;
             s_retry_count   = 0;
             s_connect_start = Sys_Timer_Get_Tick();
@@ -305,8 +306,10 @@ void App_Network_Task(void)
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {
                     const char* f_str = p + 12;
                     if (*f_str >= '0' && *f_str <= '9') {
-                        long f = atol(f_str);
-                        if (f >= PWM_DRIVER_FREQ_MIN_HZ && f <= PWM_DRIVER_FREQ_MAX_HZ)
+                        char* endp;
+                        long f = strtol(f_str, &endp, 10);  /* V4.5.0: strtol 替代 atol, 溢出安全 */
+                        if (endp != f_str && f >= (long)PWM_DRIVER_FREQ_MIN_HZ
+                            && f <= (long)PWM_DRIVER_FREQ_MAX_HZ)
                             Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);
                     }
                 }
