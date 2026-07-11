@@ -3,7 +3,7 @@
  * @file    Hardware/Tft_Driver.h
  * @brief   ST7735 128x160 TFT 彩屏显示驱动 — V5.0.1
  * @note    SPI1 分时复用 (PA5=SCK, PA7=MOSI, PA6=DC/MISO 动态, PA4=TFT_CS,
- *          PA12=W25Q128_CS, PA0=RST, PB6=BL)
+ *          PB12=W25Q128_CS, PA0=RST, PA12=BL)
  *          SPI Mode3, 全双工 (TFT 只写, Flash 读写)
  *          字库: Flash V2 20897 字 + 31图标 (CRC32), ROM 仅 SPLASH 4汉字
  *          横屏 160x128, RGB565, MADCTL=0xA0
