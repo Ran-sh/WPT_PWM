@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.h
- * @brief   ST7735 128x160 TFT 彩屏显示驱动 — V4.3.2
+ * @brief   ST7735 128x160 TFT 彩屏显示驱动 — V4.5.2
  * @note    SPI1 分时复用 (PA5=SCK, PA7=MOSI, PA6=DC/MISO 动态, PA4=TFT_CS,
  *          PA12=W25Q128_CS, PA0=RST, PB6=BL)
  *          SPI Mode3, 全双工 (TFT 只写, Flash 读写)

@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   人机界面控制器 V4.5.0 — 17 页面 + 圆弧能量条 + 增量刷新
+ * @brief   人机界面控制器 V4.5.2 — 17 页面 + 圆弧能量条 + 增量刷新
  *
  *  Hardware dependencies (indirect, via Driver layer):
  *  +----------------------------------------------------------+
@@ -102,10 +102,10 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
     }
 }
 /* ════════════════════════════════════════════════════════════
- *  V4.5.0 Settings State (preview→confirm modal, BL sub-pages)
+ *  V4.5.2 Settings State (preview→confirm modal, BL sub-pages)
  * ════════════════════════════════════════════════════════════ */
 static uint8_t  s_language         = 1;     /* 0=Chinese, 1=English (默认英文) */
-static uint8_t  s_letter_spacing   = 0;     /* inter-char gap 0-3 px (V4.5.0: replaces font_size) */
+static uint8_t  s_letter_spacing   = 0;     /* inter-char gap 0-3 px (V4.5.2: replaces font_size) */
 static uint8_t  s_backlight_val    = 100;   /* PWM 0-255 (derived, updated on apply) */
 static uint8_t  sc_preset          = 0;     /* 0-5 preset, 255=custom */
 static uint16_t s_color_fg         = 0xFFFF;/* RGB565 default white */
@@ -123,7 +123,7 @@ static uint8_t  s_preview_choice   = 0;     /* visual cursor position, committed
 /* Brightness */
 static uint8_t  s_bl_user_val       = 100;  /* user preference 1-100%, immune to breathing */
 
-/* Breathing params (V4.5.0 user-adjustable) */
+/* Breathing params (V4.5.2 user-adjustable) */
 static uint8_t  s_br_speed          = 5;    /* 1-10 (×250ms half-period) */
 static uint8_t  s_br_min            = 10;   /* 5-50% */
 static uint8_t  s_br_max            = 100;  /* 50-100% */
@@ -135,7 +135,7 @@ static uint8_t  s_settings_dirty       = 0;
 static uint8_t  s_last_setting_cursor  = 0xFF; /* for Phase 7 deferred cursor tracking */
 
 /* ═══════════════════════════════════════════════════════════════
- *  Dynamic Color System (V4.4.0) — Uc_*() inline helpers
+ *  Dynamic Color System (V4.5.2) — Uc_*() inline helpers
  * ═══════════════════════════════════════════════════════════════ */
 static uint16_t Uc_Bg(void)      { return s_color_bg; }
 static uint16_t Uc_Title(void)   { return s_color_accent; }
@@ -147,7 +147,7 @@ static uint16_t Uc_Data(void)    { return s_color_fg; }
 #define Uc_Dim()    TFT_COLOR_GRAY
 
 /* ═══════════════════════════════════════════════════════════════
- *  Bilingual String System (V4.4.0)
+ *  Bilingual String System (V4.5.2)
  *  Pick_CN_EN() inline function replaces macros to avoid ARMCC macro issues.
  *  Used both as snprintf format arg and Show_CN_String arg.
  * ═══════════════════════════════════════════════════════════════ */
@@ -228,7 +228,7 @@ static const char* Pick_CN_EN(const char* cn, const char* en) {
 #define S_FAULT_CLEAR_CN "5. \xe6\x95\x85\xe9\x9a\x9c\xe6\xb8\x85\xe9\x99\xa4"
 #define S_FAULT_CLEAR_EN "5. Clear Fault"
 
-/* V4.4.0 Settings strings */
+/* V4.5.2 Settings strings */
 #define S_SETTINGS_CN    "\xe8\xae\xbe\xe7\xbd\xae"        /* 设置 */
 #define S_SETTINGS_EN    "Settings"
 #define S_SETTINGS_LANG_CN "\xe8\xaf\xad\xe8\xa8\x80"      /* 语言 */
@@ -275,7 +275,7 @@ static uint32_t s_user_target_hz = 100000;
 static uint8_t  s_user_target_synced = 0;
 
 /* ═══════════════════════════════════════════════════════════════
- *  Color Preset Table (V4.5.0: all 6 presets with diverse backgrounds)
+ *  Color Preset Table (V4.5.2: all 6 presets with diverse backgrounds)
  * ═══════════════════════════════════════════════════════════════ */
 typedef struct {
     const char* name_cn;
@@ -326,7 +326,7 @@ static uint8_t Center(const char* s)
         if (c >= 0xE0 && c <= 0xEF) { w += 2; s += 3; if (!*s) break; }
         else { w++; s++; }
     }
-    /* V4.5.0: factor in letter_spacing extra pixels (convert to char columns) */
+    /* V4.5.2: factor in letter_spacing extra pixels (convert to char columns) */
     if (sp > 0) w += (uint8_t)((sp + 7) / 8);
     return (w >= 20) ? 0 : (20 - w) / 2;
 }
@@ -453,7 +453,7 @@ static void Draw_Main_Menu_Full(void)
     Draw_Header(Pick_CN_EN(S_WPT_PWM_CN, S_WPT_PWM_EN));
     Draw_Divider(1);
 
-    /* V4.4.0: 5 项常驻 — 第 5 项非故障时灰色禁用 */
+    /* V4.5.2: 5 项常驻 — 第 5 项非故障时灰色禁用 */
     for (i = 0; i < 5; i++) {
         const char* text;
         uint8_t enabled = 1;
@@ -676,7 +676,7 @@ static void Sweep_Dynamic_Update(void)
         s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
     }
 
-    /* Progress bar — V4.5.0: 变更检测防闪烁, 仅在进度变化时重绘 */
+    /* Progress bar — V4.5.2: 变更检测防闪烁, 仅在进度变化时重绘 */
     {
         static uint32_t s_last_progress = 0xFFFFFFFFU;
         static uint8_t  s_last_stopped  = 0xFF;
@@ -1398,7 +1398,7 @@ static void WiFi_Dynamic_Update(void)
         s_last_wifi_cs = cs;
     }
 
-    /* V4.5.0: 仅在提示文本变化时擦除重绘, 消除 200ms 闪烁 */
+    /* V4.5.2: 仅在提示文本变化时擦除重绘, 消除 200ms 闪烁 */
     if (need_hint_update) {
         static char s_last_hint[32] = "";
         const char* new_hint;
@@ -1487,7 +1487,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
-                /* V4.4.0: F_UP wraps 0->3 when not fault, 0->4 when fault */
+                /* V4.5.2: F_UP wraps 0->3 when not fault, 0->4 when fault */
                 if (g_sys_state == SYS_STATE_FAULT) {
                     if (s_menu_cursor == 0) s_menu_cursor = 4;
                     else s_menu_cursor--;
@@ -1517,7 +1517,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
-                /* V4.4.0: F_DOWN 到第5项(灰色)时如果非故障则回第1项 */
+                /* V4.5.2: F_DOWN 到第5项(灰色)时如果非故障则回第1项 */
                 if (g_sys_state == SYS_STATE_FAULT) {
                     if (s_menu_cursor >= 4) s_menu_cursor = 0;
                     else s_menu_cursor++;
@@ -1659,10 +1659,10 @@ static void Handle_Keys_by_Page(Ui_Page page,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  V4.4.0 Settings Pages
+ *  V4.5.2 Settings Pages
  * ═══════════════════════════════════════════════════════════════ */
 
-/* ── Settings Menu Item Text — V4.5.0: spacing replaces font ── */
+/* ── Settings Menu Item Text — V4.5.2: spacing replaces font ── */
 static const char* Get_Menu_Setting_Text(uint8_t idx)
 {
     switch (idx) {
@@ -1704,10 +1704,10 @@ static void Handle_Setting_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
             App_Storage_Save_Settings(s_language, 0, s_bl_user_val,
                                       s_letter_spacing, sc_preset,
                                       s_color_fg, s_color_bg);
-            /* V4.5.0: restore BL from user pref */
+            /* V4.5.2: restore BL from user pref */
             s_backlight_val = (uint8_t)((s_bl_user_val * 255 + 50) / 100);
             Tft_Driver_Set_Backlight(s_backlight_val);
-            /* V4.5.0: spacing in flash is 0-3 choice, map to actual px */
+            /* V4.5.2: spacing in flash is 0-3 choice, map to actual px */
             Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));
             s_settings_dirty = 0;
         }
@@ -1963,14 +1963,14 @@ static void Handle_Icons_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  S3. Letter Spacing (V4.5.0: replaces Font Size)
+ *  S3. Letter Spacing (V4.5.2: replaces Font Size)
  *  UP/DOWN → preview cursor 0-3, bottom shows live spacing sample
  *  PAGE    → commit, ON → cancel
  * ═══════════════════════════════════════════════════════════════ */
 #define S_SPACING_TITLE_CN "\xe5\xad\x97\xe9\x97\xb4\xe8\xb7\x9d"
 #define S_SPACING_TITLE_EN "Spacing"
 
-    /* Spacing labels V4.5.0 — each label shows check on confirmed value, star on preview.
+    /* Spacing labels V4.5.2 — each label shows check on confirmed value, star on preview.
      *   The labels themselves contain embedded spacing for demo effect.
      *   ARMCC V5 multibyte-safe: all chars are ASCII or verified UTF-8 sequences. */
 static const char* Spacing_Label(uint8_t v)
@@ -2041,7 +2041,7 @@ static void Handle_Spacing_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
     /* PAGE --> commit: write spacing × actual pixel gap */
     if (ok && s_preview_choice != s_letter_spacing) {
         s_letter_spacing = s_preview_choice;
-        /* V4.5.0: map choice 0/1/2/3 -> actual px 0/2/4/6 */
+        /* V4.5.2: map choice 0/1/2/3 -> actual px 0/2/4/6 */
         Tft_Driver_Set_Letter_Spacing((uint8_t)(s_preview_choice * 2));
         s_settings_dirty = 1;
         s_page_drawn = 0;
@@ -2049,7 +2049,7 @@ static void Handle_Spacing_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  S5. Backlight — 2-option sub-menu (V4.5.0)
+ *  S5. Backlight — 2-option sub-menu (V4.5.2)
  *  PAGE enters sub-option, ON goes back to settings menu
  * ═══════════════════════════════════════════════════════════════ */
 #define S_BL_MENU_CN  "\xe4\xba\xae\xe5\xba\xa6"
@@ -2265,7 +2265,7 @@ static void Handle_BL_Breathe_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  S6. Color Scheme — preview-before-confirm (V4.5.0)
+ *  S6. Color Scheme — preview-before-confirm (V4.5.2)
  *  UP/DOWN → preview cursor (visual only), bottom shows 3-color swatches
  *  PAGE    → commit + full clear + force redraw
  *  ON      → cancel (restore old preset)
@@ -2288,7 +2288,7 @@ static void Draw_Color_Full(void)
         char buf[24];
         const char* name = Pick_CN_EN(COLOR_PRESETS[i].name_cn, COLOR_PRESETS[i].name_en);
         Erase_Line(2 + i);
-        /* V4.5.0: show check-mark on confirmed (active) preset, star on preview choice */
+        /* V4.5.2: show check-mark on confirmed (active) preset, star on preview choice */
         {
             const char* prefix = (sc_preset == i) ? "\xe2\x9c\x93 " :
                                 (s_preview_choice == i) ? "* " : "  ";
@@ -2546,7 +2546,7 @@ void Ui_Controller_Task(void)
 
         if (cursor_changed) {
             if (cursor_changed == 2) {
-                /* V4.5.0: cursor moved in settings — only for SETTING main menu pages.
+                /* V4.5.2: cursor moved in settings — only for SETTING main menu pages.
                  *   Other pages use s_preview_choice and redraw via s_page_drawn=0. */
                 if (s_page == UI_PAGE_SETTING) {
                     Erase_Cursor(2 + s_last_setting_cursor);
@@ -2621,9 +2621,9 @@ void Ui_Controller_Force_Page_And_Reset(Ui_Page page)
 }
 
 /**
- * @brief  [V4.5.0] 从 App_Storage 加载设置参数并应用到 UI + 驱动
+ * @brief  [V4.5.2] 从 App_Storage 加载设置参数并应用到 UI + 驱动
  * @note   Sys_Post_Init 中 App_Storage_Init 之后调用。
- *         V4.5.0: 新增 letter_spacing 参数, BL 改为 1-100% 用户友好刻度量
+ *         V4.5.2: 新增 letter_spacing 参数, BL 改为 1-100% 用户友好刻度量
  */
 void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                    uint8_t spacing, uint8_t preset,
@@ -2631,8 +2631,8 @@ void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
 {
     s_language        = lang;
     s_letter_spacing  = spacing;
-    (void)font;  /* font_size replaced by letter_spacing in V4.5.0, retained for Flash compat */
-    /* V4.5.0: bl is 1-100 user %; map to 0-255 PWM */
+    (void)font;  /* font_size replaced by letter_spacing in V4.5.2, retained for Flash compat */
+    /* V4.5.2: bl is 1-100 user %; map to 0-255 PWM */
     s_bl_user_val     = bl;
     s_backlight_val   = (uint8_t)((bl * 255 + 50) / 100);
     Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));  /* 0-3 -> actual px 0/2/4/6 */

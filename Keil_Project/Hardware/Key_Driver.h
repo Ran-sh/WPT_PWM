@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Key_Driver.h
- * @brief   按键驱动 — V4.3.2 (4 键)
+ * @brief   按键驱动 — V4.5.2 (4 键)
  * @note    PB5=PAGE(确定/启停), PB9=ON(返回), PB8=F_UP, PB7=F_DOWN
  *          全部 GPIO IPU, 低电平按下, 10ms 去抖 + FSM 状态机
  ******************************************************************************
@@ -19,7 +19,7 @@ typedef enum {
     KEY_DRIVER_EVENT_LONG_PRESS  = 3
 } Key_Driver_Event;
 
-/* V4.5.0 4 键: index 0=PB5=PAGE(确定/启停), index 3=PB9=ON(返回) */
+/* V4.5.2 4 键: index 0=PB5=PAGE(确定/启停), index 3=PB9=ON(返回) */
 #define KEY_DRIVER_ID_PAGE      0
 #define KEY_DRIVER_ID_FREQ_UP   1
 #define KEY_DRIVER_ID_FREQ_DOWN 2

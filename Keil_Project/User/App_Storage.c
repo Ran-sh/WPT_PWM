@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/App_Storage.c
- * @brief   应用存储层 — 参数双副本 + 黑匣子日志 (V4.3.2)
+ * @brief   应用存储层 — 参数双副本 + 黑匣子日志 (V4.5.2)
  *
  *  W25Q128 Flash partition map (16MB):
  *  +------------------------------------------------------------+
@@ -84,7 +84,7 @@ static uint32_t s_log_wrapped = 0;       /* 循环次数 */
 static uint32_t s_fault_lock_addr = 0;   /* 故障锁存区写入地址 */
 static uint32_t s_log_last_save = 0;     /* 上次写回 Block 0 时的 s_log_seq */
 
-/* V4.5.0: Blackbox_Save_Header — 每 60 条日志写回一次指针到 Block 0,
+/* V4.5.2: Blackbox_Save_Header — 每 60 条日志写回一次指针到 Block 0,
  *   防止重启后丢失全部历史数据. 不每帧写 (减少 Flash 磨损). */
 static void Blackbox_Save_Header(void)
 {
@@ -102,7 +102,7 @@ static void Blackbox_Save_Header(void)
  *  参数配置 (P3) — 双副本 CRC32 闭锁
  * ═══════════════════════════════════════════════ */
 
-/** @brief 安全默认出厂值 — V4.5.0: BL 1-100%, font 小号, letter_spacing 0 */
+/** @brief 安全默认出厂值 — V4.5.2: BL 1-100%, font 小号, letter_spacing 0 */
 static void App_Storage_Defaults(App_Storage_Config *cfg)
 {
     uint8_t i;
@@ -114,10 +114,10 @@ static void App_Storage_Defaults(App_Storage_Config *cfg)
     cfg->adc_v_gain    = 1.0f;
     cfg->freq_trim_hz = 0;
     cfg->default_freq  = 100;      /* 100kHz 安全中频 */
-    cfg->backlight     = 100;      /* V4.5.0: 100% */
+    cfg->backlight     = 100;      /* V4.5.2: 100% */
     cfg->language      = 1;        /* EN (默认英文, 设置内手动切中文后才调用 W25Q) */
-    cfg->font_size     = 0;        /* V4.5.0: 小号(1x) */
-    cfg->letter_spacing = 0;       /* V4.5.0: 0px gap */
+    cfg->font_size     = 0;        /* V4.5.2: 小号(1x) */
+    cfg->letter_spacing = 0;       /* V4.5.2: 0px gap */
     cfg->color_preset  = 0;        /* Classic */
     cfg->color_fg      = 0xFFFF;
     cfg->color_bg      = 0x0000;
@@ -179,7 +179,7 @@ void App_Storage_Write_Factory_Defaults(void)
 }
 
 /* ═══════════════════════════════════════════════
- *  V4.4.0 Settings Convenience
+ *  V4.5.2 Settings Convenience
  * ═══════════════════════════════════════════════ */
 void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
                                 uint8_t* spacing, uint8_t* preset,
@@ -269,7 +269,7 @@ void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
     s_log_wr_ptr += BLACKBOX_ENTRY_SIZE;
     s_log_seq++;
 
-    /* V4.5.0: 每 60 条写回指针到 Block 0, 重启后可恢复 */
+    /* V4.5.2: 每 60 条写回指针到 Block 0, 重启后可恢复 */
     Blackbox_Save_Header();
 }
 
@@ -282,7 +282,7 @@ void Blackbox_Lock_Fault_Snapshot(void)
                 (BLACKBOX_LOCK_BLOCKS * 65536U) +
                 (s_fault_lock_addr % (BLACKBOX_LOCK_BLOCKS * 65536U));
 
-    /* V4.5.0: 擦除目标扇区 (4KB) + 跨页保护扇区.
+    /* V4.5.2: 擦除目标扇区 (4KB) + 跨页保护扇区.
      *   50条×14B=700B, 锁存地址若靠近扇区末尾可能跨页, 多擦一个扇区保安全. */
     {
         uint32_t sec_start = lock_addr & ~(4096U - 1U);

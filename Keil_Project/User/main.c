@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/main.c
- * @brief   WPT_PWM V4.3.2 — 程序入口 (W25Q128 全字库)
+ * @brief   WPT_PWM V4.5.2 — 程序入口 (W25Q128 全字库)
  *
  *  系统总接线表 (全部使用引脚, 48 脚 LQFP):
  *  +------------------------------------------------------------+
@@ -34,7 +34,7 @@
  *    App_Storage_Init -> Sys_Startup_Screen(SPLASH) -> Sys_Post_Init ->
  *    Delay(1s) -> SYS_STATE_IDLE
  *
- * @note    V4.3.2: Sys_Timer_Init 必须在 SPLASH 之前
+ * @note    V4.5.2: Sys_Timer_Init 必须在 SPLASH 之前
  *          (Tft_Driver_Show_Splash 使用 Sys_Timer_Delay_Ms 依赖 SysTick)
  ******************************************************************************
  */

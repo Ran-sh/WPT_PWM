@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.c
- * @brief   W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 (V4.3.2)
+ * @brief   W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 (V4.5.2)
  *
  *  Pinout (shares SPI1 with TFT, PA6 dynamic swap):
  *  +------------------------------------------------------------+

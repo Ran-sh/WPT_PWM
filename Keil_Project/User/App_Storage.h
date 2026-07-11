@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/App_Storage.h
- * @brief   应用存储层 — 参数双副本 + 黑匣子日志 (V4.3.2)
+ * @brief   应用存储层 — 参数双副本 + 黑匣子日志 (V4.5.2)
  * @note    底层全部委托 W25Q_Driver, 本层负责分区逻辑、CRC32/CRC8 校验、
  *          页面跨页保护、故障锁存
  ******************************************************************************
@@ -44,16 +44,16 @@ typedef struct {
     int32_t  freq_trim_hz;  /* 4B  频率微调 */
     /* 系统偏好 */
     uint16_t default_freq;   /* 2B  默认频率 kHz */
-    uint8_t  backlight;      /* 1B  [V4.5.0] 背光 1-100% */
+    uint8_t  backlight;      /* 1B  [V4.5.2] 背光 1-100% */
     uint8_t  language;       /* 1B  语言 0=CN 1=EN */
-    uint8_t  font_size;      /* 1B  [V4.4.0] 0=小 1=中 */
-    uint8_t  letter_spacing; /* 1B  [V4.5.0] 0-3 px extra gap */
-    uint8_t  color_preset;   /* 1B  [V4.4.0] 0-5 preset, 255=custom */
-    uint16_t color_fg;       /* 2B  [V4.4.0] RGB565 foreground */
-    uint16_t color_bg;       /* 2B  [V4.4.0] RGB565 background */
+    uint8_t  font_size;      /* 1B  [V4.5.2] 0=小 1=中 */
+    uint8_t  letter_spacing; /* 1B  [V4.5.2] 0-3 px extra gap */
+    uint8_t  color_preset;   /* 1B  [V4.5.2] 0-5 preset, 255=custom */
+    uint16_t color_fg;       /* 2B  [V4.5.2] RGB565 foreground */
+    uint16_t color_bg;       /* 2B  [V4.5.2] RGB565 background */
     /* 校验 */
     uint32_t crc32;          /* 4B  CRC32 (不含自身) */
-} App_Storage_Config;         /* 总计 196B (V4.5.0实测); 远在 4KB 扇区/256B 页内 */
+} App_Storage_Config;         /* 总计 196B (V4.5.2实测); 远在 4KB 扇区/256B 页内 */
 
 /* ══ 公开接口 ══ */
 
@@ -88,7 +88,7 @@ uint32_t Blackbox_Get_Entry_Count(void);
 /** @brief 按序号读单条日志 (0=最旧), 返回值 1=有效 0=CRC坏 */
 uint8_t Blackbox_Read_Entry(uint32_t index, Blackbox_Entry_Packed *out);
 
-/* ── V4.5.0 Settings Convenience — includes letter_spacing ── */
+/* ── V4.5.2 Settings Convenience — includes letter_spacing ── */
 /** @brief 加载设置参数到 Ui_Controller */
 void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
                                 uint8_t* spacing, uint8_t* preset,

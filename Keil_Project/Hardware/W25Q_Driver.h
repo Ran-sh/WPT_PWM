@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.h
- * @brief   W25Q128 16MB SPI NOR Flash 底层驱动 — V4.3.2
+ * @brief   W25Q128 16MB SPI NOR Flash 底层驱动 — V4.5.2
  * @note    SPI1 分时复用: PA5=SCK PA7=MOSI PA6=动态(MISO/DC) PA12=CS
  *          四大硬件防线: 写使能锁存 / Busy 死等 / DFF 原子闪切 / 发波禁擦
  *          接线详见 W25Q_Driver.c 头部注释

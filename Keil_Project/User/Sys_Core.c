@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/Sys_Core.c
- * @brief   系统核心模块 — V4.3.2
+ * @brief   系统核心模块 — V4.5.2
  *
  *  System-wide pin overview (all peripherals, hardware-exclusive pins):
  *  +------------------------------------------------------------+
@@ -100,7 +100,7 @@ void Sys_Hardware_Init(void)
     Buzzer_Driver_Init();
     Adc_Driver_Init();
     Key_Driver_Init();
-    /* V4.5.0: PAGE (PB5, 确定/启停) 键跳过双击检测 — 释放去抖后立即发 CLICK, ~22ms 延迟 */
+    /* V4.5.2: PAGE (PB5, 确定/启停) 键跳过双击检测 — 释放去抖后立即发 CLICK, ~22ms 延迟 */
     Key_Driver_Configure(KEY_DRIVER_ID_PAGE, 1);
 }
 
@@ -130,7 +130,7 @@ void Sys_Post_Init(void)
         s_sys_config.adc_i_offset = Adc_Driver_Get_Current_Offset();
     }
 
-    /* V4.5.0: 背光已由 Ui_Controller_Apply_Settings 映射 1-100 → 0-255 PWM 控制,
+    /* V4.5.2: 背光已由 Ui_Controller_Apply_Settings 映射 1-100 → 0-255 PWM 控制,
      *   此处仅做额外保底: 如果配置值 >0 且在 Ui_Controller_Apply_Settings 之前,
      *   按新标度映射后设置 (1-100% → 0-255)。 */
     if (s_sys_config.backlight > 0 && s_sys_config.backlight <= 100)
@@ -143,7 +143,7 @@ void Sys_Post_Init(void)
     IWDG_Enable();
     DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;
 
-    /* V4.5.0: Load persistent settings into UI (includes letter_spacing) */
+    /* V4.5.2: Load persistent settings into UI (includes letter_spacing) */
     {
         uint8_t lang, font, bl, spacing, preset;
         uint16_t fg, bg;

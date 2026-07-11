@@ -234,10 +234,11 @@ WPT_PWM_V4.0_ONENET_TFT/
 └── CLAUDE.md         ← 项目指南
 ```
 
-## 3. 审查历史速查 (V4.0.0→V4.5.1)
+## 3. 审查历史速查 (V4.0.0→V4.5.2)
 
 | 版本 | 关键修复 |
 |:---|:---|
+| V4.5.2 | **SPI+DMA+EMA修复 (13项)**: DMA超时反转(花屏根因), DMA TC3残留, SPI恢复18MHz(去dummy), Flash批量读(16→1次), CN/Icon ROM优先, EN默认, EMA全状态更新(V/I=0修复), CS脉冲简化, NVIC临界区, Write_Enable防护, s_language初值, Pick_CN_EN遗漏 |
 | V4.5.1 | **全平台安全审查修复 (16项)**: C1:ESP8266 Token占位符化 + C2:配网密码 + H4:DMA/SPI超时 + H6:环形缓冲 + H1:黑匣子指针持久化 + H2:故障锁存跨页擦除 + H12:strtol + H7:WIFI_CONN死代码 + H11:公共MQTT门控 + H14:CLEAR二次确认 + H5:进度条防闪烁 + H9:乐观缓存回滚 + H10:SW BASE路径 + M2:USART2 RXNE优先 + M3:STATUS正向过滤 |
 | V4.5.0 | 设置系统重构: 8页设置 + PIC预览模型 + 字间距0-6px + 亮度二级菜单(手动/呼吸灯) + 颜色6预设全屏重绘 + Tft_Driver 纯像素间隙渲染 + Center/Right 自适应间距 + Draw_Header 内置图标 + Key_Driver ID命名去歧义 + ARMCC V5 hex-escape兼容 + App_Storage 196B校验 + 死代码清理(font_size/BL_Dynamic/Key_GetEvent) |
 | V4.3.2 | W25Q128 全字库修复: 初始化铁序 (TFT→W25Q→SysTick→Font→SPLASH) + Tft_Driver_Font_Init 拆分 + SPLASH 纯代码8帧渐亮 + 二分搜索 CS 翻转 + CRC32 算法修正 (Python zlib→STM32 refin=false) + bit_reverse_byte 删除 (字模不再镜像) |
@@ -261,7 +262,7 @@ Vx.y.z 三数字体系：
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.5.1
+当前版本: V4.5.2
   V4 = 固定大版本 (TFT 彩屏架构)
   .2 = 两次中版本升级
   .2 = 当前小版本号

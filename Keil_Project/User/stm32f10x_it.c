@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file    User/stm32f10x_it.c
-  * @brief   中断服务函数 (V4.3.2 净化版)
+  * @brief   中断服务函数 (V4.5.2 净化版)
   *
   *  ISR map (Cortex-M3 NVIC):
   *  +------------------------------------------------------------+
@@ -70,7 +70,7 @@ void SysTick_Handler(void)
   */
 void USART2_IRQHandler(void)
 {
-    /* V4.5.0: 先 RXNE 后 ORE — 优先消费有效字节, 再清溢出标志.
+    /* V4.5.2: 先 RXNE 后 ORE — 优先消费有效字节, 再清溢出标志.
      *   旧顺序 (ORE 先) 会因读 DR 清 RXNE 而丢弃 ORE 前最后一个有效字节. */
     if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
     {

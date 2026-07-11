@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V4.3.2 全字库双路径)
+ * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V4.5.2 全字库双路径)
  *
  *  Pinout (SPI1 TDM: TFT + W25Q128 share bus):
  *  +------------------------------------------------------------+
@@ -938,7 +938,7 @@ void Tft_Driver_Show_Splash(void)
     }
 
     /* 版本号: 右下角暗灰 */
-    Tft_Driver_Show_String(7, 14, "V4.5.1", 0x3186U, TFT_COLOR_BLACK);
+    Tft_Driver_Show_String(7, 14, "V4.5.2", 0x3186U, TFT_COLOR_BLACK);
 
     /* Phase 2: 两行同时逐字点亮, 每字 8帧渐亮x50ms=400ms, 4字=1600ms */
     for (col = 0; col < 4; col++) {
