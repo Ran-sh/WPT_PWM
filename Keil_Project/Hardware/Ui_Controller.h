@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.h
- * @brief   人机界面控制器 — V4.5.2 (17 页面 + 圆弧能量条 + 增量刷新)
+ * @brief   人机界面控制器 — V5.0.1 (17 页面 + 圆弧能量条 + 增量刷新)
  * @note    TFT 8 行 20 列彩屏, 4 键操作
  *          9 pages: MAIN_MENU -> MONITOR_SUB -> SWEEP/MONITOR_x/WIFI_SETUP/FAULT
  ******************************************************************************
@@ -12,7 +12,7 @@
 
 #include "stm32f10x.h"
 
-/** @brief UI 页面枚举 (17 页两级栈式导航, V4.5.2 +2 BL子页) */
+/** @brief UI 页面枚举 (17 页两级栈式导航, V5.0.1 +2 BL子页) */
 typedef enum {
     UI_PAGE_MAIN_MENU          = 0,   /* 主菜单 - 4/5项 */
     UI_PAGE_MONITOR_SUB_MENU   = 1,   /* 监测子菜单 - 5项 */
@@ -44,7 +44,7 @@ void    Ui_Controller_Force_Page(Ui_Page page);
 void    Ui_Controller_Force_Page_And_Reset(Ui_Page page);
 /** @brief 是否处于无WiFi模式 (远程指令门控用) */
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void);
-/** @brief [V4.5.2] 加载持久化设置参数 (由 Sys_Post_Init 调用)
+/** @brief [V5.0.1] 加载持久化设置参数 (由 Sys_Post_Init 调用)
  *  @note font param (renamed from font_size) is now ignored — spacing replaces it */
 void    Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                       uint8_t spacing, uint8_t preset,

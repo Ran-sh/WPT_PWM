@@ -7,11 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 项目 | 内容 |
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
-| **分支** | `4.0TFT` |
-| **版本** | V4.5.2 |
+| **分支** | `5.0` |
+| **版本** | V5.0.1 |
 | **语言** | 中文交流，代码注释中英混合 |
 
-> **V4.5.2** (2026-07-11) — SPI 时序回归修复: DMA超时操作数反转根治花屏, SPI恢复18MHz原始配置, Flash读批量优化, ROM优先策略(中文/图标), 默认英文界面(W25Q手动切换中文)
+> **V5.0.1** (2026-07-11) — GPIO 全量重映射 + 5键系统 + 四灯系统 + Bug修复
+> **V5.0.0** (2026-07-11) — 初始 GPIO 重映射: PA12→TFT_BL, PB12→W25Q128_CS, KEY0-KEY4 五键, WIFI/POWER/STATUS/HEARTBEAT 四灯
+> **V4.5.2** (2026-07-11) — SPI 时序回归修复
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
@@ -20,12 +22,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 版本号规则 (全项目铁律)
 
 ```
-Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_TFT):
-  x — 固定 4 (仅当整个仓库升级到下一代显示方案才变 5)
+Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
+  x — 固定 5 (GPIO 全量重映射 + 5键系统升级)
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.5.1
+当前版本: V5.0.1
 
 涉及版本号的位置 (全项目必须统一):
   文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.3.2
@@ -56,7 +58,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 4, 对应目录 WPT_PWM_V4.0_ONENET_T
 **每次 `git push` 之前，必须按顺序执行：**
 
 1. 运行 `Keil_Project/keilkill.bat` 清理全部 Keil 编译中间产物
-2. `git add -A && git commit -m "..." && git push origin 4.0TFT`
+2. `git add -A && git commit -m "..." && git push origin 5.0`
 3. **铁律**: 禁止将 `.obj` `.lst` `.axf` 等编译产物上传到 GitHub
 
 ## "更新全部内容" 执行流程
@@ -341,25 +343,27 @@ int main(void) {
 
 Telemetry JSON 全链路格式: `{"V":xx,"I":xx,"F":xx,"S":x}\n`
 
-## Pin Mapping (STM32F103C8 LQFP-48)
+## Pin Mapping (STM32F103C8 LQFP-48) — V5.0
 
 | Pin | 功能 | Pin | 功能 |
 |:---|:---|:---|:---|
 | PA0 | TFT_RES | PB0 | ADC_CH8 (电流, CC6920BSO) |
 | PA1 | ESP8266 RST | PB1 | ADC_CH9 (电压) |
-| PA2 | USART2_TX | PB3 | LED_PWM |
-| PA3 | USART2_RX | PB4 | LED_WIFI |
-| PA4 | TFT_CS | PB5 | PAGE 按键 (IPU, 确定/启停) |
-| PA5 | SPI1_SCK | PB6 | TFT 背光 TIM4_CH1 |
-| **PA6** | **TFT_DC / Flash MISO (动态切)** | PB7 | F_DOWN 按键 (IPU) |
-| PA7 | SPI1_MOSI | PB8 | F_UP 按键 (IPU) |
-| PA8 | TIM1_CH1 | PB9 | ON/OFF 按键 (IPU, 返回) |
-| PA9 | TIM1_CH2 | PB10 | PowerContrl (高=使能12V) |
-| PA10 | LED_COM | PB11 | ESP8266 CH_PD (EN) |
-| PA11 | LED_POWER | **PA12** | **W25Q128_CS** |
-| PA15 | LED_SYSTEM | PB15 | 蜂鸣器 |
+| PA2 | USART2_TX | PB3 | LED_POWER (绿, 12V指示) |
+| PA3 | USART2_RX | PB4 | LED_WIFI (蓝) |
+| PA4 | TFT_CS | PB5 | KEY4 (IPU, 确定/启停) |
+| PA5 | SPI1_SCK | PB6 | KEY3 (IPU, DOWN/减) |
+| **PA6** | **TFT_DC / Flash MISO (动态切)** | PB7 | KEY2 (IPU, UP/加) |
+| PA7 | SPI1_MOSI | PB8 | KEY1 (IPU, 返回) |
+| PA8 | TIM1_CH1 (HINA) | PB9 | KEY0 (IPU, 电源开关) |
+| PA9 | TIM1_CH2 (HINB) | PB10 | PowerCtrl (KEY0 手动) |
+| PA12 | TFT_BL (GPIO) | PB11 | ESP8266 EN |
+| PA15 | LED_STATUS (黄) | **PB12** | **W25Q128_CS** |
+| **PC13** | **LED_HEARTBEAT (板载, 运行灯)** | PB13 | TIM1_CH1N (LINA) |
+| | | PB14 | TIM1_CH2N (LINB) |
+| | | PB15 | Buzzer |
 
-JTAG 禁用释放 PB3/PB4/PB5/PA15。
+JTAG 禁用释放 PB3/PB4/PA15。V5.0: PA10/PA11 移除, PA12→TFT_BL, PB12→W25Q128_CS, PB6→KEY3, PC13→板载心跳灯
 
 ## 编码规范
 
@@ -485,6 +489,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V5.0 | **GPIO 全量重映射 + 5键系统 + 四灯系统**: PA12→TFT_BL(GPIO), PB12→W25Q128_CS, PB6→KEY3, PB9→KEY0(电源开关协调PB10), PB8→KEY1(返回,双击主菜单), PB7→KEY2(UP), PB6→KEY3(DOWN), PB5→KEY4(确定); PA15→STATUS(PWM指示), PB3→POWER(12V), PC13→HEARTBEAT(板载运行); PA10/PA11 移除; TIM4 停用; PB10 手动(去自动电压阈值); Sys_Power_Control_Handle 新增; Key_Driver 4→5键+WITH_DOUBLE; Led_Driver 5→4灯(COM/PWR/TMP/PWM→STATUS/HEARTBEAT); Ui_Controller MENU UP键 wrapping 修复(<=1→==0) |
 | V4.5.2 | **SPI时序回归+DMA修复+EMA修复**: DMA超时操作数反转修复(根治花屏), DMA TC3残留标志清理, SPI恢复18MHz原始配置(去dummy/CS NOP), Flash字模批量读(16次→1次), 中文/图标ROM优先, 默认英文界面(W25Q手动切中文), Sys_Safety EMA全状态更新(V/I在IDLE下不再显示0), CS脉冲简化, NVIC Flash读临界区保护, Write_Enable SPI模式防护, s_language静态初值统一, Ui_Controller Pick_CN_EN遗漏修复 |
 | V4.5.1 | **全平台安全审查修复 (16项)**: ESP8266 Token占位符化(防泄露)+配网热点加密码+CMD:CLEAR二次确认(5s窗口)+公共MQTT Broker门控+WIFI_CONN死代码修复+WiFiManager debug关; STM32 Tft_Driver DMA/SPI忙等4循环200ms超时护底; Esp8266_Driver 3槽环形缓冲(防连续帧丢失); App_Storage 黑匣子指针每60条回写Block0(重启可恢复)+故障锁存扇区跨页保护; App_Network strtol替代atol+OFFLINE恢复STATUS正向过滤; USART2 RXNE先于ORE(防有效字节丢弃); Ui_Controller 扫频进度条+WiFi行变更检测(消除200ms闪烁); Web setProperty重试失败回滚乐观缓存+SW BASE路径修复; 编译0错误0警告 |
 | V4.5.0 | 设置系统重构: 8页设置(语言/字间距/图标/亮度二级菜单手动+呼吸灯/颜色方案) + PIC预览模型(PAGE=确定/ON=取消) + 字体大小→字间距(0/2/4/6px真实像素差) + 亮度1-100%滚动翻阅即时生效 + 色彩6预设全屏重绘 + Tft_Driver 纯像素间隙渲染 + Center/Right 自适应间距布局 + Draw_Header 自动画图标(dedup) + Key_Driver ID命名去歧义(PAGE=0/ON=3) + ARMCC V5 hex-escape兼容(零#870-D警告) + App_Storage_Config 结构体196B校验 + 死代码清理(Key_GetEvent/font_size/BL_Dynamic) |

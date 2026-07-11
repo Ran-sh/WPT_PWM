@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/Sys_Core.c
- * @brief   系统核心模块 — V4.5.2
+ * @brief   系统核心模块 — V5.0.1
  *
  *  System-wide pin overview (all peripherals, hardware-exclusive pins):
  *  +------------------------------------------------------------+
@@ -9,9 +9,9 @@
  *  |                                                             |
  *  |    -- Display --                                            |
  *  |    PA5=SCK  PA7=MOSI  PA4=TFT_CS  PA6=DC/MISO  PA0=TFT_RST  |
- *  |    PB6=TIM4_CH1 (backlight PWM)                             |
+ *  |    PA12=TFT_BL (GPIO ON/OFF)                                 |
  *  |    -- Flash --                                              |
- *  |    PA5=SCK  PA7=MOSI  PA6=DC/MISO(dyn)  PA12=FLASH_CS       |
+ *  |    PA5=SCK  PA7=MOSI  PA6=DC/MISO(dyn)  PB12=FLASH_CS       |
  *  |    -- PWM --                                                |
  *  |    PA8=CH1  PA9=CH2  PB13=CH1N  PB14=CH2N                   |
  *  |    -- ADC --                                                |
@@ -19,11 +19,11 @@
  *  |    -- ESP8266 --                                            |
  *  |    PA2=TX  PA3=RX  PA1=RST  PB11=EN                         |
  *  |    -- Keys --                                               |
- *  |    PB9=ON(返回) PB8=F+ PB7=F- PB5=PAGE(确定)                 |
+ *  |    PB9=KEY0(电源) PB8=KEY1(返回) PB7=KEY2(UP) PB6=KEY3(DOWN) PB5=KEY4(确定) |
  *  |    -- LEDs --                                               |
- *  |    PA15=SYSTEM  PB4=WIFI  PB3=PWM  PA10=COM  PA11=POWER     |
+ *  |    PA15=STATUS(PWM指示) PB4=WIFI PB3=POWER(12V) PC13=HEARTBEAT |
  *  |    -- Power control --                                      |
- *  |    PB10=PowerCtrl (HIGH=12V enable, LOW=disable)            |
+ *  |    PB10=PowerCtrl (KEY0 manual toggle, HIGH=12V enable)     |
  *  |    -- Buzzer --                                             |
  *  |    PB15=Buzzer                                              |
  *  |                                                             |
@@ -34,7 +34,6 @@
  *  |    Sys_Safety (independent of UI):                          |
  *  |      EMA filter a=0.25, only RUNNING checks overcurrent     |
  *  |      I > 5.0A -> FAULT + Buzzer + PWM off                   |
- *  |      PB10: V > 12V -> HIGH enable, V <= 12V -> LOW disable  |
  *  +------------------------------------------------------------+
  *
  * @note    Init order: Sys_Hardware_Init -> Sys_Timer_Init ->
@@ -100,8 +99,11 @@ void Sys_Hardware_Init(void)
     Buzzer_Driver_Init();
     Adc_Driver_Init();
     Key_Driver_Init();
-    /* V4.5.2: PAGE (PB5, 确定/启停) 键跳过双击检测 — 释放去抖后立即发 CLICK, ~22ms 延迟 */
-    Key_Driver_Configure(KEY_DRIVER_ID_PAGE, 1);
+    Key_Driver_Configure(KEY_DRIVER_ID_POWER,   KEY_DRIVER_CFG_CLICK_ONLY);
+    Key_Driver_Configure(KEY_DRIVER_ID_BACK,    KEY_DRIVER_CFG_WITH_DOUBLE);
+    Key_Driver_Configure(KEY_DRIVER_ID_UP,      KEY_DRIVER_CFG_WITH_DOUBLE);
+    Key_Driver_Configure(KEY_DRIVER_ID_DOWN,    KEY_DRIVER_CFG_WITH_DOUBLE);
+    Key_Driver_Configure(KEY_DRIVER_ID_CONFIRM, KEY_DRIVER_CFG_CLICK_ONLY);
 }
 
 void Sys_Startup_Screen(void)
@@ -114,7 +116,7 @@ void Sys_Post_Init(void)
 {
     uint8_t cfg_valid;
     /* Sys_Timer_Init 已提前到 main.c 中 (SPLASH 需要 SysTick) */
-    Led_Driver_Set_System(1);
+    Led_Driver_Set_Heartbeat(1);     /* PC13 heartbeat: MCU alive indicator */
 
     /* V4.3.0: Flash 加载参数配置, 双副本 CRC32 闭锁回退 */
     cfg_valid = App_Storage_Load_Config(&s_sys_config);
@@ -159,7 +161,6 @@ void Sys_Post_Init(void)
  * ═══════════════════════════════════════════════════════════════ */
 
 #define SYS_SAFETY_OVERCURRENT_A  5.0f
-#define SYS_SAFETY_POWER_V        12.0f
 
 static float  s_safety_ema_v = 0.0f, s_safety_ema_i = 0.0f;
 static uint8_t s_safety_ema_ok = 0;
@@ -202,17 +203,6 @@ void Sys_Safety_Task(void)
     /* 仅 RUNNING 状态执行安全监测: 非运行状态 PWM 已关, 无过流可能 */
     if (g_sys_state != SYS_STATE_RUNNING) return;
 
-    /* PB10 电源控制 */
-    {
-        static uint8_t s_last_pwr = 0xFF;
-        uint8_t pwr_on = (Adc_Driver_Get_Voltage() > SYS_SAFETY_POWER_V);
-        if (pwr_on != s_last_pwr) {
-            s_last_pwr = pwr_on;
-            if (pwr_on) GPIO_SetBits(GPIOB, GPIO_Pin_10);
-            else        GPIO_ResetBits(GPIOB, GPIO_Pin_10);
-        }
-    }
-
     /* 过流检测 → FAULT (先切状态再锁存: L4 禁擦需要 FAULT 而非 RUNNING) */
     if (s_safety_ema_i > SYS_SAFETY_OVERCURRENT_A) {
         Inverter_Control_Soft_Start_Fault();
@@ -220,6 +210,37 @@ void Sys_Safety_Task(void)
         g_sys_state = SYS_STATE_FAULT;               /* 先切状态, Inverter已停波 */
         Blackbox_Lock_Fault_Snapshot();              /* L4 放行: 非 SWEEP/RUNNING */
     }
+}
+
+/**
+ * @brief  Handle KEY0 power toggle — hardware power switch
+ * @note   KEY0 click: toggle PB10(12V) + POWER LED(PB3)
+ *         Power ON  -> PB10 HIGH + POWER LED ON
+ *         Power OFF -> force PWM stop + PB10 LOW + POWER LED OFF + STATUS LED OFF
+ *         PWM restart requires KEY4 explicit action after power-on
+ */
+void Sys_Power_Control_Handle(Key_Driver_Event ke[5])
+{
+    if (ke[KEY_DRIVER_ID_POWER] != KEY_DRIVER_EVENT_CLICK) return;
+
+    /* Read current PB10 state */
+    if (GPIO_ReadOutputDataBit(GPIOB, GPIO_Pin_10) == Bit_RESET) {
+        /* Power ON: enable 12V, light POWER LED */
+        GPIO_SetBits(GPIOB, GPIO_Pin_10);
+        Led_Driver_Set_Power(1);
+    } else {
+        /* Power OFF: force stop PWM, disable 12V, extinguish POWER LED */
+        Inverter_Control_Soft_Start_Stop();
+        if (g_sys_state == SYS_STATE_RUNNING || g_sys_state == SYS_STATE_SWEEP) {
+            g_sys_state = SYS_STATE_IDLE;
+        }
+        GPIO_ResetBits(GPIOB, GPIO_Pin_10);
+        Led_Driver_Set_Power(0);
+        Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
+    }
+
+    /* Consume KEY0 event — do not propagate to UI */
+    ke[KEY_DRIVER_ID_POWER] = KEY_DRIVER_EVENT_NONE;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -246,6 +267,8 @@ static void Sys_Run_Buzzer_Tick(void)
 
 void Sys_Run_Idle(void)
 {
+    Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
+
     Ui_Controller_Task();
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
@@ -259,6 +282,7 @@ void Sys_Run_Idle(void)
 
 void Sys_Run_Sweep(void)
 {
+    Led_Driver_Set_Status(LED_DRIVER_STATE_SLOW);
     static uint32_t last_bb_s = 0; uint32_t now_s = Sys_Timer_Get_Tick();
     Ui_Controller_Task();
     Inverter_Control_Soft_Start_Task();
@@ -281,6 +305,7 @@ void Sys_Run_Sweep(void)
 
 void Sys_Run_Running(void)
 {
+    Led_Driver_Set_Status(LED_DRIVER_STATE_ON);
     static uint32_t last_bb = 0; uint32_t now = Sys_Timer_Get_Tick();
     Ui_Controller_Task();
     Inverter_Control_Freq_Ramp_Task();
@@ -301,6 +326,7 @@ void Sys_Run_Running(void)
 
 void Sys_Run_Fault(void)
 {
+    Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
     Ui_Controller_Task();
     Inverter_Control_Freq_Ramp_Cancel();
     Sys_Run_Led_Tick();

@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   人机界面控制器 V4.5.2 — 17 页面 + 圆弧能量条 + 增量刷新
+ * @brief   人机界面控制器 V5.0.1 — 17 页面 + 圆弧能量条 + 增量刷新
  *
  *  Hardware dependencies (indirect, via Driver layer):
  *  +----------------------------------------------------------+
@@ -1441,7 +1441,7 @@ static void Draw_Fault_Full(void)
 /* ================================================================
  *  LED Update
  * ================================================================ */
-static void Update_Leds(Ui_Page page)
+static void Update_Leds(void)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
 
@@ -1453,29 +1453,14 @@ static void Update_Leds(Ui_Page page)
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_OFF);
     else
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
-
-    if (page == UI_PAGE_SWEEP)
-        Led_Driver_Set_Pwm(LED_DRIVER_STATE_FAST);
-    else
-        Led_Driver_Set_Pwm(LED_DRIVER_STATE_OFF);
-
-    Led_Driver_Set_Power(
-        Adc_Driver_Get_Voltage() > UI_POWER_V_THRESHOLD_V
-        ? LED_DRIVER_STATE_ON : LED_DRIVER_STATE_OFF);
-
-    Led_Driver_Set_Temp(LED_DRIVER_STATE_OFF);
-
-    Led_Driver_Set_Com(
-        cs == APP_NETWORK_CONN_ONLINE
-        ? LED_DRIVER_STATE_ON : LED_DRIVER_STATE_OFF);
 }
 
 /* ================================================================
  *  Key Dispatch
  * ================================================================ */
 static void Handle_Keys_by_Page(Ui_Page page,
-                                Key_Driver_Event k0, Key_Driver_Event k1,
-                                Key_Driver_Event k2, Key_Driver_Event k3)
+                                Key_Driver_Event k1, Key_Driver_Event k2,
+                                Key_Driver_Event k3, Key_Driver_Event k4)
 {
     uint8_t is_running = 0;
     {
@@ -1483,8 +1468,8 @@ static void Handle_Keys_by_Page(Ui_Page page,
         is_running = (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE);
     }
 
-    /* F_UP (k1): 频率+/上移 */
-    if (k1 == KEY_DRIVER_EVENT_CLICK) {
+    /* UP (k2): 频率+/上移 */
+    if (k2 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
                 /* V4.5.2: F_UP wraps 0->3 when not fault, 0->4 when fault */
@@ -1492,7 +1477,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
                     if (s_menu_cursor == 0) s_menu_cursor = 4;
                     else s_menu_cursor--;
                 } else {
-                    if (s_menu_cursor <= 1) s_menu_cursor = 3;
+                    if (s_menu_cursor == 0) s_menu_cursor = 3;
                     else s_menu_cursor--;
                 }
                 break;
@@ -1513,8 +1498,8 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* F_DOWN (k2): 频率-/下移 */
-    if (k2 == KEY_DRIVER_EVENT_CLICK) {
+    /* DOWN (k3): 频率-/下移 */
+    if (k3 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
                 /* V4.5.2: F_DOWN 到第5项(灰色)时如果非故障则回第1项 */
@@ -1546,8 +1531,8 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* PAGE (k0): 确定/启停 */
-    if (k0 == KEY_DRIVER_EVENT_CLICK) {
+    /* CONFIRM (k4): 确定/启停 */
+    if (k4 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
                 switch (s_menu_cursor) {
@@ -1629,9 +1614,17 @@ static void Handle_Keys_by_Page(Ui_Page page,
         }
     }
 
-    /* ON (k3): 返回上一级 — Settings 子页由 Handle_Settings_Keys 拦截,
-       但这里作为保底：把全部 Settings 子页返回给 UI_PAGE_SETTING */
-    if (k3 == KEY_DRIVER_EVENT_CLICK) {
+    /* BACK (k1): double-click -> jump to MAIN MENU directly */
+    if (k1 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
+        s_page = UI_PAGE_MAIN_MENU;
+        s_menu_cursor = 0;
+        s_setting_cursor = 0;
+        /* fall through to skip CLICK processing — no return needed since
+           DOUBLE_CLICK and CLICK are mutually exclusive per-key */
+    }
+    /* BACK (k1): single click — return to previous page.
+       Settings 子页由 Handle_Settings_Keys 拦截, 但这里作为保底 */
+    else if (k1 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
                 break;
@@ -1695,11 +1688,11 @@ static void Draw_Setting_Full(void)
     Draw_Cursor(2 + s_setting_cursor);
 }
 
-static void Handle_Setting_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
-                                 Key_Driver_Event k2, Key_Driver_Event k3)
+static void Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+                                 Key_Driver_Event k3, Key_Driver_Event k4)
 {
-    /* ON(back) -> main menu + flush settings to Flash if dirty */
-    if (k3 == KEY_DRIVER_EVENT_CLICK) {
+    /* BACK -> main menu + flush settings to Flash if dirty */
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {
         if (s_settings_dirty) {
             App_Storage_Save_Settings(s_language, 0, s_bl_user_val,
                                       s_letter_spacing, sc_preset,
@@ -1713,15 +1706,15 @@ static void Handle_Setting_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
         }
         s_page = UI_PAGE_MAIN_MENU; s_menu_cursor = 3; s_page_drawn = 0; return;
     }
-    if (k1 == KEY_DRIVER_EVENT_CLICK) {
+    if (k2 == KEY_DRIVER_EVENT_CLICK) {
         if (s_setting_cursor == 0) s_setting_cursor = 4;
         else s_setting_cursor--;
     }
-    if (k2 == KEY_DRIVER_EVENT_CLICK) {
+    if (k3 == KEY_DRIVER_EVENT_CLICK) {
         if (s_setting_cursor >= 4) s_setting_cursor = 0;
         else s_setting_cursor++;
     }
-    if (k0 == KEY_DRIVER_EVENT_CLICK) {
+    if (k4 == KEY_DRIVER_EVENT_CLICK) {
         if (s_setting_cursor == 2 && !Tft_Driver_Is_Font_Flash_Valid()) return;  /* Icons requires Flash */
         switch (s_setting_cursor) {
             case 0: s_page = UI_PAGE_SETTING_LANG;
@@ -1776,15 +1769,15 @@ static void Draw_Lang_Full(void)
         Tft_Driver_Show_String(7, Center("Hello World"), "Hello World", Uc_Dim(), Uc_Bg());
 }
 
-static void Handle_Lang_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
-                              Key_Driver_Event k2, Key_Driver_Event k3)
+static void Handle_Lang_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+                              Key_Driver_Event k3, Key_Driver_Event k4)
 {
-    uint8_t up   = (k1 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t down = (k2 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t back = (k3 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t ok   = (k0 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t up   = (k2 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t down = (k3 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t back = (k1 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t ok   = (k4 == KEY_DRIVER_EVENT_CLICK);
 
-    /* ON(back) → cancel, restore old cursor, no save */
+    /* BACK -> cancel, restore old cursor, no save */
     if (back) {
         s_preview_choice = s_language;
         s_page = UI_PAGE_SETTING; s_setting_cursor = 0; s_page_drawn = 0; return;
@@ -1794,7 +1787,7 @@ static void Handle_Lang_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
     if (up)   { s_preview_choice = (s_preview_choice == 0) ? 1 : 0; s_page_drawn = 0; }
     if (down) { s_preview_choice = (s_preview_choice == 0) ? 1 : 0; s_page_drawn = 0; }
 
-    /* PAGE → commit selection */
+    /* CONFIRM -> commit selection */
     if (ok && s_preview_choice != s_language) {
         s_language  = s_preview_choice;
         s_settings_dirty = 1;
@@ -1907,17 +1900,17 @@ static void Draw_Icons_Full(void)
     }
 }
 
-static void Handle_Icons_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
-                               Key_Driver_Event k2, Key_Driver_Event k3)
+static void Handle_Icons_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+                               Key_Driver_Event k3, Key_Driver_Event k4)
 {
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
-    uint8_t up    = (k1 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t down  = (k2 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t back  = (k3 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t up    = (k2 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t down  = (k3 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t back  = (k1 == KEY_DRIVER_EVENT_CLICK);
     uint8_t page  = s_icon_page;
     uint8_t cur   = s_icon_cursor;
 
-    /* ON(back) -> settings menu */
+    /* BACK -> settings menu */
     if (back) {
         s_page = UI_PAGE_SETTING; s_setting_cursor = 2; s_page_drawn = 0; return;
     }
@@ -1954,7 +1947,7 @@ static void Handle_Icons_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
         if (cur >= items_on_cur_page) cur = (uint8_t)(items_on_cur_page - 1U);
     }
 
-    /* Note: ENTER (k0) ignored in icon browser */
+    /* Note: CONFIRM (k4) ignored in icon browser */
     if (page != s_icon_page || cur != s_icon_cursor) {
         s_icon_page   = page;
         s_icon_cursor = cur;
@@ -2020,13 +2013,13 @@ static void Draw_Spacing_Full(void)
     }
 }
 
-static void Handle_Spacing_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
-                                 Key_Driver_Event k2, Key_Driver_Event k3)
+static void Handle_Spacing_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+                                 Key_Driver_Event k3, Key_Driver_Event k4)
 {
-    uint8_t back = (k3 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t ok   = (k0 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t up   = (k1 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t down = (k2 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t back = (k1 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t ok   = (k4 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t up   = (k2 == KEY_DRIVER_EVENT_CLICK);
+    uint8_t down = (k3 == KEY_DRIVER_EVENT_CLICK);
 
     if (back) {
         s_preview_choice = s_letter_spacing;
@@ -2082,18 +2075,18 @@ static void Draw_BL_Sub_Full(void)
     Draw_Cursor(s_preview_choice == 0 ? 3 : 4);
 }
 
-static void Handle_BL_Sub_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
-                               Key_Driver_Event k2, Key_Driver_Event k3)
+static void Handle_BL_Sub_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+                               Key_Driver_Event k3, Key_Driver_Event k4)
 {
-    if (k3 == KEY_DRIVER_EVENT_CLICK) {
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {
         s_page = UI_PAGE_SETTING; s_setting_cursor = 3; s_page_drawn = 0; return;
     }
     /* BL 子菜单上下循环 0↔1 */
-    if (k1 == KEY_DRIVER_EVENT_CLICK || k2 == KEY_DRIVER_EVENT_CLICK) {
+    if (k2 == KEY_DRIVER_EVENT_CLICK || k3 == KEY_DRIVER_EVENT_CLICK) {
         s_preview_choice = (s_preview_choice == 0) ? 1 : 0;
         s_page_drawn = 0;
     }
-    if (k0 == KEY_DRIVER_EVENT_CLICK) {
+    if (k4 == KEY_DRIVER_EVENT_CLICK) {
         if (s_preview_choice == 0) {
             s_page = UI_PAGE_SETTING_BL_MANUAL;
         } else {
@@ -2127,23 +2120,23 @@ static void Draw_BL_Manual_Full(void)
     Tft_Driver_Set_Backlight(s_backlight_val);
 }
 
-static void Handle_BL_Manual_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
-                                   Key_Driver_Event k2, Key_Driver_Event k3)
+static void Handle_BL_Manual_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+                                   Key_Driver_Event k3, Key_Driver_Event k4)
 {
-    if (k3 == KEY_DRIVER_EVENT_CLICK) {
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {
         s_page = UI_PAGE_SETTING_BL; s_page_drawn = 0; return;
     }
-    /* PAGE -> commit value, mark dirty for Flash save (value already applied instantly) */
-    if (k0 == KEY_DRIVER_EVENT_CLICK) {
+    /* CONFIRM -> commit value, mark dirty for Flash save (value already applied instantly) */
+    if (k4 == KEY_DRIVER_EVENT_CLICK) {
         s_settings_dirty = 1;
         s_page_drawn = 0;
         return;
     }
-    /* F+/F- 滚动翻阅 1-100% / long-press +/-10 / WYSIWYG 即时生效 */
-    if (k1 == KEY_DRIVER_EVENT_CLICK)       { s_bl_user_val = (s_bl_user_val >= 100) ? 1  : s_bl_user_val + 2;  }
-    if (k2 == KEY_DRIVER_EVENT_CLICK)       { s_bl_user_val = (s_bl_user_val <= 1)   ? 100 : s_bl_user_val - 2;  }
-    if (k1 == KEY_DRIVER_EVENT_LONG_PRESS)  { s_bl_user_val = (s_bl_user_val >= 91)  ? 1  : s_bl_user_val + 10; }
-    if (k2 == KEY_DRIVER_EVENT_LONG_PRESS)  { s_bl_user_val = (s_bl_user_val <= 10)   ? 100 : s_bl_user_val - 10; }
+    /* UP/DOWN 滚动翻阅 1-100% / long-press +/-10 / WYSIWYG 即时生效 */
+    if (k2 == KEY_DRIVER_EVENT_CLICK)       { s_bl_user_val = (s_bl_user_val >= 100) ? 1  : s_bl_user_val + 2;  }
+    if (k3 == KEY_DRIVER_EVENT_CLICK)       { s_bl_user_val = (s_bl_user_val <= 1)   ? 100 : s_bl_user_val - 2;  }
+    if (k2 == KEY_DRIVER_EVENT_LONG_PRESS)  { s_bl_user_val = (s_bl_user_val >= 91)  ? 1  : s_bl_user_val + 10; }
+    if (k3 == KEY_DRIVER_EVENT_LONG_PRESS)  { s_bl_user_val = (s_bl_user_val <= 10)   ? 100 : s_bl_user_val - 10; }
     s_backlight_val = (uint8_t)(((uint32_t)s_bl_user_val * 255U + 50U) / 100U);
     Tft_Driver_Set_Backlight(s_backlight_val);
     s_settings_dirty = 1;
@@ -2204,10 +2197,10 @@ static void Draw_BL_Breathe_Full(void)
     Draw_Cursor(r);
 }
 
-static void Handle_BL_Breathe_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
-                                    Key_Driver_Event k2, Key_Driver_Event k3)
+static void Handle_BL_Breathe_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+                                    Key_Driver_Event k3, Key_Driver_Event k4)
 {
-    if (k3 == KEY_DRIVER_EVENT_CLICK) {
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {
         if (s_br_editing != 3) {
             s_br_editing = 3;  /* ESC from param edit back to nav */
             s_page_drawn = 0;
@@ -2219,25 +2212,25 @@ static void Handle_BL_Breathe_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
 
     if (s_br_editing == 3) {
         /* Top-level: cursor moves among speed/min/max */
-        if (k1 == KEY_DRIVER_EVENT_CLICK) {
+        if (k2 == KEY_DRIVER_EVENT_CLICK) {
             if (s_br_param_cursor == 0) s_br_param_cursor = 2;
             else s_br_param_cursor--;
             s_page_drawn = 0;
         }
-        if (k2 == KEY_DRIVER_EVENT_CLICK) {
+        if (k3 == KEY_DRIVER_EVENT_CLICK) {
             if (s_br_param_cursor >= 2) s_br_param_cursor = 0;
             else s_br_param_cursor++;
             s_page_drawn = 0;
         }
-        if (k0 == KEY_DRIVER_EVENT_CLICK) {
-            /* PAGE enters param edit mode */
+        if (k4 == KEY_DRIVER_EVENT_CLICK) {
+            /* CONFIRM enters param edit mode */
             s_br_editing = s_br_param_cursor;
             s_page_drawn = 0;
         }
     } else {
-        /* Param edit: F+/F- adjust value */
-        if (k1 == KEY_DRIVER_EVENT_CLICK || k2 == KEY_DRIVER_EVENT_CLICK) {
-            int8_t d = (k1 == KEY_DRIVER_EVENT_CLICK) ? 1 : -1;
+        /* Param edit: UP/DOWN adjust value */
+        if (k2 == KEY_DRIVER_EVENT_CLICK || k3 == KEY_DRIVER_EVENT_CLICK) {
+            int8_t d = (k2 == KEY_DRIVER_EVENT_CLICK) ? 1 : -1;
             if (s_br_editing == 0) {
                 int16_t sp = (int16_t)s_br_speed + d;
                 if (sp < 1) sp = 1; if (sp > 10) sp = 10;
@@ -2256,8 +2249,8 @@ static void Handle_BL_Breathe_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
             s_settings_dirty = 1;
             s_page_drawn = 0;
         }
-        /* PAGE commits param edit, back to nav */
-        if (k0 == KEY_DRIVER_EVENT_CLICK) {
+        /* CONFIRM commits param edit, back to nav */
+        if (k4 == KEY_DRIVER_EVENT_CLICK) {
             s_br_editing = 3;
             s_page_drawn = 0;
         }
@@ -2321,26 +2314,26 @@ static void Draw_Color_Full(void)
 
 }
 
-static void Handle_Color_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
-                               Key_Driver_Event k2, Key_Driver_Event k3)
+static void Handle_Color_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+                               Key_Driver_Event k3, Key_Driver_Event k4)
 {
-    if (k3 == KEY_DRIVER_EVENT_CLICK) {
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {
         s_preview_choice = sc_preset;  /* restore saved */
         s_page = UI_PAGE_SETTING; s_setting_cursor = 4; s_page_drawn = 0; return;
     }
-    if (k1 == KEY_DRIVER_EVENT_CLICK) {
+    if (k2 == KEY_DRIVER_EVENT_CLICK) {
         if (s_preview_choice == 0) s_preview_choice = 5;
         else s_preview_choice--;
         s_page_drawn = 0;
     }
-    if (k2 == KEY_DRIVER_EVENT_CLICK) {
+    if (k3 == KEY_DRIVER_EVENT_CLICK) {
         if (s_preview_choice >= 5) s_preview_choice = 0;
         else s_preview_choice++;
         s_page_drawn = 0;
     }
 
-    /* PAGE -> commit: apply new color, full clear with new bg, redraw page */
-    if (k0 == KEY_DRIVER_EVENT_CLICK && s_preview_choice != sc_preset) {
+    /* CONFIRM -> commit: apply new color, full clear with new bg, redraw page */
+    if (k4 == KEY_DRIVER_EVENT_CLICK && s_preview_choice != sc_preset) {
         Apply_Color_Preset(s_preview_choice);
         s_settings_dirty = 1;
         /* full clear into new bg — Fix 5: ensure entire screen re-covered */
@@ -2353,18 +2346,18 @@ static void Handle_Color_Keys(Key_Driver_Event k0, Key_Driver_Event k1,
  *  Settings Key Dispatch
  * ═══════════════════════════════════════════════════════════════ */
 static uint8_t Handle_Settings_Keys(Ui_Page page,
-    Key_Driver_Event k0, Key_Driver_Event k1,
-    Key_Driver_Event k2, Key_Driver_Event k3)
+    Key_Driver_Event k1, Key_Driver_Event k2,
+    Key_Driver_Event k3, Key_Driver_Event k4)
 {
     switch (page) {
-        case UI_PAGE_SETTING:           Handle_Setting_Keys(k0,k1,k2,k3); return 1;
-        case UI_PAGE_SETTING_LANG:      Handle_Lang_Keys(k0,k1,k2,k3); return 1;
-        case UI_PAGE_SETTING_SPACING:   Handle_Spacing_Keys(k0,k1,k2,k3); return 1;
-        case UI_PAGE_SETTING_ICONS:     Handle_Icons_Keys(k0,k1,k2,k3); return 1;
-        case UI_PAGE_SETTING_BL:        Handle_BL_Sub_Keys(k0,k1,k2,k3); return 1;
-        case UI_PAGE_SETTING_BL_MANUAL: Handle_BL_Manual_Keys(k0,k1,k2,k3); return 1;
-        case UI_PAGE_SETTING_BL_BREATHE:Handle_BL_Breathe_Keys(k0,k1,k2,k3); return 1;
-        case UI_PAGE_SETTING_COLOR:     Handle_Color_Keys(k0,k1,k2,k3); return 1;
+        case UI_PAGE_SETTING:           Handle_Setting_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_LANG:      Handle_Lang_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_SPACING:   Handle_Spacing_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_ICONS:     Handle_Icons_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_BL:        Handle_BL_Sub_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_BL_MANUAL: Handle_BL_Manual_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_BL_BREATHE:Handle_BL_Breathe_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_COLOR:     Handle_Color_Keys(k1,k2,k3,k4); return 1;
         default: return 0;
     }
 }
@@ -2450,10 +2443,14 @@ void Ui_Controller_Task(void)
     old_cursor = s_menu_cursor;
     {
         uint8_t old_setting_cur = s_setting_cursor;
-        Key_Driver_Event ke[4];
+        Key_Driver_Event ke[5];
         Key_Driver_Get_All_Events(ke);
-        /* global long-press: clear WiFi — must fire BEFORE Settings intercept (Bug 5) */
-        if (ke[0] == KEY_DRIVER_EVENT_LONG_PRESS) {
+
+        /* KEY0 (POWER) handled by Sys_Core — Ui_Controller never sees it */
+        Sys_Power_Control_Handle(ke);
+
+        /* global long-press: CONFIRM (k4) clear WiFi — must fire BEFORE Settings intercept */
+        if (ke[KEY_DRIVER_ID_CONFIRM] == KEY_DRIVER_EVENT_LONG_PRESS) {
             Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
             if (!(ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE)) {
                 Esp8266_Driver_Send_String("CMD:CLEAR\n");
@@ -2466,8 +2463,16 @@ void Ui_Controller_Task(void)
             }
         }
         /* Settings key dispatch (includes back-navigation) */
-        if (!Handle_Settings_Keys(s_page, ke[0], ke[1], ke[2], ke[3])) {
-            Handle_Keys_by_Page(s_page, ke[0], ke[1], ke[2], ke[3]);
+        if (!Handle_Settings_Keys(s_page,
+                                   ke[KEY_DRIVER_ID_BACK],
+                                   ke[KEY_DRIVER_ID_UP],
+                                   ke[KEY_DRIVER_ID_DOWN],
+                                   ke[KEY_DRIVER_ID_CONFIRM])) {
+            Handle_Keys_by_Page(s_page,
+                                ke[KEY_DRIVER_ID_BACK],
+                                ke[KEY_DRIVER_ID_UP],
+                                ke[KEY_DRIVER_ID_DOWN],
+                                ke[KEY_DRIVER_ID_CONFIRM]);
         }
         if (s_setting_cursor != old_setting_cur) {
             s_last_setting_cursor = old_setting_cur;
@@ -2538,7 +2543,7 @@ void Ui_Controller_Task(void)
             case UI_PAGE_SETTING_BL_BREATHE:Draw_BL_Breathe_Full();  break;
             case UI_PAGE_SETTING_COLOR:     Draw_Color_Full();       break;
         }
-        Update_Leds(s_page);
+        Update_Leds();
         s_page_drawn = 1;
         cursor_changed = 0;
     } else {
@@ -2587,7 +2592,7 @@ void Ui_Controller_Task(void)
                 case UI_PAGE_SETTING_BL_BREATHE:/* static */               break;
                 case UI_PAGE_SETTING_COLOR:     /* static */               break;
             }
-            Update_Leds(s_page);
+            Update_Leds();
         }
     }
 }

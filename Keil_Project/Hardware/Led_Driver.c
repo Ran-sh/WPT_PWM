@@ -1,66 +1,61 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.c
- * @brief   LED 指示灯驱动 — V4.5.2 (5 LEDs)
+ * @brief   LED 指示灯驱动 — V5.0.1 (4 LEDs)
  *
- *  Pinout (JTAG disabled -> PB3/PB4/PA15 freed as GPIO):
+ *  Pinout (JTAG disabled -> PB3/PB4 freed as GPIO):
  *  +----------------------------------------------------------+
  *  |                    STM32F103C8T6                          |
  *  |                                                           |
- *  |    PA15 --- GPIO_PP --- LED_SYSTEM (yellow) heartbeat     |
- *  |              ON=normal  BLINK_SLOW=abnormal  BLINK_FAST=  |
+ *  |    PA15 --- GPIO_PP --- LED_STATUS   (yellow) PWM indicat |
+ *  |              OFF=idle/fault  SLOW=sweep  ON=running       |
  *  |                                                           |
- *  |    PB4  --- GPIO_PP --- LED_WIFI   (blue)  WiFi status    |
- *  |              ON=online  BLINK_SLOW=reconnect  OFF=offlin  |
+ *  |    PC13 --- GPIO_PP --- LED_HEARTBEAT (blue)  MCU alive   |
+ *  |              active LOW: LOW=ON, HIGH=OFF, 500ms toggle   |
  *  |                                                           |
- *  |    PB3  --- GPIO_PP --- LED_PWM    (green) PWM running    |
- *  |              ON=running  BLINK_SLOW=sweep  OFF=idle       |
+ *  |    PB4  --- GPIO_PP --- LED_WIFI     (blue)  WiFi status  |
+ *  |              ON=online  SLOW=reconnect  OFF=offline       |
  *  |                                                           |
- *  |    PA10 --- GPIO_PP --- LED_COM    (blue)  comm activity  |
- *  |              ON=tx/rx  OFF=idle                           |
- *  |                                                           |
- *  |    PA11 --- GPIO_PP --- LED_POWER  (green) power indicat  |
+ *  |    PB3  --- GPIO_PP --- LED_POWER    (green) 12V indicat  |
  *  |              ON=12V enabled  OFF=12V disabled             |
  *  |                                                           |
- *  |    PA12 === W25Q128_CS (reassigned to Flash, LED_TEMP of  |
- *  |                                                           |
  *  |    Each LED: GPIO -> R (220 ohm) -> LED anode -> GND      |
+ *  |    PC13: onboard LED, active LOW (cathode to PC13)        |
  *  +----------------------------------------------------------+
  *
- * @note    PA15=LED_SYSTEM, PB4=LED_WIFI, PB3=LED_PWM,
- *          PA10=LED_COM, PA11=LED_POWER
- *          PA12 reassigned to W25Q128 Flash CS
+ * @note    V5.0: PA10/PA11 removed, PA12->TFT_BL
+ *          STATUS LED (PA15) reflects PWM state
+ *          HEARTBEAT LED (PC13) = MCU program alive indicator
  ******************************************************************************
  */
 
 #include "Led_Driver.h"
 #include "Sys_Timer.h"
 
-#define LED_DRIVER_WIFI_PIN    GPIO_Pin_4   /* PB4 — WiFi状态灯 */
-#define LED_DRIVER_PWM_PIN     GPIO_Pin_3   /* PB3 — PWM运行灯 */
-#define LED_DRIVER_COM_PIN     GPIO_Pin_10  /* PA10 — 通信灯 */
-#define LED_DRIVER_POWER_PIN   GPIO_Pin_11  /* PA11 — 供电状态灯 */
-#define LED_DRIVER_TEMP_PIN    GPIO_Pin_12  /* PA12 — 已让给 W25Q128 Flash CS, LED_TEMP 禁用 */
-#define LED_DRIVER_SYSTEM_PIN  GPIO_Pin_15  /* PA15 — 系统心跳灯 */
+#define LED_DRIVER_WIFI_PIN       GPIO_Pin_4   /* PB4 — WiFi status, active HIGH */
+#define LED_DRIVER_POWER_PIN      GPIO_Pin_3   /* PB3 — 12V power, active HIGH */
+#define LED_DRIVER_STATUS_PIN     GPIO_Pin_15  /* PA15 — PWM state, active HIGH */
+#define LED_DRIVER_HEARTBEAT_PIN  GPIO_Pin_13  /* PC13 — MCU alive, active LOW */
 
 #define LED_DRIVER_PORT_A      GPIOA
 #define LED_DRIVER_PORT_B      GPIOB
+#define LED_DRIVER_PORT_C      GPIOC
 
 #define LED_DRIVER_BLINK_SLOW_PERIOD_MS   500
 #define LED_DRIVER_BLINK_FAST_PERIOD_MS   200
+#define LED_DRIVER_HEARTBEAT_PERIOD_MS    500
 
-static Led_Driver_State s_wifi_state  = LED_DRIVER_STATE_OFF;
-static Led_Driver_State s_pwm_state   = LED_DRIVER_STATE_OFF;
-static Led_Driver_State s_com_state   = LED_DRIVER_STATE_OFF;
-static Led_Driver_State s_power_state = LED_DRIVER_STATE_ON;   /* 电源正常默认亮 */
-static uint8_t          s_system_on   = 0;
-/* PA12→Flash CS, s_temp_state/s_temp_last 废弃 */
+/* -- Static state -- */
+static Led_Driver_State s_wifi_state      = LED_DRIVER_STATE_OFF;
+static Led_Driver_State s_status_state    = LED_DRIVER_STATE_OFF;
+static uint8_t          s_power_on        = 0;
+static uint8_t          s_heartbeat_on    = 0;
 
-static uint32_t s_wifi_last  = 0;
-static uint32_t s_pwm_last   = 0;
-static uint32_t s_com_last   = 0;
-static uint32_t s_power_last = 0;
+static uint32_t s_wifi_last      = 0;
+static uint32_t s_status_last    = 0;
+static uint32_t s_heartbeat_last = 0;
 
+/* -- Per-pin blink driver (active HIGH) -- */
 static void Drive_Pin(GPIO_TypeDef* port, uint16_t pin,
                       Led_Driver_State state, uint32_t* p_last)
 {
@@ -95,64 +90,66 @@ void Led_Driver_Init(void)
     GPIO_InitTypeDef cfg;
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOB |
-                           RCC_APB2Periph_AFIO, ENABLE);
+                           RCC_APB2Periph_GPIOC | RCC_APB2Periph_AFIO, ENABLE);
     GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE);
 
     cfg.GPIO_Mode  = GPIO_Mode_Out_PP;
     cfg.GPIO_Speed = GPIO_Speed_50MHz;
 
-    /* GPIOA: PA10=COM, PA11=POWER, PA15=SYSTEM (PA12 已让给 W25Q128 Flash CS) */
-    cfg.GPIO_Pin = LED_DRIVER_COM_PIN | LED_DRIVER_POWER_PIN |
-                   LED_DRIVER_SYSTEM_PIN;
+    /* PA15 = STATUS LED (active HIGH) */
+    cfg.GPIO_Pin = LED_DRIVER_STATUS_PIN;
     GPIO_Init(LED_DRIVER_PORT_A, &cfg);
-    GPIO_ResetBits(LED_DRIVER_PORT_A,
-        LED_DRIVER_COM_PIN | LED_DRIVER_POWER_PIN |
-        LED_DRIVER_SYSTEM_PIN);
+    GPIO_ResetBits(LED_DRIVER_PORT_A, LED_DRIVER_STATUS_PIN);
 
-    /* GPIOB: PB3=PWM, PB4=WiFi */
-    cfg.GPIO_Pin = LED_DRIVER_PWM_PIN | LED_DRIVER_WIFI_PIN;
+    /* PC13 = HEARTBEAT LED (active LOW: HIGH=OFF initially) */
+    cfg.GPIO_Pin = LED_DRIVER_HEARTBEAT_PIN;
+    GPIO_Init(LED_DRIVER_PORT_C, &cfg);
+    GPIO_SetBits(LED_DRIVER_PORT_C, LED_DRIVER_HEARTBEAT_PIN);
+
+    /* PB3 = POWER, PB4 = WIFI */
+    cfg.GPIO_Pin = LED_DRIVER_POWER_PIN | LED_DRIVER_WIFI_PIN;
     GPIO_Init(LED_DRIVER_PORT_B, &cfg);
     GPIO_ResetBits(LED_DRIVER_PORT_B,
-        LED_DRIVER_PWM_PIN | LED_DRIVER_WIFI_PIN);
+        LED_DRIVER_POWER_PIN | LED_DRIVER_WIFI_PIN);
 
-    /* 上电自检: 全亮 500ms (SysTimer 尚未初始化, 使用粗略 busy-wait) */
-    GPIO_SetBits(LED_DRIVER_PORT_A,
-        LED_DRIVER_COM_PIN | LED_DRIVER_POWER_PIN |
-        LED_DRIVER_SYSTEM_PIN);
+    /* Power-on self-test: all ON 500ms (SysTimer not yet ready, busy-wait) */
+    GPIO_SetBits(LED_DRIVER_PORT_A, LED_DRIVER_STATUS_PIN);   /* PA15 = ON */
+    GPIO_ResetBits(LED_DRIVER_PORT_C, LED_DRIVER_HEARTBEAT_PIN);  /* PC13 LOW = ON */
     GPIO_SetBits(LED_DRIVER_PORT_B,
-        LED_DRIVER_PWM_PIN | LED_DRIVER_WIFI_PIN);
+        LED_DRIVER_POWER_PIN | LED_DRIVER_WIFI_PIN);
     { volatile uint32_t i; for (i = 0; i < 175000; i++) __NOP(); }  /* ~500ms @72MHz */
-    GPIO_ResetBits(LED_DRIVER_PORT_A,
-        LED_DRIVER_COM_PIN | LED_DRIVER_POWER_PIN |
-        LED_DRIVER_SYSTEM_PIN);
+    GPIO_ResetBits(LED_DRIVER_PORT_A, LED_DRIVER_STATUS_PIN);
+    GPIO_SetBits(LED_DRIVER_PORT_C, LED_DRIVER_HEARTBEAT_PIN);   /* PC13 HIGH = OFF */
     GPIO_ResetBits(LED_DRIVER_PORT_B,
-        LED_DRIVER_PWM_PIN | LED_DRIVER_WIFI_PIN);
+        LED_DRIVER_POWER_PIN | LED_DRIVER_WIFI_PIN);
 }
 
 void Led_Driver_Task(void)
 {
-    Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_WIFI_PIN,  s_wifi_state,  &s_wifi_last);
-    Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_PWM_PIN,   s_pwm_state,   &s_pwm_last);
-    Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_COM_PIN,   s_com_state,   &s_com_last);
-    Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_POWER_PIN, s_power_state, &s_power_last);
-    /* PA12=TEMP 已禁用 — 让给 W25Q128 Flash CS */
+    Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_WIFI_PIN,   s_wifi_state,   &s_wifi_last);
+    Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_STATUS_PIN,  s_status_state, &s_status_last);
 
-    /* SYSTEM: 心跳闪烁 (500ms) */
-    {
-        static uint32_t s_heartbeat_last = 0;
+    /* POWER LED: direct GPIO follow s_power_on (no state machine) */
+    if (s_power_on)
+        GPIO_SetBits(LED_DRIVER_PORT_B, LED_DRIVER_POWER_PIN);
+    else
+        GPIO_ResetBits(LED_DRIVER_PORT_B, LED_DRIVER_POWER_PIN);
+
+    /* HEARTBEAT LED (PC13, active LOW): 500ms toggle, MCU alive indicator */
+    if (s_heartbeat_on) {
         uint32_t now = Sys_Timer_Get_Tick();
-        if (s_system_on && (now - s_heartbeat_last >= 500)) {
+        if (now - s_heartbeat_last >= LED_DRIVER_HEARTBEAT_PERIOD_MS) {
             s_heartbeat_last = now;
-            GPIO_WriteBit(LED_DRIVER_PORT_A, LED_DRIVER_SYSTEM_PIN,
+            GPIO_WriteBit(LED_DRIVER_PORT_C, LED_DRIVER_HEARTBEAT_PIN,
                           (BitAction)!GPIO_ReadOutputDataBit(
-                              LED_DRIVER_PORT_A, LED_DRIVER_SYSTEM_PIN));
+                              LED_DRIVER_PORT_C, LED_DRIVER_HEARTBEAT_PIN));
         }
+    } else {
+        GPIO_SetBits(LED_DRIVER_PORT_C, LED_DRIVER_HEARTBEAT_PIN);  /* HIGH = OFF */
     }
 }
 
-void Led_Driver_Set_WiFi(Led_Driver_State state)   { s_wifi_state  = state; }
-void Led_Driver_Set_Pwm(Led_Driver_State state)    { s_pwm_state   = state; }
-void Led_Driver_Set_Com(Led_Driver_State state)    { s_com_state   = state; }
-void Led_Driver_Set_Power(Led_Driver_State state)  { s_power_state = state; }
-void Led_Driver_Set_Temp(Led_Driver_State state)   { /* PA12→Flash CS, 函数保留占位 */ }
-void Led_Driver_Set_System(uint8_t on_off)          { s_system_on   = on_off; }
+void Led_Driver_Set_WiFi(Led_Driver_State state)    { s_wifi_state    = state; }
+void Led_Driver_Set_Power(uint8_t on)                { s_power_on      = on;    }
+void Led_Driver_Set_Status(Led_Driver_State state)   { s_status_state  = state; }
+void Led_Driver_Set_Heartbeat(uint8_t on)            { s_heartbeat_on  = on;    }

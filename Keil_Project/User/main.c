@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/main.c
- * @brief   WPT_PWM V4.5.2 — 程序入口 (W25Q128 全字库)
+ * @brief   WPT_PWM V5.0.1 — 程序入口 (GPIO 重映射 + 5键系统)
  *
  *  系统总接线表 (全部使用引脚, 48 脚 LQFP):
  *  +------------------------------------------------------------+
@@ -9,22 +9,23 @@
  *  |   ----  -----------------  ----  -----------------          |
  *  |    PA0   TFT_RST            PB0   ADC_CH8  (电流 CC6920BSO) |
  *  |    PA1   ESP8266 RST        PB1   ADC_CH9  (电压分压)       |
- *  |    PA2   USART2_TX          PB3   LED_PWM  (绿, JTAG 释放)  |
- *  |    PA3   USART2_RX          PB4   LED_WIFI (蓝, JTAG 释放)  |
- *  |    PA4   TFT_CS             PB5   PAGE 按键 (IPU, 确定/启停)   |
- *  |    PA5   SPI1_SCK           PB6   TFT 背光 (TIM4_CH1)       |
- *  |    PA6   TFT_DC/Flash MISO  PB7   F_DOWN 按键 (IPU)         |
- *  |    PA7   SPI1_MOSI          PB8   F_UP 按键 (IPU)           |
- *  |    PA8   TIM1_CH1           PB9   ON 按键 (IPU, 翻页/返回) |
- *  |    PA9   TIM1_CH2           PB10  PowerCtrl (高=使能 12V)   |
- *  |    PA10  LED_COM (蓝)       PB11  ESP8266 CH_PD (EN)        |
- *  |    PA11  LED_POWER (绿)     PB13  TIM1_CH1N (全桥)          |
- *  |    PA12  W25Q128_CS         PB14  TIM1_CH2N (全桥)          |
- *  |    PA15  LED_SYSTEM (黄)    PB15  Buzzer (有源蜂鸣器)       |
+ *  |    PA2   USART2_TX          PB3   LED_POWER (绿, 12V指示)   |
+ *  |    PA3   USART2_RX          PB4   LED_WIFI  (蓝, WiFi状态)  |
+ *  |    PA4   TFT_CS             PB5   KEY4 (IPU, 确定/启停)     |
+ *  |    PA5   SPI1_SCK           PB6   KEY3 (IPU, DOWN/减)       |
+ *  |    PA6   TFT_DC/Flash MISO  PB7   KEY2 (IPU, UP/加)         |
+ *  |    PA7   SPI1_MOSI          PB8   KEY1 (IPU, 返回)          |
+ *  |    PA8   TIM1_CH1 (HINA)    PB9   KEY0 (IPU, 电源开关)      |
+ *  |    PA9   TIM1_CH2 (HINB)    PB10  PowerCtrl (KEY0 手动)     |
+ *  |    PA12  TFT_BL (GPIO)      PB11  ESP8266 EN                |
+ *  |    PA15  LED_STATUS (黄)    PB12  W25Q128_CS                |
+ *  |    PC13  LED_HEARTBEAT (蓝)  PB13  TIM1_CH1N (LINA)          |
+ *  |                              PB14  TIM1_CH2N (LINB)          |
+ *  |                              PB15  Buzzer (有源蜂鸣器)       |
  *  |                                                             |
  *  |    电源: VDD=3.3V, VDDA=3.3V, VBAT=3.3V                     |
  *  |    时钟: HSE=8MHz -> PLL=72MHz (SYSCLK)                     |
- *  |    JTAG 禁用: PB3/PB4/PB5/PA15 释放为 GPIO                  |
+ *  |    JTAG 禁用: PB3/PB4/PA15 释放为 GPIO                      |
  *  |    看门狗: IWDG 1.6s, 调试自动暂停                          |
  *  +------------------------------------------------------------+
  *
@@ -34,8 +35,8 @@
  *    App_Storage_Init -> Sys_Startup_Screen(SPLASH) -> Sys_Post_Init ->
  *    Delay(1s) -> SYS_STATE_IDLE
  *
- * @note    V4.5.2: Sys_Timer_Init 必须在 SPLASH 之前
- *          (Tft_Driver_Show_Splash 使用 Sys_Timer_Delay_Ms 依赖 SysTick)
+ * @note    V5.0: GPIO 全面重映射, 5 键系统 (KEY0-4), 三灯系统
+ *          Sys_Timer_Init 必须在 SPLASH 之前 (Delay_Ms 依赖 SysTick)
  ******************************************************************************
  */
 

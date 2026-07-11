@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.c
- * @brief   W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 (V4.5.2)
+ * @brief   W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 (V5.0.1)
  *
  *  Pinout (shares SPI1 with TFT, PA6 dynamic swap):
  *  +------------------------------------------------------------+
@@ -10,7 +10,7 @@
  *  |    PA5  --- SPI1_SCK ------------------> CLK  (shared w/ T  |
  *  |    PA7  --- SPI1_MOSI ------------------> DI   (shared w/   |
  *  |    PA6  --- SPI1_MISO <------------------ DO   (dynamic sw  |
- *  |    PA12 --- GPIO_PP --------------------> /CS  (GPIO gated  |
+ *  |    PB12 --- GPIO_PP --------------------> /CS  (GPIO gated  |
  *  |              BSRR atomic toggle, glitch-free                |
  *  |                                                             |
  *  |    Partition layout (16MB, 0x000000 ~ 0xFFFFFF):            |
@@ -43,7 +43,7 @@
  *  引脚宏 (行内高聚合)
  * ═══════════════════════════════════════════════ */
 #define FLASH_CS_PIN    GPIO_Pin_12
-#define FLASH_CS_PORT   GPIOA
+#define FLASH_CS_PORT   GPIOB
 #define FLASH_CS_LOW()  GPIO_ResetBits(FLASH_CS_PORT, FLASH_CS_PIN)
 #define FLASH_CS_HIGH() GPIO_SetBits(FLASH_CS_PORT, FLASH_CS_PIN)
 

@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V4.5.2 全字库双路径)
+ * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V5.0.1 全字库双路径)
  *
  *  Pinout (SPI1 TDM: TFT + W25Q128 share bus):
  *  +------------------------------------------------------------+
@@ -12,10 +12,10 @@
  *  |    PA4 --- GPIO_PP --------------------> CS   (active low)  |
  *  |    PA6 --- GPIO_PP --------------------> DC   (cmd/data)    |
  *  |    PA0 --- GPIO_PP --------------------> RESET              |
- *  |    PB6 --- TIM4_CH1 -------------------> BL   (backlight P  |
+ *  |    PA12 -- GPIO_PP --------------------> BL   (backlight ON/OFF)  |
  *  |                                                             |
  *  |    PA6 --- SPI1_MISO <------------------ W25Q128 DO (Flash  |
- *  |    PA12 -- GPIO_PP --------------------> W25Q128 /CS (Flas  |
+ *  |    PB12 -- GPIO_PP --------------------> W25Q128 /CS (Flas  |
  *  |                                                             |
  *  |    SPI Mode3 (CPOL=H, CPHA=2Edge), full-duplex              |
  *  |    160x128 landscape, MADCTL=0xA0, SetWin offset X+1 Y+2    |
@@ -40,7 +40,8 @@ extern uint32_t CRC32_Compute(const uint8_t *data, uint32_t len);
 #define TFT_DRIVER_CS_PIN   GPIO_Pin_4
 #define TFT_DRIVER_DC_PIN   GPIO_Pin_6
 #define TFT_DRIVER_RST_PIN  GPIO_Pin_0
-#define TFT_DRIVER_BL_PIN   GPIO_Pin_6
+#define TFT_DRIVER_BL_PIN   GPIO_Pin_12
+#define TFT_DRIVER_BL_PORT  GPIOA
 
 #define TFT_CS_LOW()   GPIO_ResetBits(GPIOA, TFT_DRIVER_CS_PIN)
 #define TFT_CS_HIGH()  GPIO_SetBits(GPIOA, TFT_DRIVER_CS_PIN)
@@ -242,22 +243,12 @@ void Tft_Driver_Init(void)
 {
     GPIO_InitTypeDef  gpio;
     SPI_InitTypeDef   spi;
-    TIM_TimeBaseInitTypeDef  tim_base;
-    TIM_OCInitTypeDef        oc;
-
     /* ══ L1: 绝对第一行 — AFIO+JTAG 统合接管, 净化时钟图层 ══ */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
     GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE); /* 释放 PB3/PB4, 封杀毛刺 */
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA |
                            RCC_APB2Periph_GPIOB, ENABLE);
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
-
-    /* ══ L2: Flash CS 无条件前置锁死, 封杀开机对灌短路 ══ */
-    gpio.GPIO_Pin   = GPIO_Pin_12; gpio.GPIO_Mode = GPIO_Mode_Out_PP;
-    gpio.GPIO_Speed = GPIO_Speed_50MHz; GPIO_Init(GPIOA, &gpio);
-    GPIO_SetBits(GPIOA, GPIO_Pin_12);                    /* CS=H → W25Q128 高阻悬空 */
-
     /* SCK=PA5, MOSI=PA7 (SPI1 共享: TFT + W25Q128) */
     gpio.GPIO_Pin   = GPIO_Pin_5 | GPIO_Pin_7;
     gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
@@ -270,10 +261,12 @@ void Tft_Driver_Init(void)
     GPIO_Init(GPIOA, &gpio);
     GPIO_SetBits(GPIOA, TFT_DRIVER_DC_PIN);              /* L3: PA6 ODR 显式锁高, 防飘移 */
 
-    /* BL=PB6, TIM4_CH1 */
-    gpio.GPIO_Pin  = TFT_DRIVER_BL_PIN;
-    gpio.GPIO_Mode = GPIO_Mode_AF_PP;
-    GPIO_Init(GPIOB, &gpio);
+    /* BL=PA12, GPIO ON/OFF */
+    gpio.GPIO_Pin   = TFT_DRIVER_BL_PIN;
+    gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(TFT_DRIVER_BL_PORT, &gpio);
+    GPIO_ResetBits(TFT_DRIVER_BL_PORT, TFT_DRIVER_BL_PIN);  /* start OFF */
 
     TFT_CS_HIGH();
 
@@ -289,18 +282,6 @@ void Tft_Driver_Init(void)
     spi.SPI_FirstBit   = SPI_FirstBit_MSB;
     SPI_Init(SPI1, &spi);
     SPI_Cmd(SPI1, ENABLE);
-
-    /* TIM4 CH1 背光 1kHz */
-    TIM_TimeBaseStructInit(&tim_base);
-    tim_base.TIM_Prescaler = 71;
-    tim_base.TIM_Period    = 999;
-    TIM_TimeBaseInit(TIM4, &tim_base);
-    TIM_OCStructInit(&oc);
-    oc.TIM_OCMode      = TIM_OCMode_PWM1;
-    oc.TIM_OutputState = TIM_OutputState_Enable;
-    oc.TIM_Pulse       = 999;
-    TIM_OC1Init(TIM4, &oc);
-    TIM_Cmd(TIM4, ENABLE);
 
     /* ── 硬件复位 ── */
     GPIO_ResetBits(GPIOA, TFT_DRIVER_RST_PIN);
@@ -428,7 +409,10 @@ void Tft_Driver_Clear(uint16_t color)
 
 void Tft_Driver_Set_Backlight(uint8_t v)
 {
-    TIM_SetCompare1(TIM4, ((uint16_t)v * 999) / 255);
+    if (v > 0)
+        GPIO_SetBits(TFT_DRIVER_BL_PORT, TFT_DRIVER_BL_PIN);
+    else
+        GPIO_ResetBits(TFT_DRIVER_BL_PORT, TFT_DRIVER_BL_PIN);
 }
 
 void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
@@ -938,7 +922,7 @@ void Tft_Driver_Show_Splash(void)
     }
 
     /* 版本号: 右下角暗灰 */
-    Tft_Driver_Show_String(7, 14, "V4.5.2", 0x3186U, TFT_COLOR_BLACK);
+    Tft_Driver_Show_String(7, 14, "V5.0.1", 0x3186U, TFT_COLOR_BLACK);
 
     /* Phase 2: 两行同时逐字点亮, 每字 8帧渐亮x50ms=400ms, 4字=1600ms */
     for (col = 0; col < 4; col++) {

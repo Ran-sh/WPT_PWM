@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Inverter_Control.h
- * @brief   逆变器控制 — 软启动状态机 + 频率斜坡 (V4.5.2)
+ * @brief   逆变器控制 — 软启动状态机 + 频率斜坡 (V5.0.1)
  * @note    依赖 Pwm_Driver 硬件抽象层
  *          软启动: SS_IDLE -> Trigger -> SS_SWEEP (150k->100kHz, 10ms/步, ~2.5s)
  *            -> SS_DONE -> Stop -> SS_IDLE

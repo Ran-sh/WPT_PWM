@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/Sys_Core.h
- * @brief   系统核心模块 — 全局状态 + 初始化 + 安全监测 + 运行调度 (V4.5.2)
+ * @brief   系统核心模块 — 全局状态 + 初始化 + 安全监测 + 运行调度 (V5.0.1)
  * @note    合并 Sys_State + Sys_Init + Sys_Safety + Sys_Run 为单一模块
  ******************************************************************************
  */
@@ -10,6 +10,7 @@
 #define SYS_CORE_H
 
 #include "stm32f10x.h"
+#include "Key_Driver.h"
 
 /* ── 全局系统状态枚举 ── */
 typedef enum {
@@ -40,5 +41,10 @@ void Sys_Run_Idle(void);
 void Sys_Run_Sweep(void);
 void Sys_Run_Running(void);
 void Sys_Run_Fault(void);
+
+/** @brief Handle KEY0 power toggle + coordinate PB10/PWM/POWER LED
+ *  @param ke array of 5 key events from Key_Driver_Get_All_Events
+ *  @note  Consumes ke[KEY_DRIVER_ID_POWER] after processing */
+void Sys_Power_Control_Handle(Key_Driver_Event ke[5]);
 
 #endif /* SYS_CORE_H */

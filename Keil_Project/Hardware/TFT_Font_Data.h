@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/TFT_Font_Data.h
- * @brief   合并字库 + 图标数据 V4.5.2 — ROM 精简: 4中文 + 3图标 + ASCII 95
+ * @brief   合并字库 + 图标数据 V5.0.1 — ROM 精简: 4中文 + 3图标 + ASCII 95
  * @note    仅被 Tft_Driver.c 包含, static const 数据
  *          - 8x16 ASCII 95字符 (TFT_FONT_8X16)
  *          - 16x16 中文 4汉字: 无/线/充/电 (SPLASH 开机动画)

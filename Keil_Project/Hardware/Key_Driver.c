@@ -1,32 +1,33 @@
 /**
  ******************************************************************************
  * @file    Hardware/Key_Driver.c
- * @brief   按键驱动 — V4.5.2 (4 keys)
+ * @brief   按键驱动 — V5.0.1 (5 keys)
  *
- *  Pinout (4 keys, all IPU pull-up, press = LOW):
+ *  Pinout (5 keys, all IPU pull-up, press = LOW):
  *  +----------------------------------------------------------+
  *  |                      STM32F103C8T6                        |
  *  |                                                           |
- *  |    PB8  --- IPU ---+--- Key --- GND    F_UP    (频率+)      |
- *  |    PB7  --- IPU ---+--- Key --- GND    F_DOWN  (频率-)      |
- *  |    PB5  --- IPU ---+--- Key --- GND    PAGE   (确定/启停)   |
- *  |    PB9  --- IPU ---+--- Key --- GND    ON     (返回)         |
+ *  |    PB9  --- IPU ---+--- Key --- GND    KEY0  (电源开关)    |
+ *  |    PB8  --- IPU ---+--- Key --- GND    KEY1  (返回)        |
+ *  |    PB7  --- IPU ---+--- Key --- GND    KEY2  (UP/加)      |
+ *  |    PB6  --- IPU ---+--- Key --- GND    KEY3  (DOWN/减)    |
+ *  |    PB5  --- IPU ---+--- Key --- GND    KEY4  (确定/启停)   |
  *  |                                                           |
  *  |    Per-key FSM: IDLE -> DEBOUNCE(10ms) -> PRESS           |
  *  |      -> WAIT_DOUBLE(200ms) -> LONG(3s)                    |
- *  |    Batch read: Key_Driver_Read_Batch merges critical sec  |
+ *  |    Batch read: Key_Driver_Get_All_Events in critical sec   |
  *  +----------------------------------------------------------+
  *
- * @note    PB5=PAGE(确定/启停), PB9=ON(返回), PB8=F_UP, PB7=F_DOWN
+ * @note    V5.0: 5 keys, KEY0=power hardware switch (handled by Sys_Core)
  ******************************************************************************
  */
 
 #include "Key_Driver.h"
 #include "Sys_Timer.h"
 
-#define KEY_DRIVER_COUNT               4
+#define KEY_DRIVER_COUNT               5
 #define KEY_DRIVER_DEBOUNCE_MS         10
-#define KEY_DRIVER_RELEASE_DEBOUNCE_MS 12   /* rising-edge debounce for release */
+#define KEY_DRIVER_RELEASE_DEBOUNCE_MS 12
 #define KEY_DRIVER_LONG_PRESS_MS       3000
 #define KEY_DRIVER_DOUBLE_WINDOW_MS    200
 #define KEY_DRIVER_TASK_PERIOD_MS      10
@@ -35,7 +36,7 @@ typedef enum {
     KEY_DRIVER_FSM_IDLE = 0,
     KEY_DRIVER_FSM_DEBOUNCE,
     KEY_DRIVER_FSM_PRESS,
-    KEY_DRIVER_FSM_RELEASE_DEBOUNCE,  /* rising-edge debounce on release */
+    KEY_DRIVER_FSM_RELEASE_DEBOUNCE,
     KEY_DRIVER_FSM_WAIT_DOUBLE,
     KEY_DRIVER_FSM_LONG
 } Key_Driver_Fsm_State;
@@ -47,16 +48,16 @@ typedef struct {
     uint32_t            timer;
     uint8_t             event;
     uint8_t             click_count;
-    uint8_t             flags;          /* bit0=no_double: skip double-click window */
+    uint8_t             flags;          /* bit0=click_only: 1=skip double-click */
 } Key_Driver_Instance;
 
-/* PB5=确定(启停), PB8=频率+, PB7=频率-, PB9=返回 */
-/* flags bit0=no_double: 0=allow double-click, 1=fire CLICK immediately on release */
+/* KEY0=PB9, KEY1=PB8, KEY2=PB7, KEY3=PB6, KEY4=PB5 */
 static Key_Driver_Instance s_keys[KEY_DRIVER_COUNT] = {
-    { GPIOB, GPIO_Pin_5, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0, 0 },
+    { GPIOB, GPIO_Pin_9, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0, 0 },
     { GPIOB, GPIO_Pin_8, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0, 0 },
     { GPIOB, GPIO_Pin_7, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0, 0 },
-    { GPIOB, GPIO_Pin_9, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0, 0 }
+    { GPIOB, GPIO_Pin_6, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0, 0 },
+    { GPIOB, GPIO_Pin_5, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0, 0 }
 };
 
 void Key_Driver_Init(void)
@@ -64,33 +65,31 @@ void Key_Driver_Init(void)
     GPIO_InitTypeDef cfg;
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
 
-    cfg.GPIO_Pin  = GPIO_Pin_5 | GPIO_Pin_7 | GPIO_Pin_8 | GPIO_Pin_9;
+    cfg.GPIO_Pin  = GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7 | GPIO_Pin_8 | GPIO_Pin_9;
     cfg.GPIO_Mode = GPIO_Mode_IPU;
     GPIO_Init(GPIOB, &cfg);
 }
 
 /**
- * @brief  配置按键选项
- * @param  key_id    按键编号 (0=PAGE/确定, 1=F_UP, 2=F_DOWN, 3=ON/返回)
- * @param  no_double 1=跳过双击检测, 释放去抖后立即发 CLICK (启停键用)
+ * @brief  Configure key behavior
+ * @param  key_id   Key index (0=POWER, 1=BACK, 2=UP, 3=DOWN, 4=CONFIRM)
+ * @param  config   KEY_DRIVER_CFG_CLICK_ONLY or KEY_DRIVER_CFG_WITH_DOUBLE
  */
-void Key_Driver_Configure(uint8_t key_id, uint8_t no_double)
+void Key_Driver_Configure(uint8_t key_id, uint8_t config)
 {
     if (key_id < KEY_DRIVER_COUNT) {
-        if (no_double) s_keys[key_id].flags |= 0x01;
-        else           s_keys[key_id].flags &= ~0x01;
+        if (config & KEY_DRIVER_CFG_CLICK_ONLY)
+            s_keys[key_id].flags |= 0x01;
+        else
+            s_keys[key_id].flags &= ~0x01;
     }
 }
 
-/* 单键 FSM — 含释放沿去抖 + no_double 快速路径
- *   IDLE → DEBOUNCE(10ms) → PRESS
- *     → RELEASE_DEBOUNCE(12ms) → [no_double? → CLICK → IDLE]
- *                              → [else → WAIT_DOUBLE(200ms) → CLICK/DOUBLE_CLICK → IDLE]
- *     → LONG(3s) → LONG_PRESS (按住不松触发) */
+/* Single-key FSM — with release-edge debounce + click_only fast path */
 static void Update_Fsm(Key_Driver_Instance* key)
 {
     uint8_t  pressed     = (GPIO_ReadInputDataBit(key->port, key->pin) == Bit_RESET);
-    uint8_t  no_double   = (key->flags & 0x01);
+    uint8_t  click_only  = (key->flags & 0x01);
     uint32_t elapsed     = Sys_Timer_Get_Tick() - key->timer;
 
     switch (key->state) {
@@ -105,23 +104,21 @@ static void Update_Fsm(Key_Driver_Instance* key)
             if (elapsed >= KEY_DRIVER_DEBOUNCE_MS) {
                 if (pressed) {
                     key->state = KEY_DRIVER_FSM_PRESS;
-                    key->timer = Sys_Timer_Get_Tick();  /* reset for long-press timer */
+                    key->timer = Sys_Timer_Get_Tick();
                 } else {
-                    key->state = KEY_DRIVER_FSM_IDLE;   /* glitch — discard */
+                    key->state = KEY_DRIVER_FSM_IDLE;
                 }
             }
             break;
 
         case KEY_DRIVER_FSM_PRESS:
             if (pressed) {
-                /* held — check for long-press */
                 if (elapsed >= KEY_DRIVER_LONG_PRESS_MS) {
                     key->event       = KEY_DRIVER_EVENT_LONG_PRESS;
                     key->click_count = 0;
                     key->state       = KEY_DRIVER_FSM_LONG;
                 }
             } else {
-                /* released — enter release debounce (Bug 2: was trusting raw release) */
                 key->state = KEY_DRIVER_FSM_RELEASE_DEBOUNCE;
                 key->timer = Sys_Timer_Get_Tick();
             }
@@ -130,12 +127,10 @@ static void Update_Fsm(Key_Driver_Instance* key)
         case KEY_DRIVER_FSM_RELEASE_DEBOUNCE:
             if (elapsed >= KEY_DRIVER_RELEASE_DEBOUNCE_MS) {
                 if (pressed) {
-                    /* bounced back low — go to press debounce */
                     key->state = KEY_DRIVER_FSM_DEBOUNCE;
                     key->timer = Sys_Timer_Get_Tick();
                 } else {
-                    /* truly released — fast path for critical keys (Bug 1) */
-                    if (no_double) {
+                    if (click_only) {
                         key->event       = KEY_DRIVER_EVENT_CLICK;
                         key->click_count = 0;
                         key->state       = KEY_DRIVER_FSM_IDLE;
@@ -150,11 +145,9 @@ static void Update_Fsm(Key_Driver_Instance* key)
 
         case KEY_DRIVER_FSM_WAIT_DOUBLE:
             if (pressed) {
-                /* second press detected → debounce it */
                 key->state = KEY_DRIVER_FSM_DEBOUNCE;
                 key->timer = Sys_Timer_Get_Tick();
             } else if (elapsed >= KEY_DRIVER_DOUBLE_WINDOW_MS) {
-                /* timeout — fire single or double click */
                 key->event = (key->click_count >= 2)
                     ? KEY_DRIVER_EVENT_DOUBLE_CLICK
                     : KEY_DRIVER_EVENT_CLICK;
@@ -164,7 +157,6 @@ static void Update_Fsm(Key_Driver_Instance* key)
             break;
 
         case KEY_DRIVER_FSM_LONG:
-            /* wait for release before allowing new events */
             if (!pressed) {
                 key->click_count = 0;
                 key->state       = KEY_DRIVER_FSM_IDLE;
@@ -186,13 +178,13 @@ void Key_Driver_Task(void)
     }
 }
 
-void Key_Driver_Get_All_Events(Key_Driver_Event out[4])
+void Key_Driver_Get_All_Events(Key_Driver_Event out[5])
 {
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
     {
         uint8_t i;
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < 5; i++) {
             out[i] = (Key_Driver_Event)s_keys[i].event;
             s_keys[i].event = KEY_DRIVER_EVENT_NONE;
         }
