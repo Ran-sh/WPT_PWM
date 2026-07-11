@@ -249,6 +249,15 @@ void Tft_Driver_Init(void)
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA |
                            RCC_APB2Periph_GPIOB, ENABLE);
+
+    /* L2: PB12 Flash CS 无条件前置锁高, 封杀开机 SPI 总线冲突
+       在 SPI 初始化之前必须拉高 Flash CS, 否则 PB12 浮空→Flash 选中→MISO 冲突→TFT 白屏 */
+    gpio.GPIO_Pin   = GPIO_Pin_12;
+    gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOB, &gpio);
+    GPIO_SetBits(GPIOB, GPIO_Pin_12);  /* CS=H → W25Q128 高阻悬空 */
+
     /* SCK=PA5, MOSI=PA7 (SPI1 共享: TFT + W25Q128) */
     gpio.GPIO_Pin   = GPIO_Pin_5 | GPIO_Pin_7;
     gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
