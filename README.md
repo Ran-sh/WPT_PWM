@@ -5,11 +5,11 @@
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![Display](https://img.shields.io/badge/Display-ST7735%20160×128%20TFT-red)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-purple)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V4.5.1-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V4.5.2-brightgreen)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V4.5.1** (2026-07-02) — 全平台安全审查修复 (16项): ESP8266 Token占位符化 + 配网密码 + CMD:CLEAR二次确认 + DMA/SPI超时护底 + 环形缓冲 + 黑匣子指针持久化 + strtol溢出防护 + 乐观缓存回滚。W25Q128 全字库 20897 字 + SPLASH 纯代码开机动画 + Dual-MCU 双脑架构 + 全局状态机 + 圆弧能量条仪表盘 + OneNET MQTT 多端控制。
+> **V4.5.2** (2026-07-11) — SPI时序回归 + DMA修复: 花屏根治(DMA超时反转), 18MHz恢复, Flash批量读, ROM优先(中文/图标), 默认英文(W25Q手动切换中文), EMA全状态更新(V/I不再归零)。
 
 ---
 

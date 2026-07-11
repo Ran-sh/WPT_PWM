@@ -8,8 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `4.0TFT` |
-| **版本** | V4.5.1 |
+| **版本** | V4.5.2 |
 | **语言** | 中文交流，代码注释中英混合 |
+
+> **V4.5.2** (2026-07-11) — SPI 时序回归修复: DMA超时操作数反转根治花屏, SPI恢复18MHz原始配置, Flash读批量优化, ROM优先策略(中文/图标), 默认英文界面(W25Q手动切换中文)
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
@@ -392,7 +394,7 @@ JTAG 禁用释放 PB3/PB4/PB5/PA15。
 
 | 参数 | 值 |
 |:---|:---|
-| SPI | Mode 3, 18MHz, DMA1_Channel3, **全双工** (V4.3.0: MISO 用于 Flash 读取) |
+| SPI | Mode 3, **18MHz**, DMA1_Channel3, **全双工** (V4.3.0: MISO 用于 Flash 读取) |
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 |
 | **DMA 超时** | **V4.5.1: 4个忙等循环加 200ms 超时护底, 超时强制释放 CS 防系统硬锁** |
@@ -483,6 +485,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V4.5.2 | **SPI时序回归+DMA修复+EMA修复**: DMA超时操作数反转修复(根治花屏), DMA TC3残留标志清理, SPI恢复18MHz原始配置(去dummy/CS NOP), Flash字模批量读(16次→1次), 中文/图标ROM优先, 默认英文界面(W25Q手动切中文), Sys_Safety EMA全状态更新(V/I在IDLE下不再显示0), CS脉冲简化, NVIC Flash读临界区保护, Write_Enable SPI模式防护, s_language静态初值统一, Ui_Controller Pick_CN_EN遗漏修复 |
 | V4.5.1 | **全平台安全审查修复 (16项)**: ESP8266 Token占位符化(防泄露)+配网热点加密码+CMD:CLEAR二次确认(5s窗口)+公共MQTT Broker门控+WIFI_CONN死代码修复+WiFiManager debug关; STM32 Tft_Driver DMA/SPI忙等4循环200ms超时护底; Esp8266_Driver 3槽环形缓冲(防连续帧丢失); App_Storage 黑匣子指针每60条回写Block0(重启可恢复)+故障锁存扇区跨页保护; App_Network strtol替代atol+OFFLINE恢复STATUS正向过滤; USART2 RXNE先于ORE(防有效字节丢弃); Ui_Controller 扫频进度条+WiFi行变更检测(消除200ms闪烁); Web setProperty重试失败回滚乐观缓存+SW BASE路径修复; 编译0错误0警告 |
 | V4.5.0 | 设置系统重构: 8页设置(语言/字间距/图标/亮度二级菜单手动+呼吸灯/颜色方案) + PIC预览模型(PAGE=确定/ON=取消) + 字体大小→字间距(0/2/4/6px真实像素差) + 亮度1-100%滚动翻阅即时生效 + 色彩6预设全屏重绘 + Tft_Driver 纯像素间隙渲染 + Center/Right 自适应间距布局 + Draw_Header 自动画图标(dedup) + Key_Driver ID命名去歧义(PAGE=0/ON=3) + ARMCC V5 hex-escape兼容(零#870-D警告) + App_Storage_Config 结构体196B校验 + 死代码清理(Key_GetEvent/font_size/BL_Dynamic) |
 | V4.3.2 | W25Q128 全字库修复 + 开机动画重写: SPLASH 逐字渐亮~4.8s(背光渐变+两行逐字+版本号右下角) + 按键交换(PB5=PAGE确定/PB9=ON返回) + 底部栏全删 + Task/IWDG/WFI 移入状态机 + main.c 每行注释 + UI 页面标题中文化 + 接线图纯 ASCII(ARMCC V5 C89兼容) + CRC32/CS翻转/bit_reverse/generate_font.py 修正 |

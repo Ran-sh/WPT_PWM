@@ -58,6 +58,9 @@ typedef struct {
 
 /* ══ 公开接口 ══ */
 
+/** @brief 上电 JEDEC ID 原始值 (0xEF4018=W25Q128, 0=无响应, 0xFFFFFF=浮空) */
+extern uint32_t g_w25q_jedec_id;
+
 /** @brief 初始化: GPIO + SPI1 参数 + JEDEC 校验 (失败→LED红灯) */
 void W25Q_Driver_Init(void);
 

@@ -7,7 +7,7 @@
  *  +------------------------------------------------------------+
  *  |    STM32F103C8T6              ST7735 128x160 Green Tab      |
  *  |                                                             |
- *  |    PA5 --- SPI1_SCK ------------------> SCL  (18MHz)        |
+ *  |    PA5 --- SPI1_SCK ------------------> SCL  (9MHz)         |
  *  |    PA7 --- SPI1_MOSI ------------------> SDA  (shared data  |
  *  |    PA4 --- GPIO_PP --------------------> CS   (active low)  |
  *  |    PA6 --- GPIO_PP --------------------> DC   (cmd/data)    |
@@ -138,11 +138,12 @@ static void Tft_DMA_Init(void)
  *  DMA 核心传输 (V4.5.0: 超时护底防硬锁)
  * ═══════════════════════════════════════════════════════════════ */
 
-#define TFT_DMA_TIMEOUT_MS  200   /* DMA/SPI 忙等超时: 65535 半字@9MHz≈73ms, 200ms 足够 */
+#define TFT_DMA_TIMEOUT_MS  200   /* DMA/SPI 忙等超时: 65535 半字@9MHz≈117ms, 200ms 护底安全 */
 
 static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_mem)
 {
     uint32_t deadline;
+    DMA_ClearFlag(DMA1_FLAG_TC3);  /* 清除上轮超时残留: TC 在 DISABLE 后仍保持置位 */
     DMA_Cmd(DMA1_Channel3, DISABLE);
     DMA1_Channel3->CMAR  = (uint32_t)buf;
     DMA1_Channel3->CNDTR = (uint16_t)count;
@@ -155,7 +156,7 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
 
     deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
     while (DMA_GetFlagStatus(DMA1_FLAG_TC3) == RESET) {
-        if (Sys_Timer_Get_Tick() - deadline < 0x80000000U) continue;  /* 未超时 */
+        if (deadline - Sys_Timer_Get_Tick() < 0x80000000U) continue;  /* 未超时 */
         /* 超时: 紧急清理, 释放 SPI 总线, 防止系统硬锁 */
         SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
         DMA_Cmd(DMA1_Channel3, DISABLE);
@@ -168,7 +169,7 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
     DMA_Cmd(DMA1_Channel3, DISABLE);
     deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
     while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET) {
-        if (Sys_Timer_Get_Tick() - deadline < 0x80000000U) continue;
+        if (deadline - Sys_Timer_Get_Tick() < 0x80000000U) continue;
         TFT_CS_HIGH();  /* 超时强制释放 CS, 防止 SPI 总线永久占用 */
         return;
     }
@@ -190,7 +191,7 @@ static void Tft_DMA_Fill(uint32_t pixel_count, uint16_t color)
     Tft_DMA_Transfer(&color, pixel_count, 0);
     deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
     while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET) {
-        if (Sys_Timer_Get_Tick() - deadline < 0x80000000U) continue;
+        if (deadline - Sys_Timer_Get_Tick() < 0x80000000U) continue;
         break;  /* 超时护底, 强制切回 8bit */
     }
     Tft_SPI_8bit();
@@ -206,7 +207,7 @@ static void Tft_DMA_Send(const uint16_t* buf, uint32_t pixel_count)
     Tft_DMA_Transfer(buf, pixel_count, 1);
     deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
     while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET) {
-        if (Sys_Timer_Get_Tick() - deadline < 0x80000000U) continue;
+        if (deadline - Sys_Timer_Get_Tick() < 0x80000000U) continue;
         break;  /* 超时护底, 强制切回 8bit */
     }
     Tft_SPI_8bit();
@@ -276,7 +277,7 @@ void Tft_Driver_Init(void)
 
     TFT_CS_HIGH();
 
-    /* SPI1: Mode 3, 全双工, 18MHz */
+    /* SPI1: Mode 3, 全双工, 9MHz (ST7735 t_WC≥66ns→≤15MHz, 留余量) */
     SPI_StructInit(&spi);
     spi.SPI_Direction  = SPI_Direction_2Lines_FullDuplex;
     spi.SPI_Mode       = SPI_Mode_Master;
@@ -284,7 +285,7 @@ void Tft_Driver_Init(void)
     spi.SPI_CPOL       = SPI_CPOL_High;
     spi.SPI_CPHA       = SPI_CPHA_2Edge;
     spi.SPI_NSS        = SPI_NSS_Soft;
-    spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;
+    spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;  /* 72/4=18MHz, 原始配置 */
     spi.SPI_FirstBit   = SPI_FirstBit_MSB;
     SPI_Init(SPI1, &spi);
     SPI_Cmd(SPI1, ENABLE);
@@ -511,25 +512,23 @@ void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
 
     if (s_font_flash_valid) {
         uint32_t base;
+        uint8_t ascii_rows[16];
         SetWin(col * TFT_FONT_WIDTH, line * line_h_scaled,
                col * TFT_FONT_WIDTH + char_w - 1,
                line * line_h_scaled + char_h - 1);
         base = g_font_header.ascii_offset + (uint32_t)idx * 16;
+        W25Q_Driver_Read(base, ascii_rows, 16);  /* 一次读 16B, 替代 16 次单字节读 */
         p = s_dma_buf;
         if (s_font_scale == 1) {
             for (row = 0; row < 16; row++) {
-                uint8_t byte_val;
-                W25Q_Driver_Read(base + (uint32_t)row, &byte_val, 1);
-                Decode_Char_Row(byte_val, fg, bg, p + row * 8, 1);
+                Decode_Char_Row(ascii_rows[row], fg, bg, p + row * 8, 1);
             }
             Tft_DMA_Send(s_dma_buf, 128);
         } else {
             /* 2x: duplicate each row */
             for (row = 0; row < 16; row++) {
-                uint8_t byte_val;
                 uint8_t r;
-                W25Q_Driver_Read(base + (uint32_t)row, &byte_val, 1);
-                Decode_Char_Row(byte_val, fg, bg, p, 2);
+                Decode_Char_Row(ascii_rows[row], fg, bg, p, 2);
                 /* copy doubled row to second line */
                 for (r = 0; r < 16; r++) p[32 + r] = p[r];
                 p += 32;
@@ -613,50 +612,15 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
     uint8_t char_h = (uint16_t)TFT_FONT_HEIGHT * s_font_scale;     /* 16 or 32 */
     uint16_t buf_x_start = col * TFT_FONT_WIDTH;
     uint16_t buf_y_start = ln  * ((uint16_t)TFT_FONT_HEIGHT * s_font_scale);
-    uint32_t base = 0; /* init to quiet ARMCC warning */
 
     if (buf_y_start + char_h > TFT_HEIGHT) return;
     if (buf_x_start + char_w > TFT_WIDTH) return;
 
-    if (s_font_flash_valid) {
-        uint32_t unicode; uint32_t data_offset;
-        unicode  = ((uint32_t)(utf8[0] & 0x0F) << 12);
-        unicode |= ((uint32_t)(utf8[1] & 0x3F) << 6);
-        unicode |= ((uint32_t)(utf8[2] & 0x3F));
-        data_offset = W25Q_Font_Index_Binary_Search((uint16_t)unicode, &g_font_header);
-        if (data_offset == 0xFFFFFFFFUL) {
-            SetWin(buf_x_start, buf_y_start, buf_x_start + char_w - 1, buf_y_start + char_h - 1);
-            Tft_DMA_Fill((uint32_t)char_w * char_h, bg);
-            return;
-        }
-        base = g_font_header.cjk_data_offset + (uint32_t)data_offset;
-    }
-
     SetWin(buf_x_start, buf_y_start, buf_x_start + char_w - 1, buf_y_start + char_h - 1);
     p = s_dma_buf;
 
-    if (s_font_flash_valid) {
-        if (s_font_scale == 1) {
-            for (row = 0; row < 16; row++) {
-                uint8_t lo_hi[2];
-                W25Q_Driver_Read(base + (uint32_t)row * 2, lo_hi, 2);
-                Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p + row * 16, 1);
-            }
-            Tft_DMA_Send(s_dma_buf, 256);
-        } else {
-            /* 2x: 16×16 → 32×32, row-doubling in DMA buf */
-            for (row = 0; row < 16; row++) {
-                uint8_t lo_hi[2]; uint8_t r;
-                W25Q_Driver_Read(base + (uint32_t)row * 2, lo_hi, 2);
-                Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p, 2);
-                /* copy doubled row into second line */
-                for (r = 0; r < 32; r++) p[64 + r] = p[r];
-                p += 64;
-            }
-            Tft_DMA_Send(s_dma_buf, 16 * 64);  /* 16 src rows × 32 cols × 2 (row-double) = 1024 */
-        }
-    } else {
-        /* ROM fallback */
+    /* ROM 优先: 检查 CN_INDEX (4 字: 无/线/充/电, SPLASH 专用) */
+    {
         uint8_t g_idx; uint8_t i;
         g_idx = 0xFF;
         for (i = 0; i < TFT_CN_FONT_CHAR_COUNT; i++) {
@@ -664,26 +628,59 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
                 g_idx = i; break;
             }
         }
-        if (g_idx == 0xFF) {
+        if (g_idx != 0xFF) {
+            if (s_font_scale == 1) {
+                for (row = 0; row < 16; row++)
+                    Decode_CN_Row(CN_FONT_16X16[g_idx][row * 2], CN_FONT_16X16[g_idx][row * 2 + 1],
+                                   fg, bg, p + row * 16, 1);
+                Tft_DMA_Send(s_dma_buf, 256);
+            } else {
+                for (row = 0; row < 16; row++) {
+                    uint8_t r;
+                    Decode_CN_Row(CN_FONT_16X16[g_idx][row * 2], CN_FONT_16X16[g_idx][row * 2 + 1],
+                                   fg, bg, p, 2);
+                    for (r = 0; r < 32; r++) p[64 + r] = p[r];
+                    p += 64;
+                }
+                Tft_DMA_Send(s_dma_buf, 16 * 64);
+            }
+            return;
+        }
+    }
+
+    /* Flash 路径: ROM 未命中 → W25Q128 全字库 20897 字 */
+    if (s_font_flash_valid) {
+        uint32_t unicode; uint32_t data_offset; uint32_t base;
+        uint8_t cn_glyph[32];
+        unicode  = ((uint32_t)(utf8[0] & 0x0F) << 12);
+        unicode |= ((uint32_t)(utf8[1] & 0x3F) << 6);
+        unicode |= ((uint32_t)(utf8[2] & 0x3F));
+        data_offset = W25Q_Font_Index_Binary_Search((uint16_t)unicode, &g_font_header);
+        if (data_offset == 0xFFFFFFFFUL) {
             Tft_DMA_Fill((uint32_t)char_w * char_h, bg);
             return;
         }
+        base = g_font_header.cjk_data_offset + (uint32_t)data_offset;
+        W25Q_Driver_Read(base, cn_glyph, 32);
         if (s_font_scale == 1) {
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(CN_FONT_16X16[g_idx][row * 2], CN_FONT_16X16[g_idx][row * 2 + 1],
-                               fg, bg, p + row * 16, 1);
+            for (row = 0; row < 16; row++) {
+                Decode_CN_Row(cn_glyph[row * 2], cn_glyph[row * 2 + 1], fg, bg, p + row * 16, 1);
+            }
             Tft_DMA_Send(s_dma_buf, 256);
         } else {
             for (row = 0; row < 16; row++) {
                 uint8_t r;
-                Decode_CN_Row(CN_FONT_16X16[g_idx][row * 2], CN_FONT_16X16[g_idx][row * 2 + 1],
-                               fg, bg, p, 2);
+                Decode_CN_Row(cn_glyph[row * 2], cn_glyph[row * 2 + 1], fg, bg, p, 2);
                 for (r = 0; r < 32; r++) p[64 + r] = p[r];
                 p += 64;
             }
             Tft_DMA_Send(s_dma_buf, 16 * 64);
         }
+        return;
     }
+
+    /* 无 Flash → 空白 (ROM 已检索, 未命中) */
+    Tft_DMA_Fill((uint32_t)char_w * char_h, bg);
 }
 
 void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
@@ -821,7 +818,56 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
     SetWin(x, y, x + 15, y + 15);
     p = s_dma_buf;
 
-    /* Try Flash path first */
+    /* ROM 回退: WIFI (0-3), MQTT (4-7), STAR (8) — ROM 优先 */
+    switch (icon_id) {
+        case 0:  /* WIFI_SIGNAL: 按 frame 选信号强度帧 */
+            if (frame > 3) frame = 3;
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(WIFI_ICON[frame][row*2], WIFI_ICON[frame][row*2+1], fg, bg, p + row*16, 1);
+            Tft_DMA_Send(s_dma_buf, 256);
+            return 1;
+        case 1:  /* WIFI_CONNECT_ANIM: 按 frame 选动画帧 */
+            if (frame > 5) frame = 5;
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(WIFI_CONNECT_ANIM[frame][row*2], WIFI_CONNECT_ANIM[frame][row*2+1], fg, bg, p + row*16, 1);
+            Tft_DMA_Send(s_dma_buf, 256);
+            return 1;
+        case 2:  /* WIFI_OFF — 带×的静态图标 */
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(WIFI_OFF_ICON[row*2], WIFI_OFF_ICON[row*2+1], fg, bg, p + row*16, 1);
+            Tft_DMA_Send(s_dma_buf, 256);
+            return 1;
+        case 3:  /* WIFI_REMOVE — 带减号的静态图标 */
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(WIFI_REMOVE_ICON[row*2], WIFI_REMOVE_ICON[row*2+1], fg, bg, p + row*16, 1);
+            Tft_DMA_Send(s_dma_buf, 256);
+            return 1;
+        case 4:  /* MQTT_ICON 静态 */
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(MQTT_ICON[row*2], MQTT_ICON[row*2+1], fg, bg, p + row*16, 1);
+            Tft_DMA_Send(s_dma_buf, 256); return 1;
+        case 5:  /* MQTT_YES 静态 */
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(MQTT_YES_ICON[row*2], MQTT_YES_ICON[row*2+1], fg, bg, p + row*16, 1);
+            Tft_DMA_Send(s_dma_buf, 256); return 1;
+        case 6:  /* MQTT_NO 静态 */
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(MQTT_NO_ICON[row*2], MQTT_NO_ICON[row*2+1], fg, bg, p + row*16, 1);
+            Tft_DMA_Send(s_dma_buf, 256); return 1;
+        case 7:  /* MQTT_ANIM 6帧 */
+            if (frame > 5) frame = 5;
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(MQTT_ANIM[frame][row*2], MQTT_ANIM[frame][row*2+1], fg, bg, p + row*16, 1);
+            Tft_DMA_Send(s_dma_buf, 256); return 1;
+        case 8:  /* ICON_STAR */
+            for (row = 0; row < 16; row++)
+                Decode_CN_Row(ICON_STAR[row*2], ICON_STAR[row*2+1], fg, bg, p + row*16, 1);
+            Tft_DMA_Send(s_dma_buf, 256);
+            return 1;
+        default: break;  /* ID 9-34: 仅 Flash */
+    }
+
+    /* Flash path: ID 9+ 或无 ROM 的图标 */
     if (s_font_flash_valid) {
         /* Read icon frame from Flash icon_data area
          * Flash layout (from generate_font.py OFF_ICONS):
@@ -830,7 +876,7 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
          *   0x000808: Icon Bitmap Data
          * Entry 8B: [id:2][n_frames:2][data_offset:2][reserved:2] */
         uint32_t icon_idx_base, icon_data_base, data_offset, frame_offset;
-        uint8_t n_frames, icon_entry[8];
+        uint8_t n_frames, icon_entry[8], icon_glyph[32];
         icon_idx_base = 0x000710U;  /* icon entries start */
         /* Read 8-byte entry: [id:2][n_frames:2][data_offset:2][reserved:2] */
         W25Q_Driver_Read(icon_idx_base + (uint32_t)icon_id * 8, icon_entry, 8);
@@ -839,60 +885,18 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
         icon_data_base = 0x000808U;  /* icon bitmap data start */
         if (frame >= n_frames) frame = n_frames - 1;
         frame_offset = icon_data_base + data_offset + (uint32_t)frame * 32;
+        W25Q_Driver_Read(frame_offset, icon_glyph, 32);  /* 一次读 32B */
         for (row = 0; row < 16; row++) {
-            uint8_t lo_hi[2];
-            W25Q_Driver_Read(frame_offset + (uint32_t)row * 2, lo_hi, 2);
-            Decode_CN_Row(lo_hi[0], lo_hi[1], fg, bg, p + row * 16, 1);
+            Decode_CN_Row(icon_glyph[row * 2], icon_glyph[row * 2 + 1], fg, bg, p + row * 16, 1);
         }
         Tft_DMA_Send(s_dma_buf, 256);
         return 1;
     }
 
-    /* ROM fallback: only WIFI (0-3), MQTT (4-7), STAR (8) */
-    switch (icon_id) {
-        case 0:  /* WIFI_SIGNAL: 按 frame 选信号强度帧 */
-            if (frame > 3) frame = 3;
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(WIFI_ICON[frame][row*2], WIFI_ICON[frame][row*2+1], fg, bg, p + row*16, 1);
-            break;
-        case 1:  /* WIFI_CONNECT_ANIM: 按 frame 选动画帧 */
-            if (frame > 5) frame = 5;
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(WIFI_CONNECT_ANIM[frame][row*2], WIFI_CONNECT_ANIM[frame][row*2+1], fg, bg, p + row*16, 1);
-            break;
-        case 2:  /* WIFI_OFF — 带×的静态图标 */
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(WIFI_OFF_ICON[row*2], WIFI_OFF_ICON[row*2+1], fg, bg, p + row*16, 1);
-            break;
-        case 3:  /* WIFI_REMOVE — 带减号的静态图标 */
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(WIFI_REMOVE_ICON[row*2], WIFI_REMOVE_ICON[row*2+1], fg, bg, p + row*16, 1);
-            break;
-        case 4:
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(MQTT_ICON[row*2], MQTT_ICON[row*2+1], fg, bg, p + row*16, 1);
-            break;
-        case 5:
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(MQTT_YES_ICON[row*2], MQTT_YES_ICON[row*2+1], fg, bg, p + row*16, 1);
-            break;
-        case 6:
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(MQTT_NO_ICON[row*2], MQTT_NO_ICON[row*2+1], fg, bg, p + row*16, 1);
-            break;
-        case 7:  /* MQTT_ANIM: 按 frame 选动画帧 */
-            if (frame > 5) frame = 5;
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(MQTT_ANIM[frame][row*2], MQTT_ANIM[frame][row*2+1], fg, bg, p + row*16, 1);
-            break;
-        case 8:
-            for (row = 0; row < 16; row++)
-                Decode_CN_Row(ICON_STAR[row*2], ICON_STAR[row*2+1], fg, bg, p + row*16, 1);
-            break;
-        default: { uint8_t i; for (i = 0; i < 256; i++) p[i] = bg; } break;
-    }
+    /* 无 Flash 且无 ROM → 空白 */
+    { uint8_t i; for (i = 0; i < 256; i++) p[i] = bg; }
     Tft_DMA_Send(s_dma_buf, 256);
-    return 1;
+    return 0;
 }
 
 /* ===============================================================
@@ -933,8 +937,8 @@ void Tft_Driver_Show_Splash(void)
         Sys_Timer_Delay_Ms(150);
     }
 
-    /* 版本号: 右下角暗灰 (Row 7 col14, 屏亮后第一个字渐亮时出现) */
-    Tft_Driver_Show_String(7, 14, "V4.5.0", 0x3186U, TFT_COLOR_BLACK);
+    /* 版本号: 右下角暗灰 */
+    Tft_Driver_Show_String(7, 14, "V4.5.1", 0x3186U, TFT_COLOR_BLACK);
 
     /* Phase 2: 两行同时逐字点亮, 每字 8帧渐亮x50ms=400ms, 4字=1600ms */
     for (col = 0; col < 4; col++) {

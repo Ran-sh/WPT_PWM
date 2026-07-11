@@ -61,10 +61,18 @@
 
 /* ── 静态状态 ── */
 static uint8_t s_chip_ok = 0;
+uint32_t g_w25q_jedec_id = 0;  /* 诊断: 上电读到的 JEDEC ID 原始值 */
 
 /* ═══════════════════════════════════════════════
  *  PA6 角色切换 (内联, 直接寄存器操作)
  * ═══════════════════════════════════════════════ */
+
+/** @brief CS 脉冲: H→L, 确保 ≥50ns (W25Q128 t_SLCH≥50ns) */
+static void Flash_CS_Pulse(void)
+{
+    FLASH_CS_HIGH();
+    FLASH_CS_LOW();
+}
 
 /** @brief PA6 → Input floating (Flash MISO), CS 拉低 → 门控闭合 */
 void W25Q_Enter_Mode(void)
@@ -124,10 +132,10 @@ void W25Q_Wait_Busy_Timeout(void)
     W25Q_Enter_Mode();                                   /* PA6→MISO, CS=L, 防对灌短路 */
     do {
         W25Q_SPI_Transfer(CMD_RDSR1);                    /* 0x05 读 SR1 */
-        sr1 = W25Q_SPI_Transfer(0xFF);                   /* 哑写收 SR1 */
-        FLASH_CS_HIGH(); FLASH_CS_LOW();                 /* CS 脉冲 */
+        sr1 = W25Q_SPI_Transfer(0xFF);                   /* 收 SR1 */
+        Flash_CS_Pulse();                                 /* CS 脉冲 ≥56ns */
         if ((sr1 & BUSY_BIT) == 0) break;                /* Busy=0 释放 */
-    } while (Sys_Timer_Get_Tick() - deadline < 0x80000000U); /* uint32 回绕安全 */
+    } while (deadline - Sys_Timer_Get_Tick() < 0x80000000U); /* uint32 回绕安全 */
     W25Q_Leave_Mode();                                   /* CS=H, PA6→DC, 归还总线 */
 }
 
@@ -137,6 +145,7 @@ void W25Q_Wait_Busy_Timeout(void)
 
 static void W25Q_Write_Enable(void)
 {
+    W25Q_SPI_8bit();  /* 防御: 确保 8-bit 模式 (TFT DMA 可能留下 16-bit) */
     FLASH_CS_LOW(); W25Q_SPI_Transfer(CMD_WREN); FLASH_CS_HIGH(); /* 0x06 锁存 */
 }
 
@@ -147,6 +156,7 @@ static void W25Q_Write_Enable(void)
 void W25Q_Driver_Init(void)
 {
     GPIO_InitTypeDef cfg;
+    uint8_t retry;
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
@@ -154,21 +164,28 @@ void W25Q_Driver_Init(void)
     cfg.GPIO_Speed = GPIO_Speed_50MHz; GPIO_Init(FLASH_CS_PORT, &cfg);
     FLASH_CS_HIGH();                                     /* 初始不选中 */
 
-    if (W25Q_Driver_Read_JEDEC_ID() != W25Q_JEDEC_ID) {
-        s_chip_ok = 0; return;
+    /* 上电诊断: 最多重试 3 次 JEDEC ID, 间隔 1ms (Flash 唤醒余量) */
+    s_chip_ok = 0;
+    for (retry = 0; retry < 3; retry++) {
+        if (retry > 0) Sys_Timer_Delay_Ms(1);
+        g_w25q_jedec_id = W25Q_Driver_Read_JEDEC_ID();
+        if (g_w25q_jedec_id == W25Q_JEDEC_ID) {
+            s_chip_ok = 1; return;
+        }
     }
-    s_chip_ok = 1;
 }
 
 uint32_t W25Q_Driver_Read_JEDEC_ID(void)
 {
-    uint32_t id;
-    W25Q_SPI_8bit(); W25Q_Enter_Mode();                  /* 8bit + PA6→MISO */
+    uint32_t id; uint8_t b0, b1, b2;
+    W25Q_SPI_8bit(); W25Q_Enter_Mode();
+    Flash_CS_Pulse();
     W25Q_SPI_Transfer(CMD_JEDEC);
-    id  = (uint32_t)W25Q_SPI_Transfer(0xFF) << 16;
-    id |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 8;
-    id |= (uint32_t)W25Q_SPI_Transfer(0xFF);
-    W25Q_Leave_Mode();                                   /* CS=H, PA6→DC */
+    b0 = W25Q_SPI_Transfer(0xFF);
+    b1 = W25Q_SPI_Transfer(0xFF);
+    b2 = W25Q_SPI_Transfer(0xFF);
+    W25Q_Leave_Mode();
+    id = ((uint32_t)b0 << 16) | ((uint32_t)b1 << 8) | b2;
     return id;
 }
 
@@ -186,14 +203,16 @@ void W25Q_Driver_Read(uint32_t addr, uint8_t *buf, uint16_t len)
 {
     if (!s_chip_ok || buf == 0 || len == 0) return;
 
+    NVIC_DisableIRQ(USART2_IRQn);                         /* 临界区: 防 ISR 延迟致 SPI OVR */
     W25Q_SPI_8bit(); W25Q_Enter_Mode();                  /* L3: 8bit + PA6→MISO, CS=L */
-    FLASH_CS_HIGH(); FLASH_CS_LOW();                      /* CS 脉冲: 重置 Flash 命令解码器 */
+    Flash_CS_Pulse();                                     /* ≥56ns: 重置 Flash 命令解码器 */
     W25Q_SPI_Transfer(CMD_READ);
     W25Q_SPI_Transfer((uint8_t)(addr >> 16));
     W25Q_SPI_Transfer((uint8_t)(addr >> 8));
     W25Q_SPI_Transfer((uint8_t)(addr));
     while (len--) *buf++ = W25Q_SPI_Transfer(0xFF);
     W25Q_Leave_Mode();                                   /* CS=H, PA6→DC */
+    NVIC_EnableIRQ(USART2_IRQn);                          /* 退出临界区 */
 }
 
 void W25Q_Driver_Write_Page(uint32_t addr, const uint8_t *buf, uint16_t len)
@@ -258,37 +277,39 @@ uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
 {
     uint16_t lo, hi, mid, mid_uc; uint32_t addr, found_off;
     if (!s_chip_ok || hdr == 0) return 0xFFFFFFFFUL;
+    NVIC_DisableIRQ(USART2_IRQn);                                 /* 临界区: 最长 Flash 操作 ~100µs */
+    W25Q_SPI_8bit();                                             /* 原子切8bit — CS HIGH 时完成, 防 SCK 毛刺 */
     W25Q_Enter_Mode();                                           /* PA6→MISO, CS=L */
-    W25Q_SPI_8bit();                                             /* 原子切8bit */
     lo = 0; hi = hdr->cjk_index_count;                           /* hi=20902 */
     while (lo < hi) {
         mid = (lo + hi) >> 1;                                    /* 折半 → 无溢出 uint16 */
         addr = hdr->cjk_index_offset + (uint32_t)mid * 6U;       /* 条大小=6B [U16][U32] */
-        FLASH_CS_HIGH(); FLASH_CS_LOW();                         /* CS 脉冲: 重置 Flash 命令解码器 */
+        Flash_CS_Pulse();                                         /* ≥56ns: 重置 Flash 命令解码器 */
         W25Q_SPI_Transfer(CMD_READ);
         W25Q_SPI_Transfer((uint8_t)(addr >> 16));
         W25Q_SPI_Transfer((uint8_t)(addr >> 8));
         W25Q_SPI_Transfer((uint8_t)(addr));
-        mid_uc  = (uint16_t)W25Q_SPI_Transfer(0xFF);
+            mid_uc  = (uint16_t)W25Q_SPI_Transfer(0xFF);
         mid_uc |= (uint16_t)W25Q_SPI_Transfer(0xFF) << 8;        /* LE 还原 */
         if (mid_uc < unicode) lo = mid + 1; else hi = mid;       /* 标准二分[lo,hi) */
     }
-    if (lo >= hdr->cjk_index_count) { W25Q_Leave_Mode(); return 0xFFFFFFFFUL; }
+    if (lo >= hdr->cjk_index_count) { W25Q_Leave_Mode(); NVIC_EnableIRQ(USART2_IRQn); return 0xFFFFFFFFUL; }
     /* 验证候选条目: 读 U16 Unicode + U32 offset */
     addr = hdr->cjk_index_offset + (uint32_t)lo * 6U;
-    FLASH_CS_HIGH(); FLASH_CS_LOW();                             /* CS 脉冲: 重置命令解码器 */
+    Flash_CS_Pulse();                                             /* ≥56ns: 重置命令解码器 */
     W25Q_SPI_Transfer(CMD_READ);
     W25Q_SPI_Transfer((uint8_t)(addr >> 16));
     W25Q_SPI_Transfer((uint8_t)(addr >> 8));
     W25Q_SPI_Transfer((uint8_t)(addr));
     mid_uc  = (uint16_t)W25Q_SPI_Transfer(0xFF);
     mid_uc |= (uint16_t)W25Q_SPI_Transfer(0xFF) << 8;
-    if (mid_uc != unicode) { W25Q_Leave_Mode(); return 0xFFFFFFFFUL; }
+    if (mid_uc != unicode) { W25Q_Leave_Mode(); NVIC_EnableIRQ(USART2_IRQn); return 0xFFFFFFFFUL; }
     /* V4.3.2 FIX: 完整 U32 offset, 高位汉字 offset 可达 668KB (>65535) */
     found_off  = (uint32_t)W25Q_SPI_Transfer(0xFF);              /* offset[0] lo */
     found_off |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 8;         /* offset[1] */
     found_off |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 16;        /* offset[2] */
     found_off |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 24;        /* offset[3] hi */
     W25Q_Leave_Mode();                                           /* CS=H, PA6→DC */
+    NVIC_EnableIRQ(USART2_IRQn);                                  /* 退出临界区 */
     return found_off;
 }

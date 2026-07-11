@@ -238,7 +238,8 @@
       "Bash(export GIT=\"/c/Users/48376/AppData/Local/MinGit/cmd/git.exe\")",
       "Bash(Code)",
       "Bash(rm -f auto_commit.bat)",
-      "Bash(/c/Users/48376/AppData/Local/MinGit/cmd/git.exe reset *)"
+      "Bash(/c/Users/48376/AppData/Local/MinGit/cmd/git.exe reset *)",
+      "Bash(read hex *)"
     ]
   }
 }

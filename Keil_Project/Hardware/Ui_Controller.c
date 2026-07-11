@@ -104,7 +104,7 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
 /* ════════════════════════════════════════════════════════════
  *  V4.5.0 Settings State (preview→confirm modal, BL sub-pages)
  * ════════════════════════════════════════════════════════════ */
-static uint8_t  s_language         = 0;     /* 0=Chinese, 1=English */
+static uint8_t  s_language         = 1;     /* 0=Chinese, 1=English (默认英文) */
 static uint8_t  s_letter_spacing   = 0;     /* inter-char gap 0-3 px (V4.5.0: replaces font_size) */
 static uint8_t  s_backlight_val    = 100;   /* PWM 0-255 (derived, updated on apply) */
 static uint8_t  sc_preset          = 0;     /* 0-5 preset, 255=custom */
@@ -463,8 +463,7 @@ static void Draw_Main_Menu_Full(void)
                     ? Pick_CN_EN(S_STOP_PWM_CN, S_STOP_PWM_EN)
                     : Pick_CN_EN(S_START_PWM_CN, S_START_PWM_EN);
                 break;
-            case 1: text = (Tft_Driver_Is_Font_Flash_Valid()
-                ? "2. " S_MONITOR_CN : S_MON_MENU_EN); break;
+            case 1: text = Pick_CN_EN("2. " S_MONITOR_CN, S_MON_MENU_EN); break;
             case 2: text = Pick_CN_EN(S_WIFI_SETUP_CN, S_WIFI_SETUP_EN); break;
             case 3: text = Pick_CN_EN(S_SETTINGS_MENU_CN, S_SETTINGS_MENU_EN); break;
             case 4: text = Pick_CN_EN(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN);
@@ -1764,7 +1763,12 @@ static void Draw_Lang_Full(void)
 
     Draw_Cursor(s_preview_choice == 0 ? 3 : 4);
 
-    /* Bottom row 7: live preview of active language choice */
+    /* Bottom rows: live preview + Flash diagnostic */
+    Erase_Line(6);
+    if (flash_ok)
+        Tft_Driver_Show_String(6, 0, " Flash:OK  Chinese OK", Uc_Dim(), Uc_Bg());
+    else
+        Tft_Driver_Show_String(6, 0, " Flash:--  EN only", 0xE8E4U, Uc_Bg());
     Erase_Line(7);
     if (s_preview_choice == 0 && flash_ok)
         Tft_Driver_Show_CN_String(7, Center("\xe4\xbd\xa0\xe5\xa5\xbd\xe4\xb8\x96\xe7\x95\x8c"), "\xe4\xbd\xa0\xe5\xa5\xbd\xe4\xb8\x96\xe7\x95\x8c", Uc_Dim(), Uc_Bg());

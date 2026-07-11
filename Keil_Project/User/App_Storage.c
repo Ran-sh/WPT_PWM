@@ -115,7 +115,7 @@ static void App_Storage_Defaults(App_Storage_Config *cfg)
     cfg->freq_trim_hz = 0;
     cfg->default_freq  = 100;      /* 100kHz 安全中频 */
     cfg->backlight     = 100;      /* V4.5.0: 100% */
-    cfg->language      = 0;        /* CN */
+    cfg->language      = 1;        /* EN (默认英文, 设置内手动切中文后才调用 W25Q) */
     cfg->font_size     = 0;        /* V4.5.0: 小号(1x) */
     cfg->letter_spacing = 0;       /* V4.5.0: 0px gap */
     cfg->color_preset  = 0;        /* Classic */
@@ -195,7 +195,7 @@ void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
         *fg      = cfg.color_fg;
         *bg      = cfg.color_bg;
     } else {
-        *lang    = 0;
+        *lang    = 1;  /* EN fallback */
         *font    = 0;
         *bl      = 100;
         *spacing = 0;

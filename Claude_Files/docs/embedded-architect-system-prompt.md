@@ -210,7 +210,7 @@ int main(void) {
 
 | 参数 | 值 |
 |:---|:---|
-| SPI | Mode 3, 18MHz, DMA1_Channel3, 只写不读 |
+| SPI | Mode 3, 9MHz (ST7735 t_WC≥66ns), DMA1_Channel3, 全双工 (MISO Flash) |
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 |
 | 字库 | 8×16 ASCII (95) + 16×16 中文 (76) + 5×10 微数字 (12) |
