@@ -7,7 +7,7 @@
  *  +------------------------------------------------------------+
  *  |    STM32F103C8T6              ST7735 128x160 Green Tab      |
  *  |                                                             |
- *  |    PA5 --- SPI1_SCK ------------------> SCL  (9MHz)         |
+ *  |    PA5 --- SPI1_SCK ------------------> SCL  (18MHz)        |
  *  |    PA7 --- SPI1_MOSI ------------------> SDA  (shared data  |
  *  |    PA4 --- GPIO_PP --------------------> CS   (active low)  |
  *  |    PA6 --- GPIO_PP --------------------> DC   (cmd/data)    |
@@ -138,7 +138,7 @@ static void Tft_DMA_Init(void)
  *  DMA 核心传输 (V4.5.0: 超时护底防硬锁)
  * ═══════════════════════════════════════════════════════════════ */
 
-#define TFT_DMA_TIMEOUT_MS  200   /* DMA/SPI 忙等超时: 65535 半字@9MHz≈117ms, 200ms 护底安全 */
+#define TFT_DMA_TIMEOUT_MS  200   /* DMA/SPI 忙等超时: 65535 半字@18MHz≈58ms, 200ms 护底安全 */
 
 static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_mem)
 {
@@ -277,7 +277,7 @@ void Tft_Driver_Init(void)
 
     TFT_CS_HIGH();
 
-    /* SPI1: Mode 3, 全双工, 9MHz (ST7735 t_WC≥66ns→≤15MHz, 留余量) */
+    /* SPI1: Mode 3, 全双工, 18MHz */
     SPI_StructInit(&spi);
     spi.SPI_Direction  = SPI_Direction_2Lines_FullDuplex;
     spi.SPI_Mode       = SPI_Mode_Master;
