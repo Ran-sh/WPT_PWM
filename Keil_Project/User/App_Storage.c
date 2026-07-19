@@ -202,10 +202,6 @@ void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
     uint32_t addr, pos_in_page;
     Blackbox_Entry_Packed entry;
 
-    /* 仅 SWEEP + RUNNING 记录 (设计文档 §3.4 触发条件) */
-    if (g_sys_state != SYS_STATE_SWEEP && g_sys_state != SYS_STATE_RUNNING)
-        return;
-
     Blackbox_Pack(v, i, freq, state, &entry);
 
     /* Page Program 跨页保护 */

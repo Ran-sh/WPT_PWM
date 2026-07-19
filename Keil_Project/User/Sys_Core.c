@@ -56,7 +56,7 @@
 #include "W25Q_Driver.h"
 #include "App_Storage.h"
 
-volatile Sys_State g_sys_state = SYS_STATE_INIT;
+static Sys_State s_sys_state = SYS_STATE_INIT;
 
 /* ── 全局配置实例 ── */
 static App_Storage_Config s_sys_config;
@@ -81,7 +81,7 @@ uint8_t Sys_Core_Is_Power_Enabled(void)
 
 Sys_State Sys_Core_Get_State(void)
 {
-    return g_sys_state;
+    return s_sys_state;
 }
 
 Sys_Fault_Code Sys_Core_Get_Fault(void)
@@ -103,7 +103,7 @@ void Sys_Core_Trigger_Fault(Sys_Fault_Code fault_code)
     GPIO_ResetBits(GPIOB, GPIO_Pin_10);
     Led_Driver_Set_Power(0U);
     Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
-    g_sys_state = SYS_STATE_FAULT;
+    s_sys_state = SYS_STATE_FAULT;
     Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
 }
 
@@ -120,14 +120,14 @@ static uint8_t Sys_Core_Check_Control_Invariant(void)
     if (power_enabled == 0U && pwm_enabled != 0U) {
         invalid = 1U;
     }
-    if (g_sys_state == SYS_STATE_IDLE && pwm_enabled != 0U) {
+    if (s_sys_state == SYS_STATE_IDLE && pwm_enabled != 0U) {
         invalid = 1U;
     }
-    if ((g_sys_state == SYS_STATE_SWEEP || g_sys_state == SYS_STATE_RUNNING) &&
+    if ((s_sys_state == SYS_STATE_SWEEP || s_sys_state == SYS_STATE_RUNNING) &&
         (power_enabled == 0U || pwm_enabled == 0U)) {
         invalid = 1U;
     }
-    if (g_sys_state == SYS_STATE_FAULT &&
+    if (s_sys_state == SYS_STATE_FAULT &&
         (power_enabled != 0U || pwm_enabled != 0U)) {
         invalid = 1U;
     }
@@ -141,21 +141,21 @@ static uint8_t Sys_Core_Check_Control_Invariant(void)
 
 Sys_Control_Result Sys_Core_Request_Start(void)
 {
-    if (g_sys_state == SYS_STATE_FAULT || s_fault_code != SYS_FAULT_NONE) {
+    if (s_sys_state == SYS_STATE_FAULT || s_fault_code != SYS_FAULT_NONE) {
         return SYS_CONTROL_RESULT_FAULT_LATCHED;
     }
-    if (g_sys_state == SYS_STATE_SWEEP || g_sys_state == SYS_STATE_RUNNING) {
+    if (s_sys_state == SYS_STATE_SWEEP || s_sys_state == SYS_STATE_RUNNING) {
         return (Sys_Core_Check_Control_Invariant() != 0U) ?
                SYS_CONTROL_RESULT_OK : SYS_CONTROL_RESULT_INVALID_STATE;
     }
-    if (g_sys_state != SYS_STATE_IDLE) {
+    if (s_sys_state != SYS_STATE_IDLE) {
         return SYS_CONTROL_RESULT_INVALID_STATE;
     }
     if (Sys_Core_Is_Power_Enabled() == 0U) {
         return SYS_CONTROL_RESULT_POWER_OFF;
     }
 
-    g_sys_state = SYS_STATE_SWEEP;
+    s_sys_state = SYS_STATE_SWEEP;
     Inverter_Control_Soft_Start_Trigger();
     if (Pwm_Driver_Is_Enabled() == 0U ||
         Sys_Core_Check_Control_Invariant() == 0U) {
@@ -167,18 +167,18 @@ Sys_Control_Result Sys_Core_Request_Start(void)
 
 Sys_Control_Result Sys_Core_Request_Stop(void)
 {
-    if (g_sys_state == SYS_STATE_INIT) {
+    if (s_sys_state == SYS_STATE_INIT) {
         return SYS_CONTROL_RESULT_INVALID_STATE;
     }
-    if (g_sys_state == SYS_STATE_FAULT) {
+    if (s_sys_state == SYS_STATE_FAULT) {
         Inverter_Control_Soft_Start_Fault();
         Sys_Core_Set_Power_Output(0U);
         return SYS_CONTROL_RESULT_FAULT_LATCHED;
     }
 
     Inverter_Control_Soft_Start_Stop();
-    if (g_sys_state == SYS_STATE_SWEEP || g_sys_state == SYS_STATE_RUNNING) {
-        g_sys_state = SYS_STATE_IDLE;
+    if (s_sys_state == SYS_STATE_SWEEP || s_sys_state == SYS_STATE_RUNNING) {
+        s_sys_state = SYS_STATE_IDLE;
     }
     if (Sys_Core_Check_Control_Invariant() == 0U) {
         return SYS_CONTROL_RESULT_INVALID_STATE;
@@ -188,7 +188,7 @@ Sys_Control_Result Sys_Core_Request_Stop(void)
 
 Sys_Control_Result Sys_Core_Reset_Fault(void)
 {
-    if (g_sys_state != SYS_STATE_FAULT) {
+    if (s_sys_state != SYS_STATE_FAULT) {
         return SYS_CONTROL_RESULT_INVALID_STATE;
     }
 
@@ -197,7 +197,7 @@ Sys_Control_Result Sys_Core_Reset_Fault(void)
     Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
     Sys_Safety_Reset_EMA();
     s_fault_code = SYS_FAULT_NONE;
-    g_sys_state = SYS_STATE_IDLE;
+    s_sys_state = SYS_STATE_IDLE;
 
     if (Sys_Core_Check_Control_Invariant() == 0U) {
         return SYS_CONTROL_RESULT_INVALID_STATE;
@@ -298,6 +298,7 @@ void Sys_Post_Init(void)
     }
 
     App_Network_Start_Connect();
+    s_sys_state = SYS_STATE_IDLE;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -329,7 +330,7 @@ float Sys_Safety_Get_EMA_Current(void)  { return s_safety_ema_i; }
 /**
  * @brief  重置过流 EMA 滤波缓存, 防止 FAULT 复位后 EMA 残留值立即重新触发过流
  * @note   FAULT 状态下 PAGE 单击复位时, Sys_Safety 持有的 EMA 电流值可能仍 > 5.0A,
- *         若不重置, Sys_Safety_Task 下一圈又会将 g_sys_state 拉回 FAULT, 造成"消除无效"。
+ *         若不重置, Sys_Safety_Task 下一圈又会将系统状态拉回FAULT, 造成"消除无效"。
  *         调用后将 EMA 重置为当前 ADC 原始值, 同时锁定新状态让 EMA 重新收敛。
  */
 void Sys_Safety_Reset_EMA(void)
@@ -345,13 +346,13 @@ void Sys_Safety_Task(void)
     Sys_Safety_Update_EMA();
 
     /* 仅 RUNNING 状态执行安全监测: 非运行状态 PWM 已关, 无过流可能 */
-    if (g_sys_state != SYS_STATE_RUNNING) return;
+    if (s_sys_state != SYS_STATE_RUNNING) return;
 
     /* 过流检测 → FAULT (先切状态再锁存: L4 禁擦需要 FAULT 而非 RUNNING) */
     if (s_safety_ema_i > SYS_SAFETY_OVERCURRENT_A) {
         Inverter_Control_Soft_Start_Fault();
         Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
-        g_sys_state = SYS_STATE_FAULT;               /* 先切状态, Inverter已停波 */
+        s_sys_state = SYS_STATE_FAULT;               /* 先切状态, Inverter已停波 */
         Blackbox_Lock_Fault_Snapshot();              /* L4 放行: 非 SWEEP/RUNNING */
     }
 }
@@ -367,13 +368,13 @@ void Sys_Power_Control_Handle(Key_Driver_Event ke[5])
 {
     if (ke[KEY_DRIVER_ID_POWER] != KEY_DRIVER_EVENT_CLICK) return;
 
-    if (g_sys_state == SYS_STATE_FAULT || s_fault_code != SYS_FAULT_NONE) {
+    if (s_sys_state == SYS_STATE_FAULT || s_fault_code != SYS_FAULT_NONE) {
         /* FAULT锁存期间KEY0不得重新接通12V。 */
         Inverter_Control_Soft_Start_Fault();
         Sys_Core_Set_Power_Output(0U);
     }
     else if (Sys_Core_Is_Power_Enabled() == 0U) {
-        if (g_sys_state == SYS_STATE_IDLE && Pwm_Driver_Is_Enabled() == 0U) {
+        if (s_sys_state == SYS_STATE_IDLE && Pwm_Driver_Is_Enabled() == 0U) {
             Sys_Core_Set_Power_Output(1U);
         }
         else {
@@ -439,11 +440,11 @@ void Sys_Run_Sweep(void)
     Ui_Controller_Task();
     Inverter_Control_Soft_Start_Task();
     if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE)
-        g_sys_state = SYS_STATE_RUNNING;
+        s_sys_state = SYS_STATE_RUNNING;
 
     if (now_s - last_bb_s >= 200) { last_bb_s = now_s;
         Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(), Sys_Safety_Get_EMA_Current(),
-                          Pwm_Driver_Get_Frequency(), (uint8_t)g_sys_state);
+                          Pwm_Driver_Get_Frequency(), (uint8_t)s_sys_state);
     }
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
@@ -465,7 +466,7 @@ void Sys_Run_Running(void)
 
     if (now - last_bb >= 200) { last_bb = now;
         Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(), Sys_Safety_Get_EMA_Current(),
-                          Pwm_Driver_Get_Frequency(), (uint8_t)g_sys_state);
+                          Pwm_Driver_Get_Frequency(), (uint8_t)s_sys_state);
     }
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();

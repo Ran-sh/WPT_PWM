@@ -12,7 +12,7 @@
  *  |    Led_Driver:  PA15/PB4/PB3/PA10/PA11               sta  |
  *  |    Buzzer:      PB15 (PP)                             be  |
  *  |    Pwm_Driver:  TIM1 CH1/CH2/CH1N/CH2N               pow  |
- *  |    Sys_Core:    global state machine g_sys_state          |
+ *  |    Sys_Core:    state machine + unified power control     |
  *  |    Sys_Timer:   timebase (200ms inc refresh cycle)        |
  *  |                                                           |
  *  |    9 pages: MAIN_MENU/SUB_MENU/VOLTAGE/CURRENT/           |
@@ -448,7 +448,7 @@ static void Draw_Main_Menu_Full(void)
         Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
         is_running = (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE);
     }
-    is_fault = (g_sys_state == SYS_STATE_FAULT);
+    is_fault = (Sys_Core_Get_State() == SYS_STATE_FAULT);
 
     Draw_Header(Pick_CN_EN(S_WPT_PWM_CN, S_WPT_PWM_EN));
     Draw_Divider(1);
@@ -499,7 +499,7 @@ static void Main_Menu_Dynamic_Update(void)
         Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
         is_running = (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE);
     }
-    is_fault = (g_sys_state == SYS_STATE_FAULT);
+    is_fault = (Sys_Core_Get_State() == SYS_STATE_FAULT);
 
     if (is_running != s_last_is_running) {
         const char* text = is_running
@@ -1463,17 +1463,19 @@ static void Handle_Keys_by_Page(Ui_Page page,
                                 Key_Driver_Event k3, Key_Driver_Event k4)
 {
     uint8_t is_running = 0;
+    Sys_State sys_state;
     {
         Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
         is_running = (ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE);
     }
+    sys_state = Sys_Core_Get_State();
 
     /* UP (k2): 频率+/上移 */
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
                 /* V4.5.2: F_UP wraps 0->3 when not fault, 0->4 when fault */
-                if (g_sys_state == SYS_STATE_FAULT) {
+                if (sys_state == SYS_STATE_FAULT) {
                     if (s_menu_cursor == 0) s_menu_cursor = 4;
                     else s_menu_cursor--;
                 } else {
@@ -1503,7 +1505,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
         switch (page) {
             case UI_PAGE_MAIN_MENU:
                 /* V4.5.2: F_DOWN 到第5项(灰色)时如果非故障则回第1项 */
-                if (g_sys_state == SYS_STATE_FAULT) {
+                if (sys_state == SYS_STATE_FAULT) {
                     if (s_menu_cursor >= 4) s_menu_cursor = 0;
                     else s_menu_cursor++;
                 } else {
@@ -1538,13 +1540,12 @@ static void Handle_Keys_by_Page(Ui_Page page,
                 switch (s_menu_cursor) {
                     case 0:
                         if (is_running) {
-                            Inverter_Control_Soft_Start_Stop();
-                            g_sys_state = SYS_STATE_IDLE;
+                            (void)Sys_Core_Request_Stop();
                         } else {
-                            Inverter_Control_Soft_Start_Trigger();
-                            g_sys_state = SYS_STATE_SWEEP;
-                            s_page = UI_PAGE_SWEEP;
-                            Reset_EMA();
+                            if (Sys_Core_Request_Start() == SYS_CONTROL_RESULT_OK) {
+                                s_page = UI_PAGE_SWEEP;
+                                Reset_EMA();
+                            }
                         }
                         break;
                     case 1:
@@ -1576,12 +1577,11 @@ static void Handle_Keys_by_Page(Ui_Page page,
                 {
                     Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
                     if (ss == INVERTER_CONTROL_SS_STATE_SWEEP) {
-                        Inverter_Control_Soft_Start_Stop();
-                        g_sys_state = SYS_STATE_IDLE;
+                        (void)Sys_Core_Request_Stop();
                     } else if (ss == INVERTER_CONTROL_SS_STATE_IDLE) {
-                        Inverter_Control_Soft_Start_Trigger();
-                        g_sys_state = SYS_STATE_SWEEP;
-                        Reset_EMA();
+                        if (Sys_Core_Request_Start() == SYS_CONTROL_RESULT_OK) {
+                            Reset_EMA();
+                        }
                     }
                 }
                 break;
@@ -1601,13 +1601,12 @@ static void Handle_Keys_by_Page(Ui_Page page,
             }
 
             case UI_PAGE_FAULT:
-                Inverter_Control_Soft_Start_Reset();
-                Sys_Safety_Reset_EMA();  /* 清除过流 EMA 残留, 防立即重触发 FAULT */
-                g_sys_state = SYS_STATE_IDLE;
-                s_page = UI_PAGE_MAIN_MENU;
-                s_menu_cursor = 0;
-                s_was_fault_state = 0;
-                Reset_EMA();
+                if (Sys_Core_Reset_Fault() == SYS_CONTROL_RESULT_OK) {
+                    s_page = UI_PAGE_MAIN_MENU;
+                    s_menu_cursor = 0;
+                    s_was_fault_state = 0;
+                    Reset_EMA();
+                }
                 break;
 
             default: break;
@@ -2421,7 +2420,7 @@ void Ui_Controller_Task(void)
 
     /* ── Phase 1: System Fault detection ── */
     {
-        uint8_t sys_fault = (g_sys_state == SYS_STATE_FAULT);
+        uint8_t sys_fault = (Sys_Core_Get_State() == SYS_STATE_FAULT);
         if (sys_fault != s_was_fault_state) {
             s_was_fault_state = sys_fault;
             s_last_is_fault_menu = 0xFF;  /* force Main_Menu_Dynamic_Update redraw */
@@ -2507,7 +2506,7 @@ void Ui_Controller_Task(void)
     /* ── Phase 6: Cursor boundary clamp ── */
     if (s_page == UI_PAGE_MAIN_MENU) {
         /* 非故障时第5项不可达, 光标最多到3 */
-        uint8_t max_cursor = (g_sys_state == SYS_STATE_FAULT) ? 4 : 3;
+        uint8_t max_cursor = (Sys_Core_Get_State() == SYS_STATE_FAULT) ? 4 : 3;
         if (s_menu_cursor > max_cursor) s_menu_cursor = max_cursor;
     }
     if (s_page == UI_PAGE_MONITOR_SUB_MENU) {

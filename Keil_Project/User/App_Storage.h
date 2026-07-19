@@ -11,7 +11,6 @@
 #define APP_STORAGE_H
 
 #include "stm32f10x.h"
-#include "Sys_Core.h"       /* Sys_State */
 
 /* ══ 黑匣子日志结构 (14字节 紧凑二进制, 对齐设计文档 §3.4) ══ */
 #define BLACKBOX_ENTRY_SIZE  14U

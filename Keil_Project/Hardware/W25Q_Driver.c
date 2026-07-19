@@ -35,7 +35,7 @@
  */
 
 #include "W25Q_Driver.h"
-#include "Sys_Core.h"       /* g_sys_state */
+#include "Sys_Core.h"       /* Sys_Core_Get_State */
 #include "Sys_Timer.h"      /* Sys_Timer_Get_Tick */
 #include "Checksum.h"
 
@@ -231,8 +231,11 @@ void W25Q_Driver_Write_Page(uint32_t addr, const uint8_t *buf, uint16_t len)
 
 void W25Q_Driver_Erase_Sector(uint32_t addr)
 {
+    Sys_State state;
+
     /* ══ L4: 发波态绝对禁擦 ══ */
-    if (g_sys_state == SYS_STATE_SWEEP || g_sys_state == SYS_STATE_RUNNING) return;
+    state = Sys_Core_Get_State();
+    if (state == SYS_STATE_SWEEP || state == SYS_STATE_RUNNING) return;
     if (!s_chip_ok) return;
 
     W25Q_Wait_Busy_Timeout(); W25Q_Write_Enable();       /* L2 + L1 */

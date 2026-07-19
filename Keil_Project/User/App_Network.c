@@ -286,18 +286,18 @@ void App_Network_Task(void)
         else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_SWEEP || ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {
-                    Inverter_Control_Soft_Start_Stop();
-                    g_sys_state = SYS_STATE_IDLE;
-                    Ui_Controller_Force_Page_And_Reset(UI_PAGE_MAIN_MENU);
+                    if (Sys_Core_Request_Stop() == SYS_CONTROL_RESULT_OK) {
+                        Ui_Controller_Force_Page_And_Reset(UI_PAGE_MAIN_MENU);
+                    }
                 }
             }
         }
         else if ((p = strstr(local_buf, "CMD:ON")) != 0   && (p[6] == '\0' || p[6] == '\r' || p[6] == '\n')) {
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_IDLE) {
-                    Inverter_Control_Soft_Start_Trigger();
-                    g_sys_state = SYS_STATE_SWEEP;
-                    Ui_Controller_Force_Page_And_Reset(UI_PAGE_SWEEP);
+                    if (Sys_Core_Request_Start() == SYS_CONTROL_RESULT_OK) {
+                        Ui_Controller_Force_Page_And_Reset(UI_PAGE_SWEEP);
+                    }
                 }
             }
         }
@@ -349,7 +349,7 @@ void App_Network_Task(void)
                          (ss == INVERTER_CONTROL_SS_STATE_DONE)
                             ? (unsigned long)Pwm_Driver_Get_Frequency()
                             : 0UL,
-                         (int)g_sys_state);  /* 对齐全链路数据一致性: 遥测S字段用系统状态 */
+                         (int)Sys_Core_Get_State());  /* 临时原始状态值, 后续协议映射统一 */
                 if (written > 0 && (uint16_t)written < sizeof(json_buf))
                     Esp8266_Driver_Send_String(json_buf);
             }

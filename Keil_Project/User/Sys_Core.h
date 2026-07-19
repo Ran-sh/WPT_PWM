@@ -36,8 +36,6 @@ typedef enum {
     SYS_FAULT_CONTROL_INVARIANT
 } Sys_Fault_Code;
 
-extern volatile Sys_State g_sys_state;
-
 /* ── 统一功率与状态控制 ── */
 /** @brief 请求启动软启动扫频
  *  @retval 控制结果；只有返回SYS_CONTROL_RESULT_OK才允许进入/保持运行态

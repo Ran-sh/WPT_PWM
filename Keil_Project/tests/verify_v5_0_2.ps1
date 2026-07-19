@@ -1,6 +1,6 @@
 param(
     [ValidateSet('All', 'Baseline', 'Checksum', 'Pwm', 'Safety', 'Adc',
-                 'Control', 'Spi', 'Storage', 'Keys', 'Ui', 'Network', 'Scheduler',
+                 'Control', 'ControlCallers', 'Spi', 'Storage', 'Keys', 'Ui', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -321,7 +321,7 @@ Write-Check 'Ui' 'UI page count is 14' `
 
 $directStart = ($uiC -match 'Inverter_Control_Soft_Start_Trigger\s*\(') -or
                ($networkC -match 'Inverter_Control_Soft_Start_Trigger\s*\(')
-Write-Check 'Safety' 'UI and network do not start inverter directly' (-not $directStart)
+Write-Check 'ControlCallers' 'UI and network do not start inverter directly' (-not $directStart)
 
 $directStateFiles = @()
 $scanFiles = Get-ChildItem (Join-Path $keilRoot 'Hardware'),
@@ -334,8 +334,17 @@ foreach ($file in $scanFiles) {
         $directStateFiles += $file.FullName.Substring($repoRoot.Length + 1)
     }
 }
-Write-Check 'Safety' 'only Sys_Core writes system state' ($directStateFiles.Count -eq 0) `
+Write-Check 'ControlCallers' 'only Sys_Core writes system state' ($directStateFiles.Count -eq 0) `
     $(if ($directStateFiles.Count) { $directStateFiles -join ', ' } else { 'clean' })
+Write-Check 'ControlCallers' 'system state is not exported as a global' `
+    ($sysCoreH -notmatch '\bextern\s+volatile\s+Sys_State\s+g_sys_state\b')
+Write-Check 'ControlCallers' 'UI and network use unified control requests' `
+    (($uiC -match '\bSys_Core_Request_Start\s*\(') -and
+     ($uiC -match '\bSys_Core_Request_Stop\s*\(') -and
+     ($networkC -match '\bSys_Core_Request_Start\s*\(') -and
+     ($networkC -match '\bSys_Core_Request_Stop\s*\('))
+Write-Check 'ControlCallers' 'main dispatches through state getter' `
+    (($mainC -match '\bSys_Core_Get_State\s*\(') -and ($mainC -notmatch '\bg_sys_state\b'))
 
 Write-Check 'Network' 'telemetry uses explicit state mapping' `
     (Test-Contains $networkC '\bApp_Network_Map_Telemetry_State\s*\(')

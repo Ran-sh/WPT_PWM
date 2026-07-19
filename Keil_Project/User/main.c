@@ -67,14 +67,16 @@ int main(void)
 
     Sys_Post_Init();                                        /* IWDG+ESP (IWDG 1.6s) */
 
-    g_sys_state = SYS_STATE_IDLE;                           /* 切到空闲态, 开始正常调度 */
-
     while (1) {                                             /* 主循环 — 按状态分发 */
-        switch (g_sys_state) {
+        switch (Sys_Core_Get_State()) {
             case SYS_STATE_IDLE:    Sys_Run_Idle();    break;      /* 空闲: PWM 关, 等待操作 */
             case SYS_STATE_SWEEP:   Sys_Run_Sweep();   break;      /* 扫频: 150kHz->100kHz 软启动 */
             case SYS_STATE_RUNNING: Sys_Run_Running(); break;      /* 运行: 频率闭环 + 调度 */
             case SYS_STATE_FAULT:   Sys_Run_Fault();   break;      /* 故障: 过流保护 + 等待复位 */
+            case SYS_STATE_INIT:
+            default:
+                Sys_Core_Trigger_Fault(SYS_FAULT_CONTROL_INVARIANT);
+                break;
         }
     }
 }
