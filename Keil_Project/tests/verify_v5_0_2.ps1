@@ -3,6 +3,7 @@ param(
                  'AdcTrigger', 'AdcFilter', 'AdcCal',
                  'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
                  'Storage', 'StorageConfig', 'Blackbox', 'BlackboxJournal',
+                 'BlackboxLifecycle',
                  'Keys', 'Ui', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
@@ -468,6 +469,25 @@ Write-Check 'BlackboxJournal' 'metadata generation advances only after readback 
 Write-Check 'BlackboxJournal' 'full active metadata sector switches through the other sector' `
     (($appStorageC -match 'target_base\s*=.*APP_STORAGE_META_[AB]_ADDR') -and
      ($appStorageC -match 'W25Q_Driver_Erase_Sector\s*\(\s*target_base\s*\)[\s\S]*App_Storage_Verify_Metadata_Record'))
+Write-Check 'BlackboxLifecycle' 'log writes require a prepared sector and erased 12-byte target' `
+    (($appStorageC -match 'App_Storage_Log_Is_Sector_Prepared') -and
+     ($appStorageC -match 'App_Storage_Log_Is_Target_Erased') -and
+     ($appStorageC -match '0xFFU'))
+Write-Check 'BlackboxLifecycle' 'IDLE storage task maintains log sectors' `
+    (($appStorageC -match 'App_Storage_Log_Maintenance_Task\s*\(') -and
+     ($sysCoreC -match 'void\s+Sys_Run_Idle\s*\([^)]*\)[\s\S]*App_Storage_Task\s*\('))
+Write-Check 'BlackboxLifecycle' 'write pointer advances only after write and readback succeed' `
+    (($appStorageC -match 'App_Storage_Verify_Log_Entry') -and
+     ($appStorageC -match 'if\s*\(\s*result\s*==\s*W25Q_DRIVER_RESULT_OK[\s\S]*write_addr\s*='))
+Write-Check 'BlackboxLifecycle' 'unavailable sectors increment drop count without pointer advance' `
+    (($appStorageC -match 'dropped_count\+\+') -and
+     ($appStorageC -match 's_blackbox_metadata\.dropped_count\+\+;[\s\S]*return;'))
+Write-Check 'BlackboxLifecycle' 'oldest-first read uses slot mapping and wrap capacity' `
+    (($appStorageC -match 'App_Storage_Log_Address_To_Slot') -and
+     ($appStorageC -match 'App_Storage_Log_Slot_To_Address') -and
+     ($appStorageC -match 'APP_STORAGE_LOG_CAPACITY'))
+Write-Check 'BlackboxLifecycle' 'leaving an active state requests metadata checkpoint' `
+    ($sysCoreC -match 'App_Storage_Request_Blackbox_Checkpoint\s*\(')
 Write-Check 'StorageConfig' 'config save uses background request API' `
     (Test-Contains $appStorageH '\bApp_Storage_Request_Save_Config\s*\(')
 Write-Check 'StorageConfig' 'storage exposes task and result state' `

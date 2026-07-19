@@ -64,6 +64,11 @@ static Sys_Fault_Code s_fault_code = SYS_FAULT_NONE;
 
 static void Sys_Core_Set_State(Sys_State state)
 {
+    if ((s_sys_state == SYS_STATE_SWEEP ||
+         s_sys_state == SYS_STATE_RUNNING) &&
+        state != SYS_STATE_SWEEP && state != SYS_STATE_RUNNING) {
+        App_Storage_Request_Blackbox_Checkpoint();
+    }
     s_sys_state = state;
     W25Q_Driver_Set_Erase_Allowed(
         (state == SYS_STATE_SWEEP || state == SYS_STATE_RUNNING) ? 0U : 1U);

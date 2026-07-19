@@ -38,6 +38,13 @@
 #define APP_STORAGE_RETRY_MS  1000U
 #define APP_STORAGE_METADATA_INTERVAL  60U
 #define APP_STORAGE_METADATA_RETRY_MS  1000U
+#define APP_STORAGE_LOG_MAINTENANCE_MS  1000U
+#define APP_STORAGE_LOG_ENTRIES_PER_SECTOR  (W25Q_SECTOR_SIZE / BLACKBOX_ENTRY_SIZE)
+#define APP_STORAGE_LOG_SECTOR_COUNT \
+    ((APP_STORAGE_FAULT_START_ADDR - APP_STORAGE_LOG_START_ADDR) / W25Q_SECTOR_SIZE)
+#define APP_STORAGE_LOG_CAPACITY \
+    (APP_STORAGE_LOG_SECTOR_COUNT * APP_STORAGE_LOG_ENTRIES_PER_SECTOR)
+#define APP_STORAGE_INVALID_ADDR  0xFFFFFFFFUL
 
 /* ── 黑匣子运行时状态 ── */
 static App_Storage_Blackbox_Metadata s_blackbox_metadata;
@@ -48,6 +55,10 @@ static uint32_t s_metadata_saved_entry_count = 0U;
 static uint8_t s_metadata_checkpoint_pending = 1U;
 static uint8_t s_metadata_attempted = 0U;
 static uint32_t s_metadata_last_attempt = 0U;
+static uint32_t s_log_prepared_sectors[2] = {
+    APP_STORAGE_INVALID_ADDR, APP_STORAGE_INVALID_ADDR
+};
+static uint32_t s_log_maintenance_last = 0U;
 static App_Storage_Config s_pending_config;
 static uint8_t s_config_save_pending = 0U;
 static uint8_t s_config_save_attempted = 0U;
@@ -55,6 +66,8 @@ static uint32_t s_config_save_last_attempt = 0U;
 static App_Storage_Result s_storage_last_result = APP_STORAGE_RESULT_OK;
 
 static void App_Storage_Metadata_Task(void);
+static void App_Storage_Log_Maintenance_Task(void);
+static uint8_t App_Storage_Is_Erased(const uint8_t *data, uint32_t len);
 
 /* ═══════════════════════════════════════════════
  *  参数配置 (P3) — 双副本 CRC32 闭锁
@@ -158,6 +171,7 @@ void App_Storage_Task(void)
 
     if (s_config_save_pending == 0U) {
         App_Storage_Metadata_Task();
+        App_Storage_Log_Maintenance_Task();
         return;
     }
     now = Sys_Timer_Get_Tick();
@@ -282,7 +296,118 @@ void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
  *  Blackbox Log — 14B packed binary + CRC8 + page-safe + fault latch
  * ═══════════════════════════════════════════════ */
 
-/** @brief Pack: float params → 14B compact binary */
+static uint32_t App_Storage_Log_Address_To_Slot(uint32_t addr)
+{
+    uint32_t offset;
+    uint32_t sector;
+    uint32_t in_sector;
+    uint32_t slot;
+
+    if (addr < APP_STORAGE_LOG_START_ADDR ||
+        addr >= APP_STORAGE_FAULT_START_ADDR) return 0U;
+    offset = addr - APP_STORAGE_LOG_START_ADDR;
+    sector = offset / W25Q_SECTOR_SIZE;
+    in_sector = offset & (W25Q_SECTOR_SIZE - 1U);
+    slot = in_sector / BLACKBOX_ENTRY_SIZE;
+    if (slot >= APP_STORAGE_LOG_ENTRIES_PER_SECTOR) {
+        sector++;
+        slot = 0U;
+    }
+    if (sector >= APP_STORAGE_LOG_SECTOR_COUNT) sector = 0U;
+    return sector * APP_STORAGE_LOG_ENTRIES_PER_SECTOR + slot;
+}
+
+static uint32_t App_Storage_Log_Slot_To_Address(uint32_t slot)
+{
+    uint32_t sector;
+    uint32_t in_sector_slot;
+
+    slot %= APP_STORAGE_LOG_CAPACITY;
+    sector = slot / APP_STORAGE_LOG_ENTRIES_PER_SECTOR;
+    in_sector_slot = slot % APP_STORAGE_LOG_ENTRIES_PER_SECTOR;
+    return APP_STORAGE_LOG_START_ADDR + sector * W25Q_SECTOR_SIZE +
+           in_sector_slot * BLACKBOX_ENTRY_SIZE;
+}
+
+static uint32_t App_Storage_Log_Normalize_Address(uint32_t addr)
+{
+    return App_Storage_Log_Slot_To_Address(
+        App_Storage_Log_Address_To_Slot(addr));
+}
+
+static uint32_t App_Storage_Log_Advance_Address(uint32_t addr)
+{
+    uint32_t slot;
+
+    slot = App_Storage_Log_Address_To_Slot(addr);
+    slot = (slot + 1U) % APP_STORAGE_LOG_CAPACITY;
+    return App_Storage_Log_Slot_To_Address(slot);
+}
+
+static uint32_t App_Storage_Log_Sector_Base(uint32_t addr)
+{
+    uint32_t offset;
+
+    addr = App_Storage_Log_Normalize_Address(addr);
+    offset = addr - APP_STORAGE_LOG_START_ADDR;
+    return APP_STORAGE_LOG_START_ADDR +
+           (offset / W25Q_SECTOR_SIZE) * W25Q_SECTOR_SIZE;
+}
+
+static uint8_t App_Storage_Log_Is_Sector_Prepared(uint32_t sector_base)
+{
+    return (s_log_prepared_sectors[0] == sector_base ||
+            s_log_prepared_sectors[1] == sector_base) ? 1U : 0U;
+}
+
+static void App_Storage_Log_Mark_Sector_Prepared(uint32_t sector_base,
+                                                 uint32_t current_base)
+{
+    if (App_Storage_Log_Is_Sector_Prepared(sector_base) != 0U) return;
+    if (s_log_prepared_sectors[0] == APP_STORAGE_INVALID_ADDR) {
+        s_log_prepared_sectors[0] = sector_base;
+    } else if (s_log_prepared_sectors[1] == APP_STORAGE_INVALID_ADDR) {
+        s_log_prepared_sectors[1] = sector_base;
+    } else if (s_log_prepared_sectors[0] != current_base) {
+        s_log_prepared_sectors[0] = sector_base;
+    } else {
+        s_log_prepared_sectors[1] = sector_base;
+    }
+}
+
+static void App_Storage_Log_Unmark_Sector(uint32_t sector_base)
+{
+    if (s_log_prepared_sectors[0] == sector_base) {
+        s_log_prepared_sectors[0] = APP_STORAGE_INVALID_ADDR;
+    }
+    if (s_log_prepared_sectors[1] == sector_base) {
+        s_log_prepared_sectors[1] = APP_STORAGE_INVALID_ADDR;
+    }
+}
+
+static uint8_t App_Storage_Log_Is_Target_Erased(uint32_t addr)
+{
+    uint8_t bytes[BLACKBOX_ENTRY_SIZE];
+
+    memset(bytes, 0, sizeof(bytes));
+    if (W25Q_Driver_Read(addr, bytes, sizeof(bytes)) !=
+        W25Q_DRIVER_RESULT_OK) return 0U;
+    return App_Storage_Is_Erased(bytes, sizeof(bytes));
+}
+
+static uint8_t App_Storage_Verify_Log_Entry(
+    uint32_t addr, const App_Storage_Log_Entry *expected)
+{
+    App_Storage_Log_Entry actual;
+
+    memset(&actual, 0, sizeof(actual));
+    if (W25Q_Driver_Read(addr, (uint8_t *)&actual, sizeof(actual)) !=
+        W25Q_DRIVER_RESULT_OK) return 0U;
+    if (actual.crc8 != Checksum_CRC8((const uint8_t *)&actual, 11U)) return 0U;
+    return (memcmp(&actual, expected, sizeof(actual)) == 0) ? 1U : 0U;
+}
+
+/** @brief Pack physical values into one fixed 12-byte V2 record. */
 static void Blackbox_Pack(float v, float i, uint16_t freq, uint8_t state,
                           App_Storage_Log_Entry *out)
 {
@@ -302,36 +427,49 @@ static void Blackbox_Pack(float v, float i, uint16_t freq, uint8_t state,
 void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
 {
     uint32_t addr;
-    uint32_t pos_in_page;
+    uint32_t next_addr;
+    uint32_t sector_base;
+    uint32_t next_sector_base;
     App_Storage_Log_Entry entry;
+    W25Q_Driver_Result result;
 
     if (s_blackbox_v2_ready == 0U) return;
 
     Blackbox_Pack(v, i, freq, state, &entry);
-
-    addr = s_blackbox_metadata.write_addr;
-    pos_in_page = addr & (W25Q_PAGE_SIZE - 1U);
-    if (pos_in_page + BLACKBOX_ENTRY_SIZE > W25Q_PAGE_SIZE) {
-        addr = (addr & ~(W25Q_PAGE_SIZE - 1U)) + W25Q_PAGE_SIZE;
+    addr = App_Storage_Log_Normalize_Address(
+        s_blackbox_metadata.write_addr);
+    sector_base = App_Storage_Log_Sector_Base(addr);
+    if (App_Storage_Log_Is_Sector_Prepared(sector_base) == 0U ||
+        App_Storage_Log_Is_Target_Erased(addr) == 0U) {
+        s_blackbox_metadata.dropped_count++;
+        s_metadata_checkpoint_pending = 1U;
+        return;
     }
-    if (addr + BLACKBOX_ENTRY_SIZE > APP_STORAGE_FAULT_START_ADDR) {
-        addr = APP_STORAGE_LOG_START_ADDR;
-        s_blackbox_metadata.wrap_count++;
-    }
 
-    if (W25Q_Driver_Write(addr, (const uint8_t *)&entry,
-                          sizeof(entry)) == W25Q_DRIVER_RESULT_OK) {
-        s_blackbox_metadata.write_addr = addr + sizeof(entry);
-        s_blackbox_metadata.entry_count++;
+    result = W25Q_Driver_Write(addr, (const uint8_t *)&entry, sizeof(entry));
+    if (result == W25Q_DRIVER_RESULT_OK &&
+        App_Storage_Verify_Log_Entry(addr, &entry) != 0U) {
+        next_addr = App_Storage_Log_Advance_Address(addr);
+        next_sector_base = App_Storage_Log_Sector_Base(next_addr);
+        if (next_addr < addr) s_blackbox_metadata.wrap_count++;
+        s_blackbox_metadata.write_addr = next_addr;
+        if (s_blackbox_metadata.entry_count < APP_STORAGE_LOG_CAPACITY) {
+            s_blackbox_metadata.entry_count++;
+        }
+        if (next_sector_base != sector_base) {
+            App_Storage_Log_Unmark_Sector(sector_base);
+        }
         if ((uint32_t)(s_blackbox_metadata.entry_count -
                        s_metadata_saved_entry_count) >=
             APP_STORAGE_METADATA_INTERVAL) {
             s_metadata_checkpoint_pending = 1U;
         }
-    } else {
-        s_blackbox_metadata.dropped_count++;
-        s_metadata_checkpoint_pending = 1U;
+        return;
     }
+
+    s_blackbox_metadata.dropped_count++;
+    s_metadata_checkpoint_pending = 1U;
+    return;
 }
 
 void Blackbox_Lock_Fault_Snapshot(void)
@@ -358,11 +496,18 @@ uint32_t Blackbox_Get_Entry_Count(void)
 uint8_t Blackbox_Read_Entry(uint32_t index, App_Storage_Log_Entry *out)
 {
     uint32_t addr;
+    uint32_t write_slot;
+    uint32_t oldest_slot;
+    uint32_t target_slot;
 
     if (out == 0 || s_blackbox_v2_ready == 0U ||
         index >= s_blackbox_metadata.entry_count) return 0U;
-    addr = APP_STORAGE_LOG_START_ADDR + index * BLACKBOX_ENTRY_SIZE;
-    if (addr + sizeof(*out) > APP_STORAGE_FAULT_START_ADDR) return 0U;
+    write_slot = App_Storage_Log_Address_To_Slot(
+        App_Storage_Log_Normalize_Address(s_blackbox_metadata.write_addr));
+    oldest_slot = (write_slot + APP_STORAGE_LOG_CAPACITY -
+                   s_blackbox_metadata.entry_count) % APP_STORAGE_LOG_CAPACITY;
+    target_slot = (oldest_slot + index) % APP_STORAGE_LOG_CAPACITY;
+    addr = App_Storage_Log_Slot_To_Address(target_slot);
     if (W25Q_Driver_Read(addr, (uint8_t *)out, sizeof(*out)) !=
         W25Q_DRIVER_RESULT_OK) return 0U;
     return (out->crc8 == Checksum_CRC8((const uint8_t *)out, 11U)) ? 1U : 0U;
@@ -381,7 +526,8 @@ static uint8_t App_Storage_Is_Metadata_Valid(
         metadata->version != APP_STORAGE_BLACKBOX_VERSION ||
         metadata->size != sizeof(*metadata) ||
         metadata->write_addr < APP_STORAGE_LOG_START_ADDR ||
-        metadata->write_addr > APP_STORAGE_FAULT_START_ADDR ||
+        metadata->write_addr >= APP_STORAGE_FAULT_START_ADDR ||
+        metadata->entry_count > APP_STORAGE_LOG_CAPACITY ||
         metadata->next_fault_slot >= APP_STORAGE_FAULT_SLOT_COUNT) return 0U;
     crc = Checksum_CRC32((const uint8_t *)metadata,
                          sizeof(*metadata) - 4U);
@@ -515,6 +661,137 @@ static void App_Storage_Metadata_Task(void)
     }
 }
 
+static uint32_t App_Storage_Log_Count_Valid_In_Sector(uint32_t sector_base)
+{
+    uint32_t write_slot;
+    uint32_t oldest_slot;
+    uint32_t sector_slot;
+    uint32_t distance;
+    uint32_t i;
+    uint32_t count;
+
+    if (s_blackbox_metadata.entry_count == 0U) return 0U;
+    write_slot = App_Storage_Log_Address_To_Slot(
+        App_Storage_Log_Normalize_Address(s_blackbox_metadata.write_addr));
+    oldest_slot = (write_slot + APP_STORAGE_LOG_CAPACITY -
+                   s_blackbox_metadata.entry_count) % APP_STORAGE_LOG_CAPACITY;
+    sector_slot = App_Storage_Log_Address_To_Slot(sector_base);
+    count = 0U;
+    for (i = 0U; i < APP_STORAGE_LOG_ENTRIES_PER_SECTOR; i++) {
+        distance = ((sector_slot + i) + APP_STORAGE_LOG_CAPACITY -
+                    oldest_slot) % APP_STORAGE_LOG_CAPACITY;
+        if (distance < s_blackbox_metadata.entry_count) count++;
+    }
+    return count;
+}
+
+static uint8_t App_Storage_Log_Prepare_Sector(uint32_t sector_base,
+                                              uint32_t current_base)
+{
+    uint32_t valid_count;
+    uint32_t write_slot;
+    uint32_t oldest_slot;
+    uint32_t sector_slot;
+
+    valid_count = App_Storage_Log_Count_Valid_In_Sector(sector_base);
+    if (valid_count != 0U) {
+        write_slot = App_Storage_Log_Address_To_Slot(
+            App_Storage_Log_Normalize_Address(s_blackbox_metadata.write_addr));
+        oldest_slot = (write_slot + APP_STORAGE_LOG_CAPACITY -
+                       s_blackbox_metadata.entry_count) % APP_STORAGE_LOG_CAPACITY;
+        sector_slot = App_Storage_Log_Address_To_Slot(sector_base);
+        if (sector_slot != oldest_slot) return 0U;
+    }
+
+    if (W25Q_Driver_Erase_Sector(sector_base) != W25Q_DRIVER_RESULT_OK) {
+        return 0U;
+    }
+    if (valid_count > s_blackbox_metadata.entry_count) {
+        s_blackbox_metadata.entry_count = 0U;
+    } else {
+        s_blackbox_metadata.entry_count -= valid_count;
+    }
+    s_metadata_saved_entry_count = s_blackbox_metadata.entry_count;
+    s_metadata_checkpoint_pending = 1U;
+    App_Storage_Log_Mark_Sector_Prepared(sector_base, current_base);
+    return 1U;
+}
+
+static void App_Storage_Log_Maintenance_Task(void)
+{
+    uint32_t now;
+    uint32_t addr;
+    uint32_t current_base;
+    uint32_t next_base;
+    uint32_t offset;
+
+    if (s_blackbox_v2_ready == 0U ||
+        W25Q_Driver_Is_Available() == 0U) return;
+    now = Sys_Timer_Get_Tick();
+    if ((uint32_t)(now - s_log_maintenance_last) <
+        APP_STORAGE_LOG_MAINTENANCE_MS) return;
+    s_log_maintenance_last = now;
+
+    addr = App_Storage_Log_Normalize_Address(s_blackbox_metadata.write_addr);
+    s_blackbox_metadata.write_addr = addr;
+    current_base = App_Storage_Log_Sector_Base(addr);
+    offset = addr - current_base;
+
+    if (App_Storage_Log_Is_Sector_Prepared(current_base) == 0U) {
+        if (App_Storage_Log_Is_Target_Erased(addr) != 0U && offset != 0U) {
+            App_Storage_Log_Mark_Sector_Prepared(current_base, current_base);
+        } else if (offset != 0U) {
+            next_base = current_base + W25Q_SECTOR_SIZE;
+            if (next_base >= APP_STORAGE_FAULT_START_ADDR) {
+                next_base = APP_STORAGE_LOG_START_ADDR;
+            }
+            s_blackbox_metadata.write_addr = next_base;
+            s_blackbox_metadata.dropped_count++;
+            s_metadata_checkpoint_pending = 1U;
+            return;
+        } else {
+            (void)App_Storage_Log_Prepare_Sector(current_base, current_base);
+            return;
+        }
+    }
+
+    next_base = current_base + W25Q_SECTOR_SIZE;
+    if (next_base >= APP_STORAGE_FAULT_START_ADDR) {
+        next_base = APP_STORAGE_LOG_START_ADDR;
+    }
+    if (App_Storage_Log_Is_Sector_Prepared(next_base) == 0U) {
+        (void)App_Storage_Log_Prepare_Sector(next_base, current_base);
+    }
+}
+
+static void App_Storage_Recover_Log_Tail(void)
+{
+    App_Storage_Log_Entry entry;
+    uint32_t addr;
+    uint32_t next_addr;
+    uint32_t recovered;
+
+    recovered = 0U;
+    while (recovered < (APP_STORAGE_METADATA_INTERVAL - 1U)) {
+        addr = App_Storage_Log_Normalize_Address(
+            s_blackbox_metadata.write_addr);
+        memset(&entry, 0, sizeof(entry));
+        if (W25Q_Driver_Read(addr, (uint8_t *)&entry, sizeof(entry)) !=
+            W25Q_DRIVER_RESULT_OK) break;
+        if (App_Storage_Is_Erased((const uint8_t *)&entry,
+                                  sizeof(entry)) != 0U) break;
+        if (entry.crc8 != Checksum_CRC8((const uint8_t *)&entry, 11U)) break;
+        next_addr = App_Storage_Log_Advance_Address(addr);
+        if (next_addr < addr) s_blackbox_metadata.wrap_count++;
+        s_blackbox_metadata.write_addr = next_addr;
+        if (s_blackbox_metadata.entry_count < APP_STORAGE_LOG_CAPACITY) {
+            s_blackbox_metadata.entry_count++;
+        }
+        recovered++;
+    }
+    if (recovered != 0U) s_metadata_checkpoint_pending = 1U;
+}
+
 static void App_Storage_Reset_Blackbox_V2(void)
 {
     memset(&s_blackbox_metadata, 0, sizeof(s_blackbox_metadata));
@@ -531,6 +808,9 @@ static void App_Storage_Reset_Blackbox_V2(void)
     s_metadata_saved_entry_count = 0U;
     s_metadata_checkpoint_pending = 1U;
     s_metadata_attempted = 0U;
+    s_log_prepared_sectors[0] = APP_STORAGE_INVALID_ADDR;
+    s_log_prepared_sectors[1] = APP_STORAGE_INVALID_ADDR;
+    s_log_maintenance_last = 0U;
 }
 
 void App_Storage_Init(void)
@@ -566,5 +846,6 @@ void App_Storage_Init(void)
     if (s_blackbox_v2_ready != 0U) {
         s_metadata_saved_entry_count = s_blackbox_metadata.entry_count;
         s_metadata_checkpoint_pending = 0U;
+        App_Storage_Recover_Log_Tail();
     }
 }
