@@ -27,6 +27,7 @@
 
 #define ESP8266_DRIVER_RX_BUF_SIZE      256
 #define ESP8266_DRIVER_RX_RING_SIZE      3   /* 双帧缓冲: 防止 ESP 连续发送多条帧时丢弃后续帧 */
+#define ESP8266_DRIVER_TX_BUF_SIZE      256U
 #define ESP8266_DRIVER_CH_PD_PIN        GPIO_Pin_11
 #define ESP8266_DRIVER_CH_PD_PORT       GPIOB
 #define ESP8266_DRIVER_RST_PIN          GPIO_Pin_1
@@ -51,6 +52,10 @@ static volatile uint16_t s_rx_index = 0;
 static volatile uint8_t  s_rx_ring_wr = 0;  /* ISR 正在写入的槽位 */
 static volatile uint8_t  s_rx_ring_rd = 0;  /* 主循环下次读取的槽位 */
 static volatile uint8_t  s_rx_frame_count = 0;  /* 待消费帧数 (0..RING_SIZE) */
+static uint8_t s_tx_buf[ESP8266_DRIVER_TX_BUF_SIZE];
+static volatile uint16_t s_tx_head = 0U;
+static volatile uint16_t s_tx_tail = 0U;
+static volatile uint32_t s_tx_full_count = 0U;
 
 static Esp8266_Driver_Init_State s_init_state = ESP8266_DRIVER_INIT_IDLE;
 static uint32_t                  s_init_timer = 0;
@@ -107,6 +112,7 @@ static void Esp8266_Driver_Config_USART_Once(void)
     usart.USART_WordLength          = USART_WordLength_8b;
     USART_Init(USART2, &usart);
 
+    USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
     USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
     USART_Cmd(USART2, ENABLE);
 
@@ -138,6 +144,9 @@ void Esp8266_Driver_Start_Init(void)
         s_rx_ring_wr    = 0;
         s_rx_ring_rd    = 0;
         s_rx_frame_count = 0;
+        s_tx_head       = 0U;
+        s_tx_tail       = 0U;
+        USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
         __set_PRIMASK(primask);
     }
 
@@ -191,11 +200,74 @@ uint8_t Esp8266_Driver_Is_Ready(void)
     return (s_init_state == ESP8266_DRIVER_INIT_READY);
 }
 
-void Esp8266_Driver_Send_String(const char* str)
+Esp8266_Driver_Tx_Result Esp8266_Driver_Send_String(const char* str)
 {
-    while (*str) {
-        while (USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET);
-        USART_SendData(USART2, *str++);
+    uint16_t length;
+    uint16_t head;
+    uint16_t tail;
+    uint16_t used;
+    uint16_t free_count;
+    uint16_t i;
+    uint32_t primask;
+
+    if (str == 0) return ESP8266_DRIVER_TX_INVALID;
+    length = 0U;
+    while (str[length] != '\0') {
+        if (length >= (ESP8266_DRIVER_TX_BUF_SIZE - 1U)) {
+            return ESP8266_DRIVER_TX_INVALID;
+        }
+        length++;
+    }
+    if (length == 0U) return ESP8266_DRIVER_TX_INVALID;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    head = s_tx_head;
+    tail = s_tx_tail;
+    if (head >= tail) {
+        used = head - tail;
+    } else {
+        used = (uint16_t)(ESP8266_DRIVER_TX_BUF_SIZE - tail + head);
+    }
+    free_count = (uint16_t)(ESP8266_DRIVER_TX_BUF_SIZE - 1U - used);
+    if (length > free_count) {
+        s_tx_full_count++;
+        __set_PRIMASK(primask);
+        return ESP8266_DRIVER_TX_FULL;
+    }
+
+    for (i = 0U; i < length; i++) {
+        s_tx_buf[head] = (uint8_t)str[i];
+        head++;
+        if (head >= ESP8266_DRIVER_TX_BUF_SIZE) head = 0U;
+    }
+    s_tx_head = head;
+    USART_ITConfig(USART2, USART_IT_TXE, ENABLE);
+    __set_PRIMASK(primask);
+    return ESP8266_DRIVER_TX_OK;
+}
+
+uint32_t Esp8266_Driver_Get_Tx_Full_Count(void)
+{
+    return s_tx_full_count;
+}
+
+void Esp8266_Driver_Tx_Ready_ISR(void)
+{
+    uint16_t tail;
+
+    tail = s_tx_tail;
+    if (tail == s_tx_head) {
+        USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
+        return;
+    }
+
+    USART_SendData(USART2, s_tx_buf[tail]);
+    tail++;
+    if (tail >= ESP8266_DRIVER_TX_BUF_SIZE) tail = 0U;
+    s_tx_tail = tail;
+    if (tail == s_tx_head) {
+        USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
     }
 }
 

@@ -99,7 +99,10 @@ void App_Network_Manual_Disconnect(void)
     if (s_conn_state == APP_NETWORK_CONN_ONLINE
         || s_conn_state == APP_NETWORK_CONN_WIFI
         || s_conn_state == APP_NETWORK_CONN_MQTT) {
-        Esp8266_Driver_Send_String("CMD:WIFI_DISC\n");
+        if (Esp8266_Driver_Send_String("CMD:WIFI_DISC\n") !=
+            ESP8266_DRIVER_TX_OK) {
+            return;
+        }
     }
     /* 无论当前状态如何, 强制进入主动离线 */
     s_conn_state    = APP_NETWORK_CONN_OFFLINE_ACTIVE;
@@ -350,8 +353,12 @@ void App_Network_Task(void)
                             ? (unsigned long)Pwm_Driver_Get_Frequency()
                             : 0UL,
                          (int)Sys_Core_Get_State());  /* 临时原始状态值, 后续协议映射统一 */
-                if (written > 0 && (uint16_t)written < sizeof(json_buf))
-                    Esp8266_Driver_Send_String(json_buf);
+                if (written > 0 && (uint16_t)written < sizeof(json_buf)) {
+                    if (Esp8266_Driver_Send_String(json_buf) !=
+                        ESP8266_DRIVER_TX_OK) {
+                        last_telemetry -= APP_NETWORK_TELEMETRY_PERIOD_MS;
+                    }
+                }
             }
         }
     }

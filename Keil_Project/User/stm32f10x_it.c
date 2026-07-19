@@ -76,8 +76,8 @@ void DMA1_Channel1_IRQHandler(void)
 
 /**
   * @brief  USART2 接收中断 (ESP8266 数据通道)
-  * @note   先处理溢出错误 (ORE) 防止中断锁死, 再处理正常接收。
-  *         收到字节注入 ESP8266_RxChar(), 由该函数负责帧拼接和缓冲区管理。
+  * @note   先 RXNE 保留有效字节，再清 ORE，最后处理 TXE 单字节发送。
+  *         接收字节由 ESP8266 驱动负责帧拼接和缓冲区管理。
   */
 void USART2_IRQHandler(void)
 {
@@ -94,6 +94,11 @@ void USART2_IRQHandler(void)
     if (USART_GetFlagStatus(USART2, USART_FLAG_ORE) != RESET)
     {
         USART_ReceiveData(USART2);  /* 哑读清除 ORE */
+    }
+
+    if (USART_GetITStatus(USART2, USART_IT_TXE) != RESET)
+    {
+        Esp8266_Driver_Tx_Ready_ISR();
     }
 }
 

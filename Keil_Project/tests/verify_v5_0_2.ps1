@@ -4,7 +4,7 @@ param(
                  'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
                  'Storage', 'StorageConfig', 'Blackbox', 'BlackboxJournal',
                   'BlackboxLifecycle', 'BlackboxSnapshot',
-                  'Keys', 'KeyRouting', 'Ui', 'UiPerf', 'Network', 'Scheduler',
+                  'Keys', 'KeyRouting', 'Ui', 'UiPerf', 'UartTx', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -205,6 +205,8 @@ $pwmC = Read-ProjectText 'Keil_Project\Hardware\Pwm_Driver.c'
 $adcC = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.c'
 $adcH = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.h'
 $irqC = Read-ProjectText 'Keil_Project\User\stm32f10x_it.c'
+$espC = Read-ProjectText 'Keil_Project\Hardware\Esp8266_Driver.c'
+$espH = Read-ProjectText 'Keil_Project\Hardware\Esp8266_Driver.h'
 $keyC = Read-ProjectText 'Keil_Project\Hardware\Key_Driver.c'
 $keyH = Read-ProjectText 'Keil_Project\Hardware\Key_Driver.h'
 $sysCoreC = Read-ProjectText 'Keil_Project\User\Sys_Core.c'
@@ -641,6 +643,38 @@ Write-Check 'UiPerf' 'UI retries failed full and incremental draw cycles' `
     (($uiC -match 'Tft_Driver_Begin_Draw_Cycle\s*\(\s*\)') -and
      ($uiC -match 'if\s*\(\s*!Tft_Driver_Is_Draw_Blocked\s*\(\s*\)\s*\)[\s\S]{0,250}s_page_drawn\s*=\s*1') -and
      ($uiC -match 'Tft_Driver_Is_Draw_Blocked\s*\(\s*\)[\s\S]{0,100}s_page_drawn\s*=\s*0'))
+
+$usartIrqStart = $irqC.IndexOf('void USART2_IRQHandler')
+$usartIrqEnd = $irqC.IndexOf('/*******************', $usartIrqStart)
+$usartIrq = $irqC.Substring($usartIrqStart, $usartIrqEnd - $usartIrqStart)
+$rxnePos = $usartIrq.IndexOf('USART_IT_RXNE')
+$orePos = $usartIrq.IndexOf('USART_FLAG_ORE')
+$txePos = $usartIrq.IndexOf('USART_IT_TXE')
+Write-Check 'UartTx' 'USART2 TX uses a fixed 256-byte ring' `
+    (($espC -match 'ESP8266_DRIVER_TX_BUF_SIZE\s+256U?') -and
+     ($espC -match 's_tx_buf\s*\[\s*ESP8266_DRIVER_TX_BUF_SIZE\s*\]') -and
+     ($espC -match 'volatile\s+uint16_t\s+s_tx_head') -and
+     ($espC -match 'volatile\s+uint16_t\s+s_tx_tail'))
+Write-Check 'UartTx' 'send API returns OK FULL or INVALID without TXE polling' `
+    (($espH -match 'ESP8266_DRIVER_TX_OK') -and
+     ($espH -match 'ESP8266_DRIVER_TX_FULL') -and
+     ($espH -match 'ESP8266_DRIVER_TX_INVALID') -and
+     ($espH -match 'Esp8266_Driver_Tx_Result\s+Esp8266_Driver_Send_String') -and
+     ($espC -notmatch 'while\s*\(\s*USART_GetFlagStatus\s*\(\s*USART2\s*,\s*USART_FLAG_TXE'))
+Write-Check 'UartTx' 'enqueue is atomic and enables TXE interrupt' `
+    (($espC -match 'Esp8266_Driver_Send_String[\s\S]{0,1800}__disable_irq\s*\(') -and
+     ($espC -match 'Esp8266_Driver_Send_String[\s\S]{0,2200}USART_ITConfig\s*\(\s*USART2\s*,\s*USART_IT_TXE\s*,\s*ENABLE\s*\)') -and
+     ($espC -match 'Esp8266_Driver_Send_String[\s\S]{0,2300}__set_PRIMASK\s*\('))
+Write-Check 'UartTx' 'TXE ISR sends one byte and disables itself when empty' `
+    (($espH -match 'Esp8266_Driver_Tx_Ready_ISR\s*\(') -and
+     ($espC -match 'Esp8266_Driver_Tx_Ready_ISR[\s\S]{0,800}USART_SendData\s*\(') -and
+     ($espC -match 'Esp8266_Driver_Tx_Ready_ISR[\s\S]{0,1000}USART_ITConfig\s*\(\s*USART2\s*,\s*USART_IT_TXE\s*,\s*DISABLE\s*\)'))
+Write-Check 'UartTx' 'USART2 interrupt preserves RXNE ORE TXE priority' `
+    (($rxnePos -ge 0) -and ($orePos -gt $rxnePos) -and ($txePos -gt $orePos) -and
+     ($irqC -match 'Esp8266_Driver_Tx_Ready_ISR\s*\('))
+Write-Check 'UartTx' 'network and UI inspect enqueue results' `
+    (($networkC -match 'Esp8266_Driver_Send_String\s*\([^;]+\)\s*!=\s*ESP8266_DRIVER_TX_OK') -and
+     ($uiC -match 'Esp8266_Driver_Send_String\s*\([^;]+\)\s*!=\s*ESP8266_DRIVER_TX_OK'))
 
 $directStart = ($uiC -match 'Inverter_Control_Soft_Start_Trigger\s*\(') -or
                ($networkC -match 'Inverter_Control_Soft_Start_Trigger\s*\(')

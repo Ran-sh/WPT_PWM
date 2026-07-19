@@ -1519,7 +1519,10 @@ static void Handle_Keys_by_Page(Ui_Page page,
         k4 == KEY_DRIVER_EVENT_LONG_PRESS) {
         if (Sys_Core_Get_State() == SYS_STATE_IDLE &&
             Pwm_Driver_Is_Enabled() == 0U) {
-            Esp8266_Driver_Send_String("CMD:CLEAR\n");
+            if (Esp8266_Driver_Send_String("CMD:CLEAR\n") !=
+                ESP8266_DRIVER_TX_OK) {
+                return;
+            }
         }
         return;
     }

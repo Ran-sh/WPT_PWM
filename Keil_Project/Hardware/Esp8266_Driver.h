@@ -12,14 +12,23 @@
 
 #include "stm32f10x.h"
 
+typedef enum {
+    ESP8266_DRIVER_TX_OK = 0,
+    ESP8266_DRIVER_TX_FULL,
+    ESP8266_DRIVER_TX_INVALID
+} Esp8266_Driver_Tx_Result;
+
 /** @brief 启动 ESP8266 硬件初始化序列 (非阻塞, 复位脉冲+等待启动) */
 void        Esp8266_Driver_Start_Init(void);
 /** @brief 周期驱动 ESP8266 初始化状态机 (主循环调用) */
 void        Esp8266_Driver_Init_Task(void);
-/** @brief 发送字符串到 ESP8266 (阻塞式 TXE 轮询)
+/** @brief 将字符串原子加入 USART2 中断发送队列
  *  @param str 以 \0 结尾的字符串
+ *  @return OK=已完整入队, FULL=空间不足, INVALID=参数无效
  */
-void        Esp8266_Driver_Send_String(const char* str);
+Esp8266_Driver_Tx_Result Esp8266_Driver_Send_String(const char* str);
+/** @brief 获取发送队列累计满次数，供诊断使用 */
+uint32_t    Esp8266_Driver_Get_Tx_Full_Count(void);
 /** @brief 获取接收帧完成标志 (非阻塞)
  *  @return 1=有新帧, 0=无
  */
@@ -45,5 +54,7 @@ uint8_t     Esp8266_Driver_Is_Ready(void);
 
 /* 串口字符接收 (仅供 USART2_IRQHandler 调用, 不对外) */
 void Esp8266_Driver_Rx_Char(uint8_t ch);
+/** @brief USART2 TXE 中断单字节发送入口 */
+void Esp8266_Driver_Tx_Ready_ISR(void);
 
 #endif /* ESP8266_DRIVER_H */
