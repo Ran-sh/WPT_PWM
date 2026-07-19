@@ -205,6 +205,9 @@ $networkC = Read-ProjectText 'Keil_Project\User\App_Network.c'
 $mainC = Read-ProjectText 'Keil_Project\User\main.c'
 $projectText = Read-ProjectText 'Keil_Project\Project.uvprojx'
 
+Write-Check 'Build' 'Keil does not rewrite environment-specific batch files' `
+    ($projectText -match '<CreateBatchFile>0</CreateBatchFile>')
+
 $checksumCPath = Join-Path $keilRoot 'System\Checksum.c'
 $checksumHPath = Join-Path $keilRoot 'System\Checksum.h'
 $checksumC = Read-ProjectText 'Keil_Project\System\Checksum.c'

@@ -102,6 +102,7 @@ void Pwm_Driver_Disable(void) { TIM_CtrlPWMOutputs(TIM1, DISABLE); TIM_Cmd(TIM1,
 
 uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz)
 {
+    uint32_t primask;
     uint32_t ticks;
 
     if (freq_hz < PWM_DRIVER_FREQ_MIN_HZ) freq_hz = PWM_DRIVER_FREQ_MIN_HZ;
@@ -112,13 +113,17 @@ uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz)
     if (ticks < 2)  ticks = 2;
     if (ticks > 65536) ticks = 65536;
 
-    /* 原子更新: UDIS 禁止影子寄存器刷新 → 写 ARR+CCR → UG 软件触发一次性加载 → 清 UDIS 恢复。确保新频率的 ARR 和 CCR 同步生效, 防止周期中裁剪导致输出毛刺 */
+    /* 临界区内只写寄存器，避免中断观察到半更新状态。先恢复更新事件，
+     * 再触发UG，确保ARR/CCR在同一边界装载且UG不会被UDIS屏蔽。 */
+    primask = __get_PRIMASK();
+    __disable_irq();
     TIM1->CR1 |= TIM_CR1_UDIS;
     TIM1->ARR = (uint16_t)(ticks - 1);
     TIM1->CCR1 = (uint16_t)(ticks / 2);
     TIM1->CCR2 = (uint16_t)(ticks / 2);
-    TIM1->EGR  = TIM_EGR_UG;
     TIM1->CR1 &= ~TIM_CR1_UDIS;
+    TIM1->EGR  = TIM_EGR_UG;
+    __set_PRIMASK(primask);
 
     return SystemCoreClock / ticks;
 }
@@ -128,4 +133,14 @@ uint32_t Pwm_Driver_Get_Frequency(void)
     uint32_t arr = TIM1->ARR;
     if (arr == 0) return PWM_DRIVER_FREQ_MIN_HZ;
     return SystemCoreClock / (arr + 1);
+}
+
+uint8_t Pwm_Driver_Is_Enabled(void)
+{
+    uint8_t counter_enabled;
+    uint8_t output_enabled;
+
+    counter_enabled = ((TIM1->CR1 & TIM_CR1_CEN) != 0U) ? 1U : 0U;
+    output_enabled = ((TIM1->BDTR & TIM_BDTR_MOE) != 0U) ? 1U : 0U;
+    return (counter_enabled != 0U && output_enabled != 0U) ? 1U : 0U;
 }

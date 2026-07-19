@@ -29,5 +29,9 @@ void     Pwm_Driver_Disable(void);
 uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz);
 /** @brief 获取当前 PWM 频率 (Hz) */
 uint32_t Pwm_Driver_Get_Frequency(void);
+/** @brief 读取TIM1计数器和主输出的实际使能状态
+ *  @retval 1=计数器与MOE均开启, 0=至少一项关闭
+ */
+uint8_t  Pwm_Driver_Is_Enabled(void);
 
 #endif /* PWM_DRIVER_H */
