@@ -1,317 +1,330 @@
 /**
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.c
- * @brief   W25Q128 16MB SPI NOR Flash — SPI1 分时复用驱动 (V5.0.1)
- *
- *  Pinout (shares SPI1 with TFT, PA6 dynamic swap):
- *  +------------------------------------------------------------+
- *  |    STM32F103C8T6               W25Q128 (16MB SPI NOR Flash  |
- *  |                                                             |
- *  |    PA5  --- SPI1_SCK ------------------> CLK  (shared w/ T  |
- *  |    PA7  --- SPI1_MOSI ------------------> DI   (shared w/   |
- *  |    PA6  --- SPI1_MISO <------------------ DO   (dynamic sw  |
- *  |    PB12 --- GPIO_PP --------------------> /CS  (GPIO gated  |
- *  |              BSRR atomic toggle, glitch-free                |
- *  |                                                             |
- *  |    Partition layout (16MB, 0x000000 ~ 0xFFFFFF):            |
- *  |      [0x000000~0x1FFFFF] Font lib (2MB)  <- CH341A burn     |
- *  |      [0x200000~0x2FFFFF] Font reserve (1MB)                 |
- *  |      [0x300000~0x301FFF] Params dual-copy (8KB)             |
- *  |      [0x400000~0x7FFFFF] Blackbox log (4MB)                 |
- *  |      [0x800000~0xFFFFFF] Unused (8MB)                       |
- *  |                                                             |
- *  |    CS toggle rule: CS high+low before EVERY CMD_READ,       |
- *  |      else Flash command decoder ignores second read         |
- *  |                                                             |
- *  |    Four hardware deadlock guards:                           |
- *  |      L1: Write enable (0x06) cascaded + CS edge latch       |
- *  |      L2: Busy bit (SR1 BIT0) blocking wait with bounds      |
- *  |      L3: DFF (SPI1 CR1 bit11) atomic 8b<->16b no-glitch     |
- *  |      L4: Wave-active (SWEEP/RUNNING) global erase ban (45m  |
- *  +------------------------------------------------------------+
- *
- * @note    ARMCC V5 SPL, pure C89, no // comments
+ * @brief   W25Q128 bounded SPI NOR Flash implementation - V5.0.2
+ * @note    All bus failures release both chip selects and restore TFT PA6 mode.
  ******************************************************************************
  */
 
 #include "W25Q_Driver.h"
-#include "Sys_Core.h"       /* Sys_Core_Get_State */
-#include "Sys_Timer.h"      /* Sys_Timer_Get_Tick */
-#include "Checksum.h"
+#include "Spi1_Shared.h"
+#include "Sys_Timer.h"
 
-/* ═══════════════════════════════════════════════
- *  引脚宏 (行内高聚合)
- * ═══════════════════════════════════════════════ */
-#define FLASH_CS_PIN    GPIO_Pin_12
-#define FLASH_CS_PORT   GPIOB
-#define FLASH_CS_LOW()  GPIO_ResetBits(FLASH_CS_PORT, FLASH_CS_PIN)
-#define FLASH_CS_HIGH() GPIO_SetBits(FLASH_CS_PORT, FLASH_CS_PIN)
+#define W25Q_CMD_WREN               0x06U
+#define W25Q_CMD_RDSR1              0x05U
+#define W25Q_CMD_READ               0x03U
+#define W25Q_CMD_PAGE_PROGRAM       0x02U
+#define W25Q_CMD_SECTOR_ERASE       0x20U
+#define W25Q_CMD_JEDEC              0x9FU
 
-/* ── W25Q128 指令集 ── */
-#define CMD_WREN         0x06U
-#define CMD_WRDI         0x04U
-#define CMD_RDSR1        0x05U
-#define CMD_READ         0x03U
-#define CMD_PP           0x02U
-#define CMD_SE           0x20U
-#define CMD_JEDEC        0x9FU
+#define W25Q_BUSY_BIT               0x01U
+#define W25Q_SPI_TIMEOUT_MS         5U
+#define W25Q_PROGRAM_TIMEOUT_MS     10U
+#define W25Q_ERASE_TIMEOUT_MS       500U
 
-#define BUSY_BIT         0x01U
-#define BUSY_TIMEOUT_MS  100U
+static uint8_t s_w25q_chip_ok = 0U;
+static uint8_t s_w25q_erase_allowed = 0U;
+static W25Q_Driver_Result s_w25q_last_result = W25Q_DRIVER_RESULT_NO_DEVICE;
 
-/* ── 静态状态 ── */
-static uint8_t s_chip_ok = 0;
-uint32_t g_w25q_jedec_id = 0;  /* 诊断: 上电读到的 JEDEC ID 原始值 */
+uint32_t g_w25q_jedec_id = 0U;
 
-/* ═══════════════════════════════════════════════
- *  PA6 角色切换 (内联, 直接寄存器操作)
- * ═══════════════════════════════════════════════ */
-
-/** @brief CS 脉冲: H→L, 确保 ≥50ns (W25Q128 t_SLCH≥50ns) */
-static void Flash_CS_Pulse(void)
+static W25Q_Driver_Result W25Q_Driver_Set_Result(W25Q_Driver_Result result)
 {
-    FLASH_CS_HIGH();
-    FLASH_CS_LOW();
+    s_w25q_last_result = result;
+    return result;
 }
 
-/** @brief PA6 → Input floating (Flash MISO), CS 拉低 → 门控闭合 */
-void W25Q_Enter_Mode(void)
+static W25Q_Driver_Result W25Q_Driver_Check_Range(uint32_t addr,
+                                                  uint32_t len)
 {
-    GPIOA->CRL &= ~(0x0FU << 24); GPIOA->CRL |= (0x04U << 24); /* PA6=Input floating */
-    FLASH_CS_LOW();                                              /* 门控: 选中 Flash */
+    if (len == 0U) {
+        return W25Q_DRIVER_RESULT_INVALID_ARGUMENT;
+    }
+    if (addr >= W25Q_CHIP_SIZE || len > (W25Q_CHIP_SIZE - addr)) {
+        return W25Q_DRIVER_RESULT_OUT_OF_RANGE;
+    }
+    return W25Q_DRIVER_RESULT_OK;
 }
 
-/** @brief CS 拉高 → 门控释放, PA6 → GPIO_Out_PP (恢复 TFT DC 角色)
- *  @note  先置 ODR HIGH (TFT DC=DATA), 再切方向, 防切向瞬间低电平毛刺导致 TFT 误收命令 */
-void W25Q_Leave_Mode(void)
+static W25Q_Driver_Result W25Q_Driver_Begin_Transaction(void)
 {
-    FLASH_CS_HIGH();                                             /* 门控: 释放 Flash */
-    GPIOA->BSRR = GPIO_Pin_6;                                    /* PA6 ODR 预置高 (DC=DATA) */
-    GPIOA->CRL &= ~(0x0FU << 24); GPIOA->CRL |= (0x03U << 24); /* PA6=50MHz PP Out */
+    if (Spi1_Shared_Acquire(SPI1_SHARED_MODE_FLASH_8,
+                            W25Q_SPI_TIMEOUT_MS) != SPI1_SHARED_RESULT_OK) {
+        Spi1_Shared_Force_Release();
+        return W25Q_DRIVER_RESULT_SPI_TIMEOUT;
+    }
+    if (Spi1_Shared_Select_Flash(1U) != SPI1_SHARED_RESULT_OK) {
+        Spi1_Shared_Force_Release();
+        return W25Q_DRIVER_RESULT_SPI_TIMEOUT;
+    }
+    return W25Q_DRIVER_RESULT_OK;
 }
 
-/* ═══════════════════════════════════════════════
- *  SPI1 基础 8位 收发
- * ═══════════════════════════════════════════════ */
-
-uint8_t W25Q_SPI_Transfer(uint8_t tx)
+static W25Q_Driver_Result W25Q_Driver_End_Transaction(void)
 {
-    SPI_I2S_SendData(SPI1, tx);
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) == RESET);
-    return (uint8_t)SPI_I2S_ReceiveData(SPI1);
+    if (Spi1_Shared_Release() != SPI1_SHARED_RESULT_OK) {
+        Spi1_Shared_Force_Release();
+        return W25Q_DRIVER_RESULT_SPI_TIMEOUT;
+    }
+    return W25Q_DRIVER_RESULT_OK;
 }
 
-/* ═══════════════════════════════════════════════
- *  L3: SPI1 DFF 原子闪切 (必须定义在 Wait_Busy_Timeout 之前)
- * ═══════════════════════════════════════════════ */
-
-/** @brief SPI1 → 8位帧 */
-void W25Q_SPI_8bit(void)
+static W25Q_Driver_Result W25Q_Driver_Transfer(uint8_t tx, uint8_t *rx)
 {
-    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 &= ~SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE); /* 原子清 DFF */
+    if (Spi1_Shared_Transfer8(tx, rx, W25Q_SPI_TIMEOUT_MS) !=
+        SPI1_SHARED_RESULT_OK) {
+        Spi1_Shared_Force_Release();
+        return W25Q_DRIVER_RESULT_SPI_TIMEOUT;
+    }
+    return W25Q_DRIVER_RESULT_OK;
 }
 
-#ifdef W25Q_DRIVER_USE_16BIT_MODE
-static void W25Q_SPI_16bit(void)
+static W25Q_Driver_Result W25Q_Driver_Send_Address(uint32_t addr)
 {
-    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 |= SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE);
+    W25Q_Driver_Result result;
+
+    result = W25Q_Driver_Transfer((uint8_t)(addr >> 16), 0);
+    if (result != W25Q_DRIVER_RESULT_OK) return result;
+    result = W25Q_Driver_Transfer((uint8_t)(addr >> 8), 0);
+    if (result != W25Q_DRIVER_RESULT_OK) return result;
+    return W25Q_Driver_Transfer((uint8_t)addr, 0);
 }
-#endif
 
-/* ═══════════════════════════════════════════════
- *  L2: Busy 阻塞死等 (高聚合, 上/下边界强制调用)
- * ═══════════════════════════════════════════════ */
-
-/** @brief 死等 W25Q128 Busy 位清零 (SR1 BIT0), 超时护底
- *  @note  任何读/写/擦除的 if-else 进入和退出边界必须调用 */
-void W25Q_Wait_Busy_Timeout(void)
+static W25Q_Driver_Result W25Q_Driver_Write_Enable(void)
 {
-    uint32_t deadline; uint8_t sr1;
-    deadline = Sys_Timer_Get_Tick() + BUSY_TIMEOUT_MS;   /* 超时护底 */
-    W25Q_SPI_8bit();                                     /* 原子切8bit */
-    W25Q_Enter_Mode();                                   /* PA6→MISO, CS=L, 防对灌短路 */
+    W25Q_Driver_Result result;
+
+    result = W25Q_Driver_Begin_Transaction();
+    if (result != W25Q_DRIVER_RESULT_OK) return result;
+    result = W25Q_Driver_Transfer(W25Q_CMD_WREN, 0);
+    if (result != W25Q_DRIVER_RESULT_OK) return result;
+    return W25Q_Driver_End_Transaction();
+}
+
+static W25Q_Driver_Result W25Q_Driver_Wait_Busy(uint32_t timeout_ms)
+{
+    uint32_t start;
+    uint8_t sr1;
+    W25Q_Driver_Result result;
+
+    start = Sys_Timer_Get_Tick();
     do {
-        W25Q_SPI_Transfer(CMD_RDSR1);                    /* 0x05 读 SR1 */
-        sr1 = W25Q_SPI_Transfer(0xFF);                   /* 收 SR1 */
-        Flash_CS_Pulse();                                 /* CS 脉冲 ≥56ns */
-        if ((sr1 & BUSY_BIT) == 0) break;                /* Busy=0 释放 */
-    } while (deadline - Sys_Timer_Get_Tick() < 0x80000000U); /* uint32 回绕安全 */
-    W25Q_Leave_Mode();                                   /* CS=H, PA6→DC, 归还总线 */
+        result = W25Q_Driver_Read_SR1(&sr1);
+        if (result != W25Q_DRIVER_RESULT_OK) return result;
+        if ((sr1 & W25Q_BUSY_BIT) == 0U) return W25Q_DRIVER_RESULT_OK;
+    } while ((uint32_t)(Sys_Timer_Get_Tick() - start) < timeout_ms);
+
+    Spi1_Shared_Force_Release();
+    return W25Q_DRIVER_RESULT_BUSY_TIMEOUT;
 }
 
-/* ═══════════════════════════════════════════════
- *  L1: 写使能 (0x06) 强制级联 + CS 边沿锁存
- * ═══════════════════════════════════════════════ */
-
-static void W25Q_Write_Enable(void)
+W25Q_Driver_Result W25Q_Driver_Init(void)
 {
-    W25Q_SPI_8bit();  /* 防御: 确保 8-bit 模式 (TFT DMA 可能留下 16-bit) */
-    FLASH_CS_LOW(); W25Q_SPI_Transfer(CMD_WREN); FLASH_CS_HIGH(); /* 0x06 锁存 */
-}
-
-/* ═══════════════════════════════════════════════
- *  公开接口实现
- * ═══════════════════════════════════════════════ */
-
-void W25Q_Driver_Init(void)
-{
-    GPIO_InitTypeDef cfg;
     uint8_t retry;
+    uint32_t id;
+    W25Q_Driver_Result result;
 
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    s_w25q_chip_ok = 0U;
+    s_w25q_erase_allowed = 0U;
+    g_w25q_jedec_id = 0U;
 
-    cfg.GPIO_Pin   = FLASH_CS_PIN; cfg.GPIO_Mode = GPIO_Mode_Out_PP;
-    cfg.GPIO_Speed = GPIO_Speed_50MHz; GPIO_Init(FLASH_CS_PORT, &cfg);
-    FLASH_CS_HIGH();                                     /* 初始不选中 */
-
-    /* 上电诊断: 最多重试 3 次 JEDEC ID, 间隔 1ms (Flash 唤醒余量) */
-    s_chip_ok = 0;
-    for (retry = 0; retry < 3; retry++) {
-        if (retry > 0) Sys_Timer_Delay_Ms(1);
-        g_w25q_jedec_id = W25Q_Driver_Read_JEDEC_ID();
-        if (g_w25q_jedec_id == W25Q_JEDEC_ID) {
-            s_chip_ok = 1; return;
+    for (retry = 0U; retry < 3U; retry++) {
+        if (retry != 0U) Sys_Timer_Delay_Ms(1U);
+        result = W25Q_Driver_Read_JEDEC_ID(&id);
+        if (result == W25Q_DRIVER_RESULT_OK) {
+            g_w25q_jedec_id = id;
+            if (id == W25Q_JEDEC_ID) {
+                s_w25q_chip_ok = 1U;
+                return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_OK);
+            }
         }
     }
+
+    g_w25q_jedec_id = 0U;
+    return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_NO_DEVICE);
 }
 
-uint32_t W25Q_Driver_Read_JEDEC_ID(void)
+W25Q_Driver_Result W25Q_Driver_Read_JEDEC_ID(uint32_t *jedec_id)
 {
-    uint32_t id; uint8_t b0, b1, b2;
-    W25Q_SPI_8bit(); W25Q_Enter_Mode();
-    Flash_CS_Pulse();
-    W25Q_SPI_Transfer(CMD_JEDEC);
-    b0 = W25Q_SPI_Transfer(0xFF);
-    b1 = W25Q_SPI_Transfer(0xFF);
-    b2 = W25Q_SPI_Transfer(0xFF);
-    W25Q_Leave_Mode();
-    id = ((uint32_t)b0 << 16) | ((uint32_t)b1 << 8) | b2;
-    return id;
-}
+    uint8_t b0;
+    uint8_t b1;
+    uint8_t b2;
+    W25Q_Driver_Result result;
 
-uint8_t W25Q_Driver_Read_SR1(void)
-{
-    uint8_t sr1;
-    W25Q_SPI_8bit(); W25Q_Enter_Mode();
-    W25Q_SPI_Transfer(CMD_RDSR1);
-    sr1 = W25Q_SPI_Transfer(0xFF);
-    W25Q_Leave_Mode();
-    return sr1;
-}
-
-void W25Q_Driver_Read(uint32_t addr, uint8_t *buf, uint16_t len)
-{
-    if (!s_chip_ok || buf == 0 || len == 0) return;
-
-    NVIC_DisableIRQ(USART2_IRQn);                         /* 临界区: 防 ISR 延迟致 SPI OVR */
-    W25Q_SPI_8bit(); W25Q_Enter_Mode();                  /* L3: 8bit + PA6→MISO, CS=L */
-    Flash_CS_Pulse();                                     /* ≥56ns: 重置 Flash 命令解码器 */
-    W25Q_SPI_Transfer(CMD_READ);
-    W25Q_SPI_Transfer((uint8_t)(addr >> 16));
-    W25Q_SPI_Transfer((uint8_t)(addr >> 8));
-    W25Q_SPI_Transfer((uint8_t)(addr));
-    while (len--) *buf++ = W25Q_SPI_Transfer(0xFF);
-    W25Q_Leave_Mode();                                   /* CS=H, PA6→DC */
-    NVIC_EnableIRQ(USART2_IRQn);                          /* 退出临界区 */
-}
-
-void W25Q_Driver_Write_Page(uint32_t addr, const uint8_t *buf, uint16_t len)
-{
-    if (!s_chip_ok || buf == 0 || len == 0 || len > W25Q_PAGE_SIZE) return;
-
-    W25Q_Wait_Busy_Timeout(); W25Q_Write_Enable();       /* L2 + L1: 死等+写使能 */  W25Q_SPI_8bit();
-    W25Q_Enter_Mode();                                   /* PA6→MISO, CS=L */
-    W25Q_SPI_Transfer(CMD_PP);
-    W25Q_SPI_Transfer((uint8_t)(addr >> 16));
-    W25Q_SPI_Transfer((uint8_t)(addr >> 8));
-    W25Q_SPI_Transfer((uint8_t)(addr));
-    while (len--) W25Q_SPI_Transfer(*buf++);             /* 泵入页数据 */
-    W25Q_Leave_Mode(); W25Q_Wait_Busy_Timeout();         /* L2: 退出边界 ~3ms */
-}
-
-void W25Q_Driver_Erase_Sector(uint32_t addr)
-{
-    Sys_State state;
-
-    /* ══ L4: 发波态绝对禁擦 ══ */
-    state = Sys_Core_Get_State();
-    if (state == SYS_STATE_SWEEP || state == SYS_STATE_RUNNING) return;
-    if (!s_chip_ok) return;
-
-    W25Q_Wait_Busy_Timeout(); W25Q_Write_Enable();       /* L2 + L1 */
-    W25Q_SPI_8bit(); W25Q_Enter_Mode();                  /* L3 + PA6→MISO */
-    W25Q_SPI_Transfer(CMD_SE);
-    W25Q_SPI_Transfer((uint8_t)(addr >> 16));
-    W25Q_SPI_Transfer((uint8_t)(addr >> 8));
-    W25Q_SPI_Transfer((uint8_t)(addr));
-    W25Q_Leave_Mode(); W25Q_Wait_Busy_Timeout();         /* L2: 退出边界 ~45ms */
-}
-
-/* ═══════════════════════════════════════════════
- *  Font_Header_Load — 上电校验字库头部
- * ═══════════════════════════════════════════════ */
-
-/** @brief 加载并 CRC32 校验 Font Header, 返回 1=有效 */
-uint8_t Font_Header_Load(Font_Header *hdr)
-{
-    uint32_t crc_stored; uint32_t crc_computed;
-    if (!s_chip_ok || hdr == 0) return 0;
-    W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)hdr, sizeof(Font_Header));
-    if (hdr->magic != FONT_MAGIC) return 0;
-    crc_stored = hdr->crc32; hdr->crc32 = 0;                    /* 临时清零用于计算 */
-    crc_computed = Checksum_CRC32((uint8_t*)hdr + 0x0C, 20);    /* 0x0C→0x1F */
-    hdr->crc32 = crc_stored;
-    return (crc_stored == crc_computed) ? 1 : 0;
-}
-
-/* ═══════════════════════════════════════════════
- *  Font_Index_Binary_Search — 总线独占 二分检索
- *  V4.3.2 FIX: uint16_t→uint32_t, 修复高位 offset 截断
- * ═══════════════════════════════════════════════ */
-
-/** @brief  总线独占二分搜索 CJK Index (20902 条 Unicode 升序)
- *  @note   Index 条目: [U16 LE 2B][Offset U32 LE 4B] = 6B/条
- *          V4.3.2 FIX: 循环内 CS 翻转 (W25Q128 要求每次 CMD_READ 前 CS↑→CS↓ 重置解码器)
- *          CS 脉冲期间 PA6 保持 MISO 角色 (仅切 CS 线, 不重配 GPIO)
- *          Entry+Exit 各一次 Leave_Mode, 中途不归还总线
- *  @retval U32 offset 相对 CJK_Data_BASE, 0xFFFFFFFF=未找到 */
-uint32_t W25Q_Font_Index_Binary_Search(uint16_t unicode, const Font_Header *hdr)
-{
-    uint16_t lo, hi, mid, mid_uc; uint32_t addr, found_off;
-    if (!s_chip_ok || hdr == 0) return 0xFFFFFFFFUL;
-    NVIC_DisableIRQ(USART2_IRQn);                                 /* 临界区: 最长 Flash 操作 ~100µs */
-    W25Q_SPI_8bit();                                             /* 原子切8bit — CS HIGH 时完成, 防 SCK 毛刺 */
-    W25Q_Enter_Mode();                                           /* PA6→MISO, CS=L */
-    lo = 0; hi = hdr->cjk_index_count;                           /* hi=20902 */
-    while (lo < hi) {
-        mid = (lo + hi) >> 1;                                    /* 折半 → 无溢出 uint16 */
-        addr = hdr->cjk_index_offset + (uint32_t)mid * 6U;       /* 条大小=6B [U16][U32] */
-        Flash_CS_Pulse();                                         /* ≥56ns: 重置 Flash 命令解码器 */
-        W25Q_SPI_Transfer(CMD_READ);
-        W25Q_SPI_Transfer((uint8_t)(addr >> 16));
-        W25Q_SPI_Transfer((uint8_t)(addr >> 8));
-        W25Q_SPI_Transfer((uint8_t)(addr));
-            mid_uc  = (uint16_t)W25Q_SPI_Transfer(0xFF);
-        mid_uc |= (uint16_t)W25Q_SPI_Transfer(0xFF) << 8;        /* LE 还原 */
-        if (mid_uc < unicode) lo = mid + 1; else hi = mid;       /* 标准二分[lo,hi) */
+    if (jedec_id == 0) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_INVALID_ARGUMENT);
     }
-    if (lo >= hdr->cjk_index_count) { W25Q_Leave_Mode(); NVIC_EnableIRQ(USART2_IRQn); return 0xFFFFFFFFUL; }
-    /* 验证候选条目: 读 U16 Unicode + U32 offset */
-    addr = hdr->cjk_index_offset + (uint32_t)lo * 6U;
-    Flash_CS_Pulse();                                             /* ≥56ns: 重置命令解码器 */
-    W25Q_SPI_Transfer(CMD_READ);
-    W25Q_SPI_Transfer((uint8_t)(addr >> 16));
-    W25Q_SPI_Transfer((uint8_t)(addr >> 8));
-    W25Q_SPI_Transfer((uint8_t)(addr));
-    mid_uc  = (uint16_t)W25Q_SPI_Transfer(0xFF);
-    mid_uc |= (uint16_t)W25Q_SPI_Transfer(0xFF) << 8;
-    if (mid_uc != unicode) { W25Q_Leave_Mode(); NVIC_EnableIRQ(USART2_IRQn); return 0xFFFFFFFFUL; }
-    /* V4.3.2 FIX: 完整 U32 offset, 高位汉字 offset 可达 668KB (>65535) */
-    found_off  = (uint32_t)W25Q_SPI_Transfer(0xFF);              /* offset[0] lo */
-    found_off |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 8;         /* offset[1] */
-    found_off |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 16;        /* offset[2] */
-    found_off |= (uint32_t)W25Q_SPI_Transfer(0xFF) << 24;        /* offset[3] hi */
-    W25Q_Leave_Mode();                                           /* CS=H, PA6→DC */
-    NVIC_EnableIRQ(USART2_IRQn);                                  /* 退出临界区 */
-    return found_off;
+    *jedec_id = 0U;
+    result = W25Q_Driver_Begin_Transaction();
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_Transfer(W25Q_CMD_JEDEC, 0);
+    if (result == W25Q_DRIVER_RESULT_OK) result = W25Q_Driver_Transfer(0xFFU, &b0);
+    if (result == W25Q_DRIVER_RESULT_OK) result = W25Q_Driver_Transfer(0xFFU, &b1);
+    if (result == W25Q_DRIVER_RESULT_OK) result = W25Q_Driver_Transfer(0xFFU, &b2);
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_End_Transaction();
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+
+    *jedec_id = ((uint32_t)b0 << 16) | ((uint32_t)b1 << 8) | b2;
+    return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_OK);
+}
+
+W25Q_Driver_Result W25Q_Driver_Read_SR1(uint8_t *sr1)
+{
+    W25Q_Driver_Result result;
+
+    if (sr1 == 0) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_INVALID_ARGUMENT);
+    }
+    result = W25Q_Driver_Begin_Transaction();
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_Transfer(W25Q_CMD_RDSR1, 0);
+    if (result == W25Q_DRIVER_RESULT_OK) {
+        result = W25Q_Driver_Transfer(0xFFU, sr1);
+    }
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_End_Transaction();
+    return W25Q_Driver_Set_Result(result);
+}
+
+W25Q_Driver_Result W25Q_Driver_Read(uint32_t addr, uint8_t *buf,
+                                    uint32_t len)
+{
+    uint32_t i;
+    W25Q_Driver_Result result;
+
+    if (s_w25q_chip_ok == 0U) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_NO_DEVICE);
+    }
+    if (buf == 0) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_INVALID_ARGUMENT);
+    }
+    result = W25Q_Driver_Check_Range(addr, len);
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+
+    result = W25Q_Driver_Begin_Transaction();
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_Transfer(W25Q_CMD_READ, 0);
+    if (result == W25Q_DRIVER_RESULT_OK) result = W25Q_Driver_Send_Address(addr);
+    for (i = 0U; i < len && result == W25Q_DRIVER_RESULT_OK; i++) {
+        result = W25Q_Driver_Transfer(0xFFU, &buf[i]);
+    }
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_End_Transaction();
+    return W25Q_Driver_Set_Result(result);
+}
+
+W25Q_Driver_Result W25Q_Driver_Write_Page(uint32_t addr,
+                                          const uint8_t *buf,
+                                          uint16_t len)
+{
+    uint16_t i;
+    uint32_t page_offset;
+    W25Q_Driver_Result result;
+
+    if (s_w25q_chip_ok == 0U) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_NO_DEVICE);
+    }
+    if (buf == 0 || len == 0U || len > W25Q_PAGE_SIZE) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_INVALID_ARGUMENT);
+    }
+    result = W25Q_Driver_Check_Range(addr, len);
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    page_offset = addr & (W25Q_PAGE_SIZE - 1U);
+    if ((uint32_t)len > (W25Q_PAGE_SIZE - page_offset)) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_PAGE_CROSS);
+    }
+
+    result = W25Q_Driver_Wait_Busy(W25Q_PROGRAM_TIMEOUT_MS);
+    if (result == W25Q_DRIVER_RESULT_OK) result = W25Q_Driver_Write_Enable();
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+
+    result = W25Q_Driver_Begin_Transaction();
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_Transfer(W25Q_CMD_PAGE_PROGRAM, 0);
+    if (result == W25Q_DRIVER_RESULT_OK) result = W25Q_Driver_Send_Address(addr);
+    for (i = 0U; i < len && result == W25Q_DRIVER_RESULT_OK; i++) {
+        result = W25Q_Driver_Transfer(buf[i], 0);
+    }
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_End_Transaction();
+    if (result == W25Q_DRIVER_RESULT_OK) {
+        result = W25Q_Driver_Wait_Busy(W25Q_PROGRAM_TIMEOUT_MS);
+    }
+    return W25Q_Driver_Set_Result(result);
+}
+
+W25Q_Driver_Result W25Q_Driver_Write(uint32_t addr, const uint8_t *buf,
+                                     uint32_t len)
+{
+    uint32_t page_offset;
+    uint32_t chunk;
+    W25Q_Driver_Result result;
+
+    if (s_w25q_chip_ok == 0U) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_NO_DEVICE);
+    }
+    if (buf == 0) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_INVALID_ARGUMENT);
+    }
+    result = W25Q_Driver_Check_Range(addr, len);
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+
+    while (len != 0U) {
+        page_offset = addr & (W25Q_PAGE_SIZE - 1U);
+        chunk = W25Q_PAGE_SIZE - page_offset;
+        if (chunk > len) chunk = len;
+        result = W25Q_Driver_Write_Page(addr, buf, (uint16_t)chunk);
+        if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+        addr += chunk;
+        buf += chunk;
+        len -= chunk;
+    }
+    return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_OK);
+}
+
+W25Q_Driver_Result W25Q_Driver_Erase_Sector(uint32_t addr)
+{
+    W25Q_Driver_Result result;
+
+    if (s_w25q_chip_ok == 0U) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_NO_DEVICE);
+    }
+    if (addr >= W25Q_CHIP_SIZE) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_OUT_OF_RANGE);
+    }
+    if (s_w25q_erase_allowed == 0U) {
+        return W25Q_Driver_Set_Result(W25Q_DRIVER_RESULT_ERASE_BLOCKED);
+    }
+    addr &= ~(W25Q_SECTOR_SIZE - 1U);
+
+    result = W25Q_Driver_Wait_Busy(W25Q_ERASE_TIMEOUT_MS);
+    if (result == W25Q_DRIVER_RESULT_OK) result = W25Q_Driver_Write_Enable();
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+
+    result = W25Q_Driver_Begin_Transaction();
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_Transfer(W25Q_CMD_SECTOR_ERASE, 0);
+    if (result == W25Q_DRIVER_RESULT_OK) result = W25Q_Driver_Send_Address(addr);
+    if (result != W25Q_DRIVER_RESULT_OK) return W25Q_Driver_Set_Result(result);
+    result = W25Q_Driver_End_Transaction();
+    if (result == W25Q_DRIVER_RESULT_OK) {
+        result = W25Q_Driver_Wait_Busy(W25Q_ERASE_TIMEOUT_MS);
+    }
+    return W25Q_Driver_Set_Result(result);
+}
+
+void W25Q_Driver_Set_Erase_Allowed(uint8_t allowed)
+{
+    s_w25q_erase_allowed = (allowed != 0U) ? 1U : 0U;
+}
+
+uint8_t W25Q_Driver_Is_Available(void)
+{
+    return s_w25q_chip_ok;
+}
+
+W25Q_Driver_Result W25Q_Driver_Get_Last_Result(void)
+{
+    return s_w25q_last_result;
 }

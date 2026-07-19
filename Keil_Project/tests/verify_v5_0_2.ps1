@@ -197,6 +197,7 @@ $appStorageC = Read-ProjectText 'Keil_Project\User\App_Storage.c'
 $appStorageH = Read-ProjectText 'Keil_Project\User\App_Storage.h'
 $tftC = Read-ProjectText 'Keil_Project\Hardware\Tft_Driver.c'
 $w25C = Read-ProjectText 'Keil_Project\Hardware\W25Q_Driver.c'
+$w25H = Read-ProjectText 'Keil_Project\Hardware\W25Q_Driver.h'
 $pwmC = Read-ProjectText 'Keil_Project\Hardware\Pwm_Driver.c'
 $adcC = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.c'
 $adcH = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.h'
@@ -363,7 +364,33 @@ Write-Check 'W25' 'W25Q driver has no application dependency' `
     (($w25C -notmatch '#include\s+"Sys_Core\.h"') -and
      ($w25C -notmatch '#include\s+"App_Storage\.h"'))
 Write-Check 'W25' 'W25Q defines explicit result values' `
-    (Test-Contains (Read-ProjectText 'Keil_Project\Hardware\W25Q_Driver.h') 'W25Q_DRIVER_RESULT_OK')
+    (($w25H -match 'W25Q_DRIVER_RESULT_OK') -and
+     ($w25H -match 'W25Q_DRIVER_RESULT_NO_DEVICE') -and
+     ($w25H -match 'W25Q_DRIVER_RESULT_INVALID_ARGUMENT') -and
+     ($w25H -match 'W25Q_DRIVER_RESULT_OUT_OF_RANGE') -and
+     ($w25H -match 'W25Q_DRIVER_RESULT_PAGE_CROSS') -and
+     ($w25H -match 'W25Q_DRIVER_RESULT_ERASE_BLOCKED') -and
+     ($w25H -match 'W25Q_DRIVER_RESULT_SPI_TIMEOUT') -and
+     ($w25H -match 'W25Q_DRIVER_RESULT_BUSY_TIMEOUT') -and
+     ($w25H -match 'W25Q_DRIVER_RESULT_VERIFY_FAILED'))
+Write-Check 'W25' 'W25Q uses shared SPI and an application-controlled erase gate' `
+    (($w25C -match '#include\s+"Spi1_Shared\.h"') -and
+     ($w25C -match 'Spi1_Shared_Acquire\s*\(\s*SPI1_SHARED_MODE_FLASH_8') -and
+     (Test-Contains $w25H '\bW25Q_Driver_Set_Erase_Allowed\s*\(') -and
+     (Test-Contains $sysCoreC '\bW25Q_Driver_Set_Erase_Allowed\s*\('))
+Write-Check 'W25' 'W25Q validates chip bounds without address overflow' `
+    (($w25C -match 'addr\s*>=\s*W25Q_CHIP_SIZE') -and
+     ($w25C -match 'len\s*>\s*\(?W25Q_CHIP_SIZE\s*-\s*addr\)?'))
+Write-Check 'W25' 'page writes reject crossing and generic writes split pages' `
+    (($w25C -match 'W25Q_DRIVER_RESULT_PAGE_CROSS') -and
+     (Test-Contains $w25H '\bW25Q_Driver_Write\s*\(') -and
+     ($w25C -match 'W25Q_PAGE_SIZE\s*-\s*page_offset'))
+Write-Check 'W25' 'program and erase busy waits have separate limits' `
+    (($w25C -match 'W25Q_PROGRAM_TIMEOUT_MS\s+10U') -and
+     ($w25C -match 'W25Q_ERASE_TIMEOUT_MS\s+500U'))
+Write-Check 'W25' 'font parsing is private to TFT layer' `
+    (($w25H -notmatch 'Font_Header|W25Q_Font_Index_Binary_Search|Font_Header_Load|W25Q_Enter_Mode|W25Q_SPI_Transfer') -and
+     ($tftC -match 'static\s+uint32_t\s+Tft_Driver_Font_Index_Binary_Search'))
 if ((Test-Path -LiteralPath $spiCPath) -and (Test-Path -LiteralPath $spiHPath)) {
     $spiSharedC = Read-ProjectText 'Keil_Project\Hardware\Spi1_Shared.c'
     $spiSharedH = Read-ProjectText 'Keil_Project\Hardware\Spi1_Shared.h'

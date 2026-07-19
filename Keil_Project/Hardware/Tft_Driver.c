@@ -43,6 +43,24 @@
 
 #define TFT_DMA_MAX_PIXELS  65535
 #define TFT_DMA_TIMEOUT_MS  200U
+#define TFT_FONT_MAGIC      0x574BU
+#define TFT_FONT_MAX_SIZE   0x200000U
+
+typedef struct {
+    uint16_t magic;
+    uint8_t  version;
+    uint8_t  reserved;
+    uint32_t total_size;
+    uint32_t crc32;
+    uint16_t ascii_offset;
+    uint16_t ascii_count;
+    uint16_t ascii_bytes;
+    uint16_t reserved2;
+    uint32_t cjk_index_offset;
+    uint16_t cjk_index_count;
+    uint16_t cjk_data_bytes;
+    uint32_t cjk_data_offset;
+} Font_Header;
 
 /* ── DMA 状态 ── */
 static uint8_t s_dma_configured = 0;
@@ -307,14 +325,55 @@ void Tft_Driver_Init(void)
 void Tft_Driver_Font_Init(void)
 {
     uint32_t crc_stored; uint32_t crc_computed;
-    W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)&g_font_header, sizeof(Font_Header));
     s_font_flash_valid = 0;
-    if (g_font_header.magic == FONT_MAGIC) {
+    if (W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)&g_font_header,
+                         sizeof(Font_Header)) != W25Q_DRIVER_RESULT_OK) return;
+    if (g_font_header.magic == TFT_FONT_MAGIC &&
+        g_font_header.total_size >= sizeof(Font_Header) &&
+        g_font_header.total_size <= TFT_FONT_MAX_SIZE &&
+        g_font_header.cjk_index_count != 0U &&
+        g_font_header.cjk_data_bytes == 32U) {
         crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
         crc_computed = Checksum_CRC32((uint8_t*)&g_font_header + 0x0C, 20);
         g_font_header.crc32 = crc_stored;
         s_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
     }
+}
+
+static uint32_t Tft_Driver_Font_Index_Binary_Search(uint16_t unicode,
+                                                    const Font_Header *hdr)
+{
+    uint32_t lo;
+    uint32_t hi;
+    uint32_t mid;
+    uint32_t addr;
+    uint8_t entry[6];
+    uint16_t mid_unicode;
+
+    if (hdr == 0 || hdr->cjk_index_count == 0U) return 0xFFFFFFFFUL;
+    lo = 0U;
+    hi = hdr->cjk_index_count;
+    while (lo < hi) {
+        mid = lo + ((hi - lo) >> 1);
+        addr = hdr->cjk_index_offset + mid * 6U;
+        if (W25Q_Driver_Read(addr, entry, sizeof(entry)) !=
+            W25Q_DRIVER_RESULT_OK) return 0xFFFFFFFFUL;
+        mid_unicode = (uint16_t)entry[0] | ((uint16_t)entry[1] << 8);
+        if (mid_unicode < unicode) lo = mid + 1U;
+        else hi = mid;
+    }
+
+    if (lo >= hdr->cjk_index_count) return 0xFFFFFFFFUL;
+    addr = hdr->cjk_index_offset + lo * 6U;
+    if (W25Q_Driver_Read(addr, entry, sizeof(entry)) !=
+        W25Q_DRIVER_RESULT_OK) return 0xFFFFFFFFUL;
+    mid_unicode = (uint16_t)entry[0] | ((uint16_t)entry[1] << 8);
+    if (mid_unicode != unicode) return 0xFFFFFFFFUL;
+
+    return (uint32_t)entry[2] |
+           ((uint32_t)entry[3] << 8) |
+           ((uint32_t)entry[4] << 16) |
+           ((uint32_t)entry[5] << 24);
 }
 
 /* 公开字库状态查询 (供 Sys_Startup_Screen 显示) */
@@ -463,25 +522,28 @@ void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
                col * TFT_FONT_WIDTH + char_w - 1,
                line * line_h_scaled + char_h - 1);
         base = g_font_header.ascii_offset + (uint32_t)idx * 16;
-        W25Q_Driver_Read(base, ascii_rows, 16);  /* 一次读 16B, 替代 16 次单字节读 */
-        p = s_dma_buf;
-        if (s_font_scale == 1) {
-            for (row = 0; row < 16; row++) {
-                Decode_Char_Row(ascii_rows[row], fg, bg, p + row * 8, 1);
+        if (W25Q_Driver_Read(base, ascii_rows, 16U) ==
+            W25Q_DRIVER_RESULT_OK) {
+            p = s_dma_buf;
+            if (s_font_scale == 1) {
+                for (row = 0; row < 16; row++) {
+                    Decode_Char_Row(ascii_rows[row], fg, bg, p + row * 8, 1);
+                }
+                Tft_DMA_Send(s_dma_buf, 128);
+            } else {
+                /* 2x: duplicate each row */
+                for (row = 0; row < 16; row++) {
+                    uint8_t r;
+                    Decode_Char_Row(ascii_rows[row], fg, bg, p, 2);
+                    /* copy doubled row to second line */
+                    for (r = 0; r < 16; r++) p[32 + r] = p[r];
+                    p += 32;
+                }
+                Tft_DMA_Send(s_dma_buf, 16 * 32);
             }
-            Tft_DMA_Send(s_dma_buf, 128);
-        } else {
-            /* 2x: duplicate each row */
-            for (row = 0; row < 16; row++) {
-                uint8_t r;
-                Decode_Char_Row(ascii_rows[row], fg, bg, p, 2);
-                /* copy doubled row to second line */
-                for (r = 0; r < 16; r++) p[32 + r] = p[r];
-                p += 32;
-            }
-            Tft_DMA_Send(s_dma_buf, 16 * 32);  /* 16 rows × 16 cols = 256 → 512 B */
+            return;
         }
-        return;
+        s_font_flash_valid = 0U;
     }
 
     {
@@ -601,13 +663,19 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
         unicode  = ((uint32_t)(utf8[0] & 0x0F) << 12);
         unicode |= ((uint32_t)(utf8[1] & 0x3F) << 6);
         unicode |= ((uint32_t)(utf8[2] & 0x3F));
-        data_offset = W25Q_Font_Index_Binary_Search((uint16_t)unicode, &g_font_header);
+        data_offset = Tft_Driver_Font_Index_Binary_Search((uint16_t)unicode,
+                                                          &g_font_header);
         if (data_offset == 0xFFFFFFFFUL) {
             Tft_DMA_Fill((uint32_t)char_w * char_h, bg);
             return;
         }
         base = g_font_header.cjk_data_offset + (uint32_t)data_offset;
-        W25Q_Driver_Read(base, cn_glyph, 32);
+        if (W25Q_Driver_Read(base, cn_glyph, 32U) !=
+            W25Q_DRIVER_RESULT_OK) {
+            s_font_flash_valid = 0U;
+            Tft_DMA_Fill((uint32_t)char_w * char_h, bg);
+            return;
+        }
         if (s_font_scale == 1) {
             for (row = 0; row < 16; row++) {
                 Decode_CN_Row(cn_glyph[row * 2], cn_glyph[row * 2 + 1], fg, bg, p + row * 16, 1);
@@ -825,13 +893,28 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
         uint8_t n_frames, icon_entry[8], icon_glyph[32];
         icon_idx_base = 0x000710U;  /* icon entries start */
         /* Read 8-byte entry: [id:2][n_frames:2][data_offset:2][reserved:2] */
-        W25Q_Driver_Read(icon_idx_base + (uint32_t)icon_id * 8, icon_entry, 8);
+        if (W25Q_Driver_Read(icon_idx_base + (uint32_t)icon_id * 8U,
+                             icon_entry, sizeof(icon_entry)) !=
+            W25Q_DRIVER_RESULT_OK) {
+            s_font_flash_valid = 0U;
+            Tft_DMA_Fill(256U, bg);
+            return 0U;
+        }
         n_frames     = icon_entry[2] | (uint16_t)icon_entry[3] << 8;
         data_offset  = (uint32_t)icon_entry[4] | (uint32_t)icon_entry[5] << 8;
         icon_data_base = 0x000808U;  /* icon bitmap data start */
+        if (n_frames == 0U) {
+            Tft_DMA_Fill(256U, bg);
+            return 0U;
+        }
         if (frame >= n_frames) frame = n_frames - 1;
         frame_offset = icon_data_base + data_offset + (uint32_t)frame * 32;
-        W25Q_Driver_Read(frame_offset, icon_glyph, 32);  /* 一次读 32B */
+        if (W25Q_Driver_Read(frame_offset, icon_glyph, sizeof(icon_glyph)) !=
+            W25Q_DRIVER_RESULT_OK) {
+            s_font_flash_valid = 0U;
+            Tft_DMA_Fill(256U, bg);
+            return 0U;
+        }
         for (row = 0; row < 16; row++) {
             Decode_CN_Row(icon_glyph[row * 2], icon_glyph[row * 2 + 1], fg, bg, p + row * 16, 1);
         }

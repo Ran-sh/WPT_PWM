@@ -62,6 +62,13 @@ static Sys_State s_sys_state = SYS_STATE_INIT;
 static App_Storage_Config s_sys_config;
 static Sys_Fault_Code s_fault_code = SYS_FAULT_NONE;
 
+static void Sys_Core_Set_State(Sys_State state)
+{
+    s_sys_state = state;
+    W25Q_Driver_Set_Erase_Allowed(
+        (state == SYS_STATE_SWEEP || state == SYS_STATE_RUNNING) ? 0U : 1U);
+}
+
 static void Sys_Core_Set_Power_Output(uint8_t enabled)
 {
     if (enabled != 0U) {
@@ -103,7 +110,7 @@ void Sys_Core_Trigger_Fault(Sys_Fault_Code fault_code)
     GPIO_ResetBits(GPIOB, GPIO_Pin_10);
     Led_Driver_Set_Power(0U);
     Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
-    s_sys_state = SYS_STATE_FAULT;
+    Sys_Core_Set_State(SYS_STATE_FAULT);
     Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
 }
 
@@ -159,7 +166,7 @@ Sys_Control_Result Sys_Core_Request_Start(void)
         return SYS_CONTROL_RESULT_ADC_NOT_READY;
     }
 
-    s_sys_state = SYS_STATE_SWEEP;
+    Sys_Core_Set_State(SYS_STATE_SWEEP);
     Inverter_Control_Soft_Start_Trigger();
     if (Pwm_Driver_Is_Enabled() == 0U ||
         Sys_Core_Check_Control_Invariant() == 0U) {
@@ -182,7 +189,7 @@ Sys_Control_Result Sys_Core_Request_Stop(void)
 
     Inverter_Control_Soft_Start_Stop();
     if (s_sys_state == SYS_STATE_SWEEP || s_sys_state == SYS_STATE_RUNNING) {
-        s_sys_state = SYS_STATE_IDLE;
+        Sys_Core_Set_State(SYS_STATE_IDLE);
     }
     if (Sys_Core_Check_Control_Invariant() == 0U) {
         return SYS_CONTROL_RESULT_INVALID_STATE;
@@ -202,7 +209,7 @@ Sys_Control_Result Sys_Core_Reset_Fault(void)
     Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
     Sys_Safety_Reset_EMA();
     s_fault_code = SYS_FAULT_NONE;
-    s_sys_state = SYS_STATE_IDLE;
+    Sys_Core_Set_State(SYS_STATE_IDLE);
 
     if (Sys_Core_Check_Control_Invariant() == 0U) {
         return SYS_CONTROL_RESULT_INVALID_STATE;
@@ -301,7 +308,7 @@ void Sys_Post_Init(void)
     }
 
     App_Network_Start_Connect();
-    s_sys_state = SYS_STATE_IDLE;
+    Sys_Core_Set_State(SYS_STATE_IDLE);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -475,7 +482,7 @@ void Sys_Run_Sweep(void)
     Ui_Controller_Task();
     Inverter_Control_Soft_Start_Task();
     if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE)
-        s_sys_state = SYS_STATE_RUNNING;
+        Sys_Core_Set_State(SYS_STATE_RUNNING);
 
     if (now_s - last_bb_s >= 200) { last_bb_s = now_s;
         Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(), Sys_Safety_Get_EMA_Current(),
