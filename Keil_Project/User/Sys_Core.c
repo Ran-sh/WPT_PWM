@@ -65,8 +65,11 @@ static App_Storage_Config s_sys_config;
 static Sys_Fault_Code s_fault_code = SYS_FAULT_NONE;
 static uint32_t s_blackbox_sample_last = 0U;
 
+typedef void (*Sys_Core_State_Task)(void);
+
 static void Sys_Core_Set_State(Sys_State state)
 {
+    if (state == s_sys_state) return;
     if ((s_sys_state == SYS_STATE_SWEEP ||
          s_sys_state == SYS_STATE_RUNNING) &&
         state != SYS_STATE_SWEEP && state != SYS_STATE_RUNNING) {
@@ -75,6 +78,23 @@ static void Sys_Core_Set_State(Sys_State state)
     s_sys_state = state;
     W25Q_Driver_Set_Erase_Allowed(
         (state == SYS_STATE_SWEEP || state == SYS_STATE_RUNNING) ? 0U : 1U);
+    switch (state) {
+        case SYS_STATE_SWEEP:
+            Led_Driver_Set_Status(LED_DRIVER_STATE_SLOW);
+            break;
+        case SYS_STATE_RUNNING:
+            Led_Driver_Set_Status(LED_DRIVER_STATE_ON);
+            break;
+        case SYS_STATE_FAULT:
+            Inverter_Control_Freq_Ramp_Cancel();
+            Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
+            break;
+        case SYS_STATE_INIT:
+        case SYS_STATE_IDLE:
+        default:
+            Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
+            break;
+    }
 }
 
 static void Sys_Core_Set_Power_Output(uint8_t enabled)
@@ -121,7 +141,6 @@ void Sys_Core_Trigger_Fault(Sys_Fault_Code fault_code)
     Inverter_Control_Soft_Start_Fault();
     GPIO_ResetBits(GPIOB, GPIO_Pin_10);
     Led_Driver_Set_Power(0U);
-    Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
     Sys_Core_Set_State(SYS_STATE_FAULT);
     Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
 }
@@ -218,7 +237,6 @@ Sys_Control_Result Sys_Core_Reset_Fault(void)
 
     Inverter_Control_Soft_Start_Reset();
     Sys_Core_Set_Power_Output(0U);
-    Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
     Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
     Sys_Safety_Reset_EMA();
     s_fault_code = SYS_FAULT_NONE;
@@ -436,7 +454,6 @@ void Sys_Power_Control_Handle(Key_Driver_Event ke[5])
         /* KEY0关电必须先停止PWM，再拉低PB10。 */
         (void)Sys_Core_Request_Stop();
         Sys_Core_Set_Power_Output(0U);
-        Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
     }
 
     (void)Sys_Core_Check_Control_Invariant();
@@ -515,73 +532,60 @@ static void Sys_Run_Key_And_Ui_Task(void)
     Ui_Controller_Task(events);
 }
 
-void Sys_Run_Idle(void)
+static void Sys_Core_Run_Sweep_State_Task(void)
 {
-    if (Sys_Core_Check_Control_Invariant() == 0U) return;
-    Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
+    Inverter_Control_Soft_Start_Task();
+    if (Inverter_Control_Soft_Start_Get_State() ==
+        INVERTER_CONTROL_SS_STATE_DONE) {
+        Sys_Core_Set_State(SYS_STATE_RUNNING);
+    }
+}
 
-    Sys_Run_Key_And_Ui_Task();
-    Sys_Run_Led_Tick();
-    Sys_Run_Buzzer_Tick();
+static void Sys_Core_Run_Running_State_Task(void)
+{
+    Inverter_Control_Freq_Ramp_Task();
+}
+
+static void Sys_Core_Run_Common(Sys_State expected_state,
+                                Sys_Core_State_Task state_task)
+{
+    (void)Sys_Core_Check_Control_Invariant();
     Adc_Driver_Filter_Task();
+    Sys_Safety_Task();
+    Sys_Run_Key_And_Ui_Task();
+    if ((s_sys_state == expected_state) && (state_task != 0)) {
+        state_task();
+    }
+    App_Network_Task();
     Sys_Run_Blackbox_Tick();
     Sys_Run_Fault_Persist_Task();
-    App_Network_Task();
-    Sys_Safety_Task();
-    App_Storage_Task();
+    if (s_sys_state == SYS_STATE_IDLE) {
+        App_Storage_Task();
+    }
+    Sys_Run_Led_Tick();
+    Sys_Run_Buzzer_Tick();
     IWDG_ReloadCounter();
     __WFI();
+}
+
+void Sys_Run_Idle(void)
+{
+    Sys_Core_Run_Common(SYS_STATE_IDLE, 0);
 }
 
 void Sys_Run_Sweep(void)
 {
-    if (Sys_Core_Check_Control_Invariant() == 0U) return;
-    Led_Driver_Set_Status(LED_DRIVER_STATE_SLOW);
-    Sys_Run_Key_And_Ui_Task();
-    Inverter_Control_Soft_Start_Task();
-    if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE)
-        Sys_Core_Set_State(SYS_STATE_RUNNING);
-
-    Sys_Run_Led_Tick();
-    Sys_Run_Buzzer_Tick();
-    Adc_Driver_Filter_Task();
-    Sys_Run_Blackbox_Tick();
-    App_Network_Task();
-    Sys_Safety_Task();
-    IWDG_ReloadCounter();
-    __WFI();
+    Sys_Core_Run_Common(SYS_STATE_SWEEP,
+                        Sys_Core_Run_Sweep_State_Task);
 }
 
 void Sys_Run_Running(void)
 {
-    if (Sys_Core_Check_Control_Invariant() == 0U) return;
-    Led_Driver_Set_Status(LED_DRIVER_STATE_ON);
-    Sys_Run_Key_And_Ui_Task();
-    Inverter_Control_Freq_Ramp_Task();
-
-    Sys_Run_Led_Tick();
-    Sys_Run_Buzzer_Tick();
-    Adc_Driver_Filter_Task();
-    Sys_Run_Blackbox_Tick();
-    App_Network_Task();
-    Sys_Safety_Task();
-    IWDG_ReloadCounter();
-    __WFI();
+    Sys_Core_Run_Common(SYS_STATE_RUNNING,
+                        Sys_Core_Run_Running_State_Task);
 }
 
 void Sys_Run_Fault(void)
 {
-    if (Sys_Core_Check_Control_Invariant() == 0U) return;
-    Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
-    Sys_Run_Key_And_Ui_Task();
-    Inverter_Control_Freq_Ramp_Cancel();
-    Sys_Run_Led_Tick();
-    Sys_Run_Buzzer_Tick();
-    Adc_Driver_Filter_Task();
-    Sys_Run_Blackbox_Tick();
-    Sys_Run_Fault_Persist_Task();
-    App_Network_Task();
-    Sys_Safety_Task();
-    IWDG_ReloadCounter();
-    __WFI();
+    Sys_Core_Run_Common(SYS_STATE_FAULT, 0);
 }

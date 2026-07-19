@@ -479,7 +479,7 @@ Write-Check 'BlackboxLifecycle' 'log writes require a prepared sector and erased
      ($appStorageC -match '0xFFU'))
 Write-Check 'BlackboxLifecycle' 'IDLE storage task maintains log sectors' `
     (($appStorageC -match 'App_Storage_Log_Maintenance_Task\s*\(') -and
-     ($sysCoreC -match 'void\s+Sys_Run_Idle\s*\([^)]*\)[\s\S]*App_Storage_Task\s*\('))
+     ($sysCoreC -match 's_sys_state\s*==\s*SYS_STATE_IDLE\s*\)[\s\S]{0,120}App_Storage_Task\s*\('))
 Write-Check 'BlackboxLifecycle' 'write pointer advances only after write and readback succeed' `
     (($appStorageC -match 'App_Storage_Verify_Log_Entry') -and
      ($appStorageC -match 'if\s*\(\s*result\s*==\s*W25Q_DRIVER_RESULT_OK[\s\S]*write_addr\s*='))
@@ -549,7 +549,7 @@ Write-Check 'StorageConfig' 'A and B copies are read back and CRC verified' `
 Write-Check 'StorageConfig' 'pending save clears only after both copies verify' `
     ($appStorageC -match 'if\s*\(\s*result\s*==\s*APP_STORAGE_RESULT_OK\s*\)[\s\S]*s_config_save_pending\s*=\s*0U')
 Write-Check 'StorageConfig' 'IDLE scheduler runs storage task' `
-    ($sysCoreC -match 'void\s+Sys_Run_Idle\s*\([^)]*\)[\s\S]*App_Storage_Task\s*\(')
+    ($sysCoreC -match 's_sys_state\s*==\s*SYS_STATE_IDLE\s*\)[\s\S]{0,120}App_Storage_Task\s*\(')
 Write-Check 'StorageConfig' 'UI settings save only requests persistence' `
     (($uiC -notmatch '\bApp_Storage_Save_Settings\s*\(') -and
      ($uiC -match '\bApp_Storage_Request_Save_Settings\s*\('))
@@ -732,6 +732,53 @@ Write-Check 'Scheduler' 'main dispatches through Sys_Core getter' `
     (($mainC -match 'Sys_Core_Get_State\s*\(') -and ($mainC -notmatch '\bg_sys_state\b'))
 Write-Check 'Scheduler' 'common scheduler contains ADC-to-WFI chain' `
     (($sysCoreC -match 'Sys_Core_Run_Common') -and ($sysCoreC -match '__WFI\s*\('))
+$commonStart = $sysCoreC.IndexOf('static void Sys_Core_Run_Common')
+$commonEnd = $sysCoreC.IndexOf('void Sys_Run_Idle', [Math]::Max(0, $commonStart))
+$commonBody = ''
+if (($commonStart -ge 0) -and ($commonEnd -gt $commonStart)) {
+    $commonBody = $sysCoreC.Substring($commonStart, $commonEnd - $commonStart)
+}
+$scheduleCalls = @(
+    'Adc_Driver_Filter_Task',
+    'Sys_Safety_Task',
+    'Sys_Run_Key_And_Ui_Task',
+    'state_task();',
+    'App_Network_Task',
+    'App_Storage_Task',
+    'Sys_Run_Led_Tick',
+    'Sys_Run_Buzzer_Tick',
+    'IWDG_ReloadCounter',
+    '__WFI'
+)
+$schedulePositions = @($scheduleCalls | ForEach-Object { $commonBody.IndexOf($_) })
+$scheduleOrdered = ($schedulePositions.Count -eq $scheduleCalls.Count) -and
+                   (@($schedulePositions | Where-Object { $_ -lt 0 }).Count -eq 0)
+if ($scheduleOrdered) {
+    for ($i = 1; $i -lt $schedulePositions.Count; $i++) {
+        if ($schedulePositions[$i] -le $schedulePositions[$i - 1]) {
+            $scheduleOrdered = $false
+            break
+        }
+    }
+}
+Write-Check 'Scheduler' 'common scheduler order is ADC Safety Key UI state Network Storage LED Buzzer IWDG WFI' `
+    $scheduleOrdered
+Write-Check 'Scheduler' 'all four state runners delegate to the common scheduler' `
+    (($sysCoreC -match 'void\s+Sys_Run_Idle\s*\([^)]*\)\s*\{[\s\S]{0,180}Sys_Core_Run_Common') -and
+     ($sysCoreC -match 'void\s+Sys_Run_Sweep\s*\([^)]*\)\s*\{[\s\S]{0,180}Sys_Core_Run_Common') -and
+     ($sysCoreC -match 'void\s+Sys_Run_Running\s*\([^)]*\)\s*\{[\s\S]{0,180}Sys_Core_Run_Common') -and
+     ($sysCoreC -match 'void\s+Sys_Run_Fault\s*\([^)]*\)\s*\{[\s\S]{0,180}Sys_Core_Run_Common'))
+$stateRunnerStart = $sysCoreC.IndexOf('void Sys_Run_Idle')
+$stateRunnerBody = if ($stateRunnerStart -ge 0) { $sysCoreC.Substring($stateRunnerStart) } else { '' }
+Write-Check 'Scheduler' 'state runners do not rewrite STATUS LED every loop' `
+    ($stateRunnerBody -notmatch 'Led_Driver_Set_Status\s*\(')
+Write-Check 'Scheduler' 'state transition owns one-time STATUS LED entry action' `
+    (($sysCoreC -match 'Sys_Core_Set_State[\s\S]{0,1400}LED_DRIVER_STATE_SLOW') -and
+     ($sysCoreC -match 'Sys_Core_Set_State[\s\S]{0,1400}LED_DRIVER_STATE_ON') -and
+     ($sysCoreC -match 'Sys_Core_Set_State[\s\S]{0,1400}LED_DRIVER_STATE_OFF'))
+Write-Check 'Scheduler' 'main contains initialization and state dispatch only' `
+    (($mainC -match 'switch\s*\(\s*Sys_Core_Get_State\s*\(\s*\)\s*\)') -and
+     ($mainC -notmatch 'Key_Driver_Task\s*\(|App_Network_Task\s*\(|App_Storage_Task\s*\(|Adc_Driver_Filter_Task\s*\('))
 
 if (Test-CategoryEnabled 'Version') {
     $wrongVersionFiles = @()
