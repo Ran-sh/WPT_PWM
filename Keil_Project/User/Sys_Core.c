@@ -154,6 +154,10 @@ Sys_Control_Result Sys_Core_Request_Start(void)
     if (Sys_Core_Is_Power_Enabled() == 0U) {
         return SYS_CONTROL_RESULT_POWER_OFF;
     }
+    if (Adc_Driver_Get_Calibration_State() != ADC_DRIVER_CAL_READY ||
+        Adc_Driver_Is_Data_Fresh() == 0U) {
+        return SYS_CONTROL_RESULT_ADC_NOT_READY;
+    }
 
     s_sys_state = SYS_STATE_SWEEP;
     Inverter_Control_Soft_Start_Trigger();
@@ -272,9 +276,7 @@ void Sys_Post_Init(void)
                                     s_sys_config.adc_v_gain,
                                     s_sys_config.freq_trim_hz);   /* Flash 固化直达 */
     } else {
-        Adc_Driver_Force_Recalibrate();                           /* 强制解锁状态机 */
-        Adc_Driver_Calibrate_Offset();                            /* 冷启动自测算 */
-        s_sys_config.adc_i_offset = Adc_Driver_Get_Current_Offset();
+        Adc_Driver_Force_Recalibrate();                           /* IDLE中非阻塞自测算 */
     }
 
     /* V4.5.2: 背光已由 Ui_Controller_Apply_Settings 映射 1-100 → 0-255 PWM 控制,
@@ -340,6 +342,23 @@ void Sys_Safety_Task(void)
 {
     uint32_t sequence;
     float safety_current;
+
+    if (s_sys_state == SYS_STATE_IDLE) {
+        Adc_Driver_Calibration_Task(Sys_Core_Is_Power_Enabled());
+        if (Adc_Driver_Take_Calibration_Completed() != 0U) {
+            s_sys_config.adc_i_offset = Adc_Driver_Get_Current_Offset();
+            s_sys_config.adc_v_gain = Adc_Driver_Get_Voltage_Gain();
+            App_Storage_Request_Save_ADC_Calibration(
+                s_sys_config.adc_i_offset, s_sys_config.adc_v_gain);
+        }
+    }
+
+    if ((s_sys_state == SYS_STATE_SWEEP ||
+         s_sys_state == SYS_STATE_RUNNING) &&
+        Adc_Driver_Is_Data_Fresh() == 0U) {
+        Sys_Core_Trigger_Fault(SYS_FAULT_ADC_STALE);
+        return;
+    }
 
     sequence = Adc_Driver_Get_Processed_Sequence();
     if (sequence == s_safety_last_sequence) return;
@@ -441,6 +460,9 @@ void Sys_Run_Idle(void)
     Adc_Driver_Filter_Task();
     App_Network_Task();
     Sys_Safety_Task();
+    if (Sys_Core_Is_Power_Enabled() == 0U) {
+        App_Storage_Save_Pending_ADC_Calibration();
+    }
     IWDG_ReloadCounter();
     __WFI();
 }

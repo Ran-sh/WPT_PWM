@@ -36,6 +36,7 @@
 
 #define ADC_DRIVER_CAL_SAMPLES      50
 #define ADC_DRIVER_CAL_INTERVAL_MS  10
+#define ADC_DRIVER_STALE_TIMEOUT_MS 20U
 
 /* ── 显示与安全窗口使用不同长度，禁止共享累加器。 ── */
 typedef struct {
@@ -100,9 +101,11 @@ static float s_raw_pin_v     = 1.65f;
 
 static float   s_i_offset    = 1.65f;
 static float   s_v_gain      = 1.0f;
-static uint8_t s_calibrated  = 0;
 static uint8_t s_cal_count   = 0;
 static float   s_cal_accum   = 0.0f;
+static uint32_t s_cal_last_tick = 0U;
+static Adc_Driver_Calibration_State s_cal_state = ADC_DRIVER_CAL_UNINITIALIZED;
+static uint8_t s_cal_completed_event = 0U;
 
 void Adc_Driver_Init(void)
 {
@@ -251,24 +254,68 @@ uint32_t Adc_Driver_Get_Processed_Sequence(void)
     return s_adc_processed_sequence;
 }
 
-void Adc_Driver_Calibrate_Offset(void)
+void Adc_Driver_Calibration_Task(uint8_t power_enabled)
 {
-    static uint32_t last_cal = 0;
+    float new_offset;
+    uint32_t now;
 
-    /* 一次校准完成后锁定, 避免运行时有电流导致零点漂移 */
-    if (s_calibrated) return;
+    if (s_cal_state == ADC_DRIVER_CAL_UNINITIALIZED ||
+        s_cal_state == ADC_DRIVER_CAL_READY ||
+        s_cal_state == ADC_DRIVER_CAL_ERROR) return;
+    if (power_enabled != 0U) return;
 
-    if (Sys_Timer_Get_Tick() - last_cal < ADC_DRIVER_CAL_INTERVAL_MS) return;
-    last_cal = Sys_Timer_Get_Tick();
+    if (s_cal_state == ADC_DRIVER_CAL_FILLING) {
+        if (s_c_display_filter.filled < ADC_DRIVER_DISPLAY_WINDOW) return;
+        s_cal_accum = 0.0f;
+        s_cal_count = 0U;
+        s_cal_last_tick = Sys_Timer_Get_Tick();
+        s_cal_state = ADC_DRIVER_CAL_CALIBRATING;
+        return;
+    }
 
-    if (s_c_display_filter.filled < ADC_DRIVER_DISPLAY_WINDOW) return;
+    now = Sys_Timer_Get_Tick();
+    if (now - s_cal_last_tick < ADC_DRIVER_CAL_INTERVAL_MS) return;
+    s_cal_last_tick = now;
 
     s_cal_accum += s_raw_pin_v;
     s_cal_count++;
     if (s_cal_count >= ADC_DRIVER_CAL_SAMPLES) {
-        s_i_offset   = s_cal_accum / (float)ADC_DRIVER_CAL_SAMPLES;
-        s_calibrated = 1;
+        new_offset = s_cal_accum / (float)ADC_DRIVER_CAL_SAMPLES;
+        if (new_offset > 0.5f && new_offset < 2.8f) {
+            s_i_offset = new_offset;
+            s_cal_state = ADC_DRIVER_CAL_READY;
+            s_cal_completed_event = 1U;
+        }
+        else {
+            s_cal_state = ADC_DRIVER_CAL_ERROR;
+        }
     }
+}
+
+void Adc_Driver_Calibrate_Offset(void)
+{
+    Adc_Driver_Calibration_Task(0U);
+}
+
+Adc_Driver_Calibration_State Adc_Driver_Get_Calibration_State(void)
+{
+    return s_cal_state;
+}
+
+uint8_t Adc_Driver_Take_Calibration_Completed(void)
+{
+    uint8_t completed;
+
+    completed = s_cal_completed_event;
+    s_cal_completed_event = 0U;
+    return completed;
+}
+
+uint8_t Adc_Driver_Is_Data_Fresh(void)
+{
+    if (s_adc_sample_sequence == 0U) return 0U;
+    return ((Sys_Timer_Get_Tick() - s_adc_last_sample_tick) <=
+            ADC_DRIVER_STALE_TIMEOUT_MS) ? 1U : 0U;
 }
 
 float Adc_Driver_Get_Display_Voltage(void) { return s_display_voltage; }
@@ -281,19 +328,25 @@ float Adc_Driver_Get_Current(void) { return Adc_Driver_Get_Display_Current(); }
 void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
 {
     if (i_offset > 0.5f && i_offset < 2.8f) {            /* 合理性守卫: 1.65V 附近 */
-        s_i_offset   = i_offset;
-        s_calibrated = 1;                                /* 锁定, 禁止自测算覆盖 */
+        s_i_offset = i_offset;
+        s_cal_state = ADC_DRIVER_CAL_READY;
     }
+    else s_cal_state = ADC_DRIVER_CAL_ERROR;
     if (v_gain > 0.0f && v_gain <= 10.0f) s_v_gain = v_gain;
     else s_v_gain = 1.0f;
+    s_cal_completed_event = 0U;
     (void)freq_trim;
 }
 
 /** @brief V4.3.0: 获取当前 ADC 电流零点值 (用于回写 Flash 配置) */
 float Adc_Driver_Get_Current_Offset(void) { return s_i_offset; }
+float Adc_Driver_Get_Voltage_Gain(void) { return s_v_gain; }
 
 /** @brief V4.3.0: 强制解锁校准状态机 (双副本全损→冷启动自测算) */
 void Adc_Driver_Force_Recalibrate(void)
 {
-    s_calibrated = 0; s_cal_count = 0; s_cal_accum = 0.0f; /* 原子解锁 */
+    s_cal_count = 0U;
+    s_cal_accum = 0.0f;
+    s_cal_completed_event = 0U;
+    s_cal_state = ADC_DRIVER_CAL_FILLING;
 }

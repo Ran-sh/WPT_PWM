@@ -327,6 +327,28 @@ Write-Check 'AdcFilter' 'overcurrent requires three new safety samples' `
      ($sysCoreC -match 'Adc_Driver_Get_Safety_Current'))
 Write-Check 'AdcCal' 'ADC exposes data-freshness query' `
     (Test-Contains $adcH '\bAdc_Driver_Is_Data_Fresh\s*\(')
+Write-Check 'AdcCal' 'ADC calibration state machine defines five states' `
+    (($adcH -match 'ADC_DRIVER_CAL_UNINITIALIZED') -and
+     ($adcH -match 'ADC_DRIVER_CAL_FILLING') -and
+     ($adcH -match 'ADC_DRIVER_CAL_CALIBRATING') -and
+     ($adcH -match 'ADC_DRIVER_CAL_READY') -and
+     ($adcH -match 'ADC_DRIVER_CAL_ERROR'))
+Write-Check 'AdcCal' 'calibration task requires power-off permission and reports completion' `
+    ((Test-Contains $adcH '\bAdc_Driver_Calibration_Task\s*\(') -and
+     (Test-Contains $adcH '\bAdc_Driver_Take_Calibration_Completed\s*\(') -and
+     ($adcC -match 'power_enabled\s*!=\s*0U'))
+Write-Check 'AdcCal' 'ADC freshness timeout is 20ms' `
+    (($adcC -match 'ADC_DRIVER_STALE_TIMEOUT_MS\s+20U') -and
+     ($adcC -match 's_adc_sample_sequence\s*==\s*0U'))
+Write-Check 'AdcCal' 'start request requires ready and fresh ADC data' `
+    (($sysCoreC -match 'Adc_Driver_Get_Calibration_State') -and
+     ($sysCoreC -match 'ADC_DRIVER_CAL_READY') -and
+     ($sysCoreC -match 'Adc_Driver_Is_Data_Fresh'))
+Write-Check 'AdcCal' 'active ADC staleness triggers ADC_STALE fault' `
+    (Test-Contains $sysCoreC 'Sys_Core_Trigger_Fault\s*\(\s*SYS_FAULT_ADC_STALE\s*\)')
+Write-Check 'AdcCal' 'calibration persistence is requested before deferred save' `
+    ((Test-Contains $appStorageH '\bApp_Storage_Request_Save_ADC_Calibration\s*\(') -and
+     (Test-Contains $appStorageH '\bApp_Storage_Save_Pending_ADC_Calibration\s*\('))
 
 $spiCPath = Join-Path $keilRoot 'Hardware\Spi1_Shared.c'
 $spiHPath = Join-Path $keilRoot 'Hardware\Spi1_Shared.h'

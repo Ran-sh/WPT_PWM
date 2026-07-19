@@ -66,6 +66,11 @@ uint8_t App_Storage_Load_Config(App_Storage_Config *cfg);
 /** @brief 保存配置: 写A→验A CRC→写B (回路上电时加载A优先) */
 void App_Storage_Save_Config(const App_Storage_Config *cfg);
 
+/** @brief 挂起ADC校准保存请求，不在调用栈中擦写Flash */
+void App_Storage_Request_Save_ADC_Calibration(float i_offset, float v_gain);
+/** @brief 在IDLE且PB10关闭时执行挂起的ADC校准保存 */
+void App_Storage_Save_Pending_ADC_Calibration(void);
+
 /** @brief 写入出厂安全默认值 (所有字段归零/安全值) */
 void App_Storage_Write_Factory_Defaults(void);
 

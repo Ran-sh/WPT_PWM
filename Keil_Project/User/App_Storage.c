@@ -41,6 +41,9 @@ static uint32_t s_log_seq     = 0;       /* 总写入条数 */
 static uint32_t s_log_wrapped = 0;       /* 循环次数 */
 static uint32_t s_fault_lock_addr = 0;   /* 故障锁存区写入地址 */
 static uint32_t s_log_last_save = 0;     /* 上次写回 Block 0 时的 s_log_seq */
+static uint8_t s_adc_cal_save_pending = 0U;
+static float s_pending_i_offset = 1.65f;
+static float s_pending_v_gain = 1.0f;
 
 /* V4.5.2: Blackbox_Save_Header — 每 60 条日志写回一次指针到 Block 0,
  *   防止重启后丢失全部历史数据. 不每帧写 (减少 Flash 磨损). */
@@ -127,6 +130,31 @@ void App_Storage_Save_Config(const App_Storage_Config *cfg)
 
     W25Q_Driver_Erase_Sector(W25Q_ADDR_CFG_B);
     W25Q_Driver_Write_Page(W25Q_ADDR_CFG_B, (uint8_t*)&tmp, sizeof(App_Storage_Config));
+}
+
+void App_Storage_Request_Save_ADC_Calibration(float i_offset, float v_gain)
+{
+    if (i_offset <= 0.5f || i_offset >= 2.8f) return;
+    if (v_gain <= 0.0f || v_gain > 10.0f) v_gain = 1.0f;
+    s_pending_i_offset = i_offset;
+    s_pending_v_gain = v_gain;
+    s_adc_cal_save_pending = 1U;
+}
+
+void App_Storage_Save_Pending_ADC_Calibration(void)
+{
+    App_Storage_Config cfg;
+
+    if (s_adc_cal_save_pending == 0U) return;
+    if (g_w25q_jedec_id != W25Q_JEDEC_ID) return;
+
+    if (App_Storage_Load_Config(&cfg) == 0U) {
+        App_Storage_Defaults(&cfg);
+    }
+    cfg.adc_i_offset = s_pending_i_offset;
+    cfg.adc_v_gain = s_pending_v_gain;
+    App_Storage_Save_Config(&cfg);
+    s_adc_cal_save_pending = 0U;
 }
 
 void App_Storage_Write_Factory_Defaults(void)
