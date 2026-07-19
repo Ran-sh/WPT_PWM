@@ -309,6 +309,22 @@ Write-Check 'AdcTrigger' 'DMA1 Channel1 circular transfer interrupt is handled' 
 Write-Check 'AdcTrigger' 'ADC exposes sample sequence and timestamp' `
     ((Test-Contains $adcH '\bAdc_Driver_Get_Sample_Sequence\s*\(') -and
      (Test-Contains $adcH '\bAdc_Driver_Get_Last_Sample_Tick\s*\('))
+Write-Check 'AdcFilter' 'ADC defines 64-sample display and 8-sample safety windows' `
+    (($adcC -match 'ADC_DRIVER_DISPLAY_WINDOW\s+64U') -and
+     ($adcC -match 'ADC_DRIVER_SAFETY_WINDOW\s+8U'))
+Write-Check 'AdcFilter' 'ADC exposes separate display and safety values' `
+    ((Test-Contains $adcH '\bAdc_Driver_Get_Display_Voltage\s*\(') -and
+     (Test-Contains $adcH '\bAdc_Driver_Get_Display_Current\s*\(') -and
+     (Test-Contains $adcH '\bAdc_Driver_Get_Safety_Current\s*\(') -and
+     (Test-Contains $adcH '\bAdc_Driver_Get_Processed_Sequence\s*\('))
+Write-Check 'AdcFilter' 'ADC applies voltage gain and clamps negative current' `
+    (($adcC -match '\bs_v_gain\b') -and
+     ($adcC -match 's_display_current\s*<\s*0\.0f') -and
+     ($adcC -match 's_safety_current\s*<\s*0\.0f'))
+Write-Check 'AdcFilter' 'overcurrent requires three new safety samples' `
+    (($sysCoreC -match 'SYS_SAFETY_CONFIRM_SAMPLES\s+3U') -and
+     ($sysCoreC -match 'Adc_Driver_Get_Processed_Sequence') -and
+     ($sysCoreC -match 'Adc_Driver_Get_Safety_Current'))
 Write-Check 'AdcCal' 'ADC exposes data-freshness query' `
     (Test-Contains $adcH '\bAdc_Driver_Is_Data_Fresh\s*\(')
 

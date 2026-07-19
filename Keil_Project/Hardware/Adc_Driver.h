@@ -20,6 +20,8 @@ void  Adc_Driver_DMA_Transfer_Complete_ISR(void);
 uint32_t Adc_Driver_Get_Sample_Sequence(void);
 /** @brief 获取最近一次双通道采样完成的毫秒时刻 */
 uint32_t Adc_Driver_Get_Last_Sample_Tick(void);
+/** @brief 获取最近一次完成显示/安全滤波的采样序号 */
+uint32_t Adc_Driver_Get_Processed_Sequence(void);
 /* 电流零点校准 (偏移默认 1.65V = CC6920BSO 零电流中点) */
 void  Adc_Driver_Calibrate_Offset(void);
 /** @brief V4.3.0: 从 Flash 固化值写入校准参数 (替代每次上电自测算) */
@@ -28,7 +30,15 @@ void  Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim
 void  Adc_Driver_Force_Recalibrate(void);
 /** @brief V4.3.0: 获取当前 ADC 电流零点值 (用于回写 Flash) */
 float Adc_Driver_Get_Current_Offset(void);
+/** @brief 获取64点显示窗口电压 */
+float Adc_Driver_Get_Display_Voltage(void);
+/** @brief 获取64点显示窗口电流 */
+float Adc_Driver_Get_Display_Current(void);
+/** @brief 获取8点快速安全窗口电流 */
+float Adc_Driver_Get_Safety_Current(void);
+/** @brief 兼容接口，等价于Adc_Driver_Get_Display_Voltage */
 float Adc_Driver_Get_Voltage(void);
+/** @brief 兼容接口，等价于Adc_Driver_Get_Display_Current */
 float Adc_Driver_Get_Current(void);
 
 #endif /* ADC_DRIVER_H */

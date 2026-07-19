@@ -307,22 +307,16 @@ void Sys_Post_Init(void)
  * ═══════════════════════════════════════════════════════════════ */
 
 #define SYS_SAFETY_OVERCURRENT_A  5.0f
+#define SYS_SAFETY_CONFIRM_SAMPLES 3U
 
 static float  s_safety_ema_v = 0.0f, s_safety_ema_i = 0.0f;
-static uint8_t s_safety_ema_ok = 0;
+static uint32_t s_safety_last_sequence = 0U;
+static uint8_t s_safety_over_count = 0U;
 
 static void Sys_Safety_Update_EMA(void)
 {
-    float v = Adc_Driver_Get_Voltage();
-    float c = Adc_Driver_Get_Current();
-    if (s_safety_ema_ok) {
-        s_safety_ema_v = s_safety_ema_v * 0.75f + v * 0.25f;
-        s_safety_ema_i = s_safety_ema_i * 0.75f + c * 0.25f;
-    } else {
-        s_safety_ema_v = v;
-        s_safety_ema_i = c;
-        s_safety_ema_ok = 1;
-    }
+    s_safety_ema_v = Adc_Driver_Get_Display_Voltage();
+    s_safety_ema_i = Adc_Driver_Get_Display_Current();
 }
 
 float Sys_Safety_Get_EMA_Voltage(void)  { return s_safety_ema_v; }
@@ -336,24 +330,43 @@ float Sys_Safety_Get_EMA_Current(void)  { return s_safety_ema_i; }
  */
 void Sys_Safety_Reset_EMA(void)
 {
-    s_safety_ema_i  = 0.0f;
-    s_safety_ema_ok = 0;  /* 下一轮 Update_EMA 将从原始 ADC 值重新开始 */
-    /* 电压 EMA 保持不变 — 电压值不受过流复位影响 */
+    s_safety_ema_v = Adc_Driver_Get_Display_Voltage();
+    s_safety_ema_i = Adc_Driver_Get_Display_Current();
+    s_safety_last_sequence = Adc_Driver_Get_Processed_Sequence();
+    s_safety_over_count = 0U;
 }
 
 void Sys_Safety_Task(void)
 {
-    /* EMA 滤波始终更新: IDLE 下也需显示实时 V/I */
+    uint32_t sequence;
+    float safety_current;
+
+    sequence = Adc_Driver_Get_Processed_Sequence();
+    if (sequence == s_safety_last_sequence) return;
+    s_safety_last_sequence = sequence;
+
+    /* 只在新ADC结果发布后更新显示量，消除主循环速度对滤波的影响。 */
     Sys_Safety_Update_EMA();
 
     /* 扫频阶段已经发波，必须与稳定运行使用同一过流保护。 */
     if (s_sys_state != SYS_STATE_SWEEP &&
-        s_sys_state != SYS_STATE_RUNNING) return;
+        s_sys_state != SYS_STATE_RUNNING) {
+        s_safety_over_count = 0U;
+        return;
+    }
 
-    /* 统一FAULT入口保证先关PWM、再断PB10，随后才处理日志。 */
-    if (s_safety_ema_i > SYS_SAFETY_OVERCURRENT_A) {
-        Sys_Core_Trigger_Fault(SYS_FAULT_OVERCURRENT);
-        Blackbox_Lock_Fault_Snapshot();
+    safety_current = Adc_Driver_Get_Safety_Current();
+    if (safety_current > SYS_SAFETY_OVERCURRENT_A) {
+        if (s_safety_over_count < SYS_SAFETY_CONFIRM_SAMPLES) {
+            s_safety_over_count++;
+        }
+        if (s_safety_over_count >= SYS_SAFETY_CONFIRM_SAMPLES) {
+            Sys_Core_Trigger_Fault(SYS_FAULT_OVERCURRENT);
+            Blackbox_Lock_Fault_Snapshot();
+        }
+    }
+    else {
+        s_safety_over_count = 0U;
     }
 }
 
