@@ -1,6 +1,6 @@
 # CH341A 字库烧录操作指南
 
-> 适用项目: WPT_PWM V4.3.2 | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 日期: 2026-07-01
+> 适用项目: WPT_PWM V5.0.2 (`5.0`分支) | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 更新: 2026-07-19
 
 本指南用于将 GB2312 全字库 (20897 汉字 + 95 ASCII + 图标动画) 通过 CH341A USB-SPI 编程器烧录到板载 W25Q128 Flash 芯片。
 
@@ -27,7 +27,7 @@ CH341A 编程器排针位置丝印清晰, 对照下表接线:
 
 | CH341A 引脚 | 杜邦线颜色 (建议) | W25Q128 板端信号 | 目标板触点 | 备注 |
 |:---|:---|:---|:---|:---|
-| **CS** | 白 | `/CS` | **PA12** | 片选, 低电平有效 |
+| **CS** | 白 | `/CS` | **PB12** | 片选, 低电平有效；固件上电钳位为高 |
 | **CLK** (SCK) | 黄 | `SCK` | **PA5** | SPI 时钟 |
 | **MOSI** (SI/MOSI) | 蓝 | `MOSI` (DI) | **PA7** | 主出从入, 数据写入 |
 | **MISO** (SO/MISO) | 绿 | `MISO` (DO) | **PA6** | 主入从出, 数据读取 |
@@ -39,7 +39,7 @@ CH341A 编程器排针位置丝印清晰, 对照下表接线:
 ```
 CH341A 编程器                          目标板 (W25Q128 已焊接)
 ┌─────────────────┐                   ┌──────────────────────┐
-│ CS    ───── 白 ──────────────────── PA12  (FLASH_CS)      │
+│ CS    ───── 白 ──────────────────── PB12  (FLASH_CS)      │
 │ CLK   ───── 黄 ──────────────────── PA5   (SPI1_SCK)      │
 │ MOSI  ───── 蓝 ──────────────────── PA7   (SPI1_MOSI)     │
 │ MISO  ───── 绿 ──────────────────── PA6   (SPI1_MISO)     │
@@ -65,6 +65,8 @@ W25Q128 工作电压为 2.7V ~ 3.6V, 5V 供电会**永久损坏芯片**。烧录
 - flashrom 无法识别 W25Q128 (报 "No EEPROM/flash device found")
 - 数据写入错误
 - 可能的硬件损坏
+
+V5.0.2运行时由 `Spi1_Shared` 管理TFT和W25Q128的共享总线，但它不能解决外部CH341A与已上电STM32同时驱动的问题，因此烧录时仍必须让目标板完全断电。
 
 **操作顺序**:
 1. 断开 STM32 板所有电源 (USB 线 + 外部电源)
@@ -299,7 +301,7 @@ python generate_font.py
 ```
 
 输出应包含:
-- `[OK] CRC32 自测通过: STM32 CRC32('1234') = 0x596A3B55`
+- `[OK] CRC32 自测通过: 固件 Checksum_CRC32('1234') = 0x596A3B55`
 - `[OK] 加载字体: C:\WINDOWS\Fonts\simsun.ttc`
 - `[OK] 生成 font_data.bin (2097152 字节 = 2MB)`
 - `擦除扇区: 512 个 (0x000000~0x200000)`
@@ -335,7 +337,7 @@ python burn_flash.py
   1. 断开 CH341A USB
   2. STM32 重新上电
   3. 屏幕应显示 GB2312 全字库 (20897 汉字)
-  4. 若 Magic 不匹配, 自动回退到片内 ROM 76 字
+  4. 若Magic或CRC32不匹配, 自动回退到片内ASCII/图标及4个必要汉字
 ```
 
 ### 7.5 烧录后操作
@@ -365,8 +367,8 @@ python burn_flash.py
 | 校验失败 (>0 字节不一致) | 杜邦线虚接 | 重新插紧所有排针, 尤其 GND 和 3.3V |
 | 同上 | 供电不足 (USB 延长线过长) | CH341A 直插电脑 USB 口, 不要用无源 HUB |
 | 同上 | 跳线帽误插 5V (芯片内部已受损) | 断电, 换到 3.3V 重试; 如反复失败芯片可能已损坏 |
-| 烧录成功但屏幕无变化 | STM32 固件未启用 Flash 字库 | 确认固件版本 ≥ V4.3.0, 已编译 App_Storage Flash 字库模块 |
-| 屏幕白屏 (无任何显示) | 字库 Magic 校验失败, Flash 初始化卡住 | 检查 backup_16MB.bin 是否被误擦除, 可用 flashrom 恢复备份 |
+| 烧录成功但屏幕无变化 | STM32 固件未启用 Flash 字库 | 确认使用V5.0.2固件，并检查启动时Flash字库CRC状态 |
+| 屏幕白屏 (无任何显示) | PB12虚焊或共享SPI接线冲突 | 检查PB12/PA5/PA6/PA7，确认CH341A排针已拔下；V5.0.2会在超时后恢复总线 |
 | 同上 | SPI1 引脚 PA6 被 W25Q128 占用, TFT 无法通信 | 烧录后务必拔掉 CH341A 排针 (尤其 MISO/PA6) 再给 STM32 上电 |
 
 ### 8.1 从备份恢复
@@ -386,10 +388,9 @@ ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_16MB.bin -c W25Q12
 | 文件 | 用途 |
 |:---|:---|
 | `ch341/generate_font.py` | 字库生成器: PIL 渲染 GB2312 全字库 20897 字 + ASCII 95 字 + 图标 54 帧 → `font_data.bin` (2MB) |
-| `ch341/burn_flash.py` | 烧录编排: CRC32 自测 (STM32 refin=false) → 调用字库生成 → 备份全片 → 写入全片 → 逐字节校验 |
+| `ch341/burn_flash.py` | 烧录编排: CRC32自测（与固件Checksum_CRC32同为refin=false）→ 生成字库 → 备份全片 → 写入全片 → 逐字节校验 |
 | `ch341/font_data.bin` | 生成产物: 2MB 字库镜像 (格式对齐 W25Q128 Flash 布局, LSB-first 无位序反转) |
 
-> **V4.3.2 变更**: 删除 `generate_splash.py`/`burn_splash.py` — SPLASH 改为 STM32 纯代码实现, 开机动画存 ROM 不占 W25Q。
 | `ch341/requirements.txt` | Python 依赖: Pillow ≥ 10.0.0 |
 
 > **V4.3.2 变更**: 删除 `generate_splash.py`/`burn_splash.py` — SPLASH 改为 STM32 纯代码实现, 开机动画存 ROM 不占 W25Q。

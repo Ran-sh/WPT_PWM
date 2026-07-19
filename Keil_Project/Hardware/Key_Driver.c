@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Key_Driver.c
- * @brief   按键驱动 — V5.0.1 (5 keys)
+ * @brief   按键驱动 — V5.0.2 (5 keys)
  *
  *  Pinout (5 keys, all IPU pull-up, press = LOW):
  *  +----------------------------------------------------------+
@@ -18,7 +18,7 @@
  *  |    Batch read: Key_Driver_Get_All_Events in critical sec   |
  *  +----------------------------------------------------------+
  *
- * @note    V5.0: 5 keys, KEY0=power hardware switch (handled by Sys_Core)
+ * @note    5 keys, KEY0=power hardware switch (handled by Sys_Core)
  ******************************************************************************
  */
 

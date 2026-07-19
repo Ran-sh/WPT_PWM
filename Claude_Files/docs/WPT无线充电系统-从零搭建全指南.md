@@ -17,9 +17,9 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V4.5.2 |
+| **文档版本** | V5.0.2 |
 | **最后更新** | 2026-07-11 |
-| **对应固件版本** | V4.5.2 (分支 `4.0TFT`) |
+| **对应固件版本** | V5.0.2 (分支 `5.0`) |
 | **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) |
 | **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages) |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接, 备选) |
@@ -29,6 +29,7 @@
 
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
+| V5.0.2 | 2026-07-19 | **STM32全面可靠性优化**: PB10/PWM/FAULT硬互锁、TIM1原子更新、TIM3 500Hz ADC双窗口、SPI1共享仲裁、W25Q边界/超时、后台参数保存、Blackbox V2双元数据与故障前后5秒快照、5键能力拆分、14页UI、USART2中断发送、遥测S=0/1/2/3、统一调度与C89清理 |
 | V4.5.2 | 2026-07-11 | **SPI时序回归+DMA修复+EMA修复**: DMA超时操作数反转修复(根治花屏), DMA TC3残留清理, SPI恢复18MHz, Flash批量读(16次→1次), CN/Icon ROM优先策略, 默认EN界面(W25Q手动切中文), Sys_Safety EMA全状态更新, CS脉冲简化, NVIC临界区保护, Pick_CN_EN遗漏修复 |
 | V4.5.1 | 2026-07-02 | **全平台安全审查修复 (16项)**: ESP8266 Token占位符化+配网密码+CMD:CLEAR二次确认+公共MQTT门控 + STM32 DMA超时护底+环形缓冲+黑匣子指针持久化+故障锁存跨页擦除+strtol防溢出+USART2 RXNE优先 + 扫频进度条防闪烁 + Web乐观缓存回滚+SW BASE路径修复 |
 | V4.5.0 | 2026-07-02 | 设置系统重构: 8页设置(语言/字间距/图标/亮度二级/颜色6预设) + PIC预览+确认模型 + 字间距纯像素间隙0-6px + 亮度1-100%滚动翻阅 + 颜色全屏重绘 + Key_Driver ID命名去歧义 + ARMCC V5 hex-escape兼容 |
@@ -65,7 +66,7 @@
 - 手机/电脑实时看电压、电流、频率
 - 远程开关机
 - 远程调频率 (95kHz~150kHz, 步进到实际可达值)
-- TFT 彩屏本地显示: 圆弧能量条仪表盘 + 9页面 UI
+- TFT 彩屏本地显示: 圆弧能量条仪表盘 + 14页面 UI
 - 看历史数据曲线
 - 过流自动保护
 
@@ -98,8 +99,8 @@
 │        STM32F103C8T6 (物理脑)                        │
 │  • TIM1全桥PWM (95k~150kHz, 50%占空比, 1000ns死区)   │
 │  • ADC双通道+64样本滑动滤波 • 非阻塞软启动扫频          │
-│  • TFT 160×128彩屏+4键+6LED+蜂鸣器                   │
-│  • EMA双级滤波(安全级+显示级) • 频率渐变斜坡 • 过流保护  │
+│  • TFT 160×128彩屏+5键+4LED+蜂鸣器                   │
+│  • ADC显示/安全双窗口+UI EMA • 频率渐变斜坡 • 过流保护   │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -110,13 +111,13 @@
 | F1 | 全桥 PWM 驱动 | TIM1 四通道互补输出, 50% 占空比锁定, PFM 调功 |
 | F2 | 非阻塞软启动扫频 | 150kHz→100kHz, 200Hz/10ms, ~2.5s |
 | F3 | 防偏磁保护 | 周期ticks强制偶数 + UDIS影子寄存器原子更新 |
-| F4 | 频率渐变斜坡 | SETFREQ后 500Hz/10ms 平滑过渡, 50kHz/s |
-| F5 | ADC 采集滤波 | 64样本 O(1) 滑动平均, 2ms独立任务 |
-| F6 | TFT 9页面 UI | 圆弧能量条仪表盘 + 两级菜单 + EMA显示级滤波 |
+| F4 | 频率渐变斜坡 | SETFREQ后 1000Hz/10ms 平滑过渡, 100kHz/s |
+| F5 | ADC 采集滤波 | TIM3 500Hz硬件触发, 64点显示窗口 + 8点安全窗口 |
+| F6 | TFT 14页面 UI | 圆弧能量条仪表盘 + 两级菜单 + EMA显示级滤波 |
 | F7 | 远程监控 | OneNET物模型上报 + 网页/小程序实时查看 |
 | F8 | 远程控制 | 开关机 + 直接设频率 (CMD:SETFREQ), UI自动同步 |
 | F9 | WiFi 配网 | WiFiManager网页配网, 存闪存, 指数退避自动重连 |
-| F10 | 故障保护 | Sys_Safety独立监测, 过流→SYS_FAULT锁存, PB10电源控制 |
+| F10 | 故障保护 | SWEEP/RUNNING连续3样本过流确认，PWM→PB10安全关断并锁存FAULT |
 
 ### 1.4 引脚分配总表
 
@@ -130,25 +131,25 @@
 | PA3 | USART2_RX | **ESP8266 TXD** | 交叉! RX接对方的TX |
 | PA4 | TFT_CS | ST7735 片选 | — |
 | PA5 | SPI1_SCK | ST7735 SCK | — |
-| PA6 | TFT_DC | ST7735 数据/命令 | — |
+| PA6 | TFT_DC / Flash_MISO | TFT数据/命令与W25Q128 DO动态切换 | 必须由共享SPI模块切换 |
 | PA7 | SPI1_MOSI | ST7735 SDA | — |
 | PA8 | TIM1_CH1 | IR2103S 上管1 | — |
 | PA9 | TIM1_CH2 | IR2103S 上管2 | — |
-| PA10 | LED_COM | 通信 LED | — |
-| PA11 | LED_POWER | 电源 LED | — |
-| PA12 | LED_TEMP | 温度 LED | — |
-| PA15 | LED_SYSTEM | 系统 LED | JTAG禁用后才释放 |
+| PA12 | TFT_BL | TFT背光GPIO开关 | V5.0不支持硬件PWM调光 |
+| PA15 | LED_STATUS | PWM状态灯 | JTAG禁用后才释放 |
+| PC13 | LED_HEARTBEAT | STM32板载心跳灯 | 低电平点亮 |
 | PB0 | ADC_CH8 | CC6920-10A 电流传感器 | — |
 | PB1 | ADC_CH9 | 20:1 分压网络 (200k+10k) | 分压比不对会烧ADC! |
-| PB3 | LED_PWM | PWM LED | JTAG禁用后才释放 |
+| PB3 | LED_POWER | 12V电源指示 | JTAG禁用后才释放 |
 | PB4 | LED_WIFI | WiFi LED | JTAG禁用后才释放 |
-| PB5 | PAGE 按键 | 按键→GND (IPU) | JTAG禁用后才释放 |
-| PB6 | TFT 背光 | TIM4_CH1 PWM调光 | — |
-| PB7 | F_DOWN 按键 | 按键→GND (IPU) | — |
-| PB8 | F_UP 按键 | 按键→GND (IPU) | — |
-| PB9 | ON/OFF 按键 | 按键→GND (IPU) | — |
-| PB10 | PowerContrl | 12V 使能 (高=开) | 初始必须拉低! |
+| PB5 | KEY4 确定 | 按键→GND (IPU) | 确定/PWM启停；WiFi页长按 |
+| PB6 | KEY3 DOWN/减 | 按键→GND (IPU) | — |
+| PB7 | KEY2 UP/加 | 按键→GND (IPU) | — |
+| PB8 | KEY1 返回 | 按键→GND (IPU) | 单击返回，双击主菜单 |
+| PB9 | KEY0 电源 | 按键→GND (IPU) | 只控制PB10，不直接启PWM |
+| PB10 | PowerControl | 12V 使能 (高=开) | 初始必须拉低；关断先停PWM |
 | PB11 | ESP8266 CH_PD | ESP8266 EN | 硬件使能控制 |
+| PB12 | W25Q128_CS | Flash片选 | 上电最先钳位为高 |
 | PB13 | TIM1_CH1N | IR2103S 下管1 | — |
 | PB14 | TIM1_CH2N | IR2103S 下管2 | — |
 | PB15 | 蜂鸣器 | 有源蜂鸣器 | — |
@@ -308,24 +309,28 @@ Vin并100μF+0.1μF, Vout并100μF+0.1μF
 ```
 Keil_Project/
 ├── Hardware/               ← 硬件驱动 (不可跨模块访问私有变量)
-│   ├── Ui_Controller.c/h   ← 9页面 UI 状态机 + 圆弧能量条仪表盘 (1703行)
-│   ├── Tft_Driver.c/h      ← ST7735 SPI+DMA 彩屏 + 中文查找 (606行)
-│   ├── TFT_Font_Data.h     ← ASCII 95字 + 中文 76字 + WIFI/MQTT图标 (356行)
-│   ├── Esp8266_Driver.c/h  ← USART2 + Try_Copy_Rx_Frame 原子接收 (247行)
+│   ├── Ui_Controller.c/h   ← 14页面 UI 状态机 + 圆弧仪表盘 + 增量刷新
+│   ├── Tft_Driver.c/h      ← ST7735 SPI+DMA + Flash/ROM 双路径字库
+│   ├── Spi1_Shared.c/h     ← TFT/W25Q128总线所有权、切换与超时恢复
+│   ├── W25Q_Driver.c/h     ← 16MB Flash边界检查、超时和二分检索
+│   ├── TFT_Font_Data.h     ← ASCII 95字 + 中文4字 + 图标 (ROM回退)
+│   ├── Esp8266_Driver.c/h  ← USART2 RX帧队列 + TX中断环形缓冲
 │   ├── App_Network.c/h     ← WiFi+心跳+帧快照+遥测门控 (以前在Hardware, 现移至User)
-│   ├── Adc_Driver.c/h      ← ADC1 双通道 + 64样本滑动窗口 (162行)
+│   ├── Adc_Driver.c/h      ← TIM3 500Hz触发 + 64点显示/8点安全窗口
 │   ├── Inverter_Control.c/h← 软启动 + 频率斜坡 (146行)
-│   ├── Key_Driver.c/h      ← 4键 FSM (137行)
-│   ├── Led_Driver.c/h      ← 6 LED 闪烁 (135行)
-│   ├── Pwm_Driver.c/h      ← TIM1 全桥 PWM 95-150kHz (113行)
-│   └── Buzzer_Driver.c/h   ← 蜂鸣器 (68行)
+│   ├── Key_Driver.c/h      ← 5键 FSM + 独立双击/长按能力
+│   ├── Led_Driver.c/h      ← 4 LED状态指示
+│   ├── Pwm_Driver.c/h      ← TIM1 全桥 PWM 95-150kHz原子更新
+│   └── Buzzer_Driver.c/h   ← 蜂鸣器
 ├── User/
-│   ├── Sys_Core.c/h        ← 5状态枚举 + 初始化 + Sys_Safety + 调度 (203行)
-│   ├── App_Network.c/h     ← 网络应用层 (251行)
-│   ├── main.c              ← 程序入口 (50行)
-│   └── stm32f10x_it.c/h    ← ISR: SysTick + USART2 ORE防锁死 (68行)
+│   ├── Sys_Core.c/h        ← 5状态 + 功率/故障API + 硬互锁 + 公共调度
+│   ├── App_Network.c/h     ← 网络状态机 + S=0/1/2/3遥测
+│   ├── App_Storage.c/h     ← 后台参数保存 + Blackbox V2
+│   ├── main.c              ← 程序入口和状态分发
+│   └── stm32f10x_it.c/h    ← SysTick/ADC DMA/USART2 ISR
 ├── System/
-│   └── Sys_Timer.c/h       ← SysTick 1ms + DWT (48行)
+│   ├── Checksum.c/h        ← CRC32/CRC8统一校验服务
+│   └── Sys_Timer.c/h       ← SysTick 1ms时基
 ├── Library/                ← SPL V3.5.0 (只读, 不可修改)
 └── Start/                  ← CMSIS + system_stm32f10x
 ```
@@ -391,13 +396,13 @@ SS_IDLE ──Trigger──→ SS_SWEEP(150kHz) ──250步──→ SS_DONE(10
 
 #### 4.3.4 频率渐变斜坡
 
-当收到 `CMD:SETFREQ:100000` 时, 不是瞬间跳频, 而是每 10ms 向目标方向步进 **500Hz**, 速率 **50kHz/s**。50kHz 的跨度大约 1 秒到达。
+当收到 `CMD:SETFREQ:100000` 时, 不是瞬间跳频, 而是每 10ms 向目标方向步进 **1000Hz**, 速率 **100kHz/s**。50kHz 的跨度大约 0.5 秒到达。
 
 这不仅听起来优雅, 更重要的是**物理上安全**——谐振腔需要时间适应新的工作点, 瞬间大跨度跳频可能引起过流或失谐。
 
-#### 4.3.5 ADC — 64样本 O(1) 滑动平均
+#### 4.3.5 ADC — TIM3 500Hz硬件触发 + 双窗口滤波
 
-100kHz 强磁场下 DMA 瞬时值噪声严重。64 样本滑动平均, 每次只做一次加法+一次减法, 不随窗口增大而增加计算量:
+100kHz 强磁场下软件启动ADC容易产生采样抖动。V5.0.2由TIM3 TRGO每2ms硬件触发ADC1双通道扫描，DMA完成中断只复制快照，主循环再做O(1)滑动窗口:
 
 ```c
 old = buf[idx];           // 保存最旧
@@ -406,40 +411,40 @@ accum += buf[idx];        // 加入新值
 if (filled >= 64) accum -= old;  // 去掉最旧
 ```
 
-`ADC_Filter_Task` 以 2ms 独立节拍运行, 不跟 UI/网络的节奏走。
+64点窗口提供稳定的显示V/I，8点窗口提供响应更快的安全电流。采样超过20ms未更新会被视为不新鲜；SWEEP/RUNNING中会直接锁存ADC故障。校准状态机只允许在PB10关闭时推进。
 
-#### 4.3.6 EMA 双级滤波链
+#### 4.3.6 显示/安全分离滤波链
 
 | 层级 | 模块 | 滤波对象 | α | 用途 |
 |:---|:---|:---|:---|:---|
-| 安全级 | `Sys_Safety_Update_EMA()` | ADC 原始 V/I | 0.25 | 过流保护, PB10 阈值 |
-| 显示级 | `Ui_Controller_Update_EMA()` | Sys_Safety 输出 | 0.25 | UI 仪表盘 + 综合监测页 |
+| 安全级 | `Adc_Driver` 8点窗口 | DMA原始电流 | — | SWEEP/RUNNING快速过流保护 |
+| 显示级 | `Adc_Driver` 64点窗口 + UI EMA | DMA原始V/I | 0.25 | UI仪表盘 + 综合监测页 |
 | 数字量 | `Pwm_Driver_Get_Frequency()` | 无滤波 | — | 频率(零迟滞, 保证调频跟手) |
 
-两级 EMA 解耦的关键原因: 安全级必须独立——不能因为 UI 页面切换/暂停而影响保护响应速度。
+显示和安全链路解耦的关键原因：UI需要稳定，保护需要快速；任何页面切换都不能影响安全窗口和过流计数。
 
 #### 4.3.7 Sys_Safety — 独立安全监测
 
-Sys_Safety 每圈主循环运行, 与 UI 完全解耦:
+Sys_Safety由统一公共调度器调用, 与 UI 完全解耦:
 
-- **EMA 更新**: 每圈更新 V/I EMA (α=0.25, τ≈800ms)
-- **PB10 电源控制**: 电压 >12V → 拉高使能, ≤12V → 拉低关断
-- **过流检测**: `s_safety_ema_i > 5.0A` → `Soft_Start_Fault()` + Buzzer BEEP + `g_sys_state = SYS_FAULT`
-- **FAULT 防重触发**: `Sys_Safety_Reset_EMA()` 清零 EMA 电流 + 重新初始化, 防止复位后 EMA 残留值立即再触发
+- **PB10手动电源**: KEY0只切换12V；关闭时严格先停PWM/MOE再拉低PB10
+- **启动门控**: 仅IDLE、PB10已开、ADC校准READY、采样新鲜且无FAULT时允许KEY4/远程ON启动
+- **过流检测**: SWEEP和RUNNING都使用8点安全电流，连续3个新样本 >5.0A才锁存FAULT
+- **FAULT闭锁**: 首故障原因锁存并冻结故障快照；PWM与12V强制关闭，KEY0不能绕过FAULT
 
 #### 4.3.8 TFT 显示 (ST7735 Green Tab)
 
 | 参数 | 值 |
 |:---|:---|
-| SPI | Mode 3, 9MHz (ST7735 t_WC≥66ns), DMA1_Channel3, 全双工 (MISO Flash) |
+| SPI | Mode 3, 18MHz, DMA1_Channel3；由Spi1_Shared切换TFT/Flash所有权和PA6方向 |
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 (Green Tab 特有) |
-| 字库 | 8×16 ASCII (95字) + 16×16 中文 (76字) + 5×10 微数字 (12字) |
+| 字库 | W25Q128全字库20897字；ROM回退为ASCII 95字 + 必要中文4字 + 图标 |
 | 字库位序 | 全部 LSB-first, `TFT_Font_Data.h` 统一管理 |
 | 图标 | WIFI(4帧+动画6帧), MQTT(3态+动画6帧), ICON_STAR |
-| 索引 | CN_INDEX 与 CN_FONT_16X16 严格 76 字对齐, 末尾: 综(74)+合(75) |
+| 总线恢复 | 访问超时或模式异常时释放双CS、复位SPI状态并返回错误，不永久卡死主循环 |
 
-#### 4.3.9 UI — 9页面两级菜单 + 圆弧能量条仪表盘
+#### 4.3.9 UI — 14页面两级菜单 + 圆弧能量条仪表盘
 
 **页面枚举 (Ui_Page)**:
 
@@ -454,8 +459,13 @@ Sys_Safety 每圈主循环运行, 与 UI 完全解耦:
 | MONITOR_CURR | 6 | 电流仪表盘 — 圆弧能量条 |
 | WIFI_SETUP | 7 | 无线配网 — 状态+清除 |
 | FAULT | 8 | 故障清除 — 过流锁存 |
+| SETTING | 9 | 设置主菜单 |
+| SETTING_LANG | 10 | 中英文切换 |
+| SETTING_SPACING | 11 | 字间距0~3px |
+| SETTING_ICONS | 12 | 图标浏览 |
+| SETTING_COLOR | 13 | 颜色方案 |
 
-**底部栏**: 所有页面统一 `ON:确定` + `PAGE:返回`。SUB_MENU 和 FAULT 仅显示 `PAGE:返回`。
+**底部栏**: 已删除。页面操作全部由KEY0~KEY4完成，避免旧按键提示与V5.0 PCB不一致。
 
 **UI Phase 架构**: 7 个 Phase 依次执行 — Global Icons(0) → Fault detection(1) → Sweep→Summary(2) → Key dispatch(3) → Page tracking(4) → 200ms incremental(5) → Cursor clamp(6) → Draw(7)。
 
@@ -471,25 +481,24 @@ Sys_Safety 每圈主循环运行, 与 UI 完全解耦:
 
 信息舱: Row4=状态 → Row5=数值(黄) → Row6=标签(青), 1px Bres_Line 绘制。
 
-#### 4.3.10 KEY — 4键 FSM
+#### 4.3.10 KEY — 5键 FSM
 
 | 按键 | 引脚 | 功能 |
 |:---|:---|:---|
-| F_UP | PB8 | 频率+/菜单上移 |
-| F_DOWN | PB7 | 频率-/菜单下移 |
-| ON/OFF | PB9 | 确认/启动/停止 |
-| PAGE | PB5 | 返回/页面切换 |
+| KEY0 | PB9 | 单击切换PB10 12V；不直接启动PWM |
+| KEY1 | PB8 | 单击返回上一页；双击回主菜单 |
+| KEY2 | PB7 | 单击UP/加 |
+| KEY3 | PB6 | 单击DOWN/减 |
+| KEY4 | PB5 | 单击确定/PWM启停；仅WiFi页允许长按清凭证 |
 
-#### 4.3.11 LED — 6灯状态指示
+#### 4.3.11 LED — 4灯状态指示
 
 | LED | 引脚 | 用途 |
 |:---|:---|:---|
-| LED_COM | PA10 | 通信状态 |
-| LED_POWER | PA11 | 电源指示 |
-| LED_TEMP | PA12 | 温度/过流警告 |
-| LED_SYSTEM | PA15 | 系统心跳 |
-| LED_PWM | PB3 | PWM 输出指示 |
-| LED_WIFI | PB4 | WiFi 连接状态 |
+| LED_WIFI | PB4 | 在线常亮、重连慢闪、离线熄灭 |
+| LED_POWER | PB3 | PB10 12V开启时常亮 |
+| LED_STATUS | PA15 | SWEEP慢闪、RUNNING常亮、其余熄灭 |
+| LED_HEARTBEAT | PC13 | STM32主程序500ms闪烁，低电平点亮 |
 
 #### 4.3.12 App_Network — 网络层
 
@@ -515,9 +524,22 @@ Sys_Safety 每圈主循环运行, 与 UI 完全解耦:
 - `Try_Copy_Rx_Frame`: 原子拷贝消除 TOCTOU 竞态
 - `ss_cmd` / `conn_cs` 帧内快照: 防 ELSE-IF 链间状态变化
 
-**遥测门控**: 仅在 SUMMARY/FREQ/VOLT/CURR 页面 + SS_DONE 状态 + 网络在线时发送。
+**遥测策略**: 网络在线时每500ms发送一帧，与当前TFT页面无关；S=0/1/2/3分别表示IDLE、SWEEP、RUNNING、FAULT。
 
 **远程指令 UI 同步**: CMD:ON/OFF → `Ui_Controller_Force_Page_And_Reset()` 同时复位页面+光标。
+
+#### 4.3.13 App_Storage — 后台参数保存与 Blackbox V2
+
+配置A/B仍位于 `0x300000` / `0x301000`。保存请求先复制到RAM，只有IDLE调度才执行擦写，并在写后回读CRC32校验；功率运行期间不会在业务调用栈里阻塞擦除。
+
+| 区域 | 地址 | 用途 |
+|:---|:---|:---|
+| 配置A/B | 0x300000 / 0x301000 | 参数双副本，CRC32校验 |
+| 元数据A/B | 0x310000 / 0x311000 | 递增generation双扇区日志，掉电择新恢复 |
+| 循环日志 | 0x312000 ~ 0x6CFFFF | 12B/条、CRC8、200ms采样、可跨页恢复 |
+| 故障快照 | 0x6D0000 ~ 0x70FFFF | 64个4KB槽，25条故障前 + 25条故障后样本 |
+
+正常日志写指针每60条做一次元数据检查点。启动时先选有效且generation最新的元数据，再向前扫描未入账记录；损坏条目不会让整段日志失效。故障发生时只在RAM中冻结前5秒并继续收集后5秒，确认PWM和PB10均关闭后才写Flash。
 
 ### 4.4 系统全局状态机
 
@@ -539,20 +561,22 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 
 ```c
 int main(void) {
-    Sys_Clamp_ESP(); Sys_Hardware_Init(); Sys_Startup_Screen(); Sys_Post_Init();
-    g_sys_state = SYS_STATE_IDLE;
+    Sys_Clamp_ESP(); Sys_Timer_Init(); Sys_Hardware_Init();
+    W25Q_Driver_Init(); Tft_Driver_Font_Init(); App_Storage_Init();
+    Sys_Startup_Screen(); Sys_Post_Init();
     while (1) {
-        Key_Driver_Task(); Adc_Driver_Filter_Task(); App_Network_Task(); Sys_Safety_Task();
-        switch (g_sys_state) {
+        switch (Sys_Core_Get_State()) {
             case SYS_STATE_IDLE:    Sys_Run_Idle();    break;
             case SYS_STATE_SWEEP:   Sys_Run_Sweep();   break;
             case SYS_STATE_RUNNING: Sys_Run_Running(); break;
             case SYS_STATE_FAULT:   Sys_Run_Fault();   break;
+            default: Sys_Core_Trigger_Fault(SYS_FAULT_CONTROL_INVARIANT); break;
         }
-        IWDG_ReloadCounter(); __WFI();
     }
 }
 ```
+
+四个 `Sys_Run_*()` 都复用 `Sys_Core_Run_Common()`：统一执行控制不变量、ADC、安全、按键/UI、网络、Blackbox、后台存储、LED/蜂鸣器、IWDG和WFI。状态函数只负责软启动或调频等专属动作，避免漏跑安全任务。
 
 > ---
 > ### 🛠️ 调试避坑与排错指南 #3: PWM 不输出 / 周期不对
@@ -611,9 +635,9 @@ if (!wifiManager.autoConnect("STM32_WPT_Config")) {
 }
 ```
 
-首次上电→开热点 `STM32_WPT_Config` (无密码)→手机连上→浏览器弹配网页→选WiFi输密码→存闪存→重启。以后自动连。
+首次上电→开热点 `STM32_WPT_Config` (密码 `wpt2026conf`)→手机连上→浏览器弹配网页→选WiFi输密码→存闪存→重启。以后自动连。
 
-**换WiFi时**: 长按 STM32 的 ON/OFF 键 > 3秒 → STM32 发 `CMD:CLEAR\n` → ESP8266 `WiFiManager.resetSettings()` + `ESP.restart()` → 重新进入配网模式。
+**换WiFi时**: 进入STM32的WiFi配网页，长按 KEY4 >3秒发起 `CMD:CLEAR` 二次确认；确认后ESP8266清除凭证并重启。其他页面长按KEY4无效，KEY0始终只负责12V电源。
 
 #### 5.2.2 双 MQTT 连接 + 指令去抖
 
@@ -639,8 +663,8 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 | 状态 | STM32 遥测 | ESP 上报 | Web/小程序显示 |
 |:---|:---|:---|:---|
 | IDLE | V=真实,I=真实,F=0,S=0 | Switch=false, V/I=真实, F=0 | 停机/V/I 正常/F=0 |
-| SWEEP | 不发送遥测 | (无数据) | (上一帧缓存) |
-| RUNNING | V=EMA,I=EMA,F=真实Hz,S=2 | Switch=true, V/I/F=真实 | 运行中/实时值 |
+| SWEEP | V/I=显示滤波,F=真实Hz,S=1 | Switch=false, V/I/F=真实 | 扫频中/实时值 |
+| RUNNING | V/I=显示滤波,F=真实Hz,S=2 | Switch=true, V/I/F=真实 | 运行中/实时值 |
 | FAULT | V=真实,I=真实,F=0,S=3 | Switch=false, V/I=真实, F=0 | 故障/实时V/I/F=0 |
 
 **核心原则**: V/I 始终上报真实物理量 (任何状态下 ADC 均可采集), 仅 F 在 PWM 未运行时强制为 0。
@@ -793,7 +817,7 @@ curl "https://iot-api.heclouds.com/thingmodel/query-device-property?product_id=�
 | V1 CMD:F_UP/DOWN | 每次 ±1kHz | 小程序点一下触发两次 |
 | V2 OneNET FreqAdd/FreqSub | 虚拟按键点动 | 物模型复杂, 两个布尔键 |
 | V3 CMD:SETFREQ (跳变) | 瞬间设频率 | 跳频太暴力, 不安全 |
-| **V4 SETFREQ + 渐变** ✅ | 500Hz/10ms 斜坡到达 | 平滑, 可中断, **当前方案** |
+| **V4 SETFREQ + 渐变** ✅ | 1000Hz/10ms 斜坡到达 | 平滑, 可中断, **当前方案** |
 
 ### 10.2 网页部署的四代方案
 
@@ -828,10 +852,11 @@ Token 里是 `devices` (复数), 不是 `device`。写成单数会让 OneNET 返
 
 | 版本 | 关键修复 |
 |:---|:---|
+| V5.0.2 | 功率硬互锁 + 500Hz ADC双窗口 + SPI1仲裁 + Blackbox V2 + 14页面UI + USART2中断发送 + 统一调度 |
 | V4.2.0 | TFT字库修复 + 底部栏简化 + 全平台版本号统一 |
 | V4.1.0 | 9页面TFT UI + 全局状态机 + Sys_Safety + 圆弧能量条仪表盘 |
 | V4.0.0 | 小程序全重写 + 网页乐观更新 + ESP去抖 + 数据一致性铁律 |
 
 ---
 
-> **全文完**。这份文档从 V4.0.0 一路迭代到 V4.2.0, 踩过的坑比跑通的代码还多。如果你跟着做遇到问题, 回头翻第 9 章故障速查表, 大概率能找到答案。祝你的全桥不发烫, ESP8266 不掉线, OneNET 不报 401, TFT 不显示乱码。
+> **全文完**。本文已与 V5.0.2 固件同步。如果你跟着做遇到问题, 回头翻第 9 章故障速查表；涉及功率部分时务必先断开12V并确认PB10为低。祝你的全桥不发烫, ESP8266 不掉线, OneNET 不报401, TFT不显示乱码。

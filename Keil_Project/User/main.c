@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/main.c
- * @brief   WPT_PWM V5.0.1 — 程序入口 (GPIO 重映射 + 5键系统)
+ * @brief   WPT_PWM V5.0.2 — 程序入口 (GPIO 重映射 + 5键系统)
  *
  *  系统总接线表 (全部使用引脚, 48 脚 LQFP):
  *  +------------------------------------------------------------+
@@ -35,7 +35,7 @@
  *    App_Storage_Init -> Sys_Startup_Screen(SPLASH) -> Sys_Post_Init ->
  *    Delay(1s) -> SYS_STATE_IDLE
  *
- * @note    V5.0: GPIO 全面重映射, 5 键系统 (KEY0-4), 四灯系统
+ * @note    V5.0.2: GPIO 全面重映射, 5 键系统 (KEY0-4), 四灯系统
  *          Sys_Timer_Init 必须在 SPLASH 之前 (Delay_Ms 依赖 SysTick)
  ******************************************************************************
  */
@@ -55,7 +55,7 @@ int main(void)
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);         /* NVIC 优先级分组: 2位抢占 2位响应 */
 
     Sys_Clamp_ESP();                                        /* 钳位 ESP 控制脚, 防止浮空误触发 */
-    Sys_Timer_Init();                                       /* SysTick 1ms + DWT (SPLASH Delay_Ms 依赖此) */
+    Sys_Timer_Init();                                       /* SysTick 1ms时基 (SPLASH Delay_Ms依赖此) */
     Sys_Hardware_Init();                                    /* 硬件驱动初始化: Pwm/TFT/Led/Buzzer/Adc/Key */
     W25Q_Driver_Init();                                     /* W25Q128 JEDEC 校验 -> s_chip_ok */
     Tft_Driver_Font_Init();                                 /* Flash 字库头校验 -> s_font_flash_valid */

@@ -10,7 +10,7 @@ description: >
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
   Dual-MCU/双脑/JSON透传, Sys_Timer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, 技术白皮书, 开发者指南, 嵌入式架构师, OneNET, MQTT, TFT/ST7735.
-  V4.5.1 naming convention: Module_Name_Verb_Noun — all public functions follow PascalCase+underscore.
+  V5.0.2 naming convention: Module_Name_Verb_Noun — all public/static functions use the module prefix.
   Key modules: Sys_Timer, Sys_Core, Pwm_Driver, Inverter_Control, Adc_Driver,
   Key_Driver, Esp8266_Driver, App_Network, Ui_Controller, Tft_Driver, Led_Driver, Buzzer_Driver.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
@@ -28,7 +28,7 @@ description: >
     【输出】每个修复的 diff + 验证结果
 
   第3条 — 更新 CLAUDE.md
-    【针对文件】D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT\CLAUDE.md
+    【针对文件】D:\Claude Code Project\WPT_PWM_V5.0\CLAUDE.md
     【写入内容】版本号、文件结构+行数、审查历史、新增模块说明
 
   第4条 — 更新开发指南
@@ -49,7 +49,7 @@ description: >
     【验证】git status 确认无编译产物残留
 
   第8条 — Git 提交 + 推送
-    【命令】git add -A && git commit -m "docs: Vxx — <变更摘要>" && git push origin 4.0TFT
+    【命令】精确暂存本轮文件，提交后按用户明确要求决定是否 `git push origin 5.0`
     【禁止上传】.obj .lst .axf .uvopt .uvgui.* 等编译/IDE临时文件
 
   第9条 — 追加执行教训
@@ -59,7 +59,7 @@ description: >
   Arduino, non-STMicro MCUs, or any MCU without SPL (ESP32/ESP-IDF, nRF, MSP430, PIC).
 ---
 
-# 资深嵌入式系统架构师技能包 (V4.5.1)
+# 资深嵌入式系统架构师技能包 (V5.0.2)
 
 ## 1. 角色设定
 
@@ -67,7 +67,7 @@ description: >
 
 - **底层**: STM32F1/F4 系列 MCU，精通寄存器级调试和 SPL 标准外设库 V3.5.0
 - **通信**: ESP8266 Arduino MQTT 固件, Dual-MCU 双脑架构, USART 中断驱动
-- **显示**: ST7735 TFT 彩屏 (SPI+DMA, 160×128), 中英文字库 (76汉字), 圆弧能量条
+- **显示**: ST7735 TFT 彩屏 (SPI+DMA, 160×128), W25Q128全字库+ROM 4字回退, 圆弧能量条
 - **功率电子**: 全桥/半桥 PWM 驱动, 谐振变换器, 死区控制, 防偏磁算法, PFM 调功, 非阻塞软启动扫频
 - **自动化**: PowerShell, Python, Node.js (docx-js), CI/CD 脚本
 - **文档**: 可输出印刷级排版的白皮书和开发者指南
@@ -90,11 +90,11 @@ description: >
 建立 `System/Sys_Timer` 作为全项目唯一的时基源:
 
 ```c
-// Sys_Timer.h — 公开接口
+/* Sys_Timer.h — 公开接口 */
 void     Sys_Timer_Init(void);
-void     Sys_Timer_IncTick(void);
+void     Sys_Timer_Inc_Tick(void);
 uint32_t Sys_Timer_Get_Tick(void);
-void     Sys_Timer_Delay_Ms(uint32_t ms);  // 仅初始化阶段使用
+void     Sys_Timer_Delay_Ms(uint32_t ms);  /* 仅初始化阶段使用 */
 ```
 
 **时间戳差值法 (核心调度模式)**:
@@ -140,15 +140,15 @@ void Some_Task(void) {
 
 ```c
 void USART2_IRQHandler(void) {
-    // ORE 溢出必须最先处理 — 防止数据洪峰时中断锁死
-    if (USART_GetFlagStatus(USART2, USART_FLAG_ORE) != RESET)
-        USART_ReceiveData(USART2);  // 读 DR 清除 ORE
-
     if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET) {
         uint8_t ch = USART_ReceiveData(USART2);
         Esp8266_Driver_Rx_Char(ch);
         USART_ClearITPendingBit(USART2, USART_IT_RXNE);
     }
+    if (USART_GetFlagStatus(USART2, USART_FLAG_ORE) != RESET)
+        USART_ReceiveData(USART2);  /* RXNE后读DR清除ORE */
+    if (USART_GetITStatus(USART2, USART_IT_TXE) != RESET)
+        Esp8266_Driver_Tx_Ready_ISR();
 }
 ```
 
@@ -158,7 +158,7 @@ void USART2_IRQHandler(void) {
 char local_buf[128];
 if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
     goto skip_frame;
-// 安全解析 local_buf — ISR 无法干扰
+/* 安全解析 local_buf — ISR 无法干扰 */
 ```
 
 **帧内快照防 TOCTOU**: `ss_cmd`/`conn_cs` 在解析前一次性快照, 防止 ELSE-IF 链间状态被并发修改。
@@ -175,20 +175,22 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 
 ```c
 int main(void) {
-    Sys_Clamp_ESP(); Sys_Hardware_Init(); Sys_Startup_Screen(); Sys_Post_Init();
-    g_sys_state = SYS_STATE_IDLE;
+    Sys_Clamp_ESP(); Sys_Timer_Init(); Sys_Hardware_Init();
+    W25Q_Driver_Init(); Tft_Driver_Font_Init(); App_Storage_Init();
+    Sys_Startup_Screen(); Sys_Post_Init();
     while (1) {
-        Key_Driver_Task(); Adc_Driver_Filter_Task(); App_Network_Task(); Sys_Safety_Task();
-        switch (g_sys_state) {
+        switch (Sys_Core_Get_State()) {
             case SYS_STATE_IDLE:    Sys_Run_Idle();    break;
             case SYS_STATE_SWEEP:   Sys_Run_Sweep();   break;
             case SYS_STATE_RUNNING: Sys_Run_Running(); break;
             case SYS_STATE_FAULT:   Sys_Run_Fault();   break;
+            default: Sys_Core_Trigger_Fault(SYS_FAULT_CONTROL_INVARIANT); break;
         }
-        IWDG_ReloadCounter(); __WFI();
     }
 }
 ```
+
+`Sys_Core_Run_Common()`统一执行控制不变量、ADC、安全、按键/UI、网络、Blackbox、后台存储、LED/蜂鸣器、IWDG和WFI。禁止在四个状态函数中复制公共任务清单。
 
 ### 2.7 PWM 安全红线
 
@@ -200,27 +202,28 @@ int main(void) {
 
 ### 2.8 Sys_Safety 独立安全监测
 
-- **EMA 滤波**: α=0.25 (τ≈800ms), 每圈主循环更新 V/I
-- **PB10 电源**: 电压 >12V → 拉高使能, ≤12V → 拉低关断
-- **过流检测**: `s_safety_ema_i > 5.0A` → `Inverter_Control_Soft_Start_Fault()` + `Buzzer BEEP` + `g_sys_state = SYS_FAULT`
-- **FAULT 防重触发**: `Sys_Safety_Reset_EMA()` 清零 EMA + 重新初始化
+- **ADC采样**: TIM3 TRGO 500Hz + DMA双通道；64点显示窗口，8点安全窗口
+- **PB10电源**: 仅KEY0手动切换；关闭必须先停TIM1/MOE，再拉低PB10
+- **启动门控**: IDLE + PB10已开 + ADC校准READY + 数据新鲜 + 无FAULT锁存
+- **过流检测**: SWEEP/RUNNING连续3个新样本 >5.0A后锁存FAULT
+- **FAULT闭锁**: 首故障原因与快照冻结一次，PWM/12V全关，KEY0不可绕过
 - 安全逻辑与 UI 完全解耦, 不依赖任何 UI 状态
 
 ### 2.9 TFT 显示 (ST7735 Green Tab)
 
 | 参数 | 值 |
 |:---|:---|
-| SPI | Mode 3, 9MHz (ST7735 t_WC≥66ns), DMA1_Channel3, 全双工 (MISO Flash) |
+| SPI | Mode 3, 18MHz, DMA1_Channel3；Spi1_Shared统一所有权/PA6方向/双CS/超时恢复 |
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 |
-| 字库 | 8×16 ASCII (95) + 16×16 中文 (76) + 5×10 微数字 (12) |
+| 字库 | W25Q128全字库20897字；ROM回退ASCII 95字 + 必要中文4字 + 图标 |
 | 字库位序 | LSB-first, `TFT_Font_Data.h` 统一管理 |
-| CN_INDEX/CN_FONT | 严格 76 字对齐, 末尾: 综(74)+合(75) |
+| CRC | 统一调用Checksum_CRC32，禁止各模块复制算法 |
 
-### 2.10 工程目录约定 (V4.2.1)
+### 2.10 工程目录约定 (V5.0.2)
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/
+WPT_PWM_V5.0/
 ├── Keil_Project/
 │   ├── Hardware/     ← 硬件驱动层 (12 模块)
 │   ├── User/         ← 应用层 (Sys_Core, App_Network, main, stm32f10x_it)
@@ -234,10 +237,12 @@ WPT_PWM_V4.0_ONENET_TFT/
 └── CLAUDE.md         ← 项目指南
 ```
 
-## 3. 审查历史速查 (V4.0.0→V4.5.2)
+## 3. 审查历史速查 (V4.0.0→V5.0.2)
 
 | 版本 | 关键修复 |
 |:---|:---|
+| V5.0.2 | **STM32全面优化**: TIM1原子更新、PB10/PWM/FAULT硬互锁、500Hz ADC双窗口、SPI1共享仲裁、W25边界/超时、后台校验保存、Blackbox V2双元数据/循环恢复/故障前后5秒、5键能力拆分、14页UI、USART2中断发送、S=0/1/2/3、统一调度、看门狗与C89清理 |
+| V5.0.1 | GPIO全量重映射 + 5键/4灯系统 + PB12 Flash CS钳位 + UI上键回绕修复 |
 | V4.5.2 | **SPI+DMA+EMA修复 (13项)**: DMA超时反转(花屏根因), DMA TC3残留, SPI恢复18MHz(去dummy), Flash批量读(16→1次), CN/Icon ROM优先, EN默认, EMA全状态更新(V/I=0修复), CS脉冲简化, NVIC临界区, Write_Enable防护, s_language初值, Pick_CN_EN遗漏 |
 | V4.5.1 | **全平台安全审查修复 (16项)**: C1:ESP8266 Token占位符化 + C2:配网密码 + H4:DMA/SPI超时 + H6:环形缓冲 + H1:黑匣子指针持久化 + H2:故障锁存跨页擦除 + H12:strtol + H7:WIFI_CONN死代码 + H11:公共MQTT门控 + H14:CLEAR二次确认 + H5:进度条防闪烁 + H9:乐观缓存回滚 + H10:SW BASE路径 + M2:USART2 RXNE优先 + M3:STATUS正向过滤 |
 | V4.5.0 | 设置系统重构: 8页设置 + PIC预览模型 + 字间距0-6px + 亮度二级菜单(手动/呼吸灯) + 颜色6预设全屏重绘 + Tft_Driver 纯像素间隙渲染 + Center/Right 自适应间距 + Draw_Header 内置图标 + Key_Driver ID命名去歧义 + ARMCC V5 hex-escape兼容 + App_Storage 196B校验 + 死代码清理(font_size/BL_Dynamic/Key_GetEvent) |
@@ -257,25 +262,22 @@ WPT_PWM_V4.0_ONENET_TFT/
 
 ```
 Vx.y.z 三数字体系：
-  x — 固定为 4 (对应目录名 WPT_PWM_V4.0_ONENET_TFT, 4.0TFT 分支)
-      仅当整个仓库从 TFT 架构升级到下一代显示方案时才变为 5
+  x — 固定为 5 (对应目录名 WPT_PWM_V5.0, 5.0 分支)
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V4.5.2
-  V4 = 固定大版本 (TFT 彩屏架构)
-  .2 = 两次中版本升级
+当前版本: V5.0.2
+  V5 = GPIO全量重映射 + 5键/4灯新版PCB架构
+  .0 = 当前中版本
   .2 = 当前小版本号
 
 涉及版本号的位置 (全项目必须统一):
-  【文件头注释】每个 .c/.h/.ino/.py 的 @brief/@note/@version 行 → V4.2.2
-  【文档控制信息】开发指南 文档版本+固件版本 → V4.2.2
-  【技能文件 frontmatter】name/description 中的版本引用 → V4.2.2
-  【CLAUDE.md】版本号+审查历史+文件结构行数注释 → V4.2.2
-  【README.md】badge + 版本历史表 + 分支表 → V4.2.2
-  【操作手册/部署文档】版本字段 → V4.2.2
-  【小程序注释】wxss/wxml/js 头部 → V4.2.2
-  【其他文档】ONENETapp/README, Railway_Deploy/README, plans/, specs/ → V4.2.2
+  【STM32文件头注释】Keil_Project下每个.c/.h的@brief/@note行 → V5.0.2
+  【文档控制信息】开发指南/技能文件当前版本 → V5.0.2
+  【CLAUDE.md】版本号+审查历史+当前架构说明 → V5.0.2
+  【README.md】badge + 版本历史表 + 5.0分支表 → V5.0.2
+  【CH341A指南】PB12接线、CRC与共享SPI说明 → V5.0.2
+  【历史版本】修改日志中的旧版本号原样保留
 
 历史版本 → V4.x.x 完整映射表:
   旧 V0.0  → V1.0.0 (初始原型, 用 V1 起始以便后续回填)
@@ -432,6 +434,17 @@ Vx.y.z 三数字体系：
 | 62 | ARMCC #870-D 警告: 中文 "无小中大" 损坏 | 中文字符在文件编辑中被编码为无效多字节序列 | **ARMCC V5 所有 inline 中文必须用 UTF-8 hex escape 序列，禁止直接写中文字符** |
 | 63 | KEY_DRIVER_ID_ON_OFF/PAGE 宏名与实际引脚相反 | 宏定义时 ON_OFF=0 指向 PB5=PAGE，PAGE=3 指向 PB9=ON | **驱动层宏命名必须与物理引脚标签一致，不能在命名层抽象物理映射** |
 
+### 4.12 2026-07-19: V5.0.2 STM32全面优化教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 64 | KEY0关12V与PWM停止分散在UI/网络/驱动多条路径，容易出现PB10已关但MOE仍开的非法状态 | 启停逻辑没有单一所有者，各调用方直接操作底层 | **功率状态只能通过Sys_Core统一请求API改变；每圈先检查PB10/PWM/状态不变量，失配立即FAULT** |
+| 65 | 软件节拍启动ADC会随主循环负载抖动，慢显示滤波又掩盖过流尖峰 | 采样触发、显示滤波和安全滤波没有分层 | **ADC用定时器TRGO硬触发；显示和安全采用不同窗口；安全只按新采样序号计连续超限次数** |
+| 66 | TFT与W25Q128各自改SPI模式和CS，异常路径可能遗留错误方向或片选 | 共享总线没有所有权与统一退出清理 | **共享SPI必须有独立仲裁模块；每个事务Acquire/Release成对，超时统一释放双CS并恢复安全模式** |
+| 67 | 参数保存和故障日志在业务调用栈直接擦Flash，运行时可能阻塞功率控制 | 持久化请求和物理写入耦合 | **调用方只提交RAM请求；仅IDLE或确认PWM/PB10均关闭后执行擦写、回读和CRC校验** |
+| 68 | 单写指针无法可靠应对掉电和循环覆盖，故障现场也缺少触发前数据 | 元数据、日志和故障锁存没有事务边界 | **采用双扇区generation元数据、启动前向恢复、CRC8条目和独立故障快照槽；先RAM冻结前后窗口再落盘** |
+| 69 | 旧文档仍描述4键、6灯、15页、PA12 Flash CS和PB10电压自动控制 | GPIO重映射后只改代码，文档缺少以公开接口为基准的回归检查 | **版本发布前脚本检查文件头和SPLASH，并逐项核对引脚、页面枚举、按键能力、遥测状态、Flash分区与看门狗** |
+
 ### 4.5 "更新全部内容"执行检查清单
 
 以后每次触发"更新全部内容"，**必须逐条执行并打勾**:
@@ -444,7 +457,7 @@ Vx.y.z 三数字体系：
 [ ] 5. 运行 generate_docx.js 重新生成全部 .docx
 [ ] 6. 运行 keilkill.bat 清理编译产物
 [ ] 7. git status 确认: 零 .obj/.lst/.axf 文件
-[ ] 8. git add -A && git commit -m "docs: Vxx — ..."
-[ ] 9. git push origin 4.0TFT
+[ ] 8. 精确暂存本轮文件并提交，保留用户已有工作区改动
+[ ] 9. 用户明确要求后再 git push origin 5.0
 [ ] 10. 追加本轮教训到本节的"执行教训"表格
 ```

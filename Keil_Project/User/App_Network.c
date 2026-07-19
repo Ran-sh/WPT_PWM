@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/App_Network.c
- * @brief   网络应用层 — V5.0.1
+ * @brief   网络应用层 — V5.0.2
  *
  *  Hardware connections:
  *  +------------------------------------------------------------+
@@ -42,7 +42,7 @@
 #include "Ui_Controller.h"
 #include "Led_Driver.h"
 #include "Sys_Timer.h"
-#include "App_Storage.h"       /* V4.3.0: 黑匣子日志 */
+#include "App_Storage.h"       /* 黑匣子日志 */
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -205,7 +205,7 @@ static void App_Network_Check_Offline_Recovery(void)
         if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
             return;
 
-        /* V4.5.2: 仅响应正向 STATUS 帧 (排除 STATUS:DISCONNECTED 防重连震荡) */
+        /* 仅响应正向STATUS帧 (排除STATUS:DISCONNECTED防重连震荡) */
         if (strstr(local_buf, "STATUS:MQTT") || strstr(local_buf, "STATUS:ONLINE")
             || strstr(local_buf, "STATUS:RSSI=")) {
             s_conn_state    = APP_NETWORK_CONN_WIFI;
@@ -312,7 +312,7 @@ void App_Network_Task(void)
                     const char* f_str = p + 12;
                     if (*f_str >= '0' && *f_str <= '9') {
                         char* endp;
-                        long f = strtol(f_str, &endp, 10);  /* V4.5.2: strtol 替代 atol, 溢出安全 */
+                        long f = strtol(f_str, &endp, 10);  /* strtol提供溢出安全 */
                         if (endp != f_str && f >= (long)PWM_DRIVER_FREQ_MIN_HZ
                             && f <= (long)PWM_DRIVER_FREQ_MAX_HZ)
                             Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);

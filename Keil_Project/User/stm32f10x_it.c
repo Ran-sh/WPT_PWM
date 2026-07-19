@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file    User/stm32f10x_it.c
-  * @brief   中断服务函数 (V5.0.1 净化版)
+  * @brief   中断服务函数 (V5.0.2 净化版)
   *
   *  ISR map (Cortex-M3 NVIC):
   *  +------------------------------------------------------------+
@@ -12,10 +12,9 @@
   *  |    Minimal: NO business logic in ISR                       |
   *  |                                                            |
   *  |  USART2_IRQHandler                                         |
-  *  |    +--- USART_FLAG_ORE check  (MUST be first, anti-lock)   |
-  *  |    |    +--- USART_ReceiveData()  read DR to clear ORE     |
-  *  |    +--- USART_IT_RXNE check                                |
-  *  |         +--- Esp8266_Driver_Rx_Char(ch)  push ring buffer  |
+ *  |    +--- USART_IT_RXNE check, preserve valid byte           |
+ *  |    +--- USART_FLAG_ORE check, read DR to clear overflow    |
+ *  |    +--- USART_IT_TXE check, drain TX ring one byte         |
   *  |                                                            |
   *  |  HardFault/MemManage/BusFault_Handler                       |
   *  |    +--- PWM off first (TIM1 DISABLE + MOE DISABLE)         |
@@ -81,7 +80,7 @@ void DMA1_Channel1_IRQHandler(void)
   */
 void USART2_IRQHandler(void)
 {
-    /* V4.5.2: 先 RXNE 后 ORE — 优先消费有效字节, 再清溢出标志.
+    /* 先RXNE后ORE，优先消费有效字节，再清溢出标志。
      *   旧顺序 (ORE 先) 会因读 DR 清 RXNE 而丢弃 ORE 前最后一个有效字节. */
     if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
     {

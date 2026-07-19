@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Esp8266_Driver.c
- * @brief   ESP8266 串口通信驱动 — V5.0.1
+ * @brief   ESP8266 串口通信驱动 — V5.0.2
  *
  *  Pinout:  STM32 <-> ESP8266 (USART2 + control)
  *  +------------------------------------------------------------+
@@ -44,7 +44,7 @@ typedef enum {
     ESP8266_DRIVER_INIT_READY           /* 就绪 */
 } Esp8266_Driver_Init_State;
 
-/* V4.5.2: 3 槽环形缓冲, 防 ESP 连续发送多条帧时丢弃后续帧
+/* 3槽环形缓冲, 防ESP连续发送多条帧时丢弃后续帧
  *   ISR 写入当前槽 (s_rx_ring_wr), 主循环从 s_rx_ring_rd 读取
  *   s_rx_frame_count > 0 表示有待消费帧, Try_Copy_Rx_Frame 消费一帧后 count-- */
 static char    s_rx_buf[ESP8266_DRIVER_RX_RING_SIZE][ESP8266_DRIVER_RX_BUF_SIZE];
@@ -290,7 +290,7 @@ void Esp8266_Driver_Rx_Char(uint8_t ch)
 
 /**
  * @brief  原子检查+复制: flag-check + frame-copy + clear 在同一临界区内完成
- * @note   V4.5.2: 3 槽环形缓冲, 消费最旧帧 (s_rx_ring_rd), 推进读指针
+ * @note   3槽环形缓冲, 消费最旧帧 (s_rx_ring_rd), 推进读指针
  *         消除旧分离式“先检查、后复制”接口之间的中断窗口:
  *         若检测到帧标志后 ISR 又写入新帧, 旧原子方案会在 Copy 内清标志,
  *         导致新帧标志也一并被清零, 帧静默丢失。

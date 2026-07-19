@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Adc_Driver.c
- * @brief   ADC 模拟量采集驱动 — V5.0.1
+ * @brief   ADC 模拟量采集驱动 — V5.0.2
  *
  *  Pinout:
  *  +--------------------------------------------------------+
@@ -345,7 +345,7 @@ float Adc_Driver_Get_Display_Voltage(void) { return s_display_voltage; }
 float Adc_Driver_Get_Display_Current(void) { return s_display_current; }
 float Adc_Driver_Get_Safety_Current(void) { return s_safety_current; }
 
-/** @brief V4.3.0: 从 Flash 固化值写入校准参数 (W25Q128 参数区加载后调用) */
+/** @brief 从Flash固化值写入校准参数 (W25Q128参数区加载后调用) */
 void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
 {
     if (s_adc_hw_ready == 0U) {
@@ -363,11 +363,11 @@ void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
     (void)freq_trim;
 }
 
-/** @brief V4.3.0: 获取当前 ADC 电流零点值 (用于回写 Flash 配置) */
+/** @brief 获取当前ADC电流零点值 (用于回写Flash配置) */
 float Adc_Driver_Get_Current_Offset(void) { return s_i_offset; }
 float Adc_Driver_Get_Voltage_Gain(void) { return s_v_gain; }
 
-/** @brief V4.3.0: 强制解锁校准状态机 (双副本全损→冷启动自测算) */
+/** @brief 强制解锁校准状态机 (双副本全损→冷启动自测算) */
 void Adc_Driver_Force_Recalibrate(void)
 {
     if (s_adc_hw_ready == 0U) {

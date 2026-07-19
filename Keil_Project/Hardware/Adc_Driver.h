@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Adc_Driver.h
- * @brief   ADC 模拟量采集驱动 — V5.0.1
+ * @brief   ADC 模拟量采集驱动 — V5.0.2
  * @note    ADC1 + DMA1 双通道扫描: PB0=CH8 电流(CC6920BSO), PB1=CH9 电压(20:1分压)
  *          TIM3 TRGO 500Hz触发, 64点显示窗口 + 8点安全窗口
  ******************************************************************************
@@ -34,11 +34,11 @@ Adc_Driver_Calibration_State Adc_Driver_Get_Calibration_State(void);
 uint8_t Adc_Driver_Take_Calibration_Completed(void);
 /** @brief 最近20ms内是否收到有效DMA双通道样本 */
 uint8_t Adc_Driver_Is_Data_Fresh(void);
-/** @brief V4.3.0: 从 Flash 固化值写入校准参数 (替代每次上电自测算) */
+/** @brief 从Flash固化值写入校准参数 (替代每次上电自测算) */
 void  Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim);
-/** @brief V4.3.0: 强制解锁校准状态机 (双副本全损→冷启动自测算前调用) */
+/** @brief 强制解锁校准状态机 (双副本全损→冷启动自测算前调用) */
 void  Adc_Driver_Force_Recalibrate(void);
-/** @brief V4.3.0: 获取当前 ADC 电流零点值 (用于回写 Flash) */
+/** @brief 获取当前ADC电流零点值 (用于回写Flash) */
 float Adc_Driver_Get_Current_Offset(void);
 /** @brief 获取当前电压校准增益 */
 float Adc_Driver_Get_Voltage_Gain(void);

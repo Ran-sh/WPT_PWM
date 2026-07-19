@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/App_Storage.c
- * @brief   应用存储层 — 参数双副本 + 黑匣子日志 (V5.0.1)
+ * @brief   应用存储层 — 参数双副本 + 黑匣子日志 (V5.0.2)
  *
  *  W25Q128 Flash partition map (16MB):
  *  +------------------------------------------------------------+
@@ -102,7 +102,7 @@ static uint8_t App_Storage_Is_Erased(const uint8_t *data, uint32_t len);
  *  参数配置 (P3) — 双副本 CRC32 闭锁
  * ═══════════════════════════════════════════════ */
 
-/** @brief 安全默认出厂值 — V4.5.2: BL 1-100%, font 小号, letter_spacing 0 */
+/** @brief 安全默认出厂值: 背光开启, font兼容字段为0, letter_spacing为0 */
 static void App_Storage_Defaults(App_Storage_Config *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
@@ -112,10 +112,10 @@ static void App_Storage_Defaults(App_Storage_Config *cfg)
     cfg->adc_v_gain    = 1.0f;
     cfg->freq_trim_hz = 0;
     cfg->default_freq  = 100;      /* 100kHz 安全中频 */
-    cfg->backlight     = 100;      /* V4.5.2: 100% */
+    cfg->backlight     = 100;      /* Legacy on value; PA12 is GPIO-only. */
     cfg->language      = 1;        /* EN (默认英文, 设置内手动切中文后才调用 W25Q) */
-    cfg->font_size     = 0;        /* V4.5.2: 小号(1x) */
-    cfg->letter_spacing = 0;       /* V4.5.2: 0px gap */
+    cfg->font_size     = 0;        /* Legacy compatibility field. */
+    cfg->letter_spacing = 0;       /* 0px gap */
     cfg->color_preset  = 0;        /* Classic */
     cfg->color_fg      = 0xFFFF;
     cfg->color_bg      = 0x0000;
@@ -275,7 +275,7 @@ void App_Storage_Write_Factory_Defaults(void)
 }
 
 /* ═══════════════════════════════════════════════
- *  V4.5.2 Settings Convenience
+ *  Settings Convenience
  * ═══════════════════════════════════════════════ */
 void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
                                 uint8_t* spacing, uint8_t* preset,

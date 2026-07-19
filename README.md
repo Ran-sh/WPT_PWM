@@ -5,12 +5,12 @@
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![Display](https://img.shields.io/badge/Display-ST7735%20160×128%20TFT-red)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-purple)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V5.0.1-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V5.0.2-brightgreen)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![Web](https://img.shields.io/badge/Web-Cloudflare%20Pages-F38020)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V5.0.1** (2026-07-11) — GPIO 全量重映射 + 5键系统 + 四灯系统 + PB12 Flash CS 钳位防白屏
+> **V5.0.2** (2026-07-19) — STM32 全面可靠性优化：功率硬互锁、500Hz 定时采样、SPI1 总线仲裁、Blackbox V2、串口中断发送与统一调度
 
 ---
 
@@ -37,15 +37,15 @@
 
 ## 项目简介
 
-WPT_PWM 是一套**无线充电 (Wireless Power Transfer) 全桥谐振电源控制系统**，采用 STM32 + ESP8266 双 MCU 架构，支持本地 TFT 彩屏触控 + 云端远程多端控制。
+WPT_PWM 是一套**无线充电 (Wireless Power Transfer) 全桥谐振电源控制系统**，采用 STM32 + ESP8266 双 MCU 架构，支持本地 TFT 彩屏与五键操作，以及云端远程多端控制。
 
 ### 它能做什么？
 
 - **无线充电控制**: TIM1 全桥 PWM 输出 95~150kHz，软启动扫频 + 频率斜坡调节
-- **实时监测**: 电压/电流 ADC 采集 + 双级 EMA 滤波 + 过流保护
+- **实时监测**: TIM3 以 500Hz 硬件触发双通道 ADC，64 点显示窗口 + 8 点安全窗口 + 连续 3 样本过流确认
 - **本地操作**: 1.8 寸 TFT 彩屏 + 5 个物理按键 + 4 个 LED 指示灯
 - **远程控制**: 手机网页 / 微信小程序 / OneNET 平台，三端同步
-- **数据记录**: W25Q128 16MB Flash 存储黑匣子日志 + 参数双副本
+- **数据记录**: W25Q128 16MB Flash 存储可恢复循环日志、故障前后各 5 秒快照和校验参数双副本
 
 ### 核心参数
 
@@ -55,7 +55,7 @@ WPT_PWM 是一套**无线充电 (Wireless Power Transfer) 全桥谐振电源控�
 | 联网模块 | ESP8266 (WiFi + MQTT) |
 | PWM 频率范围 | 95 ~ 150 kHz |
 | PWM 死区时间 | 1000 ns |
-| ADC 采样 | 双通道 (电压/电流), 64 样本滑动窗口 |
+| ADC 采样 | TIM3 TRGO 500Hz；双通道 DMA；64 点显示窗口 + 8 点安全窗口 |
 | 显示屏 | ST7735 1.8" TFT, 160×128 横屏, RGB565 |
 | 外部存储 | W25Q128 16MB SPI Flash (全字库 + 黑匣子) |
 | 固件库 | STM32 SPL V3.5.0 (标准外设库) |
@@ -293,24 +293,26 @@ Keil_Project/
 ├── Project.uvprojx          ← Keil 工程文件 (双击打开)
 ├── keilkill.bat             ← 清理编译产物 (推送前必须执行)
 ├── Hardware/                ← 硬件驱动层 (12 个模块)
-│   ├── Adc_Driver.c/h       ← ADC 采集 + 64样本滑动窗口
+│   ├── Adc_Driver.c/h       ← TIM3 500Hz触发 + 双通道DMA + 显示/安全双窗口
 │   ├── Buzzer_Driver.c/h    ← 蜂鸣器驱动
-│   ├── Esp8266_Driver.c/h   ← USART2 通信 + 环形缓冲
+│   ├── Esp8266_Driver.c/h   ← USART2 收发环形缓冲 + 中断发送
 │   ├── Inverter_Control.c/h ← 软启动扫频 + 频率斜坡
 │   ├── Key_Driver.c/h       ← 5键 FSM (去抖/单击/双击/长按)
 │   ├── Led_Driver.c/h       ← 4 LED (WIFI/POWER/STATUS/HEARTBEAT)
 │   ├── Pwm_Driver.c/h       ← TIM1 全桥 PWM 95-150kHz
-│   ├── TFT_Font_Data.h      ← ROM 字库 (ASCII 95 + 中文 76 + 图标)
-│   ├── Tft_Driver.c/h       ← ST7735 显示 + Flash/ROM 双路径字库
-│   ├── Ui_Controller.c/h    ← 15页面 UI 状态机 + 圆弧仪表盘
-│   └── W25Q_Driver.c/h      ← 16MB SPI Flash 驱动 + 二分检索
+│   ├── Spi1_Shared.c/h      ← TFT/W25Q128 总线所有权、切换与故障恢复
+│   ├── TFT_Font_Data.h      ← ROM 回退字库 (ASCII 95 + 中文 4 + 图标)
+│   ├── Tft_Driver.c/h       ← ST7735 增量显示 + Flash/ROM 双路径字库
+│   ├── Ui_Controller.c/h    ← 14页面 UI 状态机 + 圆弧仪表盘
+│   └── W25Q_Driver.c/h      ← 16MB Flash 边界检查 + 超时 + 二分检索
 ├── User/                    ← 应用层
 │   ├── main.c               ← 程序入口 + 主循环状态机
 │   ├── Sys_Core.c/h         ← 初始化/安全/电源控制/调度
 │   ├── App_Network.c/h      ← WiFi/MQTT 状态机 + 心跳 + 遥测
-│   └── App_Storage.c/h      ← Flash 参数存储 + 黑匣子日志
+│   └── App_Storage.c/h      ← 后台校验保存 + Blackbox V2日志/故障快照
 ├── System/
-│   └── Sys_Timer.c/h        ← SysTick 1ms + DWT 延时
+│   ├── Checksum.c/h         ← CRC32/CRC8 统一校验服务
+│   └── Sys_Timer.c/h        ← SysTick 1ms 时基 + 初始化延时
 ├── Start/                   ← CMSIS + 启动文件
 └── Library/                 ← SPL V3.5.0 (只读, 不可修改)
 ```
@@ -478,6 +480,8 @@ python burn_flash.py
 |:---|:---|:---|:---|
 | `Switch` | 启停开关 | bool | true=开, false=关 |
 | `SetFreq` | 设定频率 | int32 | 95000-150000 Hz |
+
+STM32到ESP8266的串口遥测固定为 `{"V":xx,"I":xx,"F":xx,"S":x}\n`。其中 `S=0/1/2/3` 分别表示 IDLE、SWEEP、RUNNING、FAULT；SWEEP和RUNNING发送实际PWM频率，其余状态强制 `F=0`。OneNET的 `Switch` 只有在 `S=2` 时为 `true`，扫频阶段仍视为过渡态。
 
 ### 4. 填入凭证
 
@@ -648,9 +652,9 @@ const BRIDGE_URL = 'https://xxx.up.railway.app';  // Railway 桥接地址
 |:---|:---|:---|:---|:---|:---|
 | KEY0 | PB9 | 单击仅 | 切换 12V 电源 | — | — |
 | KEY1 | PB8 | 含双击 | 返回上一页 | 跳转主菜单 | — |
-| KEY2 | PB7 | 含双击 | 光标上移 / 数值+ | 数值快速+ | 数值连续+ |
-| KEY3 | PB6 | 含双击 | 光标下移 / 数值- | 数值快速- | 数值连续- |
-| KEY4 | PB5 | 单击仅 | 确定 / PWM启停 | — | — |
+| KEY2 | PB7 | 单击仅 | 光标上移 / 数值+ | — | — |
+| KEY3 | PB6 | 单击仅 | 光标下移 / 数值- | — | — |
+| KEY4 | PB5 | 单击+长按 | 确定 / PWM启停 | — | 仅 WiFi 配网页请求清除凭证 |
 
 ### 蜂鸣器
 
@@ -666,25 +670,22 @@ const BRIDGE_URL = 'https://xxx.up.railway.app';  // Railway 桥接地址
 ### 页面结构
 
 ```
-MAIN_MENU (主菜单)              ← 开机后首个页面
-  ├── INSTRUMENT (综合仪表盘)    ← V/I/F 三表盘 + 能量条
-  ├── MONITOR (实时监测)         ← 纯数值显示
-  ├── CONTROL (远程控制)         ← 频率设置
-  ├── NETWORK (网络配网)         ← WiFi 配网页
-  ├── SYSTEM (系统信息)          ← 版本/运行时间
-  ├── FAULT (故障页)             ← 过流时自动弹出
-  │   └── KEY4 → 复位 → MAIN_MENU
-  └── SETTINGS (设置)            ← 8 子页
-      ├── Language (语言: 中文/English)
-      ├── Letter Spacing (字间距: 0/2/4/6 px)
-      ├── Icon Preview (图标浏览)
-      ├── Brightness (亮度: 1-100%)
-      ├── Brightness Auto (呼吸灯)
-      ├── Color Scheme (6 预设)
-      ├── About (关于)
-      └── Save & Exit (保存退出)
+MAIN_MENU (主菜单)
+  ├── SWEEP                    ← 150kHz→100kHz 软启动进度
+  ├── MONITOR_SUB_MENU
+  │   ├── MONITOR_SUMMARY      ← F/V/I 综合监测
+  │   ├── MONITOR_FREQ         ← 频率仪表盘
+  │   ├── MONITOR_VOLT         ← 电压仪表盘
+  │   └── MONITOR_CURR         ← 电流仪表盘
+  ├── WIFI_SETUP               ← 联网状态；KEY4 长按请求清除凭证
+  ├── SETTING
+  │   ├── SETTING_LANG         ← 中文/English
+  │   ├── SETTING_SPACING      ← 字间距
+  │   ├── SETTING_ICONS        ← 图标浏览
+  │   └── SETTING_COLOR        ← 颜色方案
+  └── FAULT                    ← 故障锁存页；KEY4 单击复位
 
-SWEEP_COMPLETE (扫频完成)       ← 扫频结束自动弹出 → 4s → 自动回仪表盘
+共 14 页。PA12 背光在 V5.0 为 GPIO 开关，不再提供伪亮度百分比或呼吸灯页面。
 ```
 
 ### 仪表盘说明
@@ -693,11 +694,10 @@ SWEEP_COMPLETE (扫频完成)       ← 扫频结束自动弹出 → 4s → 自�
      ┌────────────────────────────┐
      │  [WiFi 图标]  [MQTT 图标]   │ ← Phase 0: 顶部右侧图标
      │                            │
-     │  弧形电压表   弧形电流表    │ ← 3 表盘并排
-     │   (V)         (A)          │   外圈刻度 + 填充能量条
+     │        当前项目圆弧表盘       │ ← 频率/电压/电流独立页面
+     │     外圈刻度 + 填充能量条     │
      │                            │
-     │        弧形频率表           │
-     │         (kHz)              │
+     │       综合页显示 F/V/I       │
      │                            │
      │    状态: OK / WRN / HI      │ ← Row 4: 状态
      │        12.5                 │ ← Row 5: 数值 (黄)
@@ -718,7 +718,7 @@ SWEEP_COMPLETE (扫频完成)       ← 扫频结束自动弹出 → 4s → 自�
 
 | 现象 | 可能原因 | 排查步骤 |
 |:---|:---|:---|
-| 上电白屏 | W25Q128 CS 浮空 → SPI 冲突 | V5.0.1 已修复 (PB12 钳位)。如仍有问题, 检查 PB12 焊接 |
+| 上电白屏 | W25Q128 CS 浮空 / SPI 所有权异常 | V5.0.2 已加入 PB12 启动钳位与共享总线恢复；仍异常时检查 PB12 焊接和 PA5/PA6/PA7 |
 | TFT 无显示 | SPI 接线错误 | 检查 PA4(CS)/PA5(SCK)/PA6(DC)/PA7(SDA) 焊接 |
 | TFT 花屏 | DMA 超时 / SPI 冲突 | 按 NRST 复位, 观察 SPLASH 是否正常 |
 | 按键无反应 | 焊接虚焊 | 用万用表蜂鸣档测按键两端到 STM32 引脚 |
@@ -726,13 +726,13 @@ SWEEP_COMPLETE (扫频完成)       ← 扫频结束自动弹出 → 4s → 自�
 | PC13 LED 不闪 | 程序卡死 | 检查 IWDG 是否复位, 排查 main 循环是否进入 |
 | 无法下载程序 | NRST 脚故障 | 手动杜邦线 NRST→GND, 点击 Download, 松开 |
 | PWM 无输出 | 12V 未开启 | 确认 POWER LED 亮 (KEY0 开了吗?) |
-| 过流误触发 | ADC 零点偏移 | 重新校准: App_Storage_Force_Recalibrate |
+| 过流误触发 | ADC 零点偏移 / 采样线噪声 | 先断开 PB10 负载并冷启动校准；需强制重校准时清除配置扇区 0x300000/0x301000 后重启 |
 
 ### ESP8266 端
 
 | 现象 | 可能原因 | 排查步骤 |
 |:---|:---|:---|
-| 搜不到配网热点 | ESP8266 未启动 / 已配过网 | 长按 KEY0 5s → 清除凭证 → 重启 |
+| 搜不到配网热点 | ESP8266 未启动 / 已配过网 | 进入 WiFi 配网页，长按 KEY4 3s 发起清除凭证，再按提示确认 |
 | 连不上 WiFi | 密码错误 / 信号差 | 用手机连同一 WiFi 测试 |
 | MQTT 连不上 | Token 过期 / 产品 ID 错误 | 登录 OneNET 检查设备状态 |
 | STATUS:ONLINE 未收到 | USART2 接线 | 检查 PA2→ESP RX, PA3→ESP TX (交叉!) |
@@ -759,9 +759,9 @@ WPT_PWM_V5.0/
 ├── Keil_Project/                 ← STM32 固件 (~5926 行逻辑代码)
 │   ├── Project.uvprojx           ← Keil 工程入口
 │   ├── keilkill.bat              ← 清理编译产物
-│   ├── Hardware/                 ← 12 硬件驱动模块
+│   ├── Hardware/                 ← 硬件驱动层（含 SPI1 共享仲裁）
 │   ├── User/                     ← 应用层 (main/状态机/网络/存储)
-│   ├── System/                   ← SysTick + DWT
+│   ├── System/                   ← SysTick 1ms + CRC 校验服务
 │   ├── Start/                    ← CMSIS + 启动文件
 │   └── Library/                  ← SPL V3.5.0 (只读)
 ├── Arduino_Project/              ← ESP8266 固件 (~522 行)
@@ -800,6 +800,7 @@ WPT_PWM_V5.0/
 
 | 版本 | 日期 | 主要变更 |
 |:---|:---|:---|
+| **V5.0.2** | **2026-07-19** | **STM32 全面优化：TIM1 原子更新与 PB10/PWM/FAULT 硬互锁；TIM3 500Hz ADC 双窗口及校准门控；SPI1 共享仲裁与超时恢复；W25Q128 越界保护；后台校验保存；Blackbox V2 双元数据、可恢复循环日志、故障前后各 5 秒快照；5键能力拆分；14页 UI 与 GPIO 背光清理；USART2 中断发送；S=0/1/2/3 协议对齐；统一调度、看门狗和 C89 边界清理** |
 | **V5.0.1** | **2026-07-11** | **GPIO 全量重映射 + 5键系统 + 四灯系统: PA12→TFT_BL, PB12→W25Q128_CS, KEY0-KEY4 五键, WIFI/POWER/STATUS/HEARTBEAT 四灯, PB12 Flash CS 钳位防 SPI 总线冲突(白屏), MENU UP 键 wrapping 修复** |
 | V5.0.0 | 2026-07-11 | 初始 GPIO 重映射: PA12→TFT_BL(GPIO), PB12→W25Q128_CS, TIM4 停用, PA10/PA11 移除, PC13 HEARTBEAT 新增 |
 | V4.5.2 | 2026-07-11 | SPI时序回归 + DMA修复: 花屏根治, 18MHz恢复, Flash批量读, ROM优先中文/图标, EMA全状态更新 |
@@ -823,14 +824,14 @@ WPT_PWM_V5.0/
 | `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V2.0.0 | OLED | 巴法云 TCP | 远程控制 |
 | `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V3.0.0 | OLED | OneNET MQTT | 物联网双脑架构 |
 | `4.0TFT` | `WPT_PWM_V4.0_ONENET_TFT` | V4.5.2 | TFT 彩屏 | OneNET MQTT | 4键+6灯旧版 PCB |
-| **`5.0`** | **`WPT_PWM_V5.0`** | **V5.0.1** | **TFT 彩屏** | **OneNET MQTT** | **5键+4灯新版 PCB (当前)** |
+| **`5.0`** | **`WPT_PWM_V5.0`** | **V5.0.2** | **TFT 彩屏** | **OneNET MQTT** | **5键+4灯新版 PCB (当前)** |
 
 ## 文档
 
 | 文档 | 说明 |
 |:---|:---|
 | [CLAUDE.md](CLAUDE.md) | AI 开发规范 (命名/注释/安全/架构/引脚表) |
-| [开发指南](Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md) | 完整开发者指南 (V4.3.0) |
+| [开发指南](Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md) | 完整开发者指南 (V5.0.2) |
 | [ONENETapp/README.md](ONENETapp/README.md) | 网页控制台部署文档 |
 | [ch341/README.md](ch341/README.md) | CH341A Flash 字库烧录操作指南 |
 | [安卓app/部署文档.md](安卓app/部署文档.md) | 微信小程序 + Railway 桥接部署 |

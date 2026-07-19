@@ -4,7 +4,7 @@
   * @author  MCD Application Team
   * @version V3.5.0
   * @date    08-April-2011
-  * @brief   Library configuration file.
+  * @brief   Library configuration file. — V5.0.2
   ******************************************************************************
   * @attention
   *

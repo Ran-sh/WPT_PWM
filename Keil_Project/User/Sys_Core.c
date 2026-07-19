@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/Sys_Core.c
- * @brief   系统核心模块 — V5.0.1
+ * @brief   系统核心模块 — V5.0.2
  *
  *  System-wide pin overview (all peripherals, hardware-exclusive pins):
  *  +------------------------------------------------------------+
@@ -307,7 +307,7 @@ void Sys_Post_Init(void)
     /* Sys_Timer_Init 已提前到 main.c 中 (SPLASH 需要 SysTick) */
     Led_Driver_Set_Heartbeat(1);     /* PC13 heartbeat: MCU alive indicator */
 
-    /* V4.3.0: Flash 加载参数配置, 双副本 CRC32 闭锁回退 */
+    /* Flash加载参数配置, 双副本CRC32闭锁回退。 */
     cfg_valid = App_Storage_Load_Config(&s_sys_config);
 
     /* ADC 校准: Flash 优先 → 强制解锁冷启动自测算降级 (设计文档 §9.3) */
@@ -319,11 +319,8 @@ void Sys_Post_Init(void)
         Adc_Driver_Force_Recalibrate();                           /* IDLE中非阻塞自测算 */
     }
 
-    /* V4.5.2: 背光已由 Ui_Controller_Apply_Settings 映射 1-100 → 0-255 PWM 控制,
-     *   此处仅做额外保底: 如果配置值 >0 且在 Ui_Controller_Apply_Settings 之前,
-     *   按新标度映射后设置 (1-100% → 0-255)。 */
-    if (s_sys_config.backlight > 0 && s_sys_config.backlight <= 100)
-        Tft_Driver_Set_Backlight((s_sys_config.backlight * 255 + 50) / 100);
+    /* PA12背光仅支持GPIO开关；保留旧配置字段时，任何非零值都表示开启。 */
+    Tft_Driver_Set_Backlight((s_sys_config.backlight > 0U) ? 1U : 0U);
 
     IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);
     IWDG_SetPrescaler(IWDG_Prescaler_64);
@@ -332,7 +329,7 @@ void Sys_Post_Init(void)
     IWDG_Enable();
     DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;
 
-    /* V4.5.2: Load persistent settings into UI (includes letter_spacing) */
+    /* Load persistent settings into UI, including letter_spacing. */
     {
         uint8_t lang, font, bl, spacing, preset;
         uint16_t fg, bg;

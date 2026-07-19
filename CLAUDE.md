@@ -8,16 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `5.0` |
-| **版本** | V5.0.1 |
+| **版本** | V5.0.2 |
 | **语言** | 中文交流，代码注释中英混合 |
 
+> **V5.0.2** (2026-07-19) — STM32 全面可靠性优化: 功率互锁 + 500Hz ADC + SPI1 仲裁 + Blackbox V2 + 中断发送 + 统一调度
 > **V5.0.1** (2026-07-11) — GPIO 全量重映射 + 5键系统 + 四灯系统 + Bug修复
 > **V5.0.0** (2026-07-11) — 初始 GPIO 重映射: PA12→TFT_BL, PB12→W25Q128_CS, KEY0-KEY4 五键, WIFI/POWER/STATUS/HEARTBEAT 四灯
 > **V4.5.2** (2026-07-11) — SPI 时序回归修复
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
-> **W25Q128 Flash CH341A 烧录指南**: `ch341/README.md` (V4.3.2)`
+> **W25Q128 Flash CH341A 烧录指南**: `ch341/README.md` (V5.0.2)
 
 ## 版本号规则 (全项目铁律)
 
@@ -27,18 +28,15 @@ Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V5.0.1
+当前版本: V5.0.2
 
 涉及版本号的位置 (全项目必须统一):
-  文件头注释: 每个 .c/.h/.ino/.py 的 @brief/@note 行 → V4.3.2
-  文档控制信息: 开发指南/技能文件的文档版本 → V4.3.2
-  CLAUDE.md: 版本号 + 审查历史 + 文件结构行数注释 → V4.3.2
-  README.md: badge + 版本历史 + 分支表 → V4.3.2
-  操作手册/部署文档: 版本字段 → V4.3.2
-  小程序: wxss/wxml/js 头部注释 → V4.3.2
-  ch341/ 工具链: Python 脚本头部 → V4.3.2
-  Arduino 固件: .ino 头部 → V4.3.2
-  其他文档: ONENETapp/README → V4.3.0
+  STM32 文件头注释: Keil_Project 下每个 .c/.h 的 @brief/@note 行 → V5.0.2
+  文档控制信息: 开发指南/技能文件的当前文档版本 → V5.0.2
+  CLAUDE.md: 版本号 + 审查历史 + 当前架构说明 → V5.0.2
+  README.md: badge + 版本历史 + 分支表 → V5.0.2
+  CH341A 指南: 接线、CRC 和共享 SPI 说明 → V5.0.2
+  历史版本记录保留原号，不做机械替换
 
 历史版本 → V4.x.x 完整映射:
   旧 V0.0/V1.0 → V1.0.x | 旧 V3.0     → V2.0.0
@@ -71,7 +69,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
 | 针对文件 | 检查内容 |
 |:---|:---|
 | `Keil_Project/Hardware/` 下全部 .c/.h | 12 模块: ADC/Buzzer/Esp8266/Inverter/Key/Led/Pwm/TFT_Font/Tft/Ui，函数签名/参数/枚举/宏 |
-| `Keil_Project/System/` 下全部 .c/.h | Sys_Timer: SysTick 1ms、DWT |
+| `Keil_Project/System/` 下全部 .c/.h | Sys_Timer: SysTick 1ms；Checksum: CRC32/CRC8 |
 | `Keil_Project/User/` 下全部 .c/.h | Sys_Core (5状态+Safety+EMA)、App_Network (重试/心跳/遥测/CMD)、main、stm32f10x_it |
 | `Arduino_Project/` 下全部 .ino | ESP8266: WiFiManager、双 MQTT、指令去抖、遥测 |
 | `ONENETapp/` 下全部 .html + `ONENETapp/js/` 下全部 .js | 网页端 6页面 + OneNET API + 数据模型 |
@@ -87,14 +85,14 @@ Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
 
 | 针对文件 | 写入内容 |
 |:---|:---|
-| `D:\Claude Code Project\WPT_PWM_V4.0_ONENET_TFT\CLAUDE.md` | 版本号、文件结构+精确行数、审查历史追加、新增/变更模块说明 |
+| `D:\Claude Code Project\WPT_PWM_V5.0\CLAUDE.md` | 版本号、文件结构、审查历史追加、新增/变更模块说明 |
 
 ### 第 4 条 — 更新开发指南
 
 | 针对文件 | 写入内容 |
 |:---|:---|
 | `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` | 文档版本号、修改日志、引脚表（含W25Q128接线）、文件结构、UI 页面、EMA/Safety/网络协议等架构章节与当前代码对齐 |
-| `ch341/README.md` | [V4.3.2] CH341A Flash 字库烧录完整操作指南: 硬件接线/驱动安装/生成→烧写→校验全流程 |
+| `ch341/README.md` | [V5.0.2] CH341A Flash 字库烧录完整操作指南: PB12接线/驱动安装/生成→烧写→校验全流程 |
 
 ### 第 5 条 — 更新技能文件
 
@@ -165,8 +163,8 @@ Sys_Safety 独立安全监测
 ```
 
 **铁律**: STM32 不发 AT 指令, ESP 不碰 PWM/ADC。开机自动联网。
-**V4.3.2**: W25Q128 Flash 全字库 20897 字 (CH341A 烧录, CRC32 STM32 refin=false) — 启动自动校验启用, 无效则 ROM 76字回退。SPLASH 开机动画改为纯代码(8帧背光渐亮, 存 STM32 ROM)。`Tft_Driver_Font_Init()` 必须在 `W25Q_Driver_Init()` 之后调用。`Sys_Timer_Init()` 提前到 SPLASH 之前。
-**V4.3.0**: SPI1 分时复用 (TFT + W25Q128), PA5=SCK PA7=MOSI PA6=DC/MISO 动态切, PA4=TFT_CS PA12=FLASH_CS 双门控。
+**V5.0.2**: W25Q128 Flash 全字库 20897 字使用统一 `Checksum_CRC32()` 校验，无效时回退 ROM 4 个必要汉字；`Spi1_Shared` 统一管理 TFT/W25Q128 所有权、模式切换、双 CS 和超时恢复。`Tft_Driver_Font_Init()` 必须在 `W25Q_Driver_Init()` 之后调用。
+**V5.0**: SPI1 分时复用 (TFT + W25Q128), PA5=SCK, PA7=MOSI, PA6=DC/MISO动态切, PA4=TFT_CS, PB12=FLASH_CS双门控；PA12仅作GPIO背光。
 
 ## 系统全局状态机
 
@@ -187,29 +185,30 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 ## 文件结构
 
 ```
-WPT_PWM_V4.0_ONENET_TFT/                        ← ~14110 行逻辑代码 (全平台 含 ch341 工具链 679 行)
-├── Keil_Project/                               ← STM32 固件 — 5926 行 (Hardware 3946 + User/System 1980, 不含 Library/Start)
+WPT_PWM_V5.0/
+├── Keil_Project/                               ← STM32 固件 (不含只读 Library/Start)
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
-│   ├── Hardware/                               ← 硬件驱动 — 3946 行
-│   │   ├── Ui_Controller.c/h                   ← 15页面 UI 状态机 + 圆弧能量条仪表盘 + 设置系统 (2260+45行)
-│   │   ├── Tft_Driver.c/h                      ← ST7735 SPI1 全双工+DMA + Flash/ROM 双路径字库 + SPLASH (742+98行)
-│   │   ├── W25Q_Driver.c/h                     ← [V4.3.2] 16MB SPI Flash + CS翻转二分搜索 + BSRR防毛刺 (294+106行)
-│   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文 76字 + 图标 (441行, ROM 回退后备)
-│   │   ├── Esp8266_Driver.c/h                  ← USART2 + Try_Copy_Rx_Frame 原子接收 (272+49行)
-│   │   ├── Adc_Driver.c/h                      ← ADC1 双通道 + 64样本滑动窗口 (203+28行)
-│   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡 (164+65行)
-│   │   ├── Key_Driver.c/h                      ← 4键 FSM + 批量事件读取 (151+40行)
-│   │   ├── Led_Driver.c/h                      ← 5 LED 闪烁 (PA12 已让给 Flash CS) (158+42行)
-│   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz (131+33行)
-│   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器 (80+30行)
-│   ├── User/                                   ← 应用层 — 1240 行
-│   │   ├── App_Network.c/h                     ← WiFi OFFLINE 双模式+心跳+帧快照+遥测 (357+51行)
-│   │   ├── App_Storage.c/h                     ← [V4.3.2] CRC32 extern + 参数双副本+黑匣子日志 (271+87行)
-│   │   ├── Sys_Core.c/h                        ← 状态枚举+初始化+安全(仅RUNNING)+启动Status (300+44行)
-│   │   ├── main.c                              ← 程序入口 (77行, 注释全量 + Task 移入状态机)
-│   │   └── stm32f10x_it.c/h                    ← ISR (SysTick + USART2 ORE防锁死) (88+87行)
-│   ├── System/ → Sys_Timer.c/h                 ← SysTick 1ms + DWT (72+36行)
+│   ├── Hardware/
+│   │   ├── Ui_Controller.c/h                   ← 14页面 UI + 圆弧仪表盘 + 增量刷新
+│   │   ├── Tft_Driver.c/h                      ← ST7735 DMA + Flash/ROM 双路径字库 + SPLASH
+│   │   ├── Spi1_Shared.c/h                     ← TFT/W25Q128 总线所有权与超时恢复
+│   │   ├── W25Q_Driver.c/h                     ← 16MB Flash边界检查/超时/二分检索
+│   │   ├── TFT_Font_Data.h                     ← ASCII 95字 + 中文4字 + 图标 (ROM回退)
+│   │   ├── Esp8266_Driver.c/h                  ← USART2 RX帧队列 + TX中断环形缓冲
+│   │   ├── Adc_Driver.c/h                      ← TIM3 500Hz + DMA + 64点显示/8点安全窗口
+│   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡
+│   │   ├── Key_Driver.c/h                      ← 5键 FSM + 独立双击/长按能力
+│   │   ├── Led_Driver.c/h                      ← 4 LED (WIFI/POWER/STATUS/HEARTBEAT)
+│   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz原子更新
+│   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器
+│   ├── User/
+│   │   ├── App_Network.c/h                     ← OFFLINE双模式+心跳+S=0/1/2/3遥测
+│   │   ├── App_Storage.c/h                     ← 后台校验保存 + Blackbox V2
+│   │   ├── Sys_Core.c/h                        ← 统一功率/故障API + 硬互锁 + 公共调度器
+│   │   ├── main.c                              ← 程序入口和状态分发
+│   │   └── stm32f10x_it.c/h                    ← SysTick/ADC DMA/USART2 ISR
+│   ├── System/ → Sys_Timer.c/h + Checksum.c/h  ← SysTick 1ms + CRC32/CRC8
 │   ├── Start/  → CMSIS + system_stm32f10x
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
 ├── Arduino_Project/                            ← ESP8266 固件 — 522 行
@@ -265,22 +264,34 @@ int main(void) {
 }
 ```
 
-**V4.3.2 架构变更**: Key/ADC/Network/Safety 4 个 Task + IWDG + WFI 已移入每个 `Sys_Run_*()` 状态函数内部, 主循环只剩 switch 分发。
+**V5.0.2 调度**: `Sys_Core_Run_Common()` 统一执行不变量检查、ADC、安全、按键/UI、网络、Blackbox、后台存储、LED、蜂鸣器、IWDG 和 WFI；各 `Sys_Run_*()` 只注入状态专属动作。
 
 ## Sys_Safety (安全监测, 独立于 UI)
 
-- **EMA 滤波**: α=0.25, τ≈800ms, 仅 SYS_STATE_RUNNING 时每圈主循环更新 V/I
-- **PB10 电源**: 电压 >12V → 拉高使能, ≤12V → 拉低关断
-- **过流检测**: `s_safety_ema_i > 5.0A` → `Inverter_Control_Soft_Start_Fault()` + `Buzzer BEEP` + `g_sys_state = SYS_FAULT`
-- **防误触发**: 非 RUNNING 状态跳过安全检测 (PWM 已关, 无过流可能)
+- **采样链**: TIM3 TRGO 500Hz触发 ADC1+DMA；64点窗口用于显示，8点窗口用于快速安全电流
+- **PB10 电源**: 只由 KEY0 手动切换；关电顺序固定为先停 TIM1/MOE，再拉低 PB10
+- **启动门控**: 仅 IDLE、PB10 已开、ADC校准 READY、采样新鲜且无故障锁存时允许启动
+- **过流检测**: SWEEP/RUNNING 均检测安全电流，连续3个新样本 >5.0A 才锁存FAULT
+- **故障处理**: 首故障锁存原因并冻结快照，PWM和12V均强制关闭，KEY0不能绕过故障重新上电
 
 ## EMA 双级滤波链
 
 | 层级 | 模块 | 滤波对象 | 用途 |
 |:---|:---|:---|:---|
-| 安全级 | `Sys_Safety_Update_EMA()` | ADC 原始 V/I | 过流保护, PB10 阈值 |
-| 显示级 | `Ui_Controller_Update_EMA()` | Sys_Safety 输出 | UI 仪表盘 + 综合监测页 |
+| 安全级 | `Adc_Driver` 8点窗口 | DMA原始电流 | SWEEP/RUNNING快速过流保护 |
+| 显示级 | `Adc_Driver` 64点窗口 + UI EMA | DMA原始V/I | UI仪表盘 + 综合监测页 |
 | 数字量 | `Pwm_Driver_Get_Frequency()` | 无滤波 | 频率（零迟滞, 保证调频跟手） |
+
+## App_Storage / Blackbox V2
+
+| 区域 | 地址 | 规则 |
+|:---|:---|:---|
+| 配置A/B | `0x300000` / `0x301000` | RAM请求、仅IDLE写入、回读CRC32校验 |
+| 元数据A/B | `0x310000` / `0x311000` | 双扇区generation日志，启动择新并前向恢复 |
+| 循环日志 | `0x312000` ~ `0x6CFFFF` | 12B/条、CRC8、200ms、每60条检查点 |
+| 故障槽 | `0x6D0000` ~ `0x70FFFF` | 64×4KB，故障前25条+后25条（各5秒） |
+
+Flash擦写约束：SWEEP/RUNNING禁止擦除；配置保存只在IDLE后台推进；故障快照仅在TIM1和PB10均确认关闭后落盘。所有CRC32调用统一委托`System/Checksum`。
 
 ## App_Network WiFi 连接与离线
 
@@ -303,7 +314,7 @@ int main(void) {
 - **CMD:CLEAR**: 清除配网凭证+ESP.restart(), 进入配网模式; **V4.5.1: 二次确认 (5s 窗口, 第一次回复 CLEAR_CONFIRM? 第二次才执行)**
 - **指令去抖**: Mqtt_Task_Parse_Command 2s 窗口内相同 payload 直接丢弃
 - **Switch 状态**: 仅 `s==2` (SS_DONE) 上报 true, `s==1` (SWEEP) 为过渡态不上报
-- **遥测频率**: 仅在 running 时上报真实 F 值, 否则上报 0 (完全透传 STM32)
+- **遥测频率**: SWEEP/RUNNING透传真实F值，IDLE/FAULT为0；Switch仍仅S=2时为true
 - **SetFreq 量化**: `(val/1000)*1000`, 与 STM32 PWM 1kHz 步进一致
 - **V4.5.1 安全加固**: Token 占位符化 (部署前替换) + 配网热点加密码 (WIFI_AP_PASSWORD) + 公共 MQTT Broker 门控 (PUBLIC_MQTT_ENABLED) + 指令鉴权预留 (PUBLIC_CMD_AUTH_KEY) + WiFiManager debug 生产关闭
 
@@ -335,7 +346,7 @@ int main(void) {
 | 状态 | STM32 遥测 | ESP 上报 | Web/小程序显示 |
 |:---|:---|:---|:---|
 | IDLE | V=真实,I=真实,F=0,S=0 | Switch=false, V/I=真实, F=0 | 停机/V/I 正常/F=0 |
-| SWEEP | 不发送遥测 | (无数据) | (上一帧缓存) |
+| SWEEP | V/I=显示滤波,F=真实Hz,S=1 | Switch=false, V/I/F=真实 | 扫频中/实时值 |
 | RUNNING | V=EMA,I=EMA,F=真实Hz,S=2 | Switch=true, V/I/F=真实 | 运行中/实时值 |
 | FAULT | V=真实,I=真实,F=0,S=3 | Switch=false, V/I=真实, F=0 | 故障/实时V/I/F=0 |
 
@@ -402,12 +413,12 @@ JTAG 禁用释放 PB3/PB4/PA15。V5.0: PA10/PA11 移除, PA12→TFT_BL, PB12→W
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 |
 | **DMA 超时** | **V4.5.1: 4个忙等循环加 200ms 超时护底, 超时强制释放 CS 防系统硬锁** |
-| **字库路径** | **Flash 20897 字 (CRC32 STM32 refin=false 校验) → ROM 76 字 (自动回退)** |
+| **字库路径** | **Flash 20897 字 (`Checksum_CRC32`, refin=false) → ROM 4 个必要汉字 (自动回退)** |
 | 字库位序 | 全部 LSB-first, 统一在 `TFT_Font_Data.h` / `generate_font.py` (无 bit_reverse) |
 | 图标 | WIFI(4+动画6帧), MQTT(3态+动画6帧), ICON_STAR, 20 新图标 |
 | **开机动画** | **SPLASH: 纯代码实现 (背光渐亮 + 逐字点亮 ~4.8s), 不依赖 W25Q, 版本号右下角** |
 
-CN_INDEX 与 CN_FONT_16X16 严格一一对应 (76字, 索引 0-75), 末尾为 综(74)+合(75)。
+ROM 中文表只保留启动/故障回退所需 4 字；完整中文显示依赖通过 CRC32 校验的 W25Q128 字库。
 
 ## PWM 基线 (不可改)
 
@@ -456,12 +467,12 @@ CN_INDEX 与 CN_FONT_16X16 严格一一对应 (76字, 索引 0-75), 末尾为 �
 
 ## Safety
 
-- **过流**: Sys_Safety 仅在 RUNNING 状态检测 >5.0A → SYS_FAULT + Buzzer BEEP
-- **FAULT 恢复**: PAGE(确定) 单击 → `Soft_Start_Reset()` + `Sys_Safety_Reset_EMA()` → MAIN_MENU
-- **FAULT 防重触发**: EMA 电流清零 + 重新初始化; 非 RUNNING 状态跳过安全检测
+- **过流**: SWEEP/RUNNING 使用8点安全窗口，连续3个新样本 >5.0A → SYS_FAULT + Buzzer BEEP
+- **FAULT 恢复**: KEY4单击走 `Sys_Core_Reset_Fault()`，保持PB10关闭并回到MAIN_MENU
+- **FAULT 防重触发**: 首故障原因锁存；故障态禁止KEY0重新接通12V
 - **远程启停 UI 同步**: CMD:ON/OFF → `Ui_Controller_Force_Page_And_Reset()`
 - **上电**: TIM1 全关, PB10 拉低关 12V
-- **看门狗**: IWDG 1.6s, 调试自动暂停
+- **看门狗**: IWDG按LSI容差约1.6~2.4s, 调试自动暂停
 - **HardFault/...**: 先关 PWM 再死循环
 
 ## 环形仪表盘速查
@@ -489,7 +500,8 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
-| V5.0 | **GPIO 全量重映射 + 5键系统 + 四灯系统**: PA12→TFT_BL(GPIO), PB12→W25Q128_CS, PB6→KEY3, PB9→KEY0(电源开关协调PB10), PB8→KEY1(返回,双击主菜单), PB7→KEY2(UP), PB6→KEY3(DOWN), PB5→KEY4(确定); PA15→STATUS(PWM指示), PB3→POWER(12V), PC13→HEARTBEAT(板载运行); PA10/PA11 移除; TIM4 停用; PB10 手动(去自动电压阈值); Sys_Power_Control_Handle 新增; Key_Driver 4→5键+WITH_DOUBLE; Led_Driver 5→4灯(COM/PWR/TMP/PWM→STATUS/HEARTBEAT); Ui_Controller MENU UP键 wrapping 修复(<=1→==0) |
+| V5.0.2 | **STM32全面优化**: TIM1原子更新；统一功率/故障API与PB10硬互锁；SWEEP/RUNNING连续3样本过流；TIM3 500Hz ADC双窗口+校准/新鲜度门控；SPI1共享仲裁；W25Q边界/超时；后台校验保存；Blackbox V2双元数据+循环恢复+故障前后5秒快照；按键双击/长按能力拆分；14页UI与GPIO背光清理；TFT增量刷新；USART2 TX中断环；遥测S=0/1/2/3；统一调度与超时/C89清理 |
+| V5.0.1 | **GPIO 全量重映射 + 5键系统 + 四灯系统**: PA12→TFT_BL(GPIO), PB12→W25Q128_CS, PB6→KEY3, PB9→KEY0(电源开关协调PB10), PB8→KEY1(返回,双击主菜单), PB7→KEY2(UP), PB6→KEY3(DOWN), PB5→KEY4(确定); PA15→STATUS(PWM指示), PB3→POWER(12V), PC13→HEARTBEAT(板载运行); PA10/PA11 移除; TIM4 停用; PB10 手动(去自动电压阈值); Key_Driver 4→5键; Led_Driver 5→4灯; Ui_Controller MENU UP键 wrapping 修复(<=1→==0) |
 | V4.5.2 | **SPI时序回归+DMA修复+EMA修复**: DMA超时操作数反转修复(根治花屏), DMA TC3残留标志清理, SPI恢复18MHz原始配置(去dummy/CS NOP), Flash字模批量读(16次→1次), 中文/图标ROM优先, 默认英文界面(W25Q手动切中文), Sys_Safety EMA全状态更新(V/I在IDLE下不再显示0), CS脉冲简化, NVIC Flash读临界区保护, Write_Enable SPI模式防护, s_language静态初值统一, Ui_Controller Pick_CN_EN遗漏修复 |
 | V4.5.1 | **全平台安全审查修复 (16项)**: ESP8266 Token占位符化(防泄露)+配网热点加密码+CMD:CLEAR二次确认(5s窗口)+公共MQTT Broker门控+WIFI_CONN死代码修复+WiFiManager debug关; STM32 Tft_Driver DMA/SPI忙等4循环200ms超时护底; Esp8266_Driver 3槽环形缓冲(防连续帧丢失); App_Storage 黑匣子指针每60条回写Block0(重启可恢复)+故障锁存扇区跨页保护; App_Network strtol替代atol+OFFLINE恢复STATUS正向过滤; USART2 RXNE先于ORE(防有效字节丢弃); Ui_Controller 扫频进度条+WiFi行变更检测(消除200ms闪烁); Web setProperty重试失败回滚乐观缓存+SW BASE路径修复; 编译0错误0警告 |
 | V4.5.0 | 设置系统重构: 8页设置(语言/字间距/图标/亮度二级菜单手动+呼吸灯/颜色方案) + PIC预览模型(PAGE=确定/ON=取消) + 字体大小→字间距(0/2/4/6px真实像素差) + 亮度1-100%滚动翻阅即时生效 + 色彩6预设全屏重绘 + Tft_Driver 纯像素间隙渲染 + Center/Right 自适应间距布局 + Draw_Header 自动画图标(dedup) + Key_Driver ID命名去歧义(PAGE=0/ON=3) + ARMCC V5 hex-escape兼容(零#870-D警告) + App_Storage_Config 结构体196B校验 + 死代码清理(Key_GetEvent/font_size/BL_Dynamic) |

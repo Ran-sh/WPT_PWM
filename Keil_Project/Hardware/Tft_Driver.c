@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V5.0.1 全字库双路径)
+ * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V5.0.2 全字库双路径)
  *
  *  Pinout (SPI1 TDM: TFT + W25Q128 share bus):
  *  +------------------------------------------------------------+
@@ -320,7 +320,7 @@ static void Tft_Driver_Set_Window(uint16_t xs, uint16_t ys, uint16_t xe, uint16_
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  Tft_Driver_Init — 开机三级锁死 (V4.3.0r2 深水区重构)
+ *  Tft_Driver_Init — 开机三级锁死
  *
  *  L1: AFIO+JTAG禁用 绝对第一行, 净化时钟图层
  *  L2: Flash CS(PA12) 强推挽锁高, 封杀开机对灌短路
@@ -999,7 +999,7 @@ void Tft_Driver_Show_Splash(void)
     Tft_Driver_Clear(TFT_COLOR_BLACK);
 
     /* 版本号: 右下角暗灰 */
-    Tft_Driver_Show_String(7, 14, "V5.0.1", 0x3186U, TFT_COLOR_BLACK);
+    Tft_Driver_Show_String(7, 14, "V5.0.2", 0x3186U, TFT_COLOR_BLACK);
 
     /* Phase 1: 两行同时逐字点亮, 每字 8帧渐亮x50ms=400ms, 4字=1600ms */
     for (col = 0; col < 4; col++) {

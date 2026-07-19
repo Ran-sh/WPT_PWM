@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Led_Driver.c
- * @brief   LED 指示灯驱动 — V5.0.1 (4 LEDs)
+ * @brief   LED 指示灯驱动 — V5.0.2 (4 LEDs)
  *
  *  Pinout (JTAG disabled -> PB3/PB4 freed as GPIO):
  *  +----------------------------------------------------------+
@@ -23,7 +23,7 @@
  *  |    PC13: onboard LED, active LOW (cathode to PC13)        |
  *  +----------------------------------------------------------+
  *
- * @note    V5.0: PA10/PA11 removed, PA12->TFT_BL
+ * @note    PA10/PA11 removed, PA12->TFT_BL
  *          STATUS LED (PA15) reflects PWM state
  *          HEARTBEAT LED (PC13) = MCU program alive indicator
  ******************************************************************************

@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.h
- * @brief   人机界面控制器 — V5.0.1 (14 页面 + 圆弧能量条 + 增量刷新)
+ * @brief   人机界面控制器 — V5.0.2 (14 页面 + 圆弧能量条 + 增量刷新)
  * @note    TFT 8 行 20 列彩屏, KEY0-KEY4 五键操作
  *          9 个主/监测页面 + 5 个设置页面
  ******************************************************************************
@@ -27,7 +27,7 @@ typedef enum {
     /* Settings (5 pages, 14 total pages including 0-8 above). */
     UI_PAGE_SETTING            = 9,   /* 设置主菜单 */
     UI_PAGE_SETTING_LANG       = 10,  /* 语言切换 */
-    UI_PAGE_SETTING_SPACING    = 11,  /* [V4.5.2] 字间距 0-3px */
+    UI_PAGE_SETTING_SPACING    = 11,  /* 字间距 0-3px */
     UI_PAGE_SETTING_ICONS      = 12,  /* 图标浏览 */
     UI_PAGE_SETTING_COLOR      = 13,  /* 颜色方案 */
     UI_PAGE_COUNT              = 14
@@ -42,7 +42,7 @@ void    Ui_Controller_Task(
 void    Ui_Controller_Force_Page_And_Reset(Ui_Page page);
 /** @brief 是否处于无WiFi模式 (远程指令门控用) */
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void);
-/** @brief [V5.0.1] 加载持久化设置参数 (由 Sys_Post_Init 调用)
+/** @brief 加载持久化设置参数 (由 Sys_Post_Init 调用)
  *  @note font param (renamed from font_size) is now ignored — spacing replaces it */
 void    Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                       uint8_t spacing, uint8_t preset,
