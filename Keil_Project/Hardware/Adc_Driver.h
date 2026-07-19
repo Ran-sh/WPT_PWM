@@ -14,6 +14,12 @@
 
 void  Adc_Driver_Init(void);
 void  Adc_Driver_Filter_Task(void);
+/** @brief DMA1 Channel1传输完成中断入口，仅复制原始双通道快照 */
+void  Adc_Driver_DMA_Transfer_Complete_ISR(void);
+/** @brief 获取已完成的双通道采样序号 */
+uint32_t Adc_Driver_Get_Sample_Sequence(void);
+/** @brief 获取最近一次双通道采样完成的毫秒时刻 */
+uint32_t Adc_Driver_Get_Last_Sample_Tick(void);
 /* 电流零点校准 (偏移默认 1.65V = CC6920BSO 零电流中点) */
 void  Adc_Driver_Calibrate_Offset(void);
 /** @brief V4.3.0: 从 Flash 固化值写入校准参数 (替代每次上电自测算) */

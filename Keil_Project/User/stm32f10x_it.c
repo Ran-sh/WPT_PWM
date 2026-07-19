@@ -34,6 +34,7 @@
 #include "stm32f10x_it.h"
 #include "Esp8266_Driver.h"
 #include "Sys_Timer.h"
+#include "Adc_Driver.h"
 
 /******************************************************************************/
 /*            Cortex-M3 Processor Exceptions Handlers                         */
@@ -62,6 +63,16 @@ void SysTick_Handler(void)
 /******************************************************************************/
 /*                 STM32F10x Peripherals Interrupt Handlers                   */
 /******************************************************************************/
+
+/** @brief ADC1双通道DMA传输完成中断，每2ms复制一次稳定原始值对 */
+void DMA1_Channel1_IRQHandler(void)
+{
+    if (DMA_GetITStatus(DMA1_IT_TC1) != RESET)
+    {
+        DMA_ClearITPendingBit(DMA1_IT_TC1);
+        Adc_Driver_DMA_Transfer_Complete_ISR();
+    }
+}
 
 /**
   * @brief  USART2 接收中断 (ESP8266 数据通道)

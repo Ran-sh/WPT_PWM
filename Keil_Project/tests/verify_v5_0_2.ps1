@@ -1,5 +1,6 @@
 param(
     [ValidateSet('All', 'Baseline', 'Checksum', 'Pwm', 'Safety', 'Adc',
+                 'AdcTrigger', 'AdcFilter', 'AdcCal',
                  'Control', 'ControlCallers', 'Spi', 'Storage', 'Keys', 'Ui', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
@@ -197,6 +198,8 @@ $tftC = Read-ProjectText 'Keil_Project\Hardware\Tft_Driver.c'
 $w25C = Read-ProjectText 'Keil_Project\Hardware\W25Q_Driver.c'
 $pwmC = Read-ProjectText 'Keil_Project\Hardware\Pwm_Driver.c'
 $adcC = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.c'
+$adcH = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.h'
+$irqC = Read-ProjectText 'Keil_Project\User\stm32f10x_it.c'
 $keyH = Read-ProjectText 'Keil_Project\Hardware\Key_Driver.h'
 $sysCoreC = Read-ProjectText 'Keil_Project\User\Sys_Core.c'
 $sysCoreH = Read-ProjectText 'Keil_Project\User\Sys_Core.h'
@@ -291,11 +294,23 @@ Write-Check 'Control' 'normal inverter stop cancels frequency ramp' `
     ($normalStopMatch.Success -and
      ($normalStopMatch.Groups[1].Value -match 's_ramp_state\s*=\s*INVERTER_CONTROL_RAMP_IDLE'))
 
-Write-Check 'Adc' 'ADC uses TIM3 TRGO' ($adcC -match 'ADC_ExternalTrigConv_T3_TRGO')
-Write-Check 'Adc' 'ADC continuous conversion is disabled' ($adcC -match 'ADC_ContinuousConvMode\s*=\s*DISABLE')
-Write-Check 'Adc' 'ADC no longer drops samples by DWT period' ($adcC -notmatch '144241|DWT->CYCCNT')
-Write-Check 'Adc' 'ADC exposes data-freshness query' `
-    (Test-Contains (Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.h') '\bAdc_Driver_Is_Data_Fresh\s*\(')
+Write-Check 'AdcTrigger' 'ADC uses TIM3 TRGO' ($adcC -match 'ADC_ExternalTrigConv_T3_TRGO')
+Write-Check 'AdcTrigger' 'ADC continuous conversion is disabled' ($adcC -match 'ADC_ContinuousConvMode\s*=\s*DISABLE')
+Write-Check 'AdcTrigger' 'ADC no longer drops samples by DWT period' ($adcC -notmatch '144241|DWT->CYCCNT')
+Write-Check 'AdcTrigger' 'TIM3 runs at 500Hz with update TRGO' `
+    (($adcC -match 'TIM_TRGOSource_Update') -and
+     ($adcC -match '#define\s+ADC_DRIVER_TIM3_PERIOD\s+1999U') -and
+     ($adcC -match 'TIM_Period\s*=\s*ADC_DRIVER_TIM3_PERIOD'))
+Write-Check 'AdcTrigger' 'DMA1 Channel1 circular transfer interrupt is handled' `
+    (($adcC -match 'DMA_Mode_Circular') -and
+     ($adcC -match 'DMA_ITConfig\s*\(\s*DMA1_Channel1\s*,\s*DMA_IT_TC') -and
+     ($irqC -match 'DMA1_Channel1_IRQHandler') -and
+     ($irqC -match 'Adc_Driver_DMA_Transfer_Complete_ISR'))
+Write-Check 'AdcTrigger' 'ADC exposes sample sequence and timestamp' `
+    ((Test-Contains $adcH '\bAdc_Driver_Get_Sample_Sequence\s*\(') -and
+     (Test-Contains $adcH '\bAdc_Driver_Get_Last_Sample_Tick\s*\('))
+Write-Check 'AdcCal' 'ADC exposes data-freshness query' `
+    (Test-Contains $adcH '\bAdc_Driver_Is_Data_Fresh\s*\(')
 
 $spiCPath = Join-Path $keilRoot 'Hardware\Spi1_Shared.c'
 $spiHPath = Join-Path $keilRoot 'Hardware\Spi1_Shared.h'

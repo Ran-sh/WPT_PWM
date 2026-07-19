@@ -30,6 +30,7 @@ void PendSV_Handler(void);
 void SysTick_Handler(void);
 
 /* STM32 外设中断处理函数 */
+void DMA1_Channel1_IRQHandler(void);
 void USART2_IRQHandler(void);
 
 #ifdef __cplusplus
