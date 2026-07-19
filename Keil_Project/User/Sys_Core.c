@@ -60,6 +60,150 @@ volatile Sys_State g_sys_state = SYS_STATE_INIT;
 
 /* ── 全局配置实例 ── */
 static App_Storage_Config s_sys_config;
+static Sys_Fault_Code s_fault_code = SYS_FAULT_NONE;
+
+static void Sys_Core_Set_Power_Output(uint8_t enabled)
+{
+    if (enabled != 0U) {
+        GPIO_SetBits(GPIOB, GPIO_Pin_10);
+        Led_Driver_Set_Power(1U);
+    }
+    else {
+        GPIO_ResetBits(GPIOB, GPIO_Pin_10);
+        Led_Driver_Set_Power(0U);
+    }
+}
+
+uint8_t Sys_Core_Is_Power_Enabled(void)
+{
+    return (GPIO_ReadOutputDataBit(GPIOB, GPIO_Pin_10) != Bit_RESET) ? 1U : 0U;
+}
+
+Sys_State Sys_Core_Get_State(void)
+{
+    return g_sys_state;
+}
+
+Sys_Fault_Code Sys_Core_Get_Fault(void)
+{
+    return s_fault_code;
+}
+
+void Sys_Core_Trigger_Fault(Sys_Fault_Code fault_code)
+{
+    if (fault_code == SYS_FAULT_NONE) {
+        fault_code = SYS_FAULT_CONTROL_INVARIANT;
+    }
+    if (s_fault_code == SYS_FAULT_NONE) {
+        s_fault_code = fault_code;
+    }
+
+    /* 功率安全顺序不可交换：先关闭TIM1/MOE，再切断12V。 */
+    Inverter_Control_Soft_Start_Fault();
+    GPIO_ResetBits(GPIOB, GPIO_Pin_10);
+    Led_Driver_Set_Power(0U);
+    Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
+    g_sys_state = SYS_STATE_FAULT;
+    Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
+}
+
+static uint8_t Sys_Core_Check_Control_Invariant(void)
+{
+    uint8_t power_enabled;
+    uint8_t pwm_enabled;
+    uint8_t invalid;
+
+    power_enabled = Sys_Core_Is_Power_Enabled();
+    pwm_enabled = Pwm_Driver_Is_Enabled();
+    invalid = 0U;
+
+    if (power_enabled == 0U && pwm_enabled != 0U) {
+        invalid = 1U;
+    }
+    if (g_sys_state == SYS_STATE_IDLE && pwm_enabled != 0U) {
+        invalid = 1U;
+    }
+    if ((g_sys_state == SYS_STATE_SWEEP || g_sys_state == SYS_STATE_RUNNING) &&
+        (power_enabled == 0U || pwm_enabled == 0U)) {
+        invalid = 1U;
+    }
+    if (g_sys_state == SYS_STATE_FAULT &&
+        (power_enabled != 0U || pwm_enabled != 0U)) {
+        invalid = 1U;
+    }
+
+    if (invalid != 0U) {
+        Sys_Core_Trigger_Fault(SYS_FAULT_CONTROL_INVARIANT);
+        return 0U;
+    }
+    return 1U;
+}
+
+Sys_Control_Result Sys_Core_Request_Start(void)
+{
+    if (g_sys_state == SYS_STATE_FAULT || s_fault_code != SYS_FAULT_NONE) {
+        return SYS_CONTROL_RESULT_FAULT_LATCHED;
+    }
+    if (g_sys_state == SYS_STATE_SWEEP || g_sys_state == SYS_STATE_RUNNING) {
+        return (Sys_Core_Check_Control_Invariant() != 0U) ?
+               SYS_CONTROL_RESULT_OK : SYS_CONTROL_RESULT_INVALID_STATE;
+    }
+    if (g_sys_state != SYS_STATE_IDLE) {
+        return SYS_CONTROL_RESULT_INVALID_STATE;
+    }
+    if (Sys_Core_Is_Power_Enabled() == 0U) {
+        return SYS_CONTROL_RESULT_POWER_OFF;
+    }
+
+    g_sys_state = SYS_STATE_SWEEP;
+    Inverter_Control_Soft_Start_Trigger();
+    if (Pwm_Driver_Is_Enabled() == 0U ||
+        Sys_Core_Check_Control_Invariant() == 0U) {
+        Sys_Core_Trigger_Fault(SYS_FAULT_CONTROL_INVARIANT);
+        return SYS_CONTROL_RESULT_INVALID_STATE;
+    }
+    return SYS_CONTROL_RESULT_OK;
+}
+
+Sys_Control_Result Sys_Core_Request_Stop(void)
+{
+    if (g_sys_state == SYS_STATE_INIT) {
+        return SYS_CONTROL_RESULT_INVALID_STATE;
+    }
+    if (g_sys_state == SYS_STATE_FAULT) {
+        Inverter_Control_Soft_Start_Fault();
+        Sys_Core_Set_Power_Output(0U);
+        return SYS_CONTROL_RESULT_FAULT_LATCHED;
+    }
+
+    Inverter_Control_Soft_Start_Stop();
+    if (g_sys_state == SYS_STATE_SWEEP || g_sys_state == SYS_STATE_RUNNING) {
+        g_sys_state = SYS_STATE_IDLE;
+    }
+    if (Sys_Core_Check_Control_Invariant() == 0U) {
+        return SYS_CONTROL_RESULT_INVALID_STATE;
+    }
+    return SYS_CONTROL_RESULT_OK;
+}
+
+Sys_Control_Result Sys_Core_Reset_Fault(void)
+{
+    if (g_sys_state != SYS_STATE_FAULT) {
+        return SYS_CONTROL_RESULT_INVALID_STATE;
+    }
+
+    Inverter_Control_Soft_Start_Reset();
+    Sys_Core_Set_Power_Output(0U);
+    Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
+    Sys_Safety_Reset_EMA();
+    s_fault_code = SYS_FAULT_NONE;
+    g_sys_state = SYS_STATE_IDLE;
+
+    if (Sys_Core_Check_Control_Invariant() == 0U) {
+        return SYS_CONTROL_RESULT_INVALID_STATE;
+    }
+    return SYS_CONTROL_RESULT_OK;
+}
 
 /* ═══════════════════════════════════════════════════════════════
  *  1. 初始化 (原 Sys_Init.c)
@@ -223,21 +367,27 @@ void Sys_Power_Control_Handle(Key_Driver_Event ke[5])
 {
     if (ke[KEY_DRIVER_ID_POWER] != KEY_DRIVER_EVENT_CLICK) return;
 
-    /* Read current PB10 state */
-    if (GPIO_ReadOutputDataBit(GPIOB, GPIO_Pin_10) == Bit_RESET) {
-        /* Power ON: enable 12V, light POWER LED */
-        GPIO_SetBits(GPIOB, GPIO_Pin_10);
-        Led_Driver_Set_Power(1);
-    } else {
-        /* Power OFF: force stop PWM, disable 12V, extinguish POWER LED */
-        Inverter_Control_Soft_Start_Stop();
-        if (g_sys_state == SYS_STATE_RUNNING || g_sys_state == SYS_STATE_SWEEP) {
-            g_sys_state = SYS_STATE_IDLE;
+    if (g_sys_state == SYS_STATE_FAULT || s_fault_code != SYS_FAULT_NONE) {
+        /* FAULT锁存期间KEY0不得重新接通12V。 */
+        Inverter_Control_Soft_Start_Fault();
+        Sys_Core_Set_Power_Output(0U);
+    }
+    else if (Sys_Core_Is_Power_Enabled() == 0U) {
+        if (g_sys_state == SYS_STATE_IDLE && Pwm_Driver_Is_Enabled() == 0U) {
+            Sys_Core_Set_Power_Output(1U);
         }
-        GPIO_ResetBits(GPIOB, GPIO_Pin_10);
-        Led_Driver_Set_Power(0);
+        else {
+            Sys_Core_Trigger_Fault(SYS_FAULT_CONTROL_INVARIANT);
+        }
+    }
+    else {
+        /* KEY0关电必须先停止PWM，再拉低PB10。 */
+        (void)Sys_Core_Request_Stop();
+        Sys_Core_Set_Power_Output(0U);
         Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
     }
+
+    (void)Sys_Core_Check_Control_Invariant();
 
     /* Consume KEY0 event — do not propagate to UI */
     ke[KEY_DRIVER_ID_POWER] = KEY_DRIVER_EVENT_NONE;
@@ -267,6 +417,7 @@ static void Sys_Run_Buzzer_Tick(void)
 
 void Sys_Run_Idle(void)
 {
+    if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
 
     Ui_Controller_Task();
@@ -282,6 +433,7 @@ void Sys_Run_Idle(void)
 
 void Sys_Run_Sweep(void)
 {
+    if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_SLOW);
     static uint32_t last_bb_s = 0; uint32_t now_s = Sys_Timer_Get_Tick();
     Ui_Controller_Task();
@@ -305,6 +457,7 @@ void Sys_Run_Sweep(void)
 
 void Sys_Run_Running(void)
 {
+    if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_ON);
     static uint32_t last_bb = 0; uint32_t now = Sys_Timer_Get_Tick();
     Ui_Controller_Task();
@@ -326,6 +479,7 @@ void Sys_Run_Running(void)
 
 void Sys_Run_Fault(void)
 {
+    if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
     Ui_Controller_Task();
     Inverter_Control_Freq_Ramp_Cancel();

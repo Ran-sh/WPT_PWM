@@ -1,6 +1,6 @@
 param(
     [ValidateSet('All', 'Baseline', 'Checksum', 'Pwm', 'Safety', 'Adc',
-                 'Spi', 'Storage', 'Keys', 'Ui', 'Network', 'Scheduler',
+                 'Control', 'Spi', 'Storage', 'Keys', 'Ui', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -199,6 +199,8 @@ $pwmC = Read-ProjectText 'Keil_Project\Hardware\Pwm_Driver.c'
 $adcC = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.c'
 $keyH = Read-ProjectText 'Keil_Project\Hardware\Key_Driver.h'
 $sysCoreC = Read-ProjectText 'Keil_Project\User\Sys_Core.c'
+$sysCoreH = Read-ProjectText 'Keil_Project\User\Sys_Core.h'
+$inverterC = Read-ProjectText 'Keil_Project\Hardware\Inverter_Control.c'
 $uiC = Read-ProjectText 'Keil_Project\Hardware\Ui_Controller.c'
 $uiH = Read-ProjectText 'Keil_Project\Hardware\Ui_Controller.h'
 $networkC = Read-ProjectText 'Keil_Project\User\App_Network.c'
@@ -240,11 +242,37 @@ Write-Check 'Pwm' 'PWM exposes actual enable-state query' `
     (Test-Contains (Read-ProjectText 'Keil_Project\Hardware\Pwm_Driver.h') '\bPwm_Driver_Is_Enabled\s*\(')
 
 Write-Check 'Safety' 'Sys_Core exposes unified start request' `
-    (Test-Contains (Read-ProjectText 'Keil_Project\User\Sys_Core.h') '\bSys_Core_Request_Start\s*\(')
+    (Test-Contains $sysCoreH '\bSys_Core_Request_Start\s*\(')
 Write-Check 'Safety' 'overcurrent protection covers SWEEP and RUNNING' `
     ((Test-Contains $sysCoreC 'SYS_STATE_SWEEP') -and
      (Test-Contains $sysCoreC 'SYS_STATE_RUNNING') -and
      (Test-Contains $sysCoreC 'SYS_FAULT_OVERCURRENT'))
+
+Write-Check 'Control' 'control result and fault enums are defined' `
+    (($sysCoreH -match 'SYS_CONTROL_RESULT_POWER_OFF') -and
+     ($sysCoreH -match 'SYS_CONTROL_RESULT_FAULT_LATCHED') -and
+     ($sysCoreH -match 'SYS_CONTROL_RESULT_ADC_NOT_READY') -and
+     ($sysCoreH -match 'SYS_FAULT_CONTROL_INVARIANT'))
+Write-Check 'Control' 'unified start stop reset and fault APIs exist' `
+    ((Test-Contains $sysCoreH '\bSys_Core_Request_Start\s*\(') -and
+     (Test-Contains $sysCoreH '\bSys_Core_Request_Stop\s*\(') -and
+     (Test-Contains $sysCoreH '\bSys_Core_Reset_Fault\s*\(') -and
+     (Test-Contains $sysCoreH '\bSys_Core_Trigger_Fault\s*\(') -and
+     (Test-Contains $sysCoreH '\bSys_Core_Get_State\s*\(') -and
+     (Test-Contains $sysCoreH '\bSys_Core_Get_Fault\s*\(') -and
+     (Test-Contains $sysCoreH '\bSys_Core_Is_Power_Enabled\s*\('))
+Write-Check 'Control' 'system checks power and PWM invariants' `
+    ((Test-Contains $sysCoreC '\bSys_Core_Check_Control_Invariant\s*\(') -and
+     (Test-Contains $sysCoreC '\bPwm_Driver_Is_Enabled\s*\('))
+Write-Check 'Control' 'fault path stops PWM before cutting PB10' `
+    (Test-Contains $sysCoreC '(?s)Sys_Core_Trigger_Fault\s*\([^)]*\).*?Inverter_Control_Soft_Start_Fault\s*\(\s*\).*?GPIO_ResetBits\s*\(\s*GPIOB\s*,\s*GPIO_Pin_10\s*\)')
+$normalStopMatch = [regex]::Match(
+    $inverterC,
+    '(?s)void\s+Inverter_Control_Soft_Start_Stop\s*\(void\)\s*\{(.*?)\r?\n\}'
+)
+Write-Check 'Control' 'normal inverter stop cancels frequency ramp' `
+    ($normalStopMatch.Success -and
+     ($normalStopMatch.Groups[1].Value -match 's_ramp_state\s*=\s*INVERTER_CONTROL_RAMP_IDLE'))
 
 Write-Check 'Adc' 'ADC uses TIM3 TRGO' ($adcC -match 'ADC_ExternalTrigConv_T3_TRGO')
 Write-Check 'Adc' 'ADC continuous conversion is disabled' ($adcC -match 'ADC_ContinuousConvMode\s*=\s*DISABLE')

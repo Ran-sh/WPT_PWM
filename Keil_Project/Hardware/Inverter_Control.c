@@ -78,6 +78,7 @@ void Inverter_Control_Soft_Start_Stop(void)
 {
     Pwm_Driver_Disable();
     s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
+    s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
     Inverter_Control_Set_State_Atomic(INVERTER_CONTROL_SS_STATE_IDLE);
 }
 
