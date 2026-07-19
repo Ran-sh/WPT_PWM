@@ -173,13 +173,13 @@ Spi1_Shared_Result Spi1_Shared_Acquire(Spi1_Shared_Mode mode,
 
 Spi1_Shared_Result Spi1_Shared_Release(void)
 {
-    Spi1_Shared_Deselect_All();
     if (Spi1_Shared_Wait_Idle(200U) != SPI1_SHARED_RESULT_OK) {
         Spi1_Shared_Force_Release();
         s_spi1_shared_last_result = SPI1_SHARED_RESULT_TIMEOUT;
         return SPI1_SHARED_RESULT_TIMEOUT;
     }
 
+    Spi1_Shared_Deselect_All();
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
     Spi1_Shared_Clear_Rx_And_Ovr();
     Spi1_Shared_Set_Frame_Mode(SPI1_SHARED_MODE_TFT_8);

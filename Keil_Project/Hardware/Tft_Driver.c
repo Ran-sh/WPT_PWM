@@ -35,19 +35,14 @@
 #include "W25Q_Driver.h"
 #include "Sys_Timer.h"
 #include "Checksum.h"
+#include "Spi1_Shared.h"
 
-#define TFT_DRIVER_CS_PIN   GPIO_Pin_4
-#define TFT_DRIVER_DC_PIN   GPIO_Pin_6
 #define TFT_DRIVER_RST_PIN  GPIO_Pin_0
 #define TFT_DRIVER_BL_PIN   GPIO_Pin_12
 #define TFT_DRIVER_BL_PORT  GPIOA
 
-#define TFT_CS_LOW()   GPIO_ResetBits(GPIOA, TFT_DRIVER_CS_PIN)
-#define TFT_CS_HIGH()  GPIO_SetBits(GPIOA, TFT_DRIVER_CS_PIN)
-#define TFT_DC_CMD()   GPIO_ResetBits(GPIOA, TFT_DRIVER_DC_PIN)
-#define TFT_DC_DATA()  GPIO_SetBits(GPIOA, TFT_DRIVER_DC_PIN)
-
 #define TFT_DMA_MAX_PIXELS  65535
+#define TFT_DMA_TIMEOUT_MS  200U
 
 /* ── DMA 状态 ── */
 static uint8_t s_dma_configured = 0;
@@ -67,45 +62,41 @@ static uint8_t s_letter_spacing = 0;
 
 static Tft_Config g_tft_config = {1, 0, 0xFFFF, 0x0000};
 
-static void Tft_Driver_Dly(uint32_t us)
-{
-    volatile uint32_t i;
-    for (i = 0; i < us * 9; i++) __NOP();
-}
-
 /* ═══════════════════════════════════════════════════════════════
  *  8位基础通信
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Tft_Driver_WrCmd(uint8_t c)
 {
-    TFT_DC_CMD(); TFT_CS_LOW();
-    SPI_I2S_SendData(SPI1, c);
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));
-    TFT_CS_HIGH();
+    if (Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_8,
+                            TFT_DMA_TIMEOUT_MS) != SPI1_SHARED_RESULT_OK) return;
+    if (Spi1_Shared_Set_Tft_DC(0U) != SPI1_SHARED_RESULT_OK ||
+        Spi1_Shared_Select_Tft(1U) != SPI1_SHARED_RESULT_OK) {
+        Spi1_Shared_Force_Release();
+        return;
+    }
+    if (Spi1_Shared_Transfer8(c, 0, TFT_DMA_TIMEOUT_MS) !=
+        SPI1_SHARED_RESULT_OK) return;
+    (void)Spi1_Shared_Release();
 }
 
 static void Tft_Driver_WrDat(uint8_t d)
 {
-    TFT_DC_DATA(); TFT_CS_LOW();
-    SPI_I2S_SendData(SPI1, d);
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY));
-    TFT_CS_HIGH();
+    if (Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_8,
+                            TFT_DMA_TIMEOUT_MS) != SPI1_SHARED_RESULT_OK) return;
+    if (Spi1_Shared_Set_Tft_DC(1U) != SPI1_SHARED_RESULT_OK ||
+        Spi1_Shared_Select_Tft(1U) != SPI1_SHARED_RESULT_OK) {
+        Spi1_Shared_Force_Release();
+        return;
+    }
+    if (Spi1_Shared_Transfer8(d, 0, TFT_DMA_TIMEOUT_MS) !=
+        SPI1_SHARED_RESULT_OK) return;
+    (void)Spi1_Shared_Release();
 }
 
 /* ═══════════════════════════════════════════════════════════════
  *  SPI 模式切换 — 8bit(命令) ↔ 16bit(像素 DMA)
  * ═══════════════════════════════════════════════════════════════ */
-
-static void Tft_SPI_8bit(void)
-{
-    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 &= ~SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE); /* 原子清 DFF */
-}
-
-static void Tft_SPI_16bit(void)
-{
-    SPI_Cmd(SPI1, DISABLE); SPI1->CR1 |= SPI_CR1_DFF; SPI_Cmd(SPI1, ENABLE);  /* 原子置 DFF */
-}
 
 /* ═══════════════════════════════════════════════════════════════
  *  DMA 一次性初始化
@@ -138,11 +129,18 @@ static void Tft_DMA_Init(void)
  *  DMA 核心传输 (V4.5.0: 超时护底防硬锁)
  * ═══════════════════════════════════════════════════════════════ */
 
-#define TFT_DMA_TIMEOUT_MS  200   /* DMA/SPI 忙等超时: 65535 半字@18MHz≈58ms, 200ms 护底安全 */
-
 static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_mem)
 {
     uint32_t deadline;
+
+    if (Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_16,
+                            TFT_DMA_TIMEOUT_MS) != SPI1_SHARED_RESULT_OK) return;
+    if (Spi1_Shared_Set_Tft_DC(1U) != SPI1_SHARED_RESULT_OK ||
+        Spi1_Shared_Select_Tft(1U) != SPI1_SHARED_RESULT_OK) {
+        Spi1_Shared_Force_Release();
+        return;
+    }
+
     DMA_ClearFlag(DMA1_FLAG_TC3);  /* 清除上轮超时残留: TC 在 DISABLE 后仍保持置位 */
     DMA_Cmd(DMA1_Channel3, DISABLE);
     DMA1_Channel3->CMAR  = (uint32_t)buf;
@@ -151,7 +149,6 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
     else         DMA1_Channel3->CCR &= ~DMA_MemoryInc_Enable;
     DMA_Cmd(DMA1_Channel3, ENABLE);
 
-    TFT_DC_DATA(); TFT_CS_LOW();
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, ENABLE);
 
     deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
@@ -160,20 +157,20 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
         /* 超时: 紧急清理, 释放 SPI 总线, 防止系统硬锁 */
         SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
         DMA_Cmd(DMA1_Channel3, DISABLE);
-        TFT_CS_HIGH();
+        Spi1_Shared_Force_Release();
         return;
     }
     DMA_ClearFlag(DMA1_FLAG_TC3);
 
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
     DMA_Cmd(DMA1_Channel3, DISABLE);
-    deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET) {
-        if (deadline - Sys_Timer_Get_Tick() < 0x80000000U) continue;
-        TFT_CS_HIGH();  /* 超时强制释放 CS, 防止 SPI 总线永久占用 */
+    if (Spi1_Shared_Wait_Idle(TFT_DMA_TIMEOUT_MS) !=
+        SPI1_SHARED_RESULT_OK) {
+        Spi1_Shared_Force_Release();
         return;
     }
-    TFT_CS_HIGH();
+    (void)Spi1_Shared_Select_Tft(0U);
+    (void)Spi1_Shared_Release();
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -182,35 +179,19 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
 
 static void Tft_DMA_Fill(uint32_t pixel_count, uint16_t color)
 {
-    uint32_t deadline;
     if (pixel_count == 0) return;
     if (pixel_count > TFT_DMA_MAX_PIXELS) pixel_count = TFT_DMA_MAX_PIXELS;
     if (!s_dma_configured) Tft_DMA_Init();
 
-    Tft_SPI_16bit();
     Tft_DMA_Transfer(&color, pixel_count, 0);
-    deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET) {
-        if (deadline - Sys_Timer_Get_Tick() < 0x80000000U) continue;
-        break;  /* 超时护底, 强制切回 8bit */
-    }
-    Tft_SPI_8bit();
 }
 
 static void Tft_DMA_Send(const uint16_t* buf, uint32_t pixel_count)
 {
-    uint32_t deadline;
     if (pixel_count == 0) return;
     if (!s_dma_configured) Tft_DMA_Init();
 
-    Tft_SPI_16bit();
     Tft_DMA_Transfer(buf, pixel_count, 1);
-    deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY) == SET) {
-        if (deadline - Sys_Timer_Get_Tick() < 0x80000000U) continue;
-        break;  /* 超时护底, 强制切回 8bit */
-    }
-    Tft_SPI_8bit();
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -241,33 +222,19 @@ static void SetWin(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
 void Tft_Driver_Init(void)
 {
     GPIO_InitTypeDef  gpio;
-    SPI_InitTypeDef   spi;
     /* ══ L1: 绝对第一行 — AFIO+JTAG 统合接管, 净化时钟图层 ══ */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
     GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE); /* 释放 PB3/PB4, 封杀毛刺 */
 
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA |
-                           RCC_APB2Periph_GPIOB, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
     /* L2: PB12 Flash CS 无条件前置锁高, 封杀开机 SPI 总线冲突
        在 SPI 初始化之前必须拉高 Flash CS, 否则 PB12 浮空→Flash 选中→MISO 冲突→TFT 白屏 */
-    gpio.GPIO_Pin   = GPIO_Pin_12;
-    gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
-    gpio.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOB, &gpio);
-    GPIO_SetBits(GPIOB, GPIO_Pin_12);  /* CS=H → W25Q128 高阻悬空 */
-
-    /* SCK=PA5, MOSI=PA7 (SPI1 共享: TFT + W25Q128) */
-    gpio.GPIO_Pin   = GPIO_Pin_5 | GPIO_Pin_7;
-    gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
-    gpio.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOA, &gpio);
-
-    /* CS=PA4, DC=PA6, RST=PA0 (PA6 动态切换: TFT=GPIO_Out DC, Flash=Input MISO) */
-    gpio.GPIO_Pin  = TFT_DRIVER_CS_PIN | TFT_DRIVER_DC_PIN | TFT_DRIVER_RST_PIN;
+    /* RST=PA0; Spi1_Shared owns PA4, PA5, PA6, PA7 and PB12. */
+    gpio.GPIO_Pin  = TFT_DRIVER_RST_PIN;
     gpio.GPIO_Mode = GPIO_Mode_Out_PP;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &gpio);
-    GPIO_SetBits(GPIOA, TFT_DRIVER_DC_PIN);              /* L3: PA6 ODR 显式锁高, 防飘移 */
 
     /* BL=PA12, GPIO ON/OFF */
     gpio.GPIO_Pin   = TFT_DRIVER_BL_PIN;
@@ -276,32 +243,19 @@ void Tft_Driver_Init(void)
     GPIO_Init(TFT_DRIVER_BL_PORT, &gpio);
     GPIO_ResetBits(TFT_DRIVER_BL_PORT, TFT_DRIVER_BL_PIN);  /* start OFF */
 
-    TFT_CS_HIGH();
-
-    /* SPI1: Mode 3, 全双工, 18MHz */
-    SPI_StructInit(&spi);
-    spi.SPI_Direction  = SPI_Direction_2Lines_FullDuplex;
-    spi.SPI_Mode       = SPI_Mode_Master;
-    spi.SPI_DataSize   = SPI_DataSize_8b;
-    spi.SPI_CPOL       = SPI_CPOL_High;
-    spi.SPI_CPHA       = SPI_CPHA_2Edge;
-    spi.SPI_NSS        = SPI_NSS_Soft;
-    spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;  /* 72/4=18MHz, 原始配置 */
-    spi.SPI_FirstBit   = SPI_FirstBit_MSB;
-    SPI_Init(SPI1, &spi);
-    SPI_Cmd(SPI1, ENABLE);
+    Spi1_Shared_Init();
 
     /* ── 硬件复位 ── */
     GPIO_ResetBits(GPIOA, TFT_DRIVER_RST_PIN);
-    Tft_Driver_Dly(100000);
+    Sys_Timer_Delay_Ms(20U);
     GPIO_SetBits(GPIOA, TFT_DRIVER_RST_PIN);
-    Tft_Driver_Dly(120000);
+    Sys_Timer_Delay_Ms(120U);
 
     /* ═══════════════════════════════════════════
      *  ST7735 Green Tab 已验证 init
      * ═══════════════════════════════════════════ */
 
-    Tft_Driver_WrCmd(0x11); Tft_Driver_Dly(120000);      /* SLPOUT */
+    Tft_Driver_WrCmd(0x11); Sys_Timer_Delay_Ms(120U);      /* SLPOUT */
 
     Tft_Driver_WrCmd(0x3A); Tft_Driver_WrDat(0x05);       /* COLMOD: RGB565 */
 
@@ -339,7 +293,7 @@ void Tft_Driver_Init(void)
 
     Tft_Driver_WrCmd(0x3A); Tft_Driver_WrDat(0x05);        /* COLMOD: RGB565 */
 
-    Tft_Driver_WrCmd(0x29); Tft_Driver_Dly(50000);         /* DISPON */
+    Tft_Driver_WrCmd(0x29); Sys_Timer_Delay_Ms(50U);        /* DISPON */
 
     Tft_Driver_Clear(TFT_COLOR_BLACK);
 }

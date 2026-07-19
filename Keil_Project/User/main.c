@@ -30,7 +30,7 @@
  *  +------------------------------------------------------------+
  *
  *  初始化铁序 (顺序不可改):
- *    Sys_Clamp_ESP -> Sys_Hardware_Init -> Sys_Timer_Init ->
+ *    Sys_Clamp_ESP -> Sys_Timer_Init -> Sys_Hardware_Init ->
  *    W25Q_Driver_Init -> Tft_Driver_Font_Init ->
  *    App_Storage_Init -> Sys_Startup_Screen(SPLASH) -> Sys_Post_Init ->
  *    Delay(1s) -> SYS_STATE_IDLE
@@ -55,8 +55,8 @@ int main(void)
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);         /* NVIC 优先级分组: 2位抢占 2位响应 */
 
     Sys_Clamp_ESP();                                        /* 钳位 ESP 控制脚, 防止浮空误触发 */
-    Sys_Hardware_Init();                                    /* 硬件驱动初始化: Pwm/TFT/Led/Buzzer/Adc/Key */
     Sys_Timer_Init();                                       /* SysTick 1ms + DWT (SPLASH Delay_Ms 依赖此) */
+    Sys_Hardware_Init();                                    /* 硬件驱动初始化: Pwm/TFT/Led/Buzzer/Adc/Key */
     W25Q_Driver_Init();                                     /* W25Q128 JEDEC 校验 -> s_chip_ok */
     Tft_Driver_Font_Init();                                 /* Flash 字库头校验 -> s_font_flash_valid */
     App_Storage_Init();                                     /* 参数双副本加载 + 黑匣子指针恢复 */

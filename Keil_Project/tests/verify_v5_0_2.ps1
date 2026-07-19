@@ -206,6 +206,7 @@ $sysCoreC = Read-ProjectText 'Keil_Project\User\Sys_Core.c'
 $sysCoreH = Read-ProjectText 'Keil_Project\User\Sys_Core.h'
 $inverterC = Read-ProjectText 'Keil_Project\Hardware\Inverter_Control.c'
 $buzzerC = Read-ProjectText 'Keil_Project\Hardware\Buzzer_Driver.c'
+$ledC = Read-ProjectText 'Keil_Project\Hardware\Led_Driver.c'
 $uiC = Read-ProjectText 'Keil_Project\Hardware\Ui_Controller.c'
 $uiH = Read-ProjectText 'Keil_Project\Hardware\Ui_Controller.h'
 $networkC = Read-ProjectText 'Keil_Project\User\App_Network.c'
@@ -386,6 +387,20 @@ Write-Check 'SpiShared' 'shared SPI clears RXNE and OVR before mode changes' `
     (($spiSharedC -match 'SPI_I2S_FLAG_RXNE') -and
      ($spiSharedC -match 'SPI_I2S_FLAG_OVR') -and
      ($spiSharedC -match 'SPI_CR1_DFF'))
+Write-Check 'Spi' 'TFT uses shared SPI ownership for polling and DMA' `
+    (($tftC -match '#include\s+"Spi1_Shared\.h"') -and
+     ($tftC -match 'Spi1_Shared_Acquire\s*\(\s*SPI1_SHARED_MODE_TFT_8') -and
+     ($tftC -match 'Spi1_Shared_Acquire\s*\(\s*SPI1_SHARED_MODE_TFT_16') -and
+     ($tftC -match 'Spi1_Shared_Force_Release\s*\('))
+Write-Check 'Spi' 'TFT no longer edits SPI frame mode directly' `
+    ($tftC -notmatch 'SPI_CR1_DFF')
+Write-Check 'Spi' 'SysTick starts before hardware initialization' `
+    ($mainC -match 'Sys_Timer_Init\s*\(\s*\)\s*;[\s\S]*Sys_Hardware_Init\s*\(\s*\)\s*;')
+Write-Check 'Spi' 'TFT reset delays use the millisecond timebase' `
+    (($tftC -notmatch '\bTft_Driver_Dly\s*\(') -and
+     ($tftC -match 'Sys_Timer_Delay_Ms\s*\(\s*120U?\s*\)'))
+Write-Check 'Spi' 'LED startup self-test is an exact 500ms delay' `
+    ($ledC -match 'Sys_Timer_Delay_Ms\s*\(\s*500U?\s*\)')
 
 Write-Check 'Storage' 'blackbox log record is fixed at 12 bytes' `
     (($appStorageH -match '#define\s+BLACKBOX_ENTRY_SIZE\s+12U') -and

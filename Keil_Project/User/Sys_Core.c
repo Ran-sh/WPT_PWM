@@ -36,7 +36,7 @@
  *  |      I > 5.0A -> FAULT + Buzzer + PWM off                   |
  *  +------------------------------------------------------------+
  *
- * @note    Init order: Sys_Hardware_Init -> Sys_Timer_Init ->
+ * @note    Init order: Sys_Timer_Init -> Sys_Hardware_Init ->
  *          W25Q_Driver_Init -> Tft_Driver_Font_Init ->
  *          App_Storage_Init -> Sys_Startup_Screen -> Sys_Post_Init
  ******************************************************************************

@@ -112,12 +112,12 @@ void Led_Driver_Init(void)
     GPIO_ResetBits(LED_DRIVER_PORT_B,
         LED_DRIVER_POWER_PIN | LED_DRIVER_WIFI_PIN);
 
-    /* Power-on self-test: all ON 500ms (SysTimer not yet ready, busy-wait) */
+    /* Power-on self-test: all ON for a calibrated 500ms interval. */
     GPIO_SetBits(LED_DRIVER_PORT_A, LED_DRIVER_STATUS_PIN);   /* PA15 = ON */
     GPIO_ResetBits(LED_DRIVER_PORT_C, LED_DRIVER_HEARTBEAT_PIN);  /* PC13 LOW = ON */
     GPIO_SetBits(LED_DRIVER_PORT_B,
         LED_DRIVER_POWER_PIN | LED_DRIVER_WIFI_PIN);
-    { volatile uint32_t i; for (i = 0; i < 175000; i++) __NOP(); }  /* ~500ms @72MHz */
+    Sys_Timer_Delay_Ms(500U);
     GPIO_ResetBits(LED_DRIVER_PORT_A, LED_DRIVER_STATUS_PIN);
     GPIO_SetBits(LED_DRIVER_PORT_C, LED_DRIVER_HEARTBEAT_PIN);   /* PC13 HIGH = OFF */
     GPIO_ResetBits(LED_DRIVER_PORT_B,
