@@ -2,7 +2,8 @@ param(
     [ValidateSet('All', 'Baseline', 'Checksum', 'Pwm', 'Safety', 'Adc',
                  'AdcTrigger', 'AdcFilter', 'AdcCal',
                  'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
-                 'Storage', 'StorageConfig', 'Blackbox', 'Keys', 'Ui', 'Network', 'Scheduler',
+                 'Storage', 'StorageConfig', 'Blackbox', 'BlackboxJournal',
+                 'Keys', 'Ui', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -449,6 +450,24 @@ Write-Check 'Blackbox' 'migration keeps config partitions and rejects V1 pointer
       (($w25H -match 'W25Q_ADDR_CFG_A\s+0x300000') -and
        ($w25H -match 'W25Q_ADDR_CFG_B\s+0x301000'))) -and
      ($appStorageC -notmatch 'ptr_buf\s*\[\s*3\s*\]'))
+Write-Check 'BlackboxJournal' 'metadata scanner walks both sectors and ranks generation' `
+    (($appStorageC -match 'App_Storage_Scan_Metadata_Sector') -and
+     ($appStorageC -match 'APP_STORAGE_META_A_ADDR') -and
+     ($appStorageC -match 'APP_STORAGE_META_B_ADDR') -and
+     ($appStorageC -match 'generation\s*>'))
+Write-Check 'BlackboxJournal' 'empty metadata is initialized lazily in IDLE task' `
+    (($appStorageC -match 's_metadata_checkpoint_pending') -and
+     ($appStorageC -match 's_blackbox_v2_ready\s*==\s*0U') -and
+     ($appStorageC -match 'W25Q_Driver_Erase_Sector\s*\(\s*target_base\s*\)'))
+Write-Check 'BlackboxJournal' 'metadata checkpoint is requested every 60 records' `
+    (($appStorageC -match 'APP_STORAGE_METADATA_INTERVAL\s+60U') -and
+     ($appStorageC -match 'entry_count\s*-\s*s_metadata_saved_entry_count'))
+Write-Check 'BlackboxJournal' 'metadata generation advances only after readback verification' `
+    (($appStorageC -match 'App_Storage_Verify_Metadata_Record') -and
+     ($appStorageC -match 'if\s*\(\s*result\s*==\s*APP_STORAGE_RESULT_OK\s*\)[\s\S]*s_blackbox_metadata\s*=\s*candidate'))
+Write-Check 'BlackboxJournal' 'full active metadata sector switches through the other sector' `
+    (($appStorageC -match 'target_base\s*=.*APP_STORAGE_META_[AB]_ADDR') -and
+     ($appStorageC -match 'W25Q_Driver_Erase_Sector\s*\(\s*target_base\s*\)[\s\S]*App_Storage_Verify_Metadata_Record'))
 Write-Check 'StorageConfig' 'config save uses background request API' `
     (Test-Contains $appStorageH '\bApp_Storage_Request_Save_Config\s*\(')
 Write-Check 'StorageConfig' 'storage exposes task and result state' `

@@ -128,6 +128,9 @@ App_Storage_Result App_Storage_Get_Last_Result(void);
 /** @brief Return one while a configuration save is pending or retryable. */
 uint8_t App_Storage_Is_Save_Pending(void);
 
+/** @brief Request a durable blackbox metadata checkpoint in the next IDLE task. */
+void App_Storage_Request_Blackbox_Checkpoint(void);
+
 /** @brief 挂起ADC校准保存请求，不在调用栈中擦写Flash */
 void App_Storage_Request_Save_ADC_Calibration(float i_offset, float v_gain);
 /** @brief 写入出厂安全默认值 (所有字段归零/安全值) */

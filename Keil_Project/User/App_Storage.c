@@ -36,15 +36,25 @@
 #include <stdlib.h>
 
 #define APP_STORAGE_RETRY_MS  1000U
+#define APP_STORAGE_METADATA_INTERVAL  60U
+#define APP_STORAGE_METADATA_RETRY_MS  1000U
 
 /* ── 黑匣子运行时状态 ── */
 static App_Storage_Blackbox_Metadata s_blackbox_metadata;
 static uint8_t s_blackbox_v2_ready = 0U;
+static uint32_t s_metadata_active_base = APP_STORAGE_META_A_ADDR;
+static uint32_t s_metadata_next_addr = APP_STORAGE_META_A_ADDR;
+static uint32_t s_metadata_saved_entry_count = 0U;
+static uint8_t s_metadata_checkpoint_pending = 1U;
+static uint8_t s_metadata_attempted = 0U;
+static uint32_t s_metadata_last_attempt = 0U;
 static App_Storage_Config s_pending_config;
 static uint8_t s_config_save_pending = 0U;
 static uint8_t s_config_save_attempted = 0U;
 static uint32_t s_config_save_last_attempt = 0U;
 static App_Storage_Result s_storage_last_result = APP_STORAGE_RESULT_OK;
+
+static void App_Storage_Metadata_Task(void);
 
 /* ═══════════════════════════════════════════════
  *  参数配置 (P3) — 双副本 CRC32 闭锁
@@ -146,7 +156,10 @@ void App_Storage_Task(void)
     App_Storage_Result result;
     uint32_t now;
 
-    if (s_config_save_pending == 0U) return;
+    if (s_config_save_pending == 0U) {
+        App_Storage_Metadata_Task();
+        return;
+    }
     now = Sys_Timer_Get_Tick();
     if (s_config_save_attempted != 0U &&
         (uint32_t)(now - s_config_save_last_attempt) < APP_STORAGE_RETRY_MS) return;
@@ -187,6 +200,12 @@ App_Storage_Result App_Storage_Get_Last_Result(void)
 uint8_t App_Storage_Is_Save_Pending(void)
 {
     return s_config_save_pending;
+}
+
+void App_Storage_Request_Blackbox_Checkpoint(void)
+{
+    s_metadata_checkpoint_pending = 1U;
+    s_metadata_attempted = 0U;
 }
 
 void App_Storage_Request_Save_ADC_Calibration(float i_offset, float v_gain)
@@ -304,8 +323,14 @@ void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
                           sizeof(entry)) == W25Q_DRIVER_RESULT_OK) {
         s_blackbox_metadata.write_addr = addr + sizeof(entry);
         s_blackbox_metadata.entry_count++;
+        if ((uint32_t)(s_blackbox_metadata.entry_count -
+                       s_metadata_saved_entry_count) >=
+            APP_STORAGE_METADATA_INTERVAL) {
+            s_metadata_checkpoint_pending = 1U;
+        }
     } else {
         s_blackbox_metadata.dropped_count++;
+        s_metadata_checkpoint_pending = 1U;
     }
 }
 
@@ -363,6 +388,133 @@ static uint8_t App_Storage_Is_Metadata_Valid(
     return (metadata->crc32 == crc) ? 1U : 0U;
 }
 
+static uint8_t App_Storage_Is_Erased(const uint8_t *data, uint32_t len)
+{
+    uint32_t i;
+
+    for (i = 0U; i < len; i++) {
+        if (data[i] != 0xFFU) return 0U;
+    }
+    return 1U;
+}
+
+static void App_Storage_Scan_Metadata_Sector(
+    uint32_t base, App_Storage_Blackbox_Metadata *best,
+    uint8_t *valid, uint32_t *next_addr)
+{
+    uint32_t addr;
+    App_Storage_Blackbox_Metadata record;
+
+    *valid = 0U;
+    *next_addr = base;
+    memset(best, 0, sizeof(*best));
+    for (addr = base;
+         addr + sizeof(record) <= base + W25Q_SECTOR_SIZE;
+         addr += sizeof(record)) {
+        memset(&record, 0, sizeof(record));
+        if (W25Q_Driver_Read(addr, (uint8_t *)&record, sizeof(record)) !=
+            W25Q_DRIVER_RESULT_OK) return;
+        if (App_Storage_Is_Erased((const uint8_t *)&record,
+                                  sizeof(record)) != 0U) continue;
+        *next_addr = addr + sizeof(record);
+        if (App_Storage_Is_Metadata_Valid(&record) != 0U &&
+            (*valid == 0U || record.generation > best->generation)) {
+            *best = record;
+            *valid = 1U;
+        }
+    }
+}
+
+static void App_Storage_Prepare_Metadata_Record(
+    App_Storage_Blackbox_Metadata *candidate)
+{
+    memset(candidate, 0, sizeof(*candidate));
+    candidate->magic = APP_STORAGE_BLACKBOX_MAGIC;
+    candidate->version = APP_STORAGE_BLACKBOX_VERSION;
+    candidate->size = sizeof(*candidate);
+    candidate->generation = s_blackbox_metadata.generation + 1U;
+    candidate->write_addr = s_blackbox_metadata.write_addr;
+    candidate->entry_count = s_blackbox_metadata.entry_count;
+    candidate->wrap_count = s_blackbox_metadata.wrap_count;
+    candidate->next_fault_slot = s_blackbox_metadata.next_fault_slot;
+    candidate->dropped_count = s_blackbox_metadata.dropped_count;
+    candidate->crc32 = Checksum_CRC32((const uint8_t *)candidate,
+                                      sizeof(*candidate) - 4U);
+}
+
+static App_Storage_Result App_Storage_Verify_Metadata_Record(
+    uint32_t addr, const App_Storage_Blackbox_Metadata *expected)
+{
+    App_Storage_Blackbox_Metadata actual;
+
+    memset(&actual, 0, sizeof(actual));
+    if (W25Q_Driver_Read(addr, (uint8_t *)&actual, sizeof(actual)) !=
+        W25Q_DRIVER_RESULT_OK) return APP_STORAGE_RESULT_READ_FAILED;
+    if (App_Storage_Is_Metadata_Valid(&actual) == 0U ||
+        memcmp(&actual, expected, sizeof(actual)) != 0) {
+        return APP_STORAGE_RESULT_VERIFY_FAILED;
+    }
+    return APP_STORAGE_RESULT_OK;
+}
+
+static void App_Storage_Metadata_Task(void)
+{
+    App_Storage_Blackbox_Metadata candidate;
+    App_Storage_Result result;
+    uint32_t target_base;
+    uint32_t target_addr;
+    uint32_t now;
+    uint8_t switch_sector;
+
+    if (s_metadata_checkpoint_pending == 0U) return;
+    now = Sys_Timer_Get_Tick();
+    if (s_metadata_attempted != 0U &&
+        (uint32_t)(now - s_metadata_last_attempt) <
+        APP_STORAGE_METADATA_RETRY_MS) return;
+    s_metadata_attempted = 1U;
+    s_metadata_last_attempt = now;
+    if (W25Q_Driver_Is_Available() == 0U) return;
+
+    App_Storage_Prepare_Metadata_Record(&candidate);
+    switch_sector = (s_blackbox_v2_ready == 0U ||
+                     s_metadata_next_addr + sizeof(candidate) >
+                     s_metadata_active_base + W25Q_SECTOR_SIZE) ? 1U : 0U;
+    target_base = s_metadata_active_base;
+    target_addr = s_metadata_next_addr;
+
+    if (switch_sector != 0U) {
+        if (s_blackbox_v2_ready == 0U) {
+            target_base = APP_STORAGE_META_A_ADDR;
+        } else {
+            target_base = (s_metadata_active_base == APP_STORAGE_META_A_ADDR) ?
+                          APP_STORAGE_META_B_ADDR : APP_STORAGE_META_A_ADDR;
+        }
+        target_addr = target_base;
+        if (W25Q_Driver_Erase_Sector(target_base) !=
+            W25Q_DRIVER_RESULT_OK) {
+            s_storage_last_result = APP_STORAGE_RESULT_ERASE_FAILED;
+            return;
+        }
+    }
+
+    if (W25Q_Driver_Write(target_addr, (const uint8_t *)&candidate,
+                          sizeof(candidate)) != W25Q_DRIVER_RESULT_OK) {
+        s_storage_last_result = APP_STORAGE_RESULT_WRITE_FAILED;
+        return;
+    }
+    result = App_Storage_Verify_Metadata_Record(target_addr, &candidate);
+    s_storage_last_result = result;
+    if (result == APP_STORAGE_RESULT_OK) {
+        s_blackbox_metadata = candidate;
+        s_blackbox_v2_ready = 1U;
+        s_metadata_active_base = target_base;
+        s_metadata_next_addr = target_addr + sizeof(candidate);
+        s_metadata_saved_entry_count = candidate.entry_count;
+        s_metadata_checkpoint_pending = 0U;
+        s_metadata_attempted = 0U;
+    }
+}
+
 static void App_Storage_Reset_Blackbox_V2(void)
 {
     memset(&s_blackbox_metadata, 0, sizeof(s_blackbox_metadata));
@@ -374,12 +526,19 @@ static void App_Storage_Reset_Blackbox_V2(void)
         (const uint8_t *)&s_blackbox_metadata,
         sizeof(s_blackbox_metadata) - 4U);
     s_blackbox_v2_ready = 0U;
+    s_metadata_active_base = APP_STORAGE_META_A_ADDR;
+    s_metadata_next_addr = APP_STORAGE_META_A_ADDR;
+    s_metadata_saved_entry_count = 0U;
+    s_metadata_checkpoint_pending = 1U;
+    s_metadata_attempted = 0U;
 }
 
 void App_Storage_Init(void)
 {
     App_Storage_Blackbox_Metadata metadata_a;
     App_Storage_Blackbox_Metadata metadata_b;
+    uint32_t next_a;
+    uint32_t next_b;
     uint8_t valid_a;
     uint8_t valid_b;
 
@@ -387,23 +546,25 @@ void App_Storage_Init(void)
     if (Checksum_Self_Test() == 0U ||
         W25Q_Driver_Is_Available() == 0U) return;
 
-    memset(&metadata_a, 0, sizeof(metadata_a));
-    memset(&metadata_b, 0, sizeof(metadata_b));
-    valid_a = (W25Q_Driver_Read(APP_STORAGE_META_A_ADDR,
-                                (uint8_t *)&metadata_a,
-                                sizeof(metadata_a)) == W25Q_DRIVER_RESULT_OK &&
-               App_Storage_Is_Metadata_Valid(&metadata_a) != 0U) ? 1U : 0U;
-    valid_b = (W25Q_Driver_Read(APP_STORAGE_META_B_ADDR,
-                                (uint8_t *)&metadata_b,
-                                sizeof(metadata_b)) == W25Q_DRIVER_RESULT_OK &&
-               App_Storage_Is_Metadata_Valid(&metadata_b) != 0U) ? 1U : 0U;
+    App_Storage_Scan_Metadata_Sector(APP_STORAGE_META_A_ADDR,
+                                     &metadata_a, &valid_a, &next_a);
+    App_Storage_Scan_Metadata_Sector(APP_STORAGE_META_B_ADDR,
+                                     &metadata_b, &valid_b, &next_b);
 
     if (valid_a != 0U &&
         (valid_b == 0U || metadata_a.generation >= metadata_b.generation)) {
         s_blackbox_metadata = metadata_a;
         s_blackbox_v2_ready = 1U;
+        s_metadata_active_base = APP_STORAGE_META_A_ADDR;
+        s_metadata_next_addr = next_a;
     } else if (valid_b != 0U) {
         s_blackbox_metadata = metadata_b;
         s_blackbox_v2_ready = 1U;
+        s_metadata_active_base = APP_STORAGE_META_B_ADDR;
+        s_metadata_next_addr = next_b;
+    }
+    if (s_blackbox_v2_ready != 0U) {
+        s_metadata_saved_entry_count = s_blackbox_metadata.entry_count;
+        s_metadata_checkpoint_pending = 0U;
     }
 }
