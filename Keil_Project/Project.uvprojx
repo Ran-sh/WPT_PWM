@@ -706,6 +706,16 @@
               <FilePath>.\Hardware\Tft_Driver.h</FilePath>
             </File>
             <File>
+              <FileName>Spi1_Shared.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\Spi1_Shared.c</FilePath>
+            </File>
+            <File>
+              <FileName>Spi1_Shared.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\Spi1_Shared.h</FilePath>
+            </File>
+            <File>
               <FileName>Buzzer_Driver.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Hardware\Buzzer_Driver.c</FilePath>

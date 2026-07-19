@@ -1,7 +1,8 @@
 param(
     [ValidateSet('All', 'Baseline', 'Checksum', 'Pwm', 'Safety', 'Adc',
                  'AdcTrigger', 'AdcFilter', 'AdcCal',
-                 'Control', 'ControlCallers', 'Spi', 'Storage', 'Keys', 'Ui', 'Network', 'Scheduler',
+                 'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
+                 'Storage', 'Keys', 'Ui', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -352,16 +353,39 @@ Write-Check 'AdcCal' 'calibration persistence is requested before deferred save'
 
 $spiCPath = Join-Path $keilRoot 'Hardware\Spi1_Shared.c'
 $spiHPath = Join-Path $keilRoot 'Hardware\Spi1_Shared.h'
-Write-Check 'Spi' 'SPI1 shared module exists' `
+Write-Check 'SpiShared' 'SPI1 shared module exists' `
     ((Test-Path -LiteralPath $spiCPath) -and (Test-Path -LiteralPath $spiHPath))
-Write-Check 'Spi' 'Keil project includes SPI1 shared module' `
+Write-Check 'SpiShared' 'Keil project includes SPI1 shared module' `
     (($projectText -match '<FileName>Spi1_Shared\.c</FileName>') -and
      ($projectText -match '<FileName>Spi1_Shared\.h</FileName>'))
-Write-Check 'Spi' 'W25Q driver has no application dependency' `
+Write-Check 'W25' 'W25Q driver has no application dependency' `
     (($w25C -notmatch '#include\s+"Sys_Core\.h"') -and
      ($w25C -notmatch '#include\s+"App_Storage\.h"'))
-Write-Check 'Spi' 'W25Q defines explicit result values' `
+Write-Check 'W25' 'W25Q defines explicit result values' `
     (Test-Contains (Read-ProjectText 'Keil_Project\Hardware\W25Q_Driver.h') 'W25Q_DRIVER_RESULT_OK')
+if ((Test-Path -LiteralPath $spiCPath) -and (Test-Path -LiteralPath $spiHPath)) {
+    $spiSharedC = Read-ProjectText 'Keil_Project\Hardware\Spi1_Shared.c'
+    $spiSharedH = Read-ProjectText 'Keil_Project\Hardware\Spi1_Shared.h'
+}
+else {
+    $spiSharedC = ''
+    $spiSharedH = ''
+}
+Write-Check 'SpiShared' 'shared SPI defines modes and result states' `
+    (($spiSharedH -match 'SPI1_SHARED_RESULT_OK') -and
+     ($spiSharedH -match 'SPI1_SHARED_RESULT_BUSY') -and
+     ($spiSharedH -match 'SPI1_SHARED_RESULT_TIMEOUT') -and
+     ($spiSharedH -match 'SPI1_SHARED_MODE_TFT_8') -and
+     ($spiSharedH -match 'SPI1_SHARED_MODE_TFT_16') -and
+     ($spiSharedH -match 'SPI1_SHARED_MODE_FLASH_8'))
+Write-Check 'SpiShared' 'shared SPI owns dual CS and force-release recovery' `
+    (($spiSharedC -match 'GPIO_Pin_4') -and ($spiSharedC -match 'GPIO_Pin_12') -and
+     ($spiSharedC -match '\bSpi1_Shared_Force_Release\s*\(') -and
+     ($spiSharedC -match 'SPI_I2S_DMAReq_Tx'))
+Write-Check 'SpiShared' 'shared SPI clears RXNE and OVR before mode changes' `
+    (($spiSharedC -match 'SPI_I2S_FLAG_RXNE') -and
+     ($spiSharedC -match 'SPI_I2S_FLAG_OVR') -and
+     ($spiSharedC -match 'SPI_CR1_DFF'))
 
 Write-Check 'Storage' 'blackbox log record is fixed at 12 bytes' `
     (($appStorageH -match '#define\s+BLACKBOX_ENTRY_SIZE\s+12U') -and
