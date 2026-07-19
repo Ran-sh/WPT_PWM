@@ -268,11 +268,11 @@ void Sys_Hardware_Init(void)
     Buzzer_Driver_Init();
     Adc_Driver_Init();
     Key_Driver_Init();
-    Key_Driver_Configure(KEY_DRIVER_ID_POWER,   KEY_DRIVER_CFG_CLICK_ONLY);
-    Key_Driver_Configure(KEY_DRIVER_ID_BACK,    KEY_DRIVER_CFG_WITH_DOUBLE);
-    Key_Driver_Configure(KEY_DRIVER_ID_UP,      KEY_DRIVER_CFG_WITH_DOUBLE);
-    Key_Driver_Configure(KEY_DRIVER_ID_DOWN,    KEY_DRIVER_CFG_WITH_DOUBLE);
-    Key_Driver_Configure(KEY_DRIVER_ID_CONFIRM, KEY_DRIVER_CFG_CLICK_ONLY);
+    Key_Driver_Configure(KEY_DRIVER_ID_POWER,   0U);
+    Key_Driver_Configure(KEY_DRIVER_ID_BACK,    KEY_DRIVER_CFG_DOUBLE_ENABLE);
+    Key_Driver_Configure(KEY_DRIVER_ID_UP,      0U);
+    Key_Driver_Configure(KEY_DRIVER_ID_DOWN,    0U);
+    Key_Driver_Configure(KEY_DRIVER_ID_CONFIRM, KEY_DRIVER_CFG_LONG_ENABLE);
 }
 
 void Sys_Startup_Screen(void)

@@ -204,6 +204,7 @@ $pwmC = Read-ProjectText 'Keil_Project\Hardware\Pwm_Driver.c'
 $adcC = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.c'
 $adcH = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.h'
 $irqC = Read-ProjectText 'Keil_Project\User\stm32f10x_it.c'
+$keyC = Read-ProjectText 'Keil_Project\Hardware\Key_Driver.c'
 $keyH = Read-ProjectText 'Keil_Project\Hardware\Key_Driver.h'
 $sysCoreC = Read-ProjectText 'Keil_Project\User\Sys_Core.c'
 $sysCoreH = Read-ProjectText 'Keil_Project\User\Sys_Core.h'
@@ -560,6 +561,19 @@ Write-Check 'Keys' 'KEY0/2/3 click only, KEY1 double, KEY4 long' `
      (Test-Contains $sysCoreC 'KEY_DRIVER_ID_UP\s*,\s*0U') -and
      (Test-Contains $sysCoreC 'KEY_DRIVER_ID_DOWN\s*,\s*0U') -and
      (Test-Contains $sysCoreC 'KEY_DRIVER_ID_CONFIRM\s*,\s*KEY_DRIVER_CFG_LONG_ENABLE'))
+Write-Check 'Keys' 'key timing boundaries remain 10/12/200/3000ms' `
+    (($keyC -match 'KEY_DRIVER_DEBOUNCE_MS\s+10U?') -and
+     ($keyC -match 'KEY_DRIVER_RELEASE_DEBOUNCE_MS\s+12U?') -and
+     ($keyC -match 'KEY_DRIVER_DOUBLE_WINDOW_MS\s+200U?') -and
+     ($keyC -match 'KEY_DRIVER_LONG_PRESS_MS\s+3000U?'))
+Write-Check 'Keys' 'FSM gates long and double paths independently' `
+    (($keyC -match 'long_enabled[\s\S]*KEY_DRIVER_LONG_PRESS_MS') -and
+     ($keyC -match 'double_enabled[\s\S]*KEY_DRIVER_FSM_WAIT_DOUBLE'))
+Write-Check 'Keys' 'batch event read is atomic and consumes each event' `
+    (($keyC -match '__get_PRIMASK\s*\(') -and
+     ($keyC -match '__disable_irq\s*\(') -and
+     ($keyC -match 's_keys\s*\[\s*i\s*\]\.event\s*=\s*KEY_DRIVER_EVENT_NONE') -and
+     ($keyC -match '__set_PRIMASK\s*\('))
 
 $uiCombined = $uiC + "`n" + $uiH
 Write-Check 'Ui' 'GPIO backlight setting pages are removed' ($uiCombined -notmatch 'UI_PAGE_SETTING_BL')

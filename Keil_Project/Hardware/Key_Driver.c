@@ -25,12 +25,12 @@
 #include "Key_Driver.h"
 #include "Sys_Timer.h"
 
-#define KEY_DRIVER_COUNT               5
-#define KEY_DRIVER_DEBOUNCE_MS         10
-#define KEY_DRIVER_RELEASE_DEBOUNCE_MS 12
-#define KEY_DRIVER_LONG_PRESS_MS       3000
-#define KEY_DRIVER_DOUBLE_WINDOW_MS    200
-#define KEY_DRIVER_TASK_PERIOD_MS      10
+#define KEY_DRIVER_COUNT               5U
+#define KEY_DRIVER_DEBOUNCE_MS         10U
+#define KEY_DRIVER_RELEASE_DEBOUNCE_MS 12U
+#define KEY_DRIVER_LONG_PRESS_MS       3000U
+#define KEY_DRIVER_DOUBLE_WINDOW_MS    200U
+#define KEY_DRIVER_TASK_PERIOD_MS      10U
 
 typedef enum {
     KEY_DRIVER_FSM_IDLE = 0,
@@ -48,7 +48,7 @@ typedef struct {
     uint32_t            timer;
     uint8_t             event;
     uint8_t             click_count;
-    uint8_t             flags;          /* bit0=click_only: 1=skip double-click */
+    uint8_t             flags;
 } Key_Driver_Instance;
 
 /* KEY0=PB9, KEY1=PB8, KEY2=PB7, KEY3=PB6, KEY4=PB5 */
@@ -73,24 +73,31 @@ void Key_Driver_Init(void)
 /**
  * @brief  Configure key behavior
  * @param  key_id   Key index (0=POWER, 1=BACK, 2=UP, 3=DOWN, 4=CONFIRM)
- * @param  config   KEY_DRIVER_CFG_CLICK_ONLY or KEY_DRIVER_CFG_WITH_DOUBLE
+ * @param  config   Independent DOUBLE_ENABLE/LONG_ENABLE capability bits
  */
 void Key_Driver_Configure(uint8_t key_id, uint8_t config)
 {
     if (key_id < KEY_DRIVER_COUNT) {
-        if (config & KEY_DRIVER_CFG_CLICK_ONLY)
-            s_keys[key_id].flags |= 0x01;
-        else
-            s_keys[key_id].flags &= ~0x01;
+        s_keys[key_id].flags = (uint8_t)(config &
+            (KEY_DRIVER_CFG_DOUBLE_ENABLE | KEY_DRIVER_CFG_LONG_ENABLE));
     }
 }
 
-/* Single-key FSM — with release-edge debounce + click_only fast path */
-static void Update_Fsm(Key_Driver_Instance* key)
+/* Single-key FSM with independent double-click and long-press paths. */
+static void Key_Driver_Update_Fsm(Key_Driver_Instance* key)
 {
-    uint8_t  pressed     = (GPIO_ReadInputDataBit(key->port, key->pin) == Bit_RESET);
-    uint8_t  click_only  = (key->flags & 0x01);
-    uint32_t elapsed     = Sys_Timer_Get_Tick() - key->timer;
+    uint8_t pressed;
+    uint8_t double_enabled;
+    uint8_t long_enabled;
+    uint32_t elapsed;
+
+    pressed = (GPIO_ReadInputDataBit(key->port, key->pin) == Bit_RESET) ?
+              1U : 0U;
+    double_enabled = (key->flags & KEY_DRIVER_CFG_DOUBLE_ENABLE) != 0U ?
+                     1U : 0U;
+    long_enabled = (key->flags & KEY_DRIVER_CFG_LONG_ENABLE) != 0U ?
+                   1U : 0U;
+    elapsed = Sys_Timer_Get_Tick() - key->timer;
 
     switch (key->state) {
         case KEY_DRIVER_FSM_IDLE:
@@ -113,7 +120,8 @@ static void Update_Fsm(Key_Driver_Instance* key)
 
         case KEY_DRIVER_FSM_PRESS:
             if (pressed) {
-                if (elapsed >= KEY_DRIVER_LONG_PRESS_MS) {
+                if (long_enabled != 0U &&
+                    elapsed >= KEY_DRIVER_LONG_PRESS_MS) {
                     key->event       = KEY_DRIVER_EVENT_LONG_PRESS;
                     key->click_count = 0;
                     key->state       = KEY_DRIVER_FSM_LONG;
@@ -130,7 +138,7 @@ static void Update_Fsm(Key_Driver_Instance* key)
                     key->state = KEY_DRIVER_FSM_DEBOUNCE;
                     key->timer = Sys_Timer_Get_Tick();
                 } else {
-                    if (click_only) {
+                    if (double_enabled == 0U) {
                         key->event       = KEY_DRIVER_EVENT_CLICK;
                         key->click_count = 0;
                         key->state       = KEY_DRIVER_FSM_IDLE;
@@ -174,7 +182,7 @@ void Key_Driver_Task(void)
     last = Sys_Timer_Get_Tick();
 
     for (i = 0; i < KEY_DRIVER_COUNT; i++) {
-        Update_Fsm(&s_keys[i]);
+        Key_Driver_Update_Fsm(&s_keys[i]);
     }
 }
 

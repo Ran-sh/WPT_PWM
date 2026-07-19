@@ -26,15 +26,15 @@ typedef enum {
 #define KEY_DRIVER_ID_DOWN      3   /* PB6 — KEY3 DOWN/减 */
 #define KEY_DRIVER_ID_CONFIRM   4   /* PB5 — KEY4 确定/启停 */
 
-/* Config flags */
-#define KEY_DRIVER_CFG_CLICK_ONLY   0x01  /* skip double-click, fire CLICK on release */
-#define KEY_DRIVER_CFG_WITH_DOUBLE  0x00  /* allow double-click detection */
+/* Independent per-key capability flags. A zero value means immediate click only. */
+#define KEY_DRIVER_CFG_DOUBLE_ENABLE  0x01U
+#define KEY_DRIVER_CFG_LONG_ENABLE    0x02U
 
 /** @brief Init 5 keys GPIO (all PBx, IPU) */
 void             Key_Driver_Init(void);
 /** @brief Configure key behavior
  *  @param key_id  Key index (0-4)
- *  @param config  KEY_DRIVER_CFG_CLICK_ONLY or KEY_DRIVER_CFG_WITH_DOUBLE */
+ *  @param config  ORed KEY_DRIVER_CFG_DOUBLE_ENABLE/LONG_ENABLE flags */
 void             Key_Driver_Configure(uint8_t key_id, uint8_t config);
 /** @brief Periodic key FSM drive (call every 10ms) */
 void             Key_Driver_Task(void);
