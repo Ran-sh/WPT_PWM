@@ -67,6 +67,10 @@ uint32_t Sys_Timer_Get_Cycles(void)
 
 void Sys_Timer_Delay_Ms(uint32_t ms)
 {
-    uint32_t start = s_sys_tick;
-    while ((s_sys_tick - start) < ms);
+    uint32_t start;
+
+    start = s_sys_tick;
+    while ((uint32_t)(s_sys_tick - start) < ms) {
+        __WFI();
+    }
 }

@@ -26,7 +26,7 @@
  *  |    电源: VDD=3.3V, VDDA=3.3V, VBAT=3.3V                     |
  *  |    时钟: HSE=8MHz -> PLL=72MHz (SYSCLK)                     |
  *  |    JTAG 禁用: PB3/PB4/PA15 释放为 GPIO                      |
- *  |    看门狗: IWDG 1.6s, 调试自动暂停                          |
+ *  |    看门狗: IWDG 1.6~2.4s, 调试自动暂停                      |
  *  +------------------------------------------------------------+
  *
  *  初始化铁序 (顺序不可改):
@@ -65,7 +65,7 @@ int main(void)
     Sys_Timer_Delay_Ms(1000);                               /* 停留 1s */
     Tft_Driver_Clear(TFT_COLOR_BLACK);                      /* 一次清屏, 消除 SPLASH 残留 */
 
-    Sys_Post_Init();                                        /* IWDG+ESP (IWDG 1.6s) */
+    Sys_Post_Init();                                        /* IWDG+ESP (IWDG 1.6~2.4s) */
 
     while (1) {                                             /* 主循环 — 按状态分发 */
         switch (Sys_Core_Get_State()) {

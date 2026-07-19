@@ -223,7 +223,7 @@ static void Tft_DMA_Init(void)
 
 static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_mem)
 {
-    uint32_t deadline;
+    uint32_t start;
     Spi1_Shared_Result result;
 
     if (s_tft_draw_blocked) return;
@@ -251,9 +251,10 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
 
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, ENABLE);
 
-    deadline = Sys_Timer_Get_Tick() + TFT_DMA_TIMEOUT_MS;
+    start = Sys_Timer_Get_Tick();
     while (DMA_GetFlagStatus(DMA1_FLAG_TC3) == RESET) {
-        if (deadline - Sys_Timer_Get_Tick() < 0x80000000U) continue;  /* 未超时 */
+        if ((uint32_t)(Sys_Timer_Get_Tick() - start) <
+            TFT_DMA_TIMEOUT_MS) continue;
         /* 超时: 紧急清理, 释放 SPI 总线, 防止系统硬锁 */
         SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
         DMA_Cmd(DMA1_Channel3, DISABLE);

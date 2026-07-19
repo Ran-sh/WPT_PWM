@@ -37,6 +37,8 @@
 #define ADC_DRIVER_CAL_SAMPLES      50
 #define ADC_DRIVER_CAL_INTERVAL_MS  10
 #define ADC_DRIVER_STALE_TIMEOUT_MS 20U
+#define ADC_DRIVER_HW_CAL_TIMEOUT_MS 10U
+#define ADC_DRIVER_SNAPSHOT_RETRY_LIMIT 3U
 
 /* ── 显示与安全窗口使用不同长度，禁止共享累加器。 ── */
 typedef struct {
@@ -106,6 +108,18 @@ static float   s_cal_accum   = 0.0f;
 static uint32_t s_cal_last_tick = 0U;
 static Adc_Driver_Calibration_State s_cal_state = ADC_DRIVER_CAL_UNINITIALIZED;
 static uint8_t s_cal_completed_event = 0U;
+static uint8_t s_adc_hw_ready = 0U;
+
+static void Adc_Driver_Abort_Hardware_Init(void)
+{
+    TIM_Cmd(TIM3, DISABLE);
+    ADC_ExternalTrigConvCmd(ADC1, DISABLE);
+    ADC_DMACmd(ADC1, DISABLE);
+    DMA_Cmd(DMA1_Channel1, DISABLE);
+    ADC_Cmd(ADC1, DISABLE);
+    s_adc_hw_ready = 0U;
+    s_cal_state = ADC_DRIVER_CAL_ERROR;
+}
 
 void Adc_Driver_Init(void)
 {
@@ -114,6 +128,10 @@ void Adc_Driver_Init(void)
     DMA_InitTypeDef  dma;
     TIM_TimeBaseInitTypeDef tim;
     NVIC_InitTypeDef nvic;
+    uint32_t cal_start;
+
+    s_adc_hw_ready = 0U;
+    s_cal_state = ADC_DRIVER_CAL_UNINITIALIZED;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_GPIOB, ENABLE);
@@ -174,9 +192,23 @@ void Adc_Driver_Init(void)
     { volatile uint16_t i; for (i = 0; i < 100; i++) __NOP(); }
 
     ADC_ResetCalibration(ADC1);
-    while (ADC_GetResetCalibrationStatus(ADC1));
+    cal_start = Sys_Timer_Get_Tick();
+    while (ADC_GetResetCalibrationStatus(ADC1)) {
+        if ((uint32_t)(Sys_Timer_Get_Tick() - cal_start) >=
+            ADC_DRIVER_HW_CAL_TIMEOUT_MS) {
+            Adc_Driver_Abort_Hardware_Init();
+            return;
+        }
+    }
     ADC_StartCalibration(ADC1);
-    while (ADC_GetCalibrationStatus(ADC1));
+    cal_start = Sys_Timer_Get_Tick();
+    while (ADC_GetCalibrationStatus(ADC1)) {
+        if ((uint32_t)(Sys_Timer_Get_Tick() - cal_start) >=
+            ADC_DRIVER_HW_CAL_TIMEOUT_MS) {
+            Adc_Driver_Abort_Hardware_Init();
+            return;
+        }
+    }
 
     s_adc_sample_sequence = 0U;
     s_adc_processed_sequence = 0U;
@@ -185,6 +217,7 @@ void Adc_Driver_Init(void)
     ADC_DMACmd(ADC1, ENABLE);
     ADC_ExternalTrigConvCmd(ADC1, ENABLE);
     TIM_Cmd(TIM3, ENABLE);
+    s_adc_hw_ready = 1U;
 }
 
 void Adc_Driver_Filter_Task(void)
@@ -193,14 +226,19 @@ void Adc_Driver_Filter_Task(void)
     uint16_t voltage_raw;
     uint32_t sequence_before;
     uint32_t sequence_after;
+    uint8_t snapshot_attempts;
     float safety_pin_v;
 
+    snapshot_attempts = 0U;
     do {
         sequence_before = s_adc_sample_sequence;
         if (sequence_before == s_adc_processed_sequence) return;
         current_raw = s_adc_snapshot[0];
         voltage_raw = s_adc_snapshot[1];
         sequence_after = s_adc_sample_sequence;
+        snapshot_attempts++;
+        if (sequence_before != sequence_after &&
+            snapshot_attempts >= ADC_DRIVER_SNAPSHOT_RETRY_LIMIT) return;
     } while (sequence_before != sequence_after);
 
     Adc_Driver_Display_Push(&s_v_display_filter, voltage_raw);
@@ -327,6 +365,10 @@ float Adc_Driver_Get_Current(void) { return Adc_Driver_Get_Display_Current(); }
 /** @brief V4.3.0: 从 Flash 固化值写入校准参数 (W25Q128 参数区加载后调用) */
 void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
 {
+    if (s_adc_hw_ready == 0U) {
+        s_cal_state = ADC_DRIVER_CAL_ERROR;
+        return;
+    }
     if (i_offset > 0.5f && i_offset < 2.8f) {            /* 合理性守卫: 1.65V 附近 */
         s_i_offset = i_offset;
         s_cal_state = ADC_DRIVER_CAL_READY;
@@ -345,6 +387,10 @@ float Adc_Driver_Get_Voltage_Gain(void) { return s_v_gain; }
 /** @brief V4.3.0: 强制解锁校准状态机 (双副本全损→冷启动自测算) */
 void Adc_Driver_Force_Recalibrate(void)
 {
+    if (s_adc_hw_ready == 0U) {
+        s_cal_state = ADC_DRIVER_CAL_ERROR;
+        return;
+    }
     s_cal_count = 0U;
     s_cal_accum = 0.0f;
     s_cal_completed_event = 0U;

@@ -4,7 +4,7 @@ param(
                  'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
                  'Storage', 'StorageConfig', 'Blackbox', 'BlackboxJournal',
                   'BlackboxLifecycle', 'BlackboxSnapshot',
-                  'Keys', 'KeyRouting', 'Ui', 'UiPerf', 'UartTx', 'Network', 'Scheduler',
+                  'Keys', 'KeyRouting', 'Ui', 'UiPerf', 'UartTx', 'Network', 'Scheduler', 'Timeout',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -219,6 +219,7 @@ $uiH = Read-ProjectText 'Keil_Project\Hardware\Ui_Controller.h'
 $networkC = Read-ProjectText 'Keil_Project\User\App_Network.c'
 $mainC = Read-ProjectText 'Keil_Project\User\main.c'
 $projectText = Read-ProjectText 'Keil_Project\Project.uvprojx'
+$timerC = Read-ProjectText 'Keil_Project\System\Sys_Timer.c'
 
 Write-Check 'Build' 'Keil does not rewrite environment-specific batch files' `
     ($projectText -match '<CreateBatchFile>0</CreateBatchFile>')
@@ -241,9 +242,9 @@ Write-Check 'Checksum' 'legacy CRC function names are removed from production co
      ($appStorageC -notmatch '\bCRC32_Compute\s*\(') -and
      ($tftC -notmatch '\bCRC32_Compute\s*\(') -and
      ($w25C -notmatch '\bCRC32_Compute\s*\('))
-Write-Check 'Checksum' 'TFT and W25Q use shared CRC32 implementation' `
-    (($tftC -match '\bChecksum_CRC32\s*\(') -and
-     ($w25C -match '\bChecksum_CRC32\s*\('))
+Write-Check 'Checksum' 'storage and TFT use shared CRC32 implementation' `
+    (($appStorageC -match '\bChecksum_CRC32\s*\(') -and
+     ($tftC -match '\bChecksum_CRC32\s*\('))
 Write-Check 'Checksum' 'fixed CRC self-test vectors exist' `
     (($checksumC -match '0xF4U') -and ($checksumC -match '0xFC891918UL'))
 Write-Check 'Checksum' 'storage initialization executes CRC self-test' `
@@ -355,9 +356,11 @@ Write-Check 'AdcCal' 'start request requires ready and fresh ADC data' `
      ($sysCoreC -match 'Adc_Driver_Is_Data_Fresh'))
 Write-Check 'AdcCal' 'active ADC staleness triggers ADC_STALE fault' `
     (Test-Contains $sysCoreC 'Sys_Core_Trigger_Fault\s*\(\s*SYS_FAULT_ADC_STALE\s*\)')
-Write-Check 'AdcCal' 'calibration persistence is requested before deferred save' `
+Write-Check 'AdcCal' 'calibration completion requests deferred persistence' `
     ((Test-Contains $appStorageH '\bApp_Storage_Request_Save_ADC_Calibration\s*\(') -and
-     (Test-Contains $appStorageH '\bApp_Storage_Save_Pending_ADC_Calibration\s*\('))
+     (Test-Contains $sysCoreC '\bAdc_Driver_Take_Calibration_Completed\s*\(') -and
+     (Test-Contains $sysCoreC '\bApp_Storage_Request_Save_ADC_Calibration\s*\(') -and
+     (Test-Contains $appStorageC '\bApp_Storage_Request_Save_Config\s*\('))
 
 $spiCPath = Join-Path $keilRoot 'Hardware\Spi1_Shared.c'
 $spiHPath = Join-Path $keilRoot 'Hardware\Spi1_Shared.h'
@@ -779,6 +782,38 @@ Write-Check 'Scheduler' 'state transition owns one-time STATUS LED entry action'
 Write-Check 'Scheduler' 'main contains initialization and state dispatch only' `
     (($mainC -match 'switch\s*\(\s*Sys_Core_Get_State\s*\(\s*\)\s*\)') -and
      ($mainC -notmatch 'Key_Driver_Task\s*\(|App_Network_Task\s*\(|App_Storage_Task\s*\(|Adc_Driver_Filter_Task\s*\('))
+
+Write-Check 'Timeout' 'IWDG uses prescaler 64 and reload 1500' `
+    (($sysCoreC -match 'IWDG_SetPrescaler\s*\(\s*IWDG_Prescaler_64\s*\)') -and
+     ($sysCoreC -match 'IWDG_SetReload\s*\(\s*1500U?\s*\)') -and
+     ($sysCoreC -notmatch 'IWDG_SetReload\s*\(\s*4000U?\s*\)'))
+Write-Check 'Timeout' 'ADC hardware calibration waits are bounded and fail closed' `
+    (($adcC -match 'ADC_DRIVER_HW_CAL_TIMEOUT_MS') -and
+     ($adcC -match 'ADC_GetResetCalibrationStatus[\s\S]{0,500}Sys_Timer_Get_Tick') -and
+     ($adcC -match 'ADC_GetCalibrationStatus[\s\S]{0,500}Sys_Timer_Get_Tick') -and
+     ($adcC -match 's_cal_state\s*=\s*ADC_DRIVER_CAL_ERROR') -and
+     ($adcC -notmatch 'while\s*\(\s*ADC_Get(?:Reset)?CalibrationStatus\s*\([^)]*\)\s*\)\s*;'))
+Write-Check 'Timeout' 'ADC snapshot retry loop is explicitly bounded' `
+    (($adcC -match 'ADC_DRIVER_SNAPSHOT_RETRY_LIMIT') -and
+     ($adcC -match 'snapshot_attempts\s*>=\s*ADC_DRIVER_SNAPSHOT_RETRY_LIMIT'))
+Write-Check 'Timeout' 'SPI RX drain is bounded before OVR recovery' `
+    (($spiSharedC -match 'SPI1_SHARED_RX_DRAIN_LIMIT') -and
+     ($spiSharedC -match 'drain_count\s*<\s*SPI1_SHARED_RX_DRAIN_LIMIT') -and
+     ($spiSharedC -match 'SPI_I2S_FLAG_OVR'))
+Write-Check 'Timeout' 'TFT DMA timeout uses wrap-safe elapsed time and full cleanup' `
+    (($tftC -match 'Sys_Timer_Get_Tick\s*\(\s*\)\s*-\s*start') -and
+     ($tftC -match 'TFT_DRIVER_RESULT_DMA_TIMEOUT') -and
+     ($tftC -match 'SPI_I2S_DMACmd\s*\(\s*SPI1\s*,\s*SPI_I2S_DMAReq_Tx\s*,\s*DISABLE\s*\)[\s\S]{0,260}Spi1_Shared_Force_Release'))
+Write-Check 'Timeout' 'W25 program and erase busy waits are bounded and recover the bus' `
+    (($w25C -match 'W25Q_PROGRAM_TIMEOUT_MS\s+10U?') -and
+     ($w25C -match 'W25Q_ERASE_TIMEOUT_MS\s+500U?') -and
+     ($w25C -match 'Sys_Timer_Get_Tick\s*\(\s*\)\s*-\s*start') -and
+     ($w25C -match 'Spi1_Shared_Force_Release\s*\(\s*\)[\s\S]{0,100}W25Q_DRIVER_RESULT_BUSY_TIMEOUT'))
+Write-Check 'Timeout' 'initialization delay sleeps on interrupts instead of hot spinning' `
+    (($timerC -match 'Sys_Timer_Delay_Ms[\s\S]{0,300}__WFI\s*\(\s*\)') -and
+     ($timerC -match 's_sys_tick\s*-\s*start'))
+Write-Check 'Timeout' 'USART2 runtime transmission has no polling wait' `
+    ($espC -notmatch 'while\s*\(\s*USART_GetFlagStatus\s*\(\s*USART2')
 
 if (Test-CategoryEnabled 'Version') {
     $wrongVersionFiles = @()

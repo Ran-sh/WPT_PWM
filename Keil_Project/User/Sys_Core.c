@@ -325,7 +325,7 @@ void Sys_Post_Init(void)
 
     IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);
     IWDG_SetPrescaler(IWDG_Prescaler_64);
-    IWDG_SetReload(4000);   /* 4000 × ~1.6ms = ~6.4s (LSI ~40kHz typ); worst-case LSI 60kHz: 4000×1.07ms=4.3s */
+    IWDG_SetReload(1500U);  /* LSI tolerance included: approximately 1.6-2.4s */
     IWDG_ReloadCounter();
     IWDG_Enable();
     DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;

@@ -9,6 +9,8 @@
 #include "Spi1_Shared.h"
 #include "Sys_Timer.h"
 
+#define SPI1_SHARED_RX_DRAIN_LIMIT 4U
+
 #define SPI1_SHARED_TFT_CS_PORT       GPIOA
 #define SPI1_SHARED_TFT_CS_PIN        GPIO_Pin_4
 #define SPI1_SHARED_FLASH_CS_PORT     GPIOB
@@ -29,9 +31,13 @@ static void Spi1_Shared_Deselect_All(void)
 static void Spi1_Shared_Clear_Rx_And_Ovr(void)
 {
     volatile uint16_t dummy;
+    uint8_t drain_count;
 
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) == SET) {
+    drain_count = 0U;
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) == SET &&
+           drain_count < SPI1_SHARED_RX_DRAIN_LIMIT) {
         dummy = SPI_I2S_ReceiveData(SPI1);
+        drain_count++;
     }
 
     if (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_OVR) == SET) {
