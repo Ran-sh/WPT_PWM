@@ -314,6 +314,7 @@ void Tft_Driver_Init(void)
     Tft_Driver_WrCmd(0x29); Sys_Timer_Delay_Ms(50U);        /* DISPON */
 
     Tft_Driver_Clear(TFT_COLOR_BLACK);
+    Tft_Driver_Set_Backlight(255U);
 }
 
 /* ===============================================================
@@ -940,9 +941,8 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
  *  |          W  P  T                 |  逐字出现, 亮青
  *  +----------------------------------+
  *
- *  动画 (总长约 4.8s):
- *    Phase 1 (1200ms): 背光渐亮 0->248, 8帧x150ms
- *    Phase 2 (3200ms): 4字x8帧x50ms = 400ms/字, 每字渐亮
+ *  动画 (总长约 2.0s):
+ *    Phase 1 (1600ms): 4字x8帧x50ms = 400ms/字, 每字渐亮
  *    Hold   (400ms):   全亮定格
  *
  *  使用字库: ROM 76 字 — 无 线 充 电, 不依赖 Flash
@@ -950,26 +950,18 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
 
 void Tft_Driver_Show_Splash(void)
 {
-    uint8_t i, bl, col;
+    uint8_t col;
     /* UTF-8: 无 U+65E0  线 U+7EBF  充 U+5145  电 U+7535 */
     const char s_cn[4][4] = {
         "\xe6\x97\xa0", "\xe7\xba\xbf", "\xe5\x85\x85", "\xe7\x94\xb5"
     };
 
-    Tft_Driver_Set_Backlight(0);
     Tft_Driver_Clear(TFT_COLOR_BLACK);
-
-    /* Phase 1: 背光渐亮 0->248, 8帧x150ms=1200ms */
-    for (i = 1; i <= 8; i++) {
-        bl = (uint8_t)(i * 248 / 8);
-        Tft_Driver_Set_Backlight(bl);
-        Sys_Timer_Delay_Ms(150);
-    }
 
     /* 版本号: 右下角暗灰 */
     Tft_Driver_Show_String(7, 14, "V5.0.1", 0x3186U, TFT_COLOR_BLACK);
 
-    /* Phase 2: 两行同时逐字点亮, 每字 8帧渐亮x50ms=400ms, 4字=1600ms */
+    /* Phase 1: 两行同时逐字点亮, 每字 8帧渐亮x50ms=400ms, 4字=1600ms */
     for (col = 0; col < 4; col++) {
         uint16_t cn_fg, wpt_fg;
         uint8_t  sub;
@@ -1002,6 +994,6 @@ void Tft_Driver_Show_Splash(void)
         }
     }
 
-    /* Phase 3: 全亮定格 400ms */
+    /* Phase 2: 全亮定格 400ms */
     Sys_Timer_Delay_Ms(400);
 }

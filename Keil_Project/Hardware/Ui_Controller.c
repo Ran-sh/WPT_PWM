@@ -102,11 +102,10 @@ static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t 
     }
 }
 /* ════════════════════════════════════════════════════════════
- *  V4.5.2 Settings State (preview→confirm modal, BL sub-pages)
+ *  Settings State (preview then confirm)
  * ════════════════════════════════════════════════════════════ */
 static uint8_t  s_language         = 1;     /* 0=Chinese, 1=English (默认英文) */
 static uint8_t  s_letter_spacing   = 0;     /* inter-char gap 0-3 px (V4.5.2: replaces font_size) */
-static uint8_t  s_backlight_val    = 100;   /* PWM 0-255 (derived, updated on apply) */
 static uint8_t  sc_preset          = 0;     /* 0-5 preset, 255=custom */
 static uint16_t s_color_fg         = 0xFFFF;/* RGB565 default white */
 static uint16_t s_color_bg         = 0x0000;/* RGB565 default black */
@@ -119,16 +118,6 @@ static uint8_t  s_icon_cursor      = 0;
 
 /* Preview-before-confirm (Language & Spacing): cursor position for selection */
 static uint8_t  s_preview_choice   = 0;     /* visual cursor position, committed on PAGE */
-
-/* Brightness */
-static uint8_t  s_bl_user_val       = 100;  /* user preference 1-100%, immune to breathing */
-
-/* Breathing params (V4.5.2 user-adjustable) */
-static uint8_t  s_br_speed          = 5;    /* 1-10 (×250ms half-period) */
-static uint8_t  s_br_min            = 10;   /* 5-50% */
-static uint8_t  s_br_max            = 100;  /* 50-100% */
-static uint8_t  s_br_param_cursor   = 0;    /* 0=speed, 1=min, 2=max in breathe edit */
-static uint8_t  s_br_editing        = 3;    /* 0-2 param being edited, 3=top-level nav */
 
 /* Pending save */
 static uint8_t  s_settings_dirty       = 0;
@@ -243,8 +232,6 @@ static const char* Pick_CN_EN(const char* cn, const char* en) {
 #define S_SETTINGS_ICONS_EN "Icons"
 #define S_SETTINGS_FONT_CN "\xe5\xad\x97\xe4\xbd\x93"      /* 字体 */
 #define S_SETTINGS_FONT_EN "Font Size"
-#define S_SETTINGS_BL_CN   "\xe4\xba\xae\xe5\xba\xa6"      /* 亮度 */
-#define S_SETTINGS_BL_EN   "Brightness"
 #define S_SETTINGS_COLOR_CN "\xe9\xa2\x9c\xe8\x89\xb2"     /* 颜色 */
 #define S_SETTINGS_COLOR_EN "Color"
 #define S_TITLE_LANG_CN    S_SETTINGS_LANG_CN
@@ -253,8 +240,6 @@ static const char* Pick_CN_EN(const char* cn, const char* en) {
 #define S_TITLE_ICONS_EN   S_SETTINGS_ICONS_EN
 #define S_TITLE_FONT_CN    "\xe5\xad\x97\xe4\xbd\x93\xe5\xa4\xa7\xe5\xb0\x8f"
 #define S_TITLE_FONT_EN    "Font Size"
-#define S_TITLE_BL_CN      "\xe4\xba\xae\xe5\xba\xa6\xe8\xb0\x83\xe8\x8a\x82"
-#define S_TITLE_BL_EN      "Brightness"
 #define S_TITLE_COLOR_CN   "\xe9\xa2\x9c\xe8\x89\xb2\xe6\x96\xb9\xe6\xa1\x88"
 #define S_TITLE_COLOR_EN   "Color Scheme"
 #define S_ON_RETURN_CN     "[ON]\xe8\xbf\x94\xe5\x9b\x9e"
@@ -1692,8 +1677,7 @@ static const char* Get_Menu_Setting_Text(uint8_t idx)
         case 0: return Pick_CN_EN("1. \xe8\xaf\xad\xe8\xa8\x80", "1. Language");
         case 1: return Pick_CN_EN("2. \xe5\xad\x97\xe9\x97\xb4\xe8\xb7\x9d", "2. Spacing");
         case 2: return Pick_CN_EN("3. \xe5\x9b\xbe\xe6\xa0\x87", "3. Icons");
-        case 3: return Pick_CN_EN("4. \xe4\xba\xae\xe5\xba\xa6", "4. Brightness");
-        case 4: return Pick_CN_EN("5. \xe9\xa2\x9c\xe8\x89\xb2", "5. Color");
+        case 3: return Pick_CN_EN("4. \xe9\xa2\x9c\xe8\x89\xb2", "4. Color");
         default: return "";
     }
 }
@@ -1704,13 +1688,16 @@ static const char* Get_Menu_Setting_Text(uint8_t idx)
 static void Draw_Setting_Full(void)
 {
     uint8_t i;
+    uint8_t enabled;
+    const char* text;
+
     Draw_Header(Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN));
     Draw_Divider(1);
 
-    /* Row 2-6: 5 menu items */
-    for (i = 0; i < 5; i++) {
-        const char* text = Get_Menu_Setting_Text(i);
-        uint8_t enabled = (i == 2) ? Tft_Driver_Is_Font_Flash_Valid() : 1;  /* Icons (idx 2) requires Flash */
+    /* Row 2-5: language, spacing, icons and color. */
+    for (i = 0U; i < 4U; i++) {
+        text = Get_Menu_Setting_Text(i);
+        enabled = (i == 2U) ? Tft_Driver_Is_Font_Flash_Valid() : 1U;
         Erase_Line(2 + i);
         Draw_Menu_Text(2 + i, 2, text, enabled);
     }
@@ -1724,12 +1711,9 @@ static void Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
     /* BACK -> main menu + flush settings to Flash if dirty */
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         if (s_settings_dirty) {
-            App_Storage_Request_Save_Settings(s_language, 0, s_bl_user_val,
+            App_Storage_Request_Save_Settings(s_language, 0U, 100U,
                                               s_letter_spacing, sc_preset,
                                               s_color_fg, s_color_bg);
-            /* V4.5.2: restore BL from user pref */
-            s_backlight_val = (uint8_t)((s_bl_user_val * 255 + 50) / 100);
-            Tft_Driver_Set_Backlight(s_backlight_val);
             /* V4.5.2: spacing in flash is 0-3 choice, map to actual px */
             Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));
             s_settings_dirty = 0;
@@ -1737,11 +1721,11 @@ static void Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
         s_page = UI_PAGE_MAIN_MENU; s_menu_cursor = 3; s_page_drawn = 0; return;
     }
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
-        if (s_setting_cursor == 0) s_setting_cursor = 4;
+        if (s_setting_cursor == 0U) s_setting_cursor = 3U;
         else s_setting_cursor--;
     }
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
-        if (s_setting_cursor >= 4) s_setting_cursor = 0;
+        if (s_setting_cursor >= 3U) s_setting_cursor = 0U;
         else s_setting_cursor++;
     }
     if (k4 == KEY_DRIVER_EVENT_CLICK) {
@@ -1754,8 +1738,7 @@ static void Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
                     s_preview_choice = s_letter_spacing;
                     break;
             case 2: s_page = UI_PAGE_SETTING_ICONS; s_icon_page = 0; s_icon_cursor = 0; break;
-            case 3: s_page = UI_PAGE_SETTING_BL; break;    /* BL sub-menu */
-            case 4: s_page = UI_PAGE_SETTING_COLOR;
+            case 3: s_page = UI_PAGE_SETTING_COLOR;
                     s_preview_choice = sc_preset;  /* init preview cursor from saved value */
                     break;
         }
@@ -2072,222 +2055,6 @@ static void Handle_Spacing_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
 }
 
 /* ═══════════════════════════════════════════════════════════════
- *  S5. Backlight — 2-option sub-menu (V4.5.2)
- *  PAGE enters sub-option, ON goes back to settings menu
- * ═══════════════════════════════════════════════════════════════ */
-#define S_BL_MENU_CN  "\xe4\xba\xae\xe5\xba\xa6"
-#define S_BL_MENU_EN  "Brightness"
-#define S_BL_MANUAL_CN "\xe6\x89\x8b\xe5\x8a\xa8\xe8\xb0\x83\xe8\x8a\x82"  /* 手动调节 */
-#define S_BL_MANUAL_EN "Manual Adjust"
-#define S_BL_BREATHE_CN "\xe5\x91\xbc\xe5\x90\xb8\xe7\x81\xaf"             /* 呼吸灯 */
-#define S_BL_BREATHE_EN "Breathing"
-
-/* ── BL sub-menu draw ── */
-static void Draw_BL_Sub_Full(void)
-{
-    Draw_Header(Pick_CN_EN(S_BL_MENU_CN, S_BL_MENU_EN));
-
-    Erase_Line(3);
-    Tft_Driver_Show_CN_String(3, 3,
-        Pick_CN_EN((s_preview_choice == 0) ? "1. \xe6\x89\x8b\xe5\x8a\xa8\xe8\xb0\x83\xe8\x8a\x82" : "1. \xe6\x89\x8b\xe5\x8a\xa8\xe8\xb0\x83\xe8\x8a\x82",
-                   (s_preview_choice == 0) ? "1. Manual" : "1. Manual"),
-        (s_preview_choice == 0) ? Uc_Value() : Uc_Text(), Uc_Bg());
-    if (s_preview_choice == 0) Tft_Driver_Show_String(3, 0, "*", Uc_Value(), Uc_Bg());
-
-    Erase_Line(4);
-    Tft_Driver_Show_CN_String(4, 3,
-        Pick_CN_EN((s_preview_choice == 1) ? "2. \xe5\x91\xbc\xe5\x90\xb8\xe7\x81\xaf" : "2. \xe5\x91\xbc\xe5\x90\xb8\xe7\x81\xaf",
-                   (s_preview_choice == 1) ? "2. Breathing" : "2. Breathing"),
-        (s_preview_choice == 1) ? Uc_Value() : Uc_Text(), Uc_Bg());
-    if (s_preview_choice == 1) Tft_Driver_Show_String(4, 0, "*", Uc_Value(), Uc_Bg());
-
-    Erase_Line(5); Erase_Line(6); Erase_Line(7);
-    Draw_Cursor(s_preview_choice == 0 ? 3 : 4);
-}
-
-static void Handle_BL_Sub_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
-                               Key_Driver_Event k3, Key_Driver_Event k4)
-{
-    if (k1 == KEY_DRIVER_EVENT_CLICK) {
-        s_page = UI_PAGE_SETTING; s_setting_cursor = 3; s_page_drawn = 0; return;
-    }
-    /* BL 子菜单上下循环 0↔1 */
-    if (k2 == KEY_DRIVER_EVENT_CLICK || k3 == KEY_DRIVER_EVENT_CLICK) {
-        s_preview_choice = (s_preview_choice == 0) ? 1 : 0;
-        s_page_drawn = 0;
-    }
-    if (k4 == KEY_DRIVER_EVENT_CLICK) {
-        if (s_preview_choice == 0) {
-            s_page = UI_PAGE_SETTING_BL_MANUAL;
-        } else {
-            s_page = UI_PAGE_SETTING_BL_BREATHE;
-            s_br_editing = 3;  /* top-level nav in breathe page */
-        }
-        s_page_drawn = 0;
-    }
-}
-
-/* ── BL Manual: slider 1-100%, F+/F- instant WYSIWYG, bottom value display ── */
-static void Draw_BL_Manual_Full(void)
-{
-    if (s_bl_user_val < 1 || s_bl_user_val > 100) s_bl_user_val = 100;
-    s_backlight_val = (uint8_t)((s_bl_user_val * 255 + 50) / 100);
-    Draw_Header(Pick_CN_EN(S_BL_MANUAL_CN, S_BL_MANUAL_EN));
-    {
-        uint16_t bar_x = 16, bar_y = 3 * 16 + 4, bar_w = 128, bar_h = 10;
-        uint16_t fill_w = (uint16_t)((uint32_t)s_bl_user_val * bar_w / 100);
-        Tft_Driver_Fill_Rect(bar_x, bar_y, bar_w, bar_h, Uc_Dim());
-        if (fill_w > 0)
-            Tft_Driver_Fill_Rect(bar_x, bar_y, fill_w, bar_h, Uc_Value());
-    }
-    {
-        char buf[16];
-        snprintf(buf, 16, "%d %%", s_bl_user_val);
-        uint8_t col = Center(buf);
-        Tft_Driver_Erase_Pixel_Area(0, 5 * 16, 160, 16);
-        Tft_Driver_Show_String(5, col, buf, Uc_Value(), Uc_Bg());
-    }
-    Tft_Driver_Set_Backlight(s_backlight_val);
-}
-
-static void Handle_BL_Manual_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
-                                   Key_Driver_Event k3, Key_Driver_Event k4)
-{
-    if (k1 == KEY_DRIVER_EVENT_CLICK) {
-        s_page = UI_PAGE_SETTING_BL; s_page_drawn = 0; return;
-    }
-    /* CONFIRM -> commit value, mark dirty for Flash save (value already applied instantly) */
-    if (k4 == KEY_DRIVER_EVENT_CLICK) {
-        s_settings_dirty = 1;
-        s_page_drawn = 0;
-        return;
-    }
-    /* UP/DOWN 滚动翻阅 1-100% / long-press +/-10 / WYSIWYG 即时生效 */
-    if (k2 == KEY_DRIVER_EVENT_CLICK)       { s_bl_user_val = (s_bl_user_val >= 100) ? 1  : s_bl_user_val + 2;  }
-    if (k3 == KEY_DRIVER_EVENT_CLICK)       { s_bl_user_val = (s_bl_user_val <= 1)   ? 100 : s_bl_user_val - 2;  }
-    if (k2 == KEY_DRIVER_EVENT_LONG_PRESS)  { s_bl_user_val = (s_bl_user_val >= 91)  ? 1  : s_bl_user_val + 10; }
-    if (k3 == KEY_DRIVER_EVENT_LONG_PRESS)  { s_bl_user_val = (s_bl_user_val <= 10)   ? 100 : s_bl_user_val - 10; }
-    s_backlight_val = (uint8_t)(((uint32_t)s_bl_user_val * 255U + 50U) / 100U);
-    Tft_Driver_Set_Backlight(s_backlight_val);
-    s_settings_dirty = 1;
-    /* incremental: only redraw the slider bar, don't full-page-clear */
-    {
-        uint16_t bar_x = 16, bar_y = 3 * 16 + 4, bar_w = 128, bar_h = 10;
-        uint16_t fill_w = (uint16_t)((uint32_t)s_bl_user_val * bar_w / 100);
-        Tft_Driver_Fill_Rect(bar_x, bar_y, bar_w, bar_h, Uc_Dim());
-        if (fill_w > 0)
-            Tft_Driver_Fill_Rect(bar_x, bar_y, fill_w, bar_h, Uc_Value());
-    }
-    {
-        char buf[16];
-        snprintf(buf, 16, "%d %%", s_bl_user_val);
-        uint8_t col = Center(buf);
-        Tft_Driver_Erase_Pixel_Area(0, 5 * 16, 160, 16);
-        Tft_Driver_Show_String(5, col, buf, Uc_Value(), Uc_Bg());
-    }
-}
-
-/* ── BL Breathing: 3 params (speed/min/max), PAGE enters sub-param, F+/F- adjust ── */
-static void Draw_BL_Breathe_Full(void)
-{
-    uint8_t r;
-    char buf[24];
-
-    Draw_Header(Pick_CN_EN(S_BL_BREATHE_CN, S_BL_BREATHE_EN));
-
-    Erase_Line(2);
-    snprintf(buf, 24, " Speed  : %2d/10", s_br_speed);
-    Tft_Driver_Show_String(2, 2, buf,
-        (s_br_editing == 0) ? Uc_Value() : Uc_Text(), Uc_Bg());
-
-    Erase_Line(3);
-    snprintf(buf, 24, " Min %%  : %3d%%", s_br_min);
-    Tft_Driver_Show_String(3, 2, buf,
-        (s_br_editing == 1) ? Uc_Value() : Uc_Text(), Uc_Bg());
-
-    Erase_Line(4);
-    snprintf(buf, 24, " Max %%  : %3d%%", s_br_max);
-    Tft_Driver_Show_String(4, 2, buf,
-        (s_br_editing == 2) ? Uc_Value() : Uc_Text(), Uc_Bg());
-
-    /* Bottom hint */
-    Erase_Line(7);
-    if (s_br_editing == 3)
-        Tft_Driver_Show_String(7, Center(Pick_CN_EN("[PAGE]\xe9\x80\x89\xe6\x8b\xa9", "[PAGE] Select")),
-            Pick_CN_EN("[PAGE]\xe9\x80\x89\xe6\x8b\xa9", "[PAGE] Select"), Uc_Dim(), Uc_Bg());
-    else
-        Tft_Driver_Show_String(7, Center(Pick_CN_EN("[F+/-]\xe8\xb0\x83 [PAGE]\xe7\xa1\xae\xe5\xae\x9a",
-            "[F+/-] Adj [PAGE] OK")),
-            Pick_CN_EN("[F+/-]\xe8\xb0\x83 [PAGE]\xe7\xa1\xae\xe5\xae\x9a",
-                       "[F+/-] Adj [PAGE] OK"), Uc_Dim(), Uc_Bg());
-
-    /* Cursor on active row */
-    r = (s_br_editing == 3) ? (uint8_t)(s_br_param_cursor + 2) : (uint8_t)(s_br_editing + 2);
-    Erase_Line(5); Erase_Line(6);
-    Draw_Cursor(r);
-}
-
-static void Handle_BL_Breathe_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
-                                    Key_Driver_Event k3, Key_Driver_Event k4)
-{
-    if (k1 == KEY_DRIVER_EVENT_CLICK) {
-        if (s_br_editing != 3) {
-            s_br_editing = 3;  /* ESC from param edit back to nav */
-            s_page_drawn = 0;
-        } else {
-            s_page = UI_PAGE_SETTING_BL; s_page_drawn = 0; return;
-        }
-        return;
-    }
-
-    if (s_br_editing == 3) {
-        /* Top-level: cursor moves among speed/min/max */
-        if (k2 == KEY_DRIVER_EVENT_CLICK) {
-            if (s_br_param_cursor == 0) s_br_param_cursor = 2;
-            else s_br_param_cursor--;
-            s_page_drawn = 0;
-        }
-        if (k3 == KEY_DRIVER_EVENT_CLICK) {
-            if (s_br_param_cursor >= 2) s_br_param_cursor = 0;
-            else s_br_param_cursor++;
-            s_page_drawn = 0;
-        }
-        if (k4 == KEY_DRIVER_EVENT_CLICK) {
-            /* CONFIRM enters param edit mode */
-            s_br_editing = s_br_param_cursor;
-            s_page_drawn = 0;
-        }
-    } else {
-        /* Param edit: UP/DOWN adjust value */
-        if (k2 == KEY_DRIVER_EVENT_CLICK || k3 == KEY_DRIVER_EVENT_CLICK) {
-            int8_t d = (k2 == KEY_DRIVER_EVENT_CLICK) ? 1 : -1;
-            if (s_br_editing == 0) {
-                int16_t sp = (int16_t)s_br_speed + d;
-                if (sp < 1) sp = 1; if (sp > 10) sp = 10;
-                s_br_speed = (uint8_t)sp;
-            } else if (s_br_editing == 1) {
-                int16_t mn = (int16_t)s_br_min + (int16_t)d * 5;
-                if (mn < 5) mn = 5; if (mn > 50) mn = 50;
-                if (mn >= s_br_max) mn = (int16_t)(s_br_max - 5);
-                s_br_min = (uint8_t)mn;
-            } else {
-                int16_t mx = (int16_t)s_br_max + (int16_t)d * 5;
-                if (mx < 50) mx = 50; if (mx > 100) mx = 100;
-                if (mx <= s_br_min) mx = (int16_t)(s_br_min + 5);
-                s_br_max = (uint8_t)mx;
-            }
-            s_settings_dirty = 1;
-            s_page_drawn = 0;
-        }
-        /* CONFIRM commits param edit, back to nav */
-        if (k4 == KEY_DRIVER_EVENT_CLICK) {
-            s_br_editing = 3;
-            s_page_drawn = 0;
-        }
-    }
-}
-
-/* ═══════════════════════════════════════════════════════════════
  *  S6. Color Scheme — preview-before-confirm (V4.5.2)
  *  UP/DOWN → preview cursor (visual only), bottom shows 3-color swatches
  *  PAGE    → commit + full clear + force redraw
@@ -2349,7 +2116,7 @@ static void Handle_Color_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
 {
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         s_preview_choice = sc_preset;  /* restore saved */
-        s_page = UI_PAGE_SETTING; s_setting_cursor = 4; s_page_drawn = 0; return;
+        s_page = UI_PAGE_SETTING; s_setting_cursor = 3; s_page_drawn = 0; return;
     }
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
         if (s_preview_choice == 0) s_preview_choice = 5;
@@ -2384,9 +2151,6 @@ static uint8_t Handle_Settings_Keys(Ui_Page page,
         case UI_PAGE_SETTING_LANG:      Handle_Lang_Keys(k1,k2,k3,k4); return 1;
         case UI_PAGE_SETTING_SPACING:   Handle_Spacing_Keys(k1,k2,k3,k4); return 1;
         case UI_PAGE_SETTING_ICONS:     Handle_Icons_Keys(k1,k2,k3,k4); return 1;
-        case UI_PAGE_SETTING_BL:        Handle_BL_Sub_Keys(k1,k2,k3,k4); return 1;
-        case UI_PAGE_SETTING_BL_MANUAL: Handle_BL_Manual_Keys(k1,k2,k3,k4); return 1;
-        case UI_PAGE_SETTING_BL_BREATHE:Handle_BL_Breathe_Keys(k1,k2,k3,k4); return 1;
         case UI_PAGE_SETTING_COLOR:     Handle_Color_Keys(k1,k2,k3,k4); return 1;
         default: return 0;
     }
@@ -2544,7 +2308,7 @@ void Ui_Controller_Task(void)
         if (s_menu_cursor > 4) s_menu_cursor = 0;
     }
     if (s_page == UI_PAGE_SETTING) {
-        if (s_setting_cursor > 4) s_setting_cursor = 0;
+        if (s_setting_cursor > 3U) s_setting_cursor = 0U;
     }
 
     /* ════════════════════════════════════════════════════════════
@@ -2568,9 +2332,6 @@ void Ui_Controller_Task(void)
             case UI_PAGE_SETTING_LANG:      Draw_Lang_Full();        break;
             case UI_PAGE_SETTING_SPACING:   Draw_Spacing_Full();     break;
             case UI_PAGE_SETTING_ICONS:     Draw_Icons_Full();       break;
-            case UI_PAGE_SETTING_BL:        Draw_BL_Sub_Full();      break;
-            case UI_PAGE_SETTING_BL_MANUAL: Draw_BL_Manual_Full();   break;
-            case UI_PAGE_SETTING_BL_BREATHE:Draw_BL_Breathe_Full();  break;
             case UI_PAGE_SETTING_COLOR:     Draw_Color_Full();       break;
         }
         Update_Leds();
@@ -2617,9 +2378,6 @@ void Ui_Controller_Task(void)
                 case UI_PAGE_SETTING_LANG:      /* static */               break;
                 case UI_PAGE_SETTING_SPACING:   /* static */               break;
                 case UI_PAGE_SETTING_ICONS:     /* static */               break;
-                case UI_PAGE_SETTING_BL:        /* static */               break;
-                case UI_PAGE_SETTING_BL_MANUAL: /* static — slider in key handler */ break;
-                case UI_PAGE_SETTING_BL_BREATHE:/* static */               break;
                 case UI_PAGE_SETTING_COLOR:     /* static */               break;
             }
             Update_Leds();
@@ -2658,7 +2416,7 @@ void Ui_Controller_Force_Page_And_Reset(Ui_Page page)
 /**
  * @brief  [V4.5.2] 从 App_Storage 加载设置参数并应用到 UI + 驱动
  * @note   Sys_Post_Init 中 App_Storage_Init 之后调用。
- *         V4.5.2: 新增 letter_spacing 参数, BL 改为 1-100% 用户友好刻度量
+ *         The legacy backlight field is ignored because PA12 is GPIO on/off.
  */
 void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                    uint8_t spacing, uint8_t preset,
@@ -2667,9 +2425,7 @@ void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
     s_language        = lang;
     s_letter_spacing  = spacing;
     (void)font;  /* font_size replaced by letter_spacing in V4.5.2, retained for Flash compat */
-    /* V4.5.2: bl is 1-100 user %; map to 0-255 PWM */
-    s_bl_user_val     = bl;
-    s_backlight_val   = (uint8_t)((bl * 255 + 50) / 100);
+    (void)bl;
     Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));  /* 0-3 -> actual px 0/2/4/6 */
     if (preset < 6) {
         Apply_Color_Preset(preset);
@@ -2678,7 +2434,6 @@ void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
         s_color_bg     = bg;
         sc_preset = 255;
     }
-    Tft_Driver_Set_Backlight(s_backlight_val);
     /* Init preview cursors to saved values */
     s_preview_choice = sc_preset;
 }

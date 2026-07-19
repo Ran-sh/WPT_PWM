@@ -579,6 +579,21 @@ $uiCombined = $uiC + "`n" + $uiH
 Write-Check 'Ui' 'GPIO backlight setting pages are removed' ($uiCombined -notmatch 'UI_PAGE_SETTING_BL')
 Write-Check 'Ui' 'UI page count is 14' `
     (($uiH -match '14\s*pages') -or ($uiH -match 'UI_PAGE_COUNT\s*=\s*14'))
+Write-Check 'Ui' 'brightness and breathing implementation is removed' `
+    ($uiCombined -notmatch 's_bl_user_val|s_br_speed|s_br_min|s_br_max|Draw_BL_|Handle_BL_|Brightness|Breathing')
+Write-Check 'Ui' 'settings menu has four items and color at index three' `
+    (($uiC -match 'for\s*\(\s*i\s*=\s*0U?;\s*i\s*<\s*4U?') -and
+     ($uiC -match 's_setting_cursor\s*==\s*0U?\s*\)\s*s_setting_cursor\s*=\s*3U?') -and
+     ($uiC -match 'case\s+3\s*:\s*s_page\s*=\s*UI_PAGE_SETTING_COLOR'))
+Write-Check 'Ui' 'backlight config field stays compatible but is forced to 100' `
+    (($appStorageH -match '\bbacklight\b') -and
+     ($appStorageC -match '\*bl\s*=\s*100U?') -and
+     ($appStorageC -match '\(void\)bl') -and
+     ($appStorageC -match 'cfg\.backlight\s*=\s*100U?'))
+Write-Check 'Ui' 'GPIO backlight turns on after TFT init without fake fade' `
+    (($tftC -match 'Tft_Driver_Clear\s*\(\s*TFT_COLOR_BLACK\s*\)\s*;\s*Tft_Driver_Set_Backlight\s*\(\s*255U?\s*\)') -and
+     ($tftC -notmatch 'Tft_Driver_Set_Backlight\s*\(\s*0U?\s*\)') -and
+     ($tftC -notmatch 'Sys_Timer_Delay_Ms\s*\(\s*150U?\s*\)'))
 
 $directStart = ($uiC -match 'Inverter_Control_Soft_Start_Trigger\s*\(') -or
                ($networkC -match 'Inverter_Control_Soft_Start_Trigger\s*\(')

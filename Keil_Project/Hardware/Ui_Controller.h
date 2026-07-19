@@ -23,15 +23,13 @@ typedef enum {
     UI_PAGE_MONITOR_CURR       = 6,   /* 监测电流 - 仪表盘 */
     UI_PAGE_WIFI_SETUP         = 7,   /* 无线配网 - 状态+清除 */
     UI_PAGE_FAULT              = 8,   /* 故障清除 - 过流锁存 */
-    /* V4.5.2 设置 (8 pages) */
+    /* Settings (5 pages, 14 total pages including 0-8 above). */
     UI_PAGE_SETTING            = 9,   /* 设置主菜单 */
     UI_PAGE_SETTING_LANG       = 10,  /* 语言切换 */
     UI_PAGE_SETTING_SPACING    = 11,  /* [V4.5.2] 字间距 0-3px */
     UI_PAGE_SETTING_ICONS      = 12,  /* 图标浏览 */
-    UI_PAGE_SETTING_BL         = 13,  /* 亮度二级菜单 */
-    UI_PAGE_SETTING_BL_MANUAL  = 14,  /* [V4.5.2] 手动调亮度 1-100% */
-    UI_PAGE_SETTING_BL_BREATHE = 15,  /* [V4.5.2] 呼吸灯参数 */
-    UI_PAGE_SETTING_COLOR      = 16,  /* 颜色方案 */
+    UI_PAGE_SETTING_COLOR      = 13,  /* 颜色方案 */
+    UI_PAGE_COUNT              = 14
 } Ui_Page;
 
 /** @brief 主循环周期调用 - 200ms: 渲染+按键分发+边沿检测 */

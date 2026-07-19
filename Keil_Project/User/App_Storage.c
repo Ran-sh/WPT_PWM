@@ -284,7 +284,7 @@ void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
     if (App_Storage_Load_Config(&cfg)) {
         *lang    = cfg.language;
         *font    = cfg.font_size;
-        *bl      = cfg.backlight;
+        *bl      = 100U;
         *spacing = cfg.letter_spacing;
         *preset  = cfg.color_preset;
         *fg      = cfg.color_fg;
@@ -305,6 +305,8 @@ void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                        uint16_t fg, uint16_t bg)
 {
     App_Storage_Config cfg;
+
+    (void)bl;
     if (s_config_save_pending != 0U) {
         cfg = s_pending_config;
     } else if (App_Storage_Load_Config(&cfg) == 0U) {
@@ -312,7 +314,7 @@ void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
     }
     cfg.language       = lang;
     cfg.font_size      = font;
-    cfg.backlight      = bl;
+    cfg.backlight      = 100U;
     cfg.letter_spacing = spacing;
     cfg.color_preset   = preset;
     cfg.color_fg       = fg;

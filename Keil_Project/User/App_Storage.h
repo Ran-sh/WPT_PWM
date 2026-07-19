@@ -87,7 +87,7 @@ typedef struct {
     int32_t  freq_trim_hz;  /* 4B  频率微调 */
     /* 系统偏好 */
     uint16_t default_freq;   /* 2B  默认频率 kHz */
-    uint8_t  backlight;      /* 1B  [V4.5.2] 背光 1-100% */
+    uint8_t  backlight;      /* 1B legacy compatibility field, fixed at 100 */
     uint8_t  language;       /* 1B  语言 0=CN 1=EN */
     uint8_t  font_size;      /* 1B  [V4.5.2] 0=小 1=中 */
     uint8_t  letter_spacing; /* 1B  [V4.5.2] 0-3 px extra gap */
