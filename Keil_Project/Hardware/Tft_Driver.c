@@ -66,6 +66,8 @@ typedef struct {
 static uint8_t s_dma_configured = 0;
 static uint8_t  s_font_flash_valid = 0;     /* 1=Flash font header CRC32 valid */
 static Font_Header g_font_header;           /* RAM-cached header 32B from W25Q */
+static Tft_Driver_Result s_tft_last_result = TFT_DRIVER_RESULT_OK;
+static uint8_t s_tft_draw_blocked = 0U;
 
 /* ── 像素缓冲区 ── */
 /* Max scaled char: 16×2=32 cols × 16×2=32 rows × 2 bytes = 2048 B for CN.
@@ -80,36 +82,108 @@ static uint8_t s_letter_spacing = 0;
 
 static Tft_Config g_tft_config = {1, 0, 0xFFFF, 0x0000};
 
+static Tft_Driver_Result Tft_Driver_Map_Spi_Result(
+    Spi1_Shared_Result result)
+{
+    if (result == SPI1_SHARED_RESULT_BUSY) {
+        return TFT_DRIVER_RESULT_BUSY;
+    }
+    if (result == SPI1_SHARED_RESULT_TIMEOUT) {
+        return TFT_DRIVER_RESULT_SPI_TIMEOUT;
+    }
+    if (result == SPI1_SHARED_RESULT_OK) {
+        return TFT_DRIVER_RESULT_OK;
+    }
+    return TFT_DRIVER_RESULT_INVALID;
+}
+
+static void Tft_Driver_Record_Error(Tft_Driver_Result result)
+{
+    if (result == TFT_DRIVER_RESULT_OK) return;
+    s_tft_last_result = result;
+    s_tft_draw_blocked = 1U;
+}
+
+void Tft_Driver_Begin_Draw_Cycle(void)
+{
+    s_tft_last_result = TFT_DRIVER_RESULT_OK;
+    s_tft_draw_blocked = 0U;
+}
+
+Tft_Driver_Result Tft_Driver_Get_Last_Result(void)
+{
+    return s_tft_last_result;
+}
+
+uint8_t Tft_Driver_Is_Draw_Blocked(void)
+{
+    return s_tft_draw_blocked;
+}
+
 /* ═══════════════════════════════════════════════════════════════
  *  8位基础通信
  * ═══════════════════════════════════════════════════════════════ */
 
 static void Tft_Driver_WrCmd(uint8_t c)
 {
-    if (Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_8,
-                            TFT_DMA_TIMEOUT_MS) != SPI1_SHARED_RESULT_OK) return;
+    Spi1_Shared_Result result;
+
+    if (s_tft_draw_blocked) return;
+    result = Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_8,
+                                 TFT_DMA_TIMEOUT_MS);
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        return;
+    }
     if (Spi1_Shared_Set_Tft_DC(0U) != SPI1_SHARED_RESULT_OK ||
         Spi1_Shared_Select_Tft(1U) != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(
+            Spi1_Shared_Get_Last_Result()));
         Spi1_Shared_Force_Release();
         return;
     }
-    if (Spi1_Shared_Transfer8(c, 0, TFT_DMA_TIMEOUT_MS) !=
-        SPI1_SHARED_RESULT_OK) return;
-    (void)Spi1_Shared_Release();
+    result = Spi1_Shared_Transfer8(c, 0, TFT_DMA_TIMEOUT_MS);
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        Spi1_Shared_Force_Release();
+        return;
+    }
+    result = Spi1_Shared_Release();
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        Spi1_Shared_Force_Release();
+    }
 }
 
 static void Tft_Driver_WrDat(uint8_t d)
 {
-    if (Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_8,
-                            TFT_DMA_TIMEOUT_MS) != SPI1_SHARED_RESULT_OK) return;
+    Spi1_Shared_Result result;
+
+    if (s_tft_draw_blocked) return;
+    result = Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_8,
+                                 TFT_DMA_TIMEOUT_MS);
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        return;
+    }
     if (Spi1_Shared_Set_Tft_DC(1U) != SPI1_SHARED_RESULT_OK ||
         Spi1_Shared_Select_Tft(1U) != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(
+            Spi1_Shared_Get_Last_Result()));
         Spi1_Shared_Force_Release();
         return;
     }
-    if (Spi1_Shared_Transfer8(d, 0, TFT_DMA_TIMEOUT_MS) !=
-        SPI1_SHARED_RESULT_OK) return;
-    (void)Spi1_Shared_Release();
+    result = Spi1_Shared_Transfer8(d, 0, TFT_DMA_TIMEOUT_MS);
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        Spi1_Shared_Force_Release();
+        return;
+    }
+    result = Spi1_Shared_Release();
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        Spi1_Shared_Force_Release();
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -150,11 +224,19 @@ static void Tft_DMA_Init(void)
 static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_mem)
 {
     uint32_t deadline;
+    Spi1_Shared_Result result;
 
-    if (Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_16,
-                            TFT_DMA_TIMEOUT_MS) != SPI1_SHARED_RESULT_OK) return;
+    if (s_tft_draw_blocked) return;
+    result = Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_16,
+                                 TFT_DMA_TIMEOUT_MS);
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        return;
+    }
     if (Spi1_Shared_Set_Tft_DC(1U) != SPI1_SHARED_RESULT_OK ||
         Spi1_Shared_Select_Tft(1U) != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(
+            Spi1_Shared_Get_Last_Result()));
         Spi1_Shared_Force_Release();
         return;
     }
@@ -175,6 +257,7 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
         /* 超时: 紧急清理, 释放 SPI 总线, 防止系统硬锁 */
         SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
         DMA_Cmd(DMA1_Channel3, DISABLE);
+        Tft_Driver_Record_Error(TFT_DRIVER_RESULT_DMA_TIMEOUT);
         Spi1_Shared_Force_Release();
         return;
     }
@@ -182,13 +265,20 @@ static void Tft_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_me
 
     SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
     DMA_Cmd(DMA1_Channel3, DISABLE);
-    if (Spi1_Shared_Wait_Idle(TFT_DMA_TIMEOUT_MS) !=
-        SPI1_SHARED_RESULT_OK) {
+    result = Spi1_Shared_Wait_Idle(TFT_DMA_TIMEOUT_MS);
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
         Spi1_Shared_Force_Release();
         return;
     }
-    (void)Spi1_Shared_Select_Tft(0U);
-    (void)Spi1_Shared_Release();
+    result = Spi1_Shared_Select_Tft(0U);
+    if (result == SPI1_SHARED_RESULT_OK) {
+        result = Spi1_Shared_Release();
+    }
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        Spi1_Shared_Force_Release();
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════

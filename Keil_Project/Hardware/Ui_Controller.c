@@ -110,6 +110,15 @@ static uint8_t  sc_preset          = 0;     /* 0-5 preset, 255=custom */
 static uint16_t s_color_fg         = 0xFFFF;/* RGB565 default white */
 static uint16_t s_color_bg         = 0x0000;/* RGB565 default black */
 static uint16_t s_color_accent     = 0xFFE0;/* RGB565 default yellow */
+static uint8_t  s_icon_cache_valid = 0U;
+static uint8_t  s_last_icon_cs     = 0xFFU;
+static uint8_t  s_last_icon_mode   = 0xFFU;
+static uint8_t  s_last_wifi_frame  = 0xFFU;
+static uint8_t  s_last_mqtt_frame  = 0xFFU;
+static uint8_t  s_last_rssi_frame  = 0xFFU;
+static uint8_t  s_last_icon_page   = 0xFFU;
+static uint16_t s_last_icon_bg     = 0xFFFFU;
+static uint16_t s_last_icon_fg     = 0xFFFFU;
 
 /* Settings sub-page cursors */
 static uint8_t  s_setting_cursor   = 0;
@@ -897,6 +906,12 @@ static void Draw_TopRight_Icons(void)
     #define WX 128
     #define MX 144
     uint8_t  cs = App_Network_Get_Connect_Status(), icon_frame;
+    uint8_t  wifi_frame = 0xFFU;
+    uint8_t  mqtt_frame = 0xFFU;
+    uint8_t  rssi_frame = 0xFFU;
+    uint8_t  connecting = App_Network_Is_Connecting();
+    uint8_t  offline = App_Network_Is_Offline();
+    uint8_t  ready = Esp8266_Driver_Is_Ready();
     static const uint16_t blue_grad[6] = {0x0018,0x001B,0x001F,0x07FF,0x07BF,0x07FF};
     static const uint16_t rainbow[6] = {0xF800,0xFD20,0xFFE0,0x07E0,0x07FF,0x001F};
 
@@ -905,18 +920,25 @@ static void Draw_TopRight_Icons(void)
     Tft_Driver_Fill_Rect(MX, 0, 16, 16, Uc_Bg());
 
     /* ── WIFI icon (x=128) ── */
-    if (s_no_wifi_mode || App_Network_Is_Offline()) {
+    if ((s_no_wifi_mode == 0U) && (offline == 0U) &&
+        ((connecting != 0U) || (ready == 0U))) {
+        wifi_frame = (uint8_t)(Sys_Timer_Get_Tick() / 150U) % 6U;
+    }
+    if (connecting != 0U) {
+        mqtt_frame = (uint8_t)(Sys_Timer_Get_Tick() / 200U) % 6U;
+    }
+
+    if (s_no_wifi_mode || offline) {
         Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_OFF, 0, Uc_Alarm(), Uc_Bg());
-    } else if (!Esp8266_Driver_Is_Ready()) {
-        icon_frame = (uint8_t)(Sys_Timer_Get_Tick()/150) % 6;
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, icon_frame, blue_grad[icon_frame], Uc_Bg());
+    } else if (!ready) {
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, wifi_frame, blue_grad[wifi_frame], Uc_Bg());
     } else if (cs == APP_NETWORK_CONN_ONLINE) {
         int8_t r = App_Network_Get_RSSI();
         if (r >= -50) icon_frame=3; else if (r >= -60) icon_frame=2; else if (r >= -70) icon_frame=1; else icon_frame=0;
+        rssi_frame = icon_frame;
         Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_SIGNAL, icon_frame, Uc_Ok(), Uc_Bg());
-    } else if (App_Network_Is_Connecting()) {
-        icon_frame = (uint8_t)(Sys_Timer_Get_Tick()/150) % 6;
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, icon_frame, blue_grad[icon_frame], Uc_Bg());
+    } else if (connecting) {
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, wifi_frame, blue_grad[wifi_frame], Uc_Bg());
     } else {  /* IDLE */
         Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_REMOVE, 0, Uc_Alarm(), Uc_Bg());
     }
@@ -924,11 +946,21 @@ static void Draw_TopRight_Icons(void)
     /* ── MQTT cloud (x=144) ── */
     if (cs == APP_NETWORK_CONN_ONLINE) {
         Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_YES, 0, Uc_Ok(), Uc_Bg());
-    } else if (App_Network_Is_Connecting()) {
-        uint8_t mqtt_frame = (uint8_t)(Sys_Timer_Get_Tick()/200) % 6;
+    } else if (connecting) {
         Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_ANIM, mqtt_frame, rainbow[mqtt_frame], Uc_Bg());
     } else {
         Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_NO, 0, Uc_Alarm(), Uc_Bg());
+    }
+    if (!Tft_Driver_Is_Draw_Blocked()) {
+        s_icon_cache_valid = 1U;
+        s_last_icon_cs = cs;
+        s_last_icon_mode = s_no_wifi_mode;
+        s_last_wifi_frame = wifi_frame;
+        s_last_mqtt_frame = mqtt_frame;
+        s_last_rssi_frame = rssi_frame;
+        s_last_icon_page = (uint8_t)s_page;
+        s_last_icon_bg = Uc_Bg();
+        s_last_icon_fg = Uc_Text();
     }
     #undef WX
     #undef MX
@@ -949,10 +981,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
     if (val < cfg->range_min) val = cfg->range_min;
     if (val > cfg->range_max) val = cfg->range_max;
 
-    /* ── 1. Global physical clear — pure full-screen gauge, no header/divider ── */
-    Tft_Driver_Clear(Uc_Bg());
-
-    /* ── 2. Compute needle angle (0=left, 180=right) ── */
+    /* ── 1. Compute needle angle (0=left, 180=right) ── */
     na = (uint16_t)((val - cfg->range_min) /
           (cfg->range_max - cfg->range_min) * 180.0f + 0.5f);
     if (na > 180) na = 180;
@@ -2138,12 +2167,10 @@ static void Handle_Color_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
         s_page_drawn = 0;
     }
 
-    /* CONFIRM -> commit: apply new color, full clear with new bg, redraw page */
+    /* CONFIRM -> commit: apply new color and let Phase 7 redraw once */
     if (k4 == KEY_DRIVER_EVENT_CLICK && s_preview_choice != sc_preset) {
         Apply_Color_Preset(s_preview_choice);
         s_settings_dirty = 1;
-        /* full clear into new bg — Fix 5: ensure entire screen re-covered */
-        Tft_Driver_Clear(Uc_Bg());
         s_page_drawn = 0;  /* trigger Phase 7 full-page redraw with new bg */
     }
 }
@@ -2185,41 +2212,51 @@ void Ui_Controller_Task(
     uint8_t cursor_changed = 0;
     uint8_t tick_200ms = 0;
 
+    Tft_Driver_Begin_Draw_Cycle();
+
     /* ── Phase 0: Global Top-Right Icons Manager (Always On, Auto-Sync) ── */
     {
         uint8_t cs = App_Network_Get_Connect_Status();
-        uint8_t wifi_frame = (App_Network_Is_Connecting() || !Esp8266_Driver_Is_Ready())
-            ? (uint8_t)(Sys_Timer_Get_Tick() / 150) % 6 : 0xFF;
-        uint8_t mqtt_frame = (App_Network_Is_Connecting())
-            ? (uint8_t)(Sys_Timer_Get_Tick() / 200) % 6 : 0xFF;
+        uint8_t connecting = App_Network_Is_Connecting();
+        uint8_t offline = App_Network_Is_Offline();
+        uint8_t ready = Esp8266_Driver_Is_Ready();
+        uint8_t wifi_frame = 0xFFU;
+        uint8_t mqtt_frame = 0xFFU;
+        uint8_t rssi_frame = 0xFFU;
 
-        static uint8_t s_last_icon_cs    = 0xFF;
-        static uint8_t s_last_icon_mode  = 0xFF;
-        static uint8_t s_last_wifi_frame = 0xFF;
-        static uint8_t s_last_mqtt_frame = 0xFF;
-        static uint8_t s_last_icon_page  = 0xFF;
+        if ((s_no_wifi_mode == 0U) && (offline == 0U) &&
+            ((connecting != 0U) || (ready == 0U))) {
+            wifi_frame = (uint8_t)(Sys_Timer_Get_Tick() / 150U) % 6U;
+        }
+        if (connecting != 0U) {
+            mqtt_frame = (uint8_t)(Sys_Timer_Get_Tick() / 200U) % 6U;
+        }
+        if (cs == APP_NETWORK_CONN_ONLINE) {
+            int8_t rssi = App_Network_Get_RSSI();
+            if (rssi >= -50) rssi_frame = 3U;
+            else if (rssi >= -60) rssi_frame = 2U;
+            else if (rssi >= -70) rssi_frame = 1U;
+            else rssi_frame = 0U;
+        }
 
         if (s_page_drawn) {
             /* 触发条件：网络状态改变 OR WiFi开关改变 OR 动画帧跳动 OR 刚发生过切页 */
-            if (cs != s_last_icon_cs ||
+            if ((s_icon_cache_valid == 0U) ||
+                cs != s_last_icon_cs ||
                 s_no_wifi_mode != s_last_icon_mode ||
                 wifi_frame != s_last_wifi_frame ||
                 mqtt_frame != s_last_mqtt_frame ||
-                s_page != s_last_icon_page) {
-
-                s_last_icon_cs    = cs;
-                s_last_icon_mode  = s_no_wifi_mode;
-                s_last_wifi_frame = wifi_frame;
-                s_last_mqtt_frame = mqtt_frame;
-                s_last_icon_page  = s_page;
+                rssi_frame != s_last_rssi_frame ||
+                (uint8_t)s_page != s_last_icon_page ||
+                Uc_Bg() != s_last_icon_bg ||
+                Uc_Text() != s_last_icon_fg) {
 
                 /* 直接局部泵送图标，不再重绘 Header */
                 Draw_TopRight_Icons();
             }
         } else {
             /* 页面跳转瞬间，强制失效状态，以便进入新页后图标能立刻跟进刷新 */
-            s_last_icon_cs   = 0xFF;
-            s_last_icon_page = 0xFF;
+            s_icon_cache_valid = 0U;
         }
     }
 
@@ -2326,8 +2363,10 @@ void Ui_Controller_Task(
             case UI_PAGE_SETTING_COLOR:     Draw_Color_Full();       break;
         }
         Update_Leds();
-        s_page_drawn = 1;
-        cursor_changed = 0;
+        if (!Tft_Driver_Is_Draw_Blocked()) {
+            s_page_drawn = 1;
+            cursor_changed = 0;
+        }
     } else {
         /* ── Incremental updates — only touch changed pixels ── */
 
@@ -2372,6 +2411,9 @@ void Ui_Controller_Task(
                 case UI_PAGE_SETTING_COLOR:     /* static */               break;
             }
             Update_Leds();
+        }
+        if (Tft_Driver_Is_Draw_Blocked()) {
+            s_page_drawn = 0;
         }
     }
 }

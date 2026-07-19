@@ -82,6 +82,14 @@ typedef struct {
     uint16_t default_bg;     /* fallback BG when caller passes 0 */
 } Tft_Config;
 
+typedef enum {
+    TFT_DRIVER_RESULT_OK = 0,
+    TFT_DRIVER_RESULT_BUSY,
+    TFT_DRIVER_RESULT_SPI_TIMEOUT,
+    TFT_DRIVER_RESULT_DMA_TIMEOUT,
+    TFT_DRIVER_RESULT_INVALID
+} Tft_Driver_Result;
+
 /** @brief Query current driver config (const, atomic read) */
 const Tft_Config* Tft_Driver_Get_Config(void);
 /** @brief Set font scale (1x or 2x pixel-doubling). 1=8x16/16x16 native, 2=16x32/32x32 scaled. */
@@ -96,13 +104,19 @@ uint8_t Tft_Driver_Get_Letter_Spacing(void);
 /** @brief 初始化 ST7735 TFT (硬件复位+寄存器序列+背光 PWM)
  *  @note  仅初始化 TFT 硬件, 不访问 W25Q128 (Flash 驱动尚未就绪) */
 void Tft_Driver_Init(void);
+/** @brief Start a recoverable UI draw cycle and allow one new bus attempt. */
+void Tft_Driver_Begin_Draw_Cycle(void);
+/** @brief Return the result retained from the current draw cycle. */
+Tft_Driver_Result Tft_Driver_Get_Last_Result(void);
+/** @brief Return non-zero after a transfer error blocks the current draw cycle. */
+uint8_t Tft_Driver_Is_Draw_Blocked(void);
 /** @brief 初始化 Flash 字库 (W25Q_Driver_Init 之后调用)
  *  @note  读取并校验 W25Q128 中的 Font Header, 有效则启用 Flash 全字库路径,
  *         无效则自动回退 ROM 76 字 */
 void Tft_Driver_Font_Init(void);
 /** @brief 全屏填充单色 */
 void Tft_Driver_Clear(uint16_t color);
-/** @brief 设置背光亮度 (0=灭, 255=最亮, TIM4_CH1 PWM) */
+/** @brief 设置 GPIO 背光 (0=灭, 非0=亮) */
 void Tft_Driver_Set_Backlight(uint8_t brightness);
 
 /** @brief 在指定行列绘制一个 ASCII 字符 (8x16) */

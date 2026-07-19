@@ -4,7 +4,7 @@ param(
                  'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
                  'Storage', 'StorageConfig', 'Blackbox', 'BlackboxJournal',
                   'BlackboxLifecycle', 'BlackboxSnapshot',
-                  'Keys', 'KeyRouting', 'Ui', 'Network', 'Scheduler',
+                  'Keys', 'KeyRouting', 'Ui', 'UiPerf', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -198,6 +198,7 @@ else {
 $appStorageC = Read-ProjectText 'Keil_Project\User\App_Storage.c'
 $appStorageH = Read-ProjectText 'Keil_Project\User\App_Storage.h'
 $tftC = Read-ProjectText 'Keil_Project\Hardware\Tft_Driver.c'
+$tftH = Read-ProjectText 'Keil_Project\Hardware\Tft_Driver.h'
 $w25C = Read-ProjectText 'Keil_Project\Hardware\W25Q_Driver.c'
 $w25H = Read-ProjectText 'Keil_Project\Hardware\W25Q_Driver.h'
 $pwmC = Read-ProjectText 'Keil_Project\Hardware\Pwm_Driver.c'
@@ -609,6 +610,37 @@ Write-Check 'Ui' 'GPIO backlight turns on after TFT init without fake fade' `
     (($tftC -match 'Tft_Driver_Clear\s*\(\s*TFT_COLOR_BLACK\s*\)\s*;\s*Tft_Driver_Set_Backlight\s*\(\s*255U?\s*\)') -and
      ($tftC -notmatch 'Tft_Driver_Set_Backlight\s*\(\s*0U?\s*\)') -and
      ($tftC -notmatch 'Sys_Timer_Delay_Ms\s*\(\s*150U?\s*\)'))
+
+$gaugeFullMatch = [regex]::Match(
+    $uiC,
+    'static\s+void\s+Draw_Gauge_Full\s*\([\s\S]*?\n\}'
+)
+$colorKeysMatch = [regex]::Match(
+    $uiC,
+    'static\s+void\s+Handle_Color_Keys\s*\([\s\S]*?\n\}'
+)
+Write-Check 'UiPerf' 'gauge and color handlers do not duplicate full-screen clear' `
+    ($gaugeFullMatch.Success -and $colorKeysMatch.Success -and
+     ($gaugeFullMatch.Value -notmatch 'Tft_Driver_Clear\s*\(') -and
+     ($colorKeysMatch.Value -notmatch 'Tft_Driver_Clear\s*\('))
+Write-Check 'UiPerf' 'top-right icon cache includes palette colors' `
+    (($uiC -match 's_last_icon_bg') -and
+     ($uiC -match 's_last_icon_fg') -and
+     ($uiC -match 'Uc_Bg\s*\(\s*\)\s*!=\s*s_last_icon_bg') -and
+     ($uiC -match 'Uc_Text\s*\(\s*\)\s*!=\s*s_last_icon_fg'))
+Write-Check 'UiPerf' 'TFT exposes draw-cycle error state' `
+    (($tftH -match 'Tft_Driver_Result') -and
+     ($tftH -match 'Tft_Driver_Begin_Draw_Cycle\s*\(') -and
+     ($tftH -match 'Tft_Driver_Get_Last_Result\s*\(') -and
+     ($tftH -match 'Tft_Driver_Is_Draw_Blocked\s*\(') -and
+     ($tftC -match 's_tft_draw_blocked'))
+Write-Check 'UiPerf' 'low-level TFT transfers stop after the first cycle error' `
+    (([regex]::Matches($tftC, 'if\s*\(\s*s_tft_draw_blocked\s*\)\s*return').Count -ge 3) -and
+     ($tftC -match 'Tft_Driver_Record_Error\s*\('))
+Write-Check 'UiPerf' 'UI retries failed full and incremental draw cycles' `
+    (($uiC -match 'Tft_Driver_Begin_Draw_Cycle\s*\(\s*\)') -and
+     ($uiC -match 'if\s*\(\s*!Tft_Driver_Is_Draw_Blocked\s*\(\s*\)\s*\)[\s\S]{0,250}s_page_drawn\s*=\s*1') -and
+     ($uiC -match 'Tft_Driver_Is_Draw_Blocked\s*\(\s*\)[\s\S]{0,100}s_page_drawn\s*=\s*0'))
 
 $directStart = ($uiC -match 'Inverter_Control_Soft_Start_Trigger\s*\(') -or
                ($networkC -match 'Inverter_Control_Soft_Start_Trigger\s*\(')
