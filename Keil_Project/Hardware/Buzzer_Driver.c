@@ -28,6 +28,8 @@
 #define BUZZER_DRIVER_BEEP_OFF_MS 800
 
 static Buzzer_Driver_State s_state = BUZZER_DRIVER_STATE_OFF;
+static uint32_t s_last_beep = 0U;
+static uint8_t s_beep_on = 0U;
 
 void Buzzer_Driver_Init(void)
 {
@@ -44,9 +46,6 @@ void Buzzer_Driver_Init(void)
 
 void Buzzer_Driver_Task(void)
 {
-    static uint32_t s_last_beep = 0;
-    static uint8_t  s_beep_on   = 0;
-
     if (s_state == BUZZER_DRIVER_STATE_OFF) {
         GPIO_ResetBits(BUZZER_DRIVER_PORT, BUZZER_DRIVER_PIN);
         s_beep_on = 0;
@@ -76,5 +75,19 @@ void Buzzer_Driver_Task(void)
 
 void Buzzer_Driver_Set_State(Buzzer_Driver_State state)
 {
+    if (state == BUZZER_DRIVER_STATE_OFF) {
+        s_beep_on = 0U;
+        GPIO_ResetBits(BUZZER_DRIVER_PORT, BUZZER_DRIVER_PIN);
+    }
+    else if (state == BUZZER_DRIVER_STATE_ON) {
+        s_beep_on = 0U;
+        GPIO_SetBits(BUZZER_DRIVER_PORT, BUZZER_DRIVER_PIN);
+    }
+    else if (state == BUZZER_DRIVER_STATE_BEEP &&
+             s_state != BUZZER_DRIVER_STATE_BEEP) {
+        s_beep_on = 1U;
+        s_last_beep = Sys_Timer_Get_Tick();
+        GPIO_SetBits(BUZZER_DRIVER_PORT, BUZZER_DRIVER_PIN);
+    }
     s_state = state;
 }

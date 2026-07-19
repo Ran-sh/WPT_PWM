@@ -195,6 +195,7 @@ Sys_Control_Result Sys_Core_Reset_Fault(void)
     Inverter_Control_Soft_Start_Reset();
     Sys_Core_Set_Power_Output(0U);
     Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
+    Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
     Sys_Safety_Reset_EMA();
     s_fault_code = SYS_FAULT_NONE;
     s_sys_state = SYS_STATE_IDLE;
@@ -345,15 +346,14 @@ void Sys_Safety_Task(void)
     /* EMA 滤波始终更新: IDLE 下也需显示实时 V/I */
     Sys_Safety_Update_EMA();
 
-    /* 仅 RUNNING 状态执行安全监测: 非运行状态 PWM 已关, 无过流可能 */
-    if (s_sys_state != SYS_STATE_RUNNING) return;
+    /* 扫频阶段已经发波，必须与稳定运行使用同一过流保护。 */
+    if (s_sys_state != SYS_STATE_SWEEP &&
+        s_sys_state != SYS_STATE_RUNNING) return;
 
-    /* 过流检测 → FAULT (先切状态再锁存: L4 禁擦需要 FAULT 而非 RUNNING) */
+    /* 统一FAULT入口保证先关PWM、再断PB10，随后才处理日志。 */
     if (s_safety_ema_i > SYS_SAFETY_OVERCURRENT_A) {
-        Inverter_Control_Soft_Start_Fault();
-        Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
-        s_sys_state = SYS_STATE_FAULT;               /* 先切状态, Inverter已停波 */
-        Blackbox_Lock_Fault_Snapshot();              /* L4 放行: 非 SWEEP/RUNNING */
+        Sys_Core_Trigger_Fault(SYS_FAULT_OVERCURRENT);
+        Blackbox_Lock_Fault_Snapshot();
     }
 }
 

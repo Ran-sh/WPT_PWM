@@ -201,6 +201,7 @@ $keyH = Read-ProjectText 'Keil_Project\Hardware\Key_Driver.h'
 $sysCoreC = Read-ProjectText 'Keil_Project\User\Sys_Core.c'
 $sysCoreH = Read-ProjectText 'Keil_Project\User\Sys_Core.h'
 $inverterC = Read-ProjectText 'Keil_Project\Hardware\Inverter_Control.c'
+$buzzerC = Read-ProjectText 'Keil_Project\Hardware\Buzzer_Driver.c'
 $uiC = Read-ProjectText 'Keil_Project\Hardware\Ui_Controller.c'
 $uiH = Read-ProjectText 'Keil_Project\Hardware\Ui_Controller.h'
 $networkC = Read-ProjectText 'Keil_Project\User\App_Network.c'
@@ -247,6 +248,22 @@ Write-Check 'Safety' 'overcurrent protection covers SWEEP and RUNNING' `
     ((Test-Contains $sysCoreC 'SYS_STATE_SWEEP') -and
      (Test-Contains $sysCoreC 'SYS_STATE_RUNNING') -and
      (Test-Contains $sysCoreC 'SYS_FAULT_OVERCURRENT'))
+Write-Check 'Safety' 'safety task enters fault through unified API' `
+    (Test-Contains $sysCoreC 'Sys_Core_Trigger_Fault\s*\(\s*SYS_FAULT_OVERCURRENT\s*\)')
+Write-Check 'Safety' 'fault page renders the latched fault reason' `
+    (($uiC -match '\bSys_Core_Get_Fault\s*\(') -and
+     ($uiC -match 'SYS_FAULT_ADC_STALE') -and
+     ($uiC -match 'SYS_FAULT_CONTROL_INVARIANT'))
+$buzzerSetMatch = [regex]::Match(
+    $buzzerC,
+    '(?s)void\s+Buzzer_Driver_Set_State\s*\([^)]*\)\s*\{(.*?)\r?\n\}'
+)
+Write-Check 'Safety' 'fault beep starts immediately when requested' `
+    ($buzzerSetMatch.Success -and
+     ($buzzerSetMatch.Groups[1].Value -match 'BUZZER_DRIVER_STATE_BEEP') -and
+     ($buzzerSetMatch.Groups[1].Value -match 'GPIO_SetBits'))
+Write-Check 'Safety' 'fault reset silences the buzzer' `
+    (Test-Contains $sysCoreC '(?s)Sys_Core_Reset_Fault\s*\([^)]*\).*?Buzzer_Driver_Set_State\s*\(\s*BUZZER_DRIVER_STATE_OFF\s*\)')
 
 Write-Check 'Control' 'control result and fault enums are defined' `
     (($sysCoreH -match 'SYS_CONTROL_RESULT_POWER_OFF') -and

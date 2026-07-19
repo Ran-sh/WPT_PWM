@@ -207,6 +207,12 @@ static const char* Pick_CN_EN(const char* cn, const char* en) {
 #define S_PAUSE_EN     "Paused"
 #define S_OVERCUR_CN   "\xe8\xbf\x87\xe6\xb5\x81\xe4\xbf\x9d\xe6\x8a\xa4" /* 过流保护 */
 #define S_OVERCUR_EN   "Overcurrent!"
+#define S_ADC_STALE_CN "\xe9\x87\x87\xe6\xa0\xb7\xe5\xa4\xb1\xe6\x95\x88" /* 采样失效 */
+#define S_ADC_STALE_EN "ADC Stale"
+#define S_CONTROL_ERR_CN "\xe6\x8e\xa7\xe5\x88\xb6\xe5\xbc\x82\xe5\xb8\xb8" /* 控制异常 */
+#define S_CONTROL_ERR_EN "Control Error"
+#define S_UNKNOWN_FAULT_CN "\xe6\x9c\xaa\xe7\x9f\xa5\xe6\x95\x85\xe9\x9a\x9c" /* 未知故障 */
+#define S_UNKNOWN_FAULT_EN "Unknown Fault"
 #define S_PWM_OFF_CN   "PWM\xe5\xb7\xb2\xe5\x85\xb3\xe6\x96\xad"       /* PWM已关断 */
 #define S_PWM_OFF_EN   "PWM Disabled"
 #define S_FAULT_TITLE_CN "\xe6\x95\x85\xe9\x9a\x9c\xe9\xa1\xb5"         /* 故障页 */
@@ -1421,11 +1427,36 @@ static void WiFi_Dynamic_Update(void)
  * ═══════════════════════════════════════════════════════════════ */
 static void Draw_Fault_Full(void)
 {
+    const char* fault_cn;
+    const char* fault_en;
+    Sys_Fault_Code fault_code;
+
+    fault_cn = S_UNKNOWN_FAULT_CN;
+    fault_en = S_UNKNOWN_FAULT_EN;
+    fault_code = Sys_Core_Get_Fault();
+    switch (fault_code) {
+        case SYS_FAULT_OVERCURRENT:
+            fault_cn = S_OVERCUR_CN;
+            fault_en = S_OVERCUR_EN;
+            break;
+        case SYS_FAULT_ADC_STALE:
+            fault_cn = S_ADC_STALE_CN;
+            fault_en = S_ADC_STALE_EN;
+            break;
+        case SYS_FAULT_CONTROL_INVARIANT:
+            fault_cn = S_CONTROL_ERR_CN;
+            fault_en = S_CONTROL_ERR_EN;
+            break;
+        case SYS_FAULT_NONE:
+        default:
+            break;
+    }
+
     Draw_Header(Pick_CN_EN(S_FAULT_TITLE_CN, S_FAULT_TITLE_EN));     /* row 0 */
     Draw_Divider(1);                /* row 1 */
 
-    Tft_Driver_Show_CN_String(2, Center(Pick_CN_EN(S_OVERCUR_CN, S_OVERCUR_EN)),
-        Pick_CN_EN(S_OVERCUR_CN, S_OVERCUR_EN), Uc_Alarm(), Uc_Bg());      /* row 2 */
+    Tft_Driver_Show_CN_String(2, Center(Pick_CN_EN(fault_cn, fault_en)),
+        Pick_CN_EN(fault_cn, fault_en), Uc_Alarm(), Uc_Bg());      /* row 2 */
     Tft_Driver_Show_CN_String(3, Center(Pick_CN_EN(S_PWM_OFF_CN, S_PWM_OFF_EN)),
         Pick_CN_EN(S_PWM_OFF_CN, S_PWM_OFF_EN), Uc_Text(), Uc_Bg());        /* row 3 */
 
