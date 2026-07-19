@@ -3,7 +3,7 @@ param(
                  'AdcTrigger', 'AdcFilter', 'AdcCal',
                  'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
                  'Storage', 'StorageConfig', 'Blackbox', 'BlackboxJournal',
-                 'BlackboxLifecycle',
+                  'BlackboxLifecycle', 'BlackboxSnapshot',
                  'Keys', 'Ui', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
@@ -488,6 +488,47 @@ Write-Check 'BlackboxLifecycle' 'oldest-first read uses slot mapping and wrap ca
      ($appStorageC -match 'APP_STORAGE_LOG_CAPACITY'))
 Write-Check 'BlackboxLifecycle' 'leaving an active state requests metadata checkpoint' `
     ($sysCoreC -match 'App_Storage_Request_Blackbox_Checkpoint\s*\(')
+Write-Check 'BlackboxSnapshot' 'fault window is 25 pre and 25 post samples at 200ms' `
+    (($appStorageC -match 'APP_STORAGE_FAULT_PRE_SAMPLES\s+25U') -and
+     ($appStorageC -match 'APP_STORAGE_FAULT_POST_SAMPLES\s+25U') -and
+     ($sysCoreC -match 'SYS_BLACKBOX_SAMPLE_PERIOD_MS\s+200U'))
+Write-Check 'BlackboxSnapshot' '150kHz frequency is scaled before storage in a 16-bit field' `
+    (($appStorageH -match 'frequency_100hz') -and
+     ($appStorageH -match 'Blackbox_Log_Tick\s*\([^;]*uint32_t\s+freq_hz') -and
+     ($appStorageC -match 'frequency_100hz\s*=\s*\(uint16_t\)\(\(freq_hz\s*\+\s*50U\)\s*/\s*100U\)'))
+Write-Check 'BlackboxSnapshot' 'RAM pretrigger ring freezes into a 50-entry snapshot' `
+    (($appStorageC -match 's_fault_pre_ring\s*\[\s*APP_STORAGE_FAULT_PRE_SAMPLES\s*\]') -and
+     ($appStorageC -match 's_fault_snapshot\s*\[\s*APP_STORAGE_FAULT_TOTAL_SAMPLES\s*\]') -and
+     ($appStorageC -match 'APP_STORAGE_FAULT_CAPTURE_POST'))
+Write-Check 'BlackboxSnapshot' 'each new run clears stale pretrigger samples' `
+    (($appStorageH -match 'Blackbox_Reset_Pretrigger\s*\(\s*void\s*\)') -and
+     ($appStorageC -match 'void\s+Blackbox_Reset_Pretrigger[\s\S]*s_fault_pre_count\s*=\s*0U') -and
+     ($sysCoreC -match 'Sys_Core_Request_Start[\s\S]*Blackbox_Reset_Pretrigger\s*\(\s*\)[\s\S]*Sys_Core_Set_State\s*\(\s*SYS_STATE_SWEEP'))
+Write-Check 'BlackboxSnapshot' 'fault trigger records reason without Flash erase or write' `
+    (($appStorageH -match 'Blackbox_Lock_Fault_Snapshot\s*\(\s*uint8_t\s+fault_reason\s*\)') -and
+     ($appStorageH -match 'fault_reason') -and
+     ($appStorageH -match 'data_crc32') -and
+     ($sysCoreC -match 'Sys_Core_Trigger_Fault[\s\S]*Blackbox_Lock_Fault_Snapshot\s*\(') -and
+     ($appStorageC -match 'void\s+Blackbox_Lock_Fault_Snapshot[\s\S]*APP_STORAGE_FAULT_CAPTURE_POST') -and
+     ($appStorageC -notmatch 'void\s+Blackbox_Lock_Fault_Snapshot[\s\S]{0,1200}W25Q_Driver_Erase_Sector'))
+Write-Check 'BlackboxSnapshot' 'post-trigger samples carry explicit ADC validity' `
+    (($appStorageH -match 'APP_STORAGE_LOG_STATE_INVALID\s+0x80U') -and
+     ($appStorageH -match 'Blackbox_Capture_Tick\s*\([^;]*uint8_t\s+sample_valid') -and
+     ($appStorageC -match 'sample_valid\s*==\s*0U') -and
+     ($sysCoreC -match 'Adc_Driver_Is_Data_Fresh\s*\(\s*\)[\s\S]*Blackbox_Capture_Tick'))
+Write-Check 'BlackboxSnapshot' 'fault persistence is gated by confirmed power-safe state' `
+    (($appStorageH -match 'Blackbox_Fault_Persist_Task\s*\(\s*uint8_t\s+power_safe\s*\)') -and
+     ($appStorageC -match 'power_safe\s*==\s*0U') -and
+     ($sysCoreC -match 'Pwm_Driver_Is_Enabled\s*\(\s*\)[\s\S]*Sys_Core_Is_Power_Enabled\s*\(\s*\)[\s\S]*Blackbox_Fault_Persist_Task'))
+Write-Check 'BlackboxSnapshot' 'fault slot advances only after data and header readback CRC verification' `
+    (($appStorageC -match 'App_Storage_Verify_Fault_Snapshot') -and
+     ($appStorageC -match 'W25Q_Driver_Erase_Sector\s*\(\s*slot_base\s*\)') -and
+     ($appStorageC -match 'data_crc32\s*=\s*Checksum_CRC32') -and
+     ($appStorageC -match 'if\s*\(\s*result\s*==\s*APP_STORAGE_RESULT_OK\s*\)[\s\S]*next_fault_slot\s*='))
+Write-Check 'BlackboxSnapshot' 'boot scan recovers latest committed fault generation and next slot' `
+    (($appStorageC -match 'App_Storage_Recover_Fault_Slots') -and
+     ($appStorageC -match 'APP_STORAGE_FAULT_SLOT_COUNT') -and
+     ($appStorageC -match 'header\.generation\s*>\s*s_fault_generation'))
 Write-Check 'StorageConfig' 'config save uses background request API' `
     (Test-Contains $appStorageH '\bApp_Storage_Request_Save_Config\s*\(')
 Write-Check 'StorageConfig' 'storage exposes task and result state' `

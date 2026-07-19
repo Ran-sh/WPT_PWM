@@ -25,12 +25,13 @@
 #define APP_STORAGE_FAULT_MAGIC       0x32544657UL
 #define APP_STORAGE_BLACKBOX_VERSION  2U
 #define BLACKBOX_ENTRY_SIZE           12U
+#define APP_STORAGE_LOG_STATE_INVALID 0x80U
 
 typedef struct {
     uint32_t timestamp;
     uint16_t voltage_x100;
     uint16_t current_x1000;
-    uint16_t frequency_hz;
+    uint16_t frequency_100hz;
     uint8_t  system_state;
     uint8_t  crc8;
 } App_Storage_Log_Entry;
@@ -62,9 +63,10 @@ typedef struct {
     uint16_t entry_count;
     uint16_t pre_trigger_count;
     uint16_t post_trigger_count;
-    uint16_t reserved16;
+    uint16_t fault_reason;
     uint32_t data_addr;
-    uint32_t reserved[2];
+    uint32_t data_crc32;
+    uint32_t reserved;
     uint32_t crc32;
 } App_Storage_Fault_Header;
 
@@ -137,12 +139,35 @@ void App_Storage_Request_Save_ADC_Calibration(float i_offset, float v_gain);
 void App_Storage_Write_Factory_Defaults(void);
 
 /* ── 黑匣子日志 (P4) ── */
-/** @brief 每 200ms 调用一次: 写一条 14B 紧凑日志 (带 CRC8 + 跨页保护)
+/** @brief 每 200ms 调用一次: 写一条 12B 紧凑日志 (带 CRC8 + 跨页保护)
  *  @note  SYS_STATE_IDLE/FAULT 时不写, 静默跳过 */
-void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state);
+void Blackbox_Log_Tick(float v, float i, uint32_t freq_hz, uint8_t state);
 
-/** @brief 过流触发时调用: 锁存触发点前后各 5s (50条) 到保护区 */
-void Blackbox_Lock_Fault_Snapshot(void);
+/** @brief Feed one 200ms RAM sample to the fault pre/post capture state machine.
+ *  @param v Voltage sample.
+ *  @param i Current sample.
+ *  @param freq PWM frequency in hertz.
+ *  @param state System state; bit7 is reserved for the invalid marker.
+ *  @param sample_valid 1 when ADC data is fresh, otherwise 0.
+ *  @param pretrigger_eligible 1 only in SWEEP or RUNNING.
+ */
+void Blackbox_Capture_Tick(float v, float i, uint32_t freq_hz, uint8_t state,
+                           uint8_t sample_valid,
+                           uint8_t pretrigger_eligible);
+
+/** @brief Clear stale pretrigger samples before a new SWEEP starts. */
+void Blackbox_Reset_Pretrigger(void);
+
+/** @brief Freeze the pretrigger ring and start the 5-second post capture.
+ *  @param fault_reason First latched system fault code.
+ *  @note This function only updates RAM and never erases or writes Flash.
+ */
+void Blackbox_Lock_Fault_Snapshot(uint8_t fault_reason);
+
+/** @brief Persist one completed fault snapshot after outputs are confirmed off.
+ *  @param power_safe 1 only when TIM1 PWM and PB10 are both off.
+ */
+void Blackbox_Fault_Persist_Task(uint8_t power_safe);
 
 /** @brief 读取黑匣子条数 (供网络层上传用) */
 uint32_t Blackbox_Get_Entry_Count(void);

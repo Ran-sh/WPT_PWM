@@ -45,6 +45,17 @@
 #define APP_STORAGE_LOG_CAPACITY \
     (APP_STORAGE_LOG_SECTOR_COUNT * APP_STORAGE_LOG_ENTRIES_PER_SECTOR)
 #define APP_STORAGE_INVALID_ADDR  0xFFFFFFFFUL
+#define APP_STORAGE_FAULT_PRE_SAMPLES   25U
+#define APP_STORAGE_FAULT_POST_SAMPLES  25U
+#define APP_STORAGE_FAULT_TOTAL_SAMPLES \
+    (APP_STORAGE_FAULT_PRE_SAMPLES + APP_STORAGE_FAULT_POST_SAMPLES)
+#define APP_STORAGE_FAULT_RETRY_MS 1000U
+
+typedef enum {
+    APP_STORAGE_FAULT_CAPTURE_ARMED = 0,
+    APP_STORAGE_FAULT_CAPTURE_POST,
+    APP_STORAGE_FAULT_CAPTURE_PERSIST_PENDING
+} App_Storage_Fault_Capture_State;
 
 /* ── 黑匣子运行时状态 ── */
 static App_Storage_Blackbox_Metadata s_blackbox_metadata;
@@ -59,6 +70,22 @@ static uint32_t s_log_prepared_sectors[2] = {
     APP_STORAGE_INVALID_ADDR, APP_STORAGE_INVALID_ADDR
 };
 static uint32_t s_log_maintenance_last = 0U;
+static App_Storage_Log_Entry
+    s_fault_pre_ring[APP_STORAGE_FAULT_PRE_SAMPLES];
+static App_Storage_Log_Entry
+    s_fault_snapshot[APP_STORAGE_FAULT_TOTAL_SAMPLES];
+static App_Storage_Log_Entry
+    s_fault_verify_buffer[APP_STORAGE_FAULT_TOTAL_SAMPLES];
+static App_Storage_Fault_Capture_State s_fault_capture_state =
+    APP_STORAGE_FAULT_CAPTURE_ARMED;
+static uint8_t s_fault_pre_write = 0U;
+static uint8_t s_fault_pre_count = 0U;
+static uint8_t s_fault_post_count = 0U;
+static uint8_t s_fault_reason = 0U;
+static uint32_t s_fault_trigger_timestamp = 0U;
+static uint32_t s_fault_generation = 0U;
+static uint8_t s_fault_persist_attempted = 0U;
+static uint32_t s_fault_persist_last_attempt = 0U;
 static App_Storage_Config s_pending_config;
 static uint8_t s_config_save_pending = 0U;
 static uint8_t s_config_save_attempted = 0U;
@@ -67,6 +94,7 @@ static App_Storage_Result s_storage_last_result = APP_STORAGE_RESULT_OK;
 
 static void App_Storage_Metadata_Task(void);
 static void App_Storage_Log_Maintenance_Task(void);
+static void App_Storage_Recover_Fault_Slots(void);
 static uint8_t App_Storage_Is_Erased(const uint8_t *data, uint32_t len);
 
 /* ═══════════════════════════════════════════════
@@ -408,7 +436,8 @@ static uint8_t App_Storage_Verify_Log_Entry(
 }
 
 /** @brief Pack physical values into one fixed 12-byte V2 record. */
-static void Blackbox_Pack(float v, float i, uint16_t freq, uint8_t state,
+static void Blackbox_Pack(float v, float i, uint32_t freq_hz, uint8_t state,
+                          uint8_t sample_valid,
                           App_Storage_Log_Entry *out)
 {
     memset(out, 0, sizeof(*out));
@@ -419,12 +448,17 @@ static void Blackbox_Pack(float v, float i, uint16_t freq, uint8_t state,
     out->timestamp = Sys_Timer_Get_Tick();
     out->voltage_x100 = (uint16_t)(v * 100.0f + 0.5f);
     out->current_x1000 = (uint16_t)(i * 1000.0f + 0.5f);
-    out->frequency_hz = freq;
-    out->system_state = state;
+    if (freq_hz > 6553500UL) freq_hz = 6553500UL;
+    out->frequency_100hz = (uint16_t)((freq_hz + 50U) / 100U);
+    out->system_state = (uint8_t)(state &
+        (uint8_t)(~APP_STORAGE_LOG_STATE_INVALID));
+    if (sample_valid == 0U) {
+        out->system_state |= APP_STORAGE_LOG_STATE_INVALID;
+    }
     out->crc8 = Checksum_CRC8((const uint8_t *)out, 11U);
 }
 
-void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
+void Blackbox_Log_Tick(float v, float i, uint32_t freq_hz, uint8_t state)
 {
     uint32_t addr;
     uint32_t next_addr;
@@ -435,7 +469,7 @@ void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
 
     if (s_blackbox_v2_ready == 0U) return;
 
-    Blackbox_Pack(v, i, freq, state, &entry);
+    Blackbox_Pack(v, i, freq_hz, state, 1U, &entry);
     addr = App_Storage_Log_Normalize_Address(
         s_blackbox_metadata.write_addr);
     sector_base = App_Storage_Log_Sector_Base(addr);
@@ -472,19 +506,234 @@ void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
     return;
 }
 
-void Blackbox_Lock_Fault_Snapshot(void)
+void Blackbox_Capture_Tick(float v, float i, uint32_t freq_hz,
+                           uint8_t state, uint8_t sample_valid,
+                           uint8_t pretrigger_eligible)
+{
+    App_Storage_Log_Entry entry;
+    uint8_t target;
+
+    Blackbox_Pack(v, i, freq_hz, state, sample_valid, &entry);
+    if (s_fault_capture_state == APP_STORAGE_FAULT_CAPTURE_ARMED) {
+        if (sample_valid == 0U || pretrigger_eligible == 0U) return;
+        s_fault_pre_ring[s_fault_pre_write] = entry;
+        s_fault_pre_write = (uint8_t)((s_fault_pre_write + 1U) %
+                                      APP_STORAGE_FAULT_PRE_SAMPLES);
+        if (s_fault_pre_count < APP_STORAGE_FAULT_PRE_SAMPLES) {
+            s_fault_pre_count++;
+        }
+        return;
+    }
+
+    if (s_fault_capture_state != APP_STORAGE_FAULT_CAPTURE_POST) return;
+    target = (uint8_t)(APP_STORAGE_FAULT_PRE_SAMPLES + s_fault_post_count);
+    s_fault_snapshot[target] = entry;
+    s_fault_post_count++;
+    if (s_fault_post_count >= APP_STORAGE_FAULT_POST_SAMPLES) {
+        s_fault_capture_state = APP_STORAGE_FAULT_CAPTURE_PERSIST_PENDING;
+        s_fault_persist_attempted = 0U;
+    }
+}
+
+void Blackbox_Reset_Pretrigger(void)
+{
+    if (s_fault_capture_state != APP_STORAGE_FAULT_CAPTURE_ARMED) return;
+    memset(s_fault_pre_ring, 0, sizeof(s_fault_pre_ring));
+    s_fault_pre_write = 0U;
+    s_fault_pre_count = 0U;
+}
+
+void Blackbox_Lock_Fault_Snapshot(uint8_t fault_reason)
+{
+    App_Storage_Log_Entry invalid_entry;
+    uint8_t oldest;
+    uint8_t padding;
+    uint8_t i;
+
+    if (s_fault_capture_state != APP_STORAGE_FAULT_CAPTURE_ARMED) return;
+
+    Blackbox_Pack(0.0f, 0.0f, 0U, 0U, 0U, &invalid_entry);
+    invalid_entry.timestamp = 0U;
+    invalid_entry.crc8 = Checksum_CRC8((const uint8_t *)&invalid_entry, 11U);
+    for (i = 0U; i < APP_STORAGE_FAULT_PRE_SAMPLES; i++) {
+        s_fault_snapshot[i] = invalid_entry;
+    }
+
+    oldest = (uint8_t)((s_fault_pre_write + APP_STORAGE_FAULT_PRE_SAMPLES -
+                        s_fault_pre_count) % APP_STORAGE_FAULT_PRE_SAMPLES);
+    padding = (uint8_t)(APP_STORAGE_FAULT_PRE_SAMPLES - s_fault_pre_count);
+    for (i = 0U; i < s_fault_pre_count; i++) {
+        s_fault_snapshot[padding + i] =
+            s_fault_pre_ring[(oldest + i) % APP_STORAGE_FAULT_PRE_SAMPLES];
+    }
+
+    s_fault_reason = fault_reason;
+    s_fault_trigger_timestamp = Sys_Timer_Get_Tick();
+    s_fault_post_count = 0U;
+    s_fault_capture_state = APP_STORAGE_FAULT_CAPTURE_POST;
+}
+
+static uint8_t App_Storage_Is_Fault_Header_Valid(
+    const App_Storage_Fault_Header *header, uint32_t slot_base)
+{
+    uint32_t crc;
+
+    if (header->magic != APP_STORAGE_FAULT_MAGIC ||
+        header->version != APP_STORAGE_BLACKBOX_VERSION ||
+        header->size != sizeof(*header) ||
+        header->entry_count != APP_STORAGE_FAULT_TOTAL_SAMPLES ||
+        header->pre_trigger_count != APP_STORAGE_FAULT_PRE_SAMPLES ||
+        header->post_trigger_count != APP_STORAGE_FAULT_POST_SAMPLES ||
+        header->data_addr != slot_base + sizeof(*header)) return 0U;
+    crc = Checksum_CRC32((const uint8_t *)header, sizeof(*header) - 4U);
+    return (crc == header->crc32) ? 1U : 0U;
+}
+
+static App_Storage_Result App_Storage_Verify_Fault_Snapshot(
+    uint32_t slot_base, const App_Storage_Fault_Header *expected)
+{
+    App_Storage_Fault_Header actual;
+    uint32_t data_size;
+
+    data_size = sizeof(s_fault_snapshot);
+    memset(&actual, 0, sizeof(actual));
+    if (W25Q_Driver_Read(slot_base, (uint8_t *)&actual, sizeof(actual)) !=
+        W25Q_DRIVER_RESULT_OK) return APP_STORAGE_RESULT_READ_FAILED;
+    if (App_Storage_Is_Fault_Header_Valid(&actual, slot_base) == 0U ||
+        memcmp(&actual, expected, sizeof(actual)) != 0) {
+        return APP_STORAGE_RESULT_VERIFY_FAILED;
+    }
+    memset(s_fault_verify_buffer, 0, sizeof(s_fault_verify_buffer));
+    if (W25Q_Driver_Read(actual.data_addr,
+                         (uint8_t *)s_fault_verify_buffer, data_size) !=
+        W25Q_DRIVER_RESULT_OK) return APP_STORAGE_RESULT_READ_FAILED;
+    if (Checksum_CRC32((const uint8_t *)s_fault_verify_buffer, data_size) !=
+            actual.data_crc32 ||
+        memcmp(s_fault_verify_buffer, s_fault_snapshot, data_size) != 0) {
+        return APP_STORAGE_RESULT_VERIFY_FAILED;
+    }
+    return APP_STORAGE_RESULT_OK;
+}
+
+void Blackbox_Fault_Persist_Task(uint8_t power_safe)
 {
     App_Storage_Fault_Header header;
+    App_Storage_Result result;
+    uint32_t slot_base;
+    uint32_t now;
+    uint16_t slot;
+
+    if (s_fault_capture_state !=
+        APP_STORAGE_FAULT_CAPTURE_PERSIST_PENDING || power_safe == 0U) return;
+    now = Sys_Timer_Get_Tick();
+    if (s_fault_persist_attempted != 0U &&
+        (uint32_t)(now - s_fault_persist_last_attempt) <
+        APP_STORAGE_FAULT_RETRY_MS) return;
+    s_fault_persist_attempted = 1U;
+    s_fault_persist_last_attempt = now;
+    if (s_blackbox_v2_ready == 0U ||
+        W25Q_Driver_Is_Available() == 0U) {
+        s_storage_last_result = APP_STORAGE_RESULT_NO_DEVICE;
+        return;
+    }
+
+    slot = s_blackbox_metadata.next_fault_slot;
+    if (slot >= APP_STORAGE_FAULT_SLOT_COUNT) slot = 0U;
+    slot_base = APP_STORAGE_FAULT_START_ADDR +
+                (uint32_t)slot * APP_STORAGE_FAULT_SLOT_SIZE;
 
     memset(&header, 0, sizeof(header));
     header.magic = APP_STORAGE_FAULT_MAGIC;
     header.version = APP_STORAGE_BLACKBOX_VERSION;
     header.size = sizeof(header);
-    header.trigger_timestamp = Sys_Timer_Get_Tick();
-    header.data_addr = APP_STORAGE_FAULT_START_ADDR + sizeof(header);
+    header.generation = s_fault_generation + 1U;
+    header.trigger_timestamp = s_fault_trigger_timestamp;
+    header.entry_count = APP_STORAGE_FAULT_TOTAL_SAMPLES;
+    header.pre_trigger_count = APP_STORAGE_FAULT_PRE_SAMPLES;
+    header.post_trigger_count = APP_STORAGE_FAULT_POST_SAMPLES;
+    header.fault_reason = s_fault_reason;
+    header.data_addr = slot_base + sizeof(header);
+    header.data_crc32 = Checksum_CRC32(
+        (const uint8_t *)s_fault_snapshot, sizeof(s_fault_snapshot));
     header.crc32 = Checksum_CRC32((const uint8_t *)&header,
                                   sizeof(header) - 4U);
-    (void)header;
+
+    result = APP_STORAGE_RESULT_ERASE_FAILED;
+    if (W25Q_Driver_Erase_Sector(slot_base) == W25Q_DRIVER_RESULT_OK) {
+        result = APP_STORAGE_RESULT_WRITE_FAILED;
+        if (W25Q_Driver_Write(header.data_addr,
+                              (const uint8_t *)s_fault_snapshot,
+                              sizeof(s_fault_snapshot)) ==
+            W25Q_DRIVER_RESULT_OK &&
+            W25Q_Driver_Write(slot_base, (const uint8_t *)&header,
+                              sizeof(header)) == W25Q_DRIVER_RESULT_OK) {
+            result = App_Storage_Verify_Fault_Snapshot(slot_base, &header);
+        }
+    }
+    s_storage_last_result = result;
+    if (result == APP_STORAGE_RESULT_OK) {
+        s_fault_generation = header.generation;
+        s_blackbox_metadata.next_fault_slot =
+            (uint16_t)((slot + 1U) % APP_STORAGE_FAULT_SLOT_COUNT);
+        s_metadata_checkpoint_pending = 1U;
+        s_metadata_attempted = 0U;
+        s_fault_capture_state = APP_STORAGE_FAULT_CAPTURE_ARMED;
+        s_fault_pre_write = 0U;
+        s_fault_pre_count = 0U;
+        s_fault_post_count = 0U;
+        s_fault_persist_attempted = 0U;
+    }
+}
+
+static uint8_t App_Storage_Is_Fault_Slot_Committed(
+    uint32_t slot_base, App_Storage_Fault_Header *header)
+{
+    uint32_t data_size;
+
+    memset(header, 0, sizeof(*header));
+    if (W25Q_Driver_Read(slot_base, (uint8_t *)header, sizeof(*header)) !=
+        W25Q_DRIVER_RESULT_OK) return 0U;
+    if (App_Storage_Is_Fault_Header_Valid(header, slot_base) == 0U) return 0U;
+    data_size = (uint32_t)header->entry_count * BLACKBOX_ENTRY_SIZE;
+    if (data_size != sizeof(s_fault_verify_buffer)) return 0U;
+    if (W25Q_Driver_Read(header->data_addr,
+                         (uint8_t *)s_fault_verify_buffer, data_size) !=
+        W25Q_DRIVER_RESULT_OK) return 0U;
+    return (Checksum_CRC32((const uint8_t *)s_fault_verify_buffer, data_size) ==
+            header->data_crc32) ? 1U : 0U;
+}
+
+static void App_Storage_Recover_Fault_Slots(void)
+{
+    App_Storage_Fault_Header header;
+    uint32_t slot_base;
+    uint16_t latest_slot;
+    uint16_t slot;
+    uint8_t found;
+
+    found = 0U;
+    latest_slot = 0U;
+    s_fault_generation = 0U;
+    for (slot = 0U; slot < APP_STORAGE_FAULT_SLOT_COUNT; slot++) {
+        slot_base = APP_STORAGE_FAULT_START_ADDR +
+                    (uint32_t)slot * APP_STORAGE_FAULT_SLOT_SIZE;
+        if (App_Storage_Is_Fault_Slot_Committed(slot_base, &header) != 0U &&
+            (found == 0U || header.generation > s_fault_generation)) {
+            found = 1U;
+            latest_slot = slot;
+            s_fault_generation = header.generation;
+        }
+    }
+
+    if (found != 0U) {
+        slot = (uint16_t)((latest_slot + 1U) %
+                          APP_STORAGE_FAULT_SLOT_COUNT);
+        if (s_blackbox_metadata.next_fault_slot != slot) {
+            s_blackbox_metadata.next_fault_slot = slot;
+            s_metadata_checkpoint_pending = 1U;
+            s_metadata_attempted = 0U;
+        }
+    }
 }
 
 uint32_t Blackbox_Get_Entry_Count(void)
@@ -811,6 +1060,18 @@ static void App_Storage_Reset_Blackbox_V2(void)
     s_log_prepared_sectors[0] = APP_STORAGE_INVALID_ADDR;
     s_log_prepared_sectors[1] = APP_STORAGE_INVALID_ADDR;
     s_log_maintenance_last = 0U;
+    memset(s_fault_pre_ring, 0, sizeof(s_fault_pre_ring));
+    memset(s_fault_snapshot, 0, sizeof(s_fault_snapshot));
+    memset(s_fault_verify_buffer, 0, sizeof(s_fault_verify_buffer));
+    s_fault_capture_state = APP_STORAGE_FAULT_CAPTURE_ARMED;
+    s_fault_pre_write = 0U;
+    s_fault_pre_count = 0U;
+    s_fault_post_count = 0U;
+    s_fault_reason = 0U;
+    s_fault_trigger_timestamp = 0U;
+    s_fault_generation = 0U;
+    s_fault_persist_attempted = 0U;
+    s_fault_persist_last_attempt = 0U;
 }
 
 void App_Storage_Init(void)
@@ -848,4 +1109,5 @@ void App_Storage_Init(void)
         s_metadata_checkpoint_pending = 0U;
         App_Storage_Recover_Log_Tail();
     }
+    App_Storage_Recover_Fault_Slots();
 }

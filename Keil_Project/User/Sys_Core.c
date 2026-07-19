@@ -56,11 +56,14 @@
 #include "W25Q_Driver.h"
 #include "App_Storage.h"
 
+#define SYS_BLACKBOX_SAMPLE_PERIOD_MS  200U
+
 static Sys_State s_sys_state = SYS_STATE_INIT;
 
 /* ── 全局配置实例 ── */
 static App_Storage_Config s_sys_config;
 static Sys_Fault_Code s_fault_code = SYS_FAULT_NONE;
+static uint32_t s_blackbox_sample_last = 0U;
 
 static void Sys_Core_Set_State(Sys_State state)
 {
@@ -103,11 +106,15 @@ Sys_Fault_Code Sys_Core_Get_Fault(void)
 
 void Sys_Core_Trigger_Fault(Sys_Fault_Code fault_code)
 {
+    uint8_t first_fault;
+
     if (fault_code == SYS_FAULT_NONE) {
         fault_code = SYS_FAULT_CONTROL_INVARIANT;
     }
-    if (s_fault_code == SYS_FAULT_NONE) {
+    first_fault = (s_fault_code == SYS_FAULT_NONE) ? 1U : 0U;
+    if (first_fault != 0U) {
         s_fault_code = fault_code;
+        Blackbox_Lock_Fault_Snapshot((uint8_t)fault_code);
     }
 
     /* 功率安全顺序不可交换：先关闭TIM1/MOE，再切断12V。 */
@@ -171,6 +178,7 @@ Sys_Control_Result Sys_Core_Request_Start(void)
         return SYS_CONTROL_RESULT_ADC_NOT_READY;
     }
 
+    Blackbox_Reset_Pretrigger();
     Sys_Core_Set_State(SYS_STATE_SWEEP);
     Inverter_Control_Soft_Start_Trigger();
     if (Pwm_Driver_Is_Enabled() == 0U ||
@@ -393,7 +401,6 @@ void Sys_Safety_Task(void)
         }
         if (s_safety_over_count >= SYS_SAFETY_CONFIRM_SAMPLES) {
             Sys_Core_Trigger_Fault(SYS_FAULT_OVERCURRENT);
-            Blackbox_Lock_Fault_Snapshot();
         }
     }
     else {
@@ -460,6 +467,44 @@ static void Sys_Run_Buzzer_Tick(void)
     }
 }
 
+static void Sys_Run_Blackbox_Tick(void)
+{
+    uint32_t now;
+    uint32_t frequency_hz;
+    uint8_t sample_valid;
+    uint8_t pretrigger_eligible;
+
+    now = Sys_Timer_Get_Tick();
+    if ((uint32_t)(now - s_blackbox_sample_last) <
+        SYS_BLACKBOX_SAMPLE_PERIOD_MS) return;
+    s_blackbox_sample_last = now;
+
+    sample_valid = Adc_Driver_Is_Data_Fresh();
+    pretrigger_eligible =
+        (s_sys_state == SYS_STATE_SWEEP ||
+         s_sys_state == SYS_STATE_RUNNING) ? 1U : 0U;
+    frequency_hz = (pretrigger_eligible != 0U) ?
+                   Pwm_Driver_Get_Frequency() : 0U;
+    Blackbox_Capture_Tick(Sys_Safety_Get_EMA_Voltage(),
+                          Sys_Safety_Get_EMA_Current(),
+                          frequency_hz, (uint8_t)s_sys_state,
+                          sample_valid, pretrigger_eligible);
+    if (pretrigger_eligible != 0U && sample_valid != 0U) {
+        Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(),
+                          Sys_Safety_Get_EMA_Current(),
+                          frequency_hz, (uint8_t)s_sys_state);
+    }
+}
+
+static void Sys_Run_Fault_Persist_Task(void)
+{
+    uint8_t power_safe;
+
+    power_safe = (Pwm_Driver_Is_Enabled() == 0U &&
+                  Sys_Core_Is_Power_Enabled() == 0U) ? 1U : 0U;
+    Blackbox_Fault_Persist_Task(power_safe);
+}
+
 void Sys_Run_Idle(void)
 {
     if (Sys_Core_Check_Control_Invariant() == 0U) return;
@@ -470,6 +515,8 @@ void Sys_Run_Idle(void)
     Sys_Run_Buzzer_Tick();
     Key_Driver_Task();
     Adc_Driver_Filter_Task();
+    Sys_Run_Blackbox_Tick();
+    Sys_Run_Fault_Persist_Task();
     App_Network_Task();
     Sys_Safety_Task();
     App_Storage_Task();
@@ -481,20 +528,16 @@ void Sys_Run_Sweep(void)
 {
     if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_SLOW);
-    static uint32_t last_bb_s = 0; uint32_t now_s = Sys_Timer_Get_Tick();
     Ui_Controller_Task();
     Inverter_Control_Soft_Start_Task();
     if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE)
         Sys_Core_Set_State(SYS_STATE_RUNNING);
 
-    if (now_s - last_bb_s >= 200) { last_bb_s = now_s;
-        Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(), Sys_Safety_Get_EMA_Current(),
-                          Pwm_Driver_Get_Frequency(), (uint8_t)s_sys_state);
-    }
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
     Key_Driver_Task();
     Adc_Driver_Filter_Task();
+    Sys_Run_Blackbox_Tick();
     App_Network_Task();
     Sys_Safety_Task();
     IWDG_ReloadCounter();
@@ -505,18 +548,14 @@ void Sys_Run_Running(void)
 {
     if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_ON);
-    static uint32_t last_bb = 0; uint32_t now = Sys_Timer_Get_Tick();
     Ui_Controller_Task();
     Inverter_Control_Freq_Ramp_Task();
 
-    if (now - last_bb >= 200) { last_bb = now;
-        Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(), Sys_Safety_Get_EMA_Current(),
-                          Pwm_Driver_Get_Frequency(), (uint8_t)s_sys_state);
-    }
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
     Key_Driver_Task();
     Adc_Driver_Filter_Task();
+    Sys_Run_Blackbox_Tick();
     App_Network_Task();
     Sys_Safety_Task();
     IWDG_ReloadCounter();
@@ -533,6 +572,8 @@ void Sys_Run_Fault(void)
     Sys_Run_Buzzer_Tick();
     Key_Driver_Task();
     Adc_Driver_Filter_Task();
+    Sys_Run_Blackbox_Tick();
+    Sys_Run_Fault_Persist_Task();
     App_Network_Task();
     Sys_Safety_Task();
     IWDG_ReloadCounter();
