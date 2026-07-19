@@ -12,6 +12,8 @@
 
 #include "stm32f10x.h"
 
+#define KEY_DRIVER_COUNT  5U
+
 typedef enum {
     KEY_DRIVER_EVENT_NONE        = 0,
     KEY_DRIVER_EVENT_CLICK       = 1,

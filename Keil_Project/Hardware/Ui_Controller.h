@@ -11,6 +11,7 @@
 #define UI_CONTROLLER_H
 
 #include "stm32f10x.h"
+#include "Key_Driver.h"
 
 /** @brief UI 页面枚举 (17 页两级栈式导航, V5.0.1 +2 BL子页) */
 typedef enum {
@@ -32,8 +33,11 @@ typedef enum {
     UI_PAGE_COUNT              = 14
 } Ui_Page;
 
-/** @brief 主循环周期调用 - 200ms: 渲染+按键分发+边沿检测 */
-void    Ui_Controller_Task(void);
+/** @brief Render and dispatch key events already filtered by Sys_Core.
+ *  @param events Five-key event snapshot; KEY0 has already been consumed.
+ */
+void    Ui_Controller_Task(
+    const Key_Driver_Event events[KEY_DRIVER_COUNT]);
 /** @brief 获取当前所在页面 */
 Ui_Page Ui_Controller_Get_Page(void);
 /** @brief 外部强制跳转到目标页面 (远程指令/系统状态迁移同步用) */

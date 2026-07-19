@@ -4,7 +4,7 @@ param(
                  'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
                  'Storage', 'StorageConfig', 'Blackbox', 'BlackboxJournal',
                   'BlackboxLifecycle', 'BlackboxSnapshot',
-                 'Keys', 'Ui', 'Network', 'Scheduler',
+                  'Keys', 'KeyRouting', 'Ui', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -574,6 +574,21 @@ Write-Check 'Keys' 'batch event read is atomic and consumes each event' `
      ($keyC -match '__disable_irq\s*\(') -and
      ($keyC -match 's_keys\s*\[\s*i\s*\]\.event\s*=\s*KEY_DRIVER_EVENT_NONE') -and
      ($keyC -match '__set_PRIMASK\s*\('))
+Write-Check 'KeyRouting' 'key count is public and UI accepts filtered const events' `
+    (($keyH -match '#define\s+KEY_DRIVER_COUNT\s+5U') -and
+     ($uiH -match 'Ui_Controller_Task\s*\(\s*const\s+Key_Driver_Event\s+events\s*\[\s*KEY_DRIVER_COUNT\s*\]\s*\)'))
+Write-Check 'KeyRouting' 'UI no longer scans keys or calls the system power handler' `
+    (($uiC -notmatch 'Key_Driver_Get_All_Events') -and
+     ($uiC -notmatch 'Sys_Power_Control_Handle'))
+Write-Check 'KeyRouting' 'Sys_Core scans, consumes KEY0, then forwards remaining events' `
+    ($sysCoreC -match 'Key_Driver_Get_All_Events\s*\(\s*events\s*\)[\s\S]*Sys_Power_Control_Handle\s*\(\s*events\s*\)[\s\S]*Ui_Controller_Task\s*\(\s*events\s*\)')
+Write-Check 'KeyRouting' 'KEY4 long press is local to WiFi page and power-safe IDLE only' `
+    (($uiC -match 'page\s*==\s*UI_PAGE_WIFI_SETUP[\s\S]{0,500}k4\s*==\s*KEY_DRIVER_EVENT_LONG_PRESS') -and
+     ($uiC -match 'k4\s*==\s*KEY_DRIVER_EVENT_LONG_PRESS[\s\S]{0,500}Sys_Core_Get_State\s*\(\s*\)\s*==\s*SYS_STATE_IDLE') -and
+     ($uiC -match 'k4\s*==\s*KEY_DRIVER_EVENT_LONG_PRESS[\s\S]{0,700}Pwm_Driver_Is_Enabled\s*\(\s*\)\s*==\s*0U') -and
+     ([regex]::Matches($uiC, 'CMD:CLEAR\\n').Count -eq 1))
+Write-Check 'KeyRouting' 'WiFi clear long press does not jump pages or issue disconnect' `
+    ($uiC -notmatch 'KEY_DRIVER_EVENT_LONG_PRESS[\s\S]{0,900}(s_page\s*=\s*UI_PAGE_WIFI_SETUP|App_Network_Manual_Disconnect)')
 
 $uiCombined = $uiC + "`n" + $uiH
 Write-Check 'Ui' 'GPIO backlight setting pages are removed' ($uiCombined -notmatch 'UI_PAGE_SETTING_BL')

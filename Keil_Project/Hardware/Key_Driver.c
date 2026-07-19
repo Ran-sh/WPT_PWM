@@ -25,7 +25,6 @@
 #include "Key_Driver.h"
 #include "Sys_Timer.h"
 
-#define KEY_DRIVER_COUNT               5U
 #define KEY_DRIVER_DEBOUNCE_MS         10U
 #define KEY_DRIVER_RELEASE_DEBOUNCE_MS 12U
 #define KEY_DRIVER_LONG_PRESS_MS       3000U

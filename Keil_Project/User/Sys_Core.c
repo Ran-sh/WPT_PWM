@@ -505,15 +505,24 @@ static void Sys_Run_Fault_Persist_Task(void)
     Blackbox_Fault_Persist_Task(power_safe);
 }
 
+static void Sys_Run_Key_And_Ui_Task(void)
+{
+    Key_Driver_Event events[KEY_DRIVER_COUNT];
+
+    Key_Driver_Task();
+    Key_Driver_Get_All_Events(events);
+    Sys_Power_Control_Handle(events);
+    Ui_Controller_Task(events);
+}
+
 void Sys_Run_Idle(void)
 {
     if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
 
-    Ui_Controller_Task();
+    Sys_Run_Key_And_Ui_Task();
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
-    Key_Driver_Task();
     Adc_Driver_Filter_Task();
     Sys_Run_Blackbox_Tick();
     Sys_Run_Fault_Persist_Task();
@@ -528,14 +537,13 @@ void Sys_Run_Sweep(void)
 {
     if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_SLOW);
-    Ui_Controller_Task();
+    Sys_Run_Key_And_Ui_Task();
     Inverter_Control_Soft_Start_Task();
     if (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE)
         Sys_Core_Set_State(SYS_STATE_RUNNING);
 
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
-    Key_Driver_Task();
     Adc_Driver_Filter_Task();
     Sys_Run_Blackbox_Tick();
     App_Network_Task();
@@ -548,12 +556,11 @@ void Sys_Run_Running(void)
 {
     if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_ON);
-    Ui_Controller_Task();
+    Sys_Run_Key_And_Ui_Task();
     Inverter_Control_Freq_Ramp_Task();
 
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
-    Key_Driver_Task();
     Adc_Driver_Filter_Task();
     Sys_Run_Blackbox_Tick();
     App_Network_Task();
@@ -566,11 +573,10 @@ void Sys_Run_Fault(void)
 {
     if (Sys_Core_Check_Control_Invariant() == 0U) return;
     Led_Driver_Set_Status(LED_DRIVER_STATE_OFF);
-    Ui_Controller_Task();
+    Sys_Run_Key_And_Ui_Task();
     Inverter_Control_Freq_Ramp_Cancel();
     Sys_Run_Led_Tick();
     Sys_Run_Buzzer_Tick();
-    Key_Driver_Task();
     Adc_Driver_Filter_Task();
     Sys_Run_Blackbox_Tick();
     Sys_Run_Fault_Persist_Task();

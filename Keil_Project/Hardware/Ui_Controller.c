@@ -1486,6 +1486,15 @@ static void Handle_Keys_by_Page(Ui_Page page,
     }
     sys_state = Sys_Core_Get_State();
 
+    if (page == UI_PAGE_WIFI_SETUP &&
+        k4 == KEY_DRIVER_EVENT_LONG_PRESS) {
+        if (Sys_Core_Get_State() == SYS_STATE_IDLE &&
+            Pwm_Driver_Is_Enabled() == 0U) {
+            Esp8266_Driver_Send_String("CMD:CLEAR\n");
+        }
+        return;
+    }
+
     /* UP (k2): 频率+/上移 */
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
@@ -2168,7 +2177,8 @@ static uint8_t Handle_Settings_Keys(Ui_Page page,
  *  Phase 6: Cursor boundary clamp
  *  Phase 7: Draw — full page only when s_page_drawn==0
  * ================================================================ */
-void Ui_Controller_Task(void)
+void Ui_Controller_Task(
+    const Key_Driver_Event events[KEY_DRIVER_COUNT])
 {
     static uint32_t s_last_ui_ms = 0;
     uint8_t old_cursor;
@@ -2237,36 +2247,17 @@ void Ui_Controller_Task(void)
     old_cursor = s_menu_cursor;
     {
         uint8_t old_setting_cur = s_setting_cursor;
-        Key_Driver_Event ke[5];
-        Key_Driver_Get_All_Events(ke);
-
-        /* KEY0 (POWER) handled by Sys_Core — Ui_Controller never sees it */
-        Sys_Power_Control_Handle(ke);
-
-        /* global long-press: CONFIRM (k4) clear WiFi — must fire BEFORE Settings intercept */
-        if (ke[KEY_DRIVER_ID_CONFIRM] == KEY_DRIVER_EVENT_LONG_PRESS) {
-            Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
-            if (!(ss == INVERTER_CONTROL_SS_STATE_SWEEP || ss == INVERTER_CONTROL_SS_STATE_DONE)) {
-                Esp8266_Driver_Send_String("CMD:CLEAR\n");
-                App_Network_Manual_Disconnect();
-                s_no_wifi_mode = 1;
-                if (s_page != UI_PAGE_WIFI_SETUP && s_page != UI_PAGE_FAULT) {
-                    s_page = UI_PAGE_WIFI_SETUP;
-                }
-                Reset_EMA();
-            }
-        }
         /* Settings key dispatch (includes back-navigation) */
         if (!Handle_Settings_Keys(s_page,
-                                   ke[KEY_DRIVER_ID_BACK],
-                                   ke[KEY_DRIVER_ID_UP],
-                                   ke[KEY_DRIVER_ID_DOWN],
-                                   ke[KEY_DRIVER_ID_CONFIRM])) {
+                                   events[KEY_DRIVER_ID_BACK],
+                                   events[KEY_DRIVER_ID_UP],
+                                   events[KEY_DRIVER_ID_DOWN],
+                                   events[KEY_DRIVER_ID_CONFIRM])) {
             Handle_Keys_by_Page(s_page,
-                                ke[KEY_DRIVER_ID_BACK],
-                                ke[KEY_DRIVER_ID_UP],
-                                ke[KEY_DRIVER_ID_DOWN],
-                                ke[KEY_DRIVER_ID_CONFIRM]);
+                                events[KEY_DRIVER_ID_BACK],
+                                events[KEY_DRIVER_ID_UP],
+                                events[KEY_DRIVER_ID_DOWN],
+                                events[KEY_DRIVER_ID_CONFIRM]);
         }
         if (s_setting_cursor != old_setting_cur) {
             s_last_setting_cursor = old_setting_cur;
