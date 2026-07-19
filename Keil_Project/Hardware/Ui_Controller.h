@@ -1,9 +1,9 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.h
- * @brief   人机界面控制器 — V5.0.1 (17 页面 + 圆弧能量条 + 增量刷新)
- * @note    TFT 8 行 20 列彩屏, 4 键操作
- *          9 pages: MAIN_MENU -> MONITOR_SUB -> SWEEP/MONITOR_x/WIFI_SETUP/FAULT
+ * @brief   人机界面控制器 — V5.0.1 (14 页面 + 圆弧能量条 + 增量刷新)
+ * @note    TFT 8 行 20 列彩屏, KEY0-KEY4 五键操作
+ *          9 个主/监测页面 + 5 个设置页面
  ******************************************************************************
  */
 
@@ -13,7 +13,7 @@
 #include "stm32f10x.h"
 #include "Key_Driver.h"
 
-/** @brief UI 页面枚举 (17 页两级栈式导航, V5.0.1 +2 BL子页) */
+/** @brief UI 页面枚举 (14 页两级栈式导航) */
 typedef enum {
     UI_PAGE_MAIN_MENU          = 0,   /* 主菜单 - 4/5项 */
     UI_PAGE_MONITOR_SUB_MENU   = 1,   /* 监测子菜单 - 5项 */
@@ -38,10 +38,6 @@ typedef enum {
  */
 void    Ui_Controller_Task(
     const Key_Driver_Event events[KEY_DRIVER_COUNT]);
-/** @brief 获取当前所在页面 */
-Ui_Page Ui_Controller_Get_Page(void);
-/** @brief 外部强制跳转到目标页面 (远程指令/系统状态迁移同步用) */
-void    Ui_Controller_Force_Page(Ui_Page page);
 /** @brief 外部强制跳转到目标页面并重置菜单光标 (远程 CMD:ON/OFF 专用, 避免远端操作后本地光标错位) */
 void    Ui_Controller_Force_Page_And_Reset(Ui_Page page);
 /** @brief 是否处于无WiFi模式 (远程指令门控用) */

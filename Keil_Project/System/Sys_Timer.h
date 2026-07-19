@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    System/Sys_Timer.h
  * @brief   系统时基模块 — V5.0.1
- * @note    统一毫秒时钟 + DWT 亚毫秒周期计数器
+ * @note    统一SysTick毫秒时钟
  *
  *          时间戳差值法 (所有周期任务的标准模式):
  *            static uint32_t last = 0;
@@ -20,16 +20,14 @@
 
 #include "stm32f10x.h"
 
-/** @brief 初始化 SysTick 1ms + DWT 72MHz 周期计数器 (全局时基) */
+/** @brief 初始化 SysTick 1ms 全局时基 */
 void     Sys_Timer_Init(void);
 /** @brief SysTick ISR 内部递增 tick (禁止用户代码调用) */
 void     Sys_Timer_Inc_Tick(void);
 /** @brief 获取毫秒时间戳 (32位无符号, ~49.7天回绕) */
 uint32_t Sys_Timer_Get_Tick(void);
-/** @brief 获取 DWT CPU 周期计数 (亚毫秒精确定时) */
-uint32_t Sys_Timer_Get_Cycles(void);
-/** @brief [已弃用] 阻塞毫秒延时 (仅允许初始化阶段)
- *  @param ms 延时毫秒数 (阻塞期间不喂狗, >1600ms 将触发 IWDG 复位)
+/** @brief 低功耗毫秒延时 (仅允许启动阶段、IWDG启用前使用)
+ *  @param ms 延时毫秒数，等待期间由SysTick中断唤醒
  */
 void     Sys_Timer_Delay_Ms(uint32_t ms);
 

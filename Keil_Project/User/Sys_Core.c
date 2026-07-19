@@ -32,8 +32,8 @@
  *  |                       +--- SYS_FAULT <-----------+          |
  *  |                                                             |
  *  |    Sys_Safety (independent of UI):                          |
- *  |      EMA filter a=0.25, only RUNNING checks overcurrent     |
- *  |      I > 5.0A -> FAULT + Buzzer + PWM off                   |
+ *  |      ADC 8-sample safety window, SWEEP/RUNNING protected    |
+ *  |      I > 5.0A for 3 samples -> FAULT + PWM/12V off          |
  *  +------------------------------------------------------------+
  *
  * @note    Init order: Sys_Timer_Init -> Sys_Hardware_Init ->
@@ -66,6 +66,8 @@ static Sys_Fault_Code s_fault_code = SYS_FAULT_NONE;
 static uint32_t s_blackbox_sample_last = 0U;
 
 typedef void (*Sys_Core_State_Task)(void);
+
+static void Sys_Core_Reset_Safety_Monitor(void);
 
 static void Sys_Core_Set_State(Sys_State state)
 {
@@ -238,7 +240,7 @@ Sys_Control_Result Sys_Core_Reset_Fault(void)
     Inverter_Control_Soft_Start_Reset();
     Sys_Core_Set_Power_Output(0U);
     Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_OFF);
-    Sys_Safety_Reset_EMA();
+    Sys_Core_Reset_Safety_Monitor();
     s_fault_code = SYS_FAULT_NONE;
     Sys_Core_Set_State(SYS_STATE_IDLE);
 
@@ -349,34 +351,19 @@ void Sys_Post_Init(void)
 #define SYS_SAFETY_OVERCURRENT_A  5.0f
 #define SYS_SAFETY_CONFIRM_SAMPLES 3U
 
-static float  s_safety_ema_v = 0.0f, s_safety_ema_i = 0.0f;
 static uint32_t s_safety_last_sequence = 0U;
 static uint8_t s_safety_over_count = 0U;
 
-static void Sys_Safety_Update_EMA(void)
-{
-    s_safety_ema_v = Adc_Driver_Get_Display_Voltage();
-    s_safety_ema_i = Adc_Driver_Get_Display_Current();
-}
-
-float Sys_Safety_Get_EMA_Voltage(void)  { return s_safety_ema_v; }
-float Sys_Safety_Get_EMA_Current(void)  { return s_safety_ema_i; }
-
 /**
- * @brief  重置过流 EMA 滤波缓存, 防止 FAULT 复位后 EMA 残留值立即重新触发过流
- * @note   FAULT 状态下 PAGE 单击复位时, Sys_Safety 持有的 EMA 电流值可能仍 > 5.0A,
- *         若不重置, Sys_Safety_Task 下一圈又会将系统状态拉回FAULT, 造成"消除无效"。
- *         调用后将 EMA 重置为当前 ADC 原始值, 同时锁定新状态让 EMA 重新收敛。
+ * @brief  重置安全监测序号和连续过流计数，避免故障恢复后继承旧状态
  */
-void Sys_Safety_Reset_EMA(void)
+static void Sys_Core_Reset_Safety_Monitor(void)
 {
-    s_safety_ema_v = Adc_Driver_Get_Display_Voltage();
-    s_safety_ema_i = Adc_Driver_Get_Display_Current();
     s_safety_last_sequence = Adc_Driver_Get_Processed_Sequence();
     s_safety_over_count = 0U;
 }
 
-void Sys_Safety_Task(void)
+static void Sys_Core_Safety_Task(void)
 {
     uint32_t sequence;
     float safety_current;
@@ -401,9 +388,6 @@ void Sys_Safety_Task(void)
     sequence = Adc_Driver_Get_Processed_Sequence();
     if (sequence == s_safety_last_sequence) return;
     s_safety_last_sequence = sequence;
-
-    /* 只在新ADC结果发布后更新显示量，消除主循环速度对滤波的影响。 */
-    Sys_Safety_Update_EMA();
 
     /* 扫频阶段已经发波，必须与稳定运行使用同一过流保护。 */
     if (s_sys_state != SYS_STATE_SWEEP &&
@@ -433,7 +417,7 @@ void Sys_Safety_Task(void)
  *         Power OFF -> force PWM stop + PB10 LOW + POWER LED OFF + STATUS LED OFF
  *         PWM restart requires KEY4 explicit action after power-on
  */
-void Sys_Power_Control_Handle(Key_Driver_Event ke[5])
+static void Sys_Core_Handle_Power_Key(Key_Driver_Event ke[KEY_DRIVER_COUNT])
 {
     if (ke[KEY_DRIVER_ID_POWER] != KEY_DRIVER_EVENT_CLICK) return;
 
@@ -466,7 +450,7 @@ void Sys_Power_Control_Handle(Key_Driver_Event ke[5])
  *  3. 运行调度 (原 Sys_Run.c)
  * ═══════════════════════════════════════════════════════════════ */
 
-static void Sys_Run_Led_Tick(void)
+static void Sys_Core_Run_Led_Tick(void)
 {
     static uint32_t last = 0;
     if (Sys_Timer_Get_Tick() - last >= 200) {
@@ -475,7 +459,7 @@ static void Sys_Run_Led_Tick(void)
     }
 }
 
-static void Sys_Run_Buzzer_Tick(void)
+static void Sys_Core_Run_Buzzer_Tick(void)
 {
     static uint32_t last = 0;
     if (Sys_Timer_Get_Tick() - last >= 50) {
@@ -484,7 +468,7 @@ static void Sys_Run_Buzzer_Tick(void)
     }
 }
 
-static void Sys_Run_Blackbox_Tick(void)
+static void Sys_Core_Run_Blackbox_Tick(void)
 {
     uint32_t now;
     uint32_t frequency_hz;
@@ -502,18 +486,18 @@ static void Sys_Run_Blackbox_Tick(void)
          s_sys_state == SYS_STATE_RUNNING) ? 1U : 0U;
     frequency_hz = (pretrigger_eligible != 0U) ?
                    Pwm_Driver_Get_Frequency() : 0U;
-    Blackbox_Capture_Tick(Sys_Safety_Get_EMA_Voltage(),
-                          Sys_Safety_Get_EMA_Current(),
+    Blackbox_Capture_Tick(Adc_Driver_Get_Display_Voltage(),
+                          Adc_Driver_Get_Display_Current(),
                           frequency_hz, (uint8_t)s_sys_state,
                           sample_valid, pretrigger_eligible);
     if (pretrigger_eligible != 0U && sample_valid != 0U) {
-        Blackbox_Log_Tick(Sys_Safety_Get_EMA_Voltage(),
-                          Sys_Safety_Get_EMA_Current(),
+        Blackbox_Log_Tick(Adc_Driver_Get_Display_Voltage(),
+                          Adc_Driver_Get_Display_Current(),
                           frequency_hz, (uint8_t)s_sys_state);
     }
 }
 
-static void Sys_Run_Fault_Persist_Task(void)
+static void Sys_Core_Run_Fault_Persist_Task(void)
 {
     uint8_t power_safe;
 
@@ -522,13 +506,13 @@ static void Sys_Run_Fault_Persist_Task(void)
     Blackbox_Fault_Persist_Task(power_safe);
 }
 
-static void Sys_Run_Key_And_Ui_Task(void)
+static void Sys_Core_Run_Key_And_Ui_Task(void)
 {
     Key_Driver_Event events[KEY_DRIVER_COUNT];
 
     Key_Driver_Task();
     Key_Driver_Get_All_Events(events);
-    Sys_Power_Control_Handle(events);
+    Sys_Core_Handle_Power_Key(events);
     Ui_Controller_Task(events);
 }
 
@@ -551,19 +535,19 @@ static void Sys_Core_Run_Common(Sys_State expected_state,
 {
     (void)Sys_Core_Check_Control_Invariant();
     Adc_Driver_Filter_Task();
-    Sys_Safety_Task();
-    Sys_Run_Key_And_Ui_Task();
+    Sys_Core_Safety_Task();
+    Sys_Core_Run_Key_And_Ui_Task();
     if ((s_sys_state == expected_state) && (state_task != 0)) {
         state_task();
     }
     App_Network_Task();
-    Sys_Run_Blackbox_Tick();
-    Sys_Run_Fault_Persist_Task();
+    Sys_Core_Run_Blackbox_Tick();
+    Sys_Core_Run_Fault_Persist_Task();
     if (s_sys_state == SYS_STATE_IDLE) {
         App_Storage_Task();
     }
-    Sys_Run_Led_Tick();
-    Sys_Run_Buzzer_Tick();
+    Sys_Core_Run_Led_Tick();
+    Sys_Core_Run_Buzzer_Tick();
     IWDG_ReloadCounter();
     __WFI();
 }

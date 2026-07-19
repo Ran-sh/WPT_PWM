@@ -126,9 +126,11 @@ void Inverter_Control_Freq_Ramp_Trigger(uint32_t target_hz)
 
 void Inverter_Control_Freq_Ramp_Task(void)
 {
+    uint32_t current;
+
     if (s_ramp_state == INVERTER_CONTROL_RAMP_IDLE) return;
 
-    uint32_t current = Pwm_Driver_Get_Frequency();
+    current = Pwm_Driver_Get_Frequency();
 
     /* 频率由硬件整数分频决定, 实际值可能偏离目标一个步进以内 */
     {
@@ -152,11 +154,6 @@ void Inverter_Control_Freq_Ramp_Task(void)
         }
         Pwm_Driver_Set_Frequency(current);
     }
-}
-
-uint32_t Inverter_Control_Freq_Ramp_Get_Target(void)
-{
-    return s_ramp_target;
 }
 
 void Inverter_Control_Freq_Ramp_Cancel(void)

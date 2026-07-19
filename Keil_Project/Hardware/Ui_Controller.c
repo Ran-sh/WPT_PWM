@@ -1,23 +1,21 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   人机界面控制器 V5.0.1 — 17 页面 + 圆弧能量条 + 增量刷新
+ * @brief   人机界面控制器 V5.0.1 — 14 页面 + 圆弧能量条 + 增量刷新
  *
  *  Hardware dependencies (indirect, via Driver layer):
  *  +----------------------------------------------------------+
  *  |                       STM32F103C8T6                       |
  *  |                                                           |
- *  |    Tft_Driver:  SPI1+DMA (PA5/PA7/PA4/PA6/PA0/PB6)  disp  |
- *  |    Key_Driver:  PB9/PB8/PB7/PB5 (IPU)                inp  |
- *  |    Led_Driver:  PA15/PB4/PB3/PA10/PA11               sta  |
+ *  |    Tft_Driver:  SPI1+DMA (PA5/PA7/PA4/PA6/PA0/PA12) disp  |
+ *  |    Key_Driver:  PB9/PB8/PB7/PB6/PB5 (IPU)           inp  |
+ *  |    Led_Driver:  PA15/PB4/PB3/PC13                   sta  |
  *  |    Buzzer:      PB15 (PP)                             be  |
  *  |    Pwm_Driver:  TIM1 CH1/CH2/CH1N/CH2N               pow  |
  *  |    Sys_Core:    state machine + unified power control     |
  *  |    Sys_Timer:   timebase (200ms inc refresh cycle)        |
  *  |                                                           |
- *  |    9 pages: MAIN_MENU/SUB_MENU/VOLTAGE/CURRENT/           |
- *  |             FREQUENCY/SUMMARY/WIFI_CONFIG/FAULT/          |
- *  |             SWEEP_PROGRESS                                |
+ *  |    14 pages: 9 main/monitor pages + 5 settings pages      |
  *  |                                                           |
  *  |    UI Phase pipeline (7 phases):                          |
  *  |      P0=TopRight Icons  P1=Fault Detect  P2=Sweep AutoJu  |
@@ -25,7 +23,7 @@
  *  |      P6=Cursor Clamp    P7=Draw (full only when dirty)    |
  *  +----------------------------------------------------------+
  *
- * @note    TFT 8x20 cols, 160x128 landscape, 4 keys: ON/OFF/F+/F-/PAGE
+ * @note    TFT 8x20 cols, 160x128 landscape, KEY0-KEY4 five-key input
  ******************************************************************************
  */
 
@@ -44,14 +42,14 @@
 #include "App_Storage.h"
 #include <stdio.h>
 #include <string.h>
-static void Draw_TopRight_Icons(void);
+static void Ui_Controller_Draw_TopRight_Icons(void);
 
 /* ── Energy Bar color table + draw logic (merged from Energy_Bar.c) ── */
 static const uint16_t EB_COLOR_TABLE[8] = {
     0x07E0, 0x2FE0, 0x5FE0, 0x87E0, 0xFF80, 0xFD00, 0xF900, 0xF800  /* 绿→黄→红 RGB565 */
 };
 
-static void Ui_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t h,
+static void Ui_Controller_Energy_Bar_Draw(uint16_t x, uint16_t y, uint16_t max_w, uint16_t h,
                                 float value, float min_val, float max_val, uint16_t bg_color)
 {
     uint16_t total_w;
@@ -135,21 +133,21 @@ static uint8_t  s_last_setting_cursor  = 0xFF; /* for Phase 7 deferred cursor tr
 /* ═══════════════════════════════════════════════════════════════
  *  Dynamic Color System (V4.5.2) — Uc_*() inline helpers
  * ═══════════════════════════════════════════════════════════════ */
-static uint16_t Uc_Bg(void)      { return s_color_bg; }
-static uint16_t Uc_Title(void)   { return s_color_accent; }
-static uint16_t Uc_Text(void)    { return s_color_fg; }
-static uint16_t Uc_Value(void)   { return s_color_accent; }
-static uint16_t Uc_Data(void)    { return s_color_fg; }
+static uint16_t Ui_Controller_Get_Background_Color(void)      { return s_color_bg; }
+static uint16_t Ui_Controller_Get_Title_Color(void)   { return s_color_accent; }
+static uint16_t Ui_Controller_Get_Text_Color(void)    { return s_color_fg; }
+static uint16_t Ui_Controller_Get_Value_Color(void)   { return s_color_accent; }
+static uint16_t Ui_Controller_Get_Data_Color(void)    { return s_color_fg; }
 #define Uc_Alarm()  TFT_COLOR_RED
 #define Uc_Ok()     TFT_COLOR_GREEN
 #define Uc_Dim()    TFT_COLOR_GRAY
 
 /* ═══════════════════════════════════════════════════════════════
  *  Bilingual String System (V4.5.2)
- *  Pick_CN_EN() inline function replaces macros to avoid ARMCC macro issues.
+ *  Ui_Controller_Pick_CN_EN() inline function replaces macros to avoid ARMCC macro issues.
  *  Used both as snprintf format arg and Show_CN_String arg.
  * ═══════════════════════════════════════════════════════════════ */
-static const char* Pick_CN_EN(const char* cn, const char* en) {
+static const char* Ui_Controller_Pick_CN_EN(const char* cn, const char* en) {
     /* CN only when user selected Chinese AND Flash font is available (Bug 1) */
     return (s_language == 0 && Tft_Driver_Is_Font_Flash_Valid()) ? cn : en;
 }
@@ -312,13 +310,13 @@ static char    s_last_status_buf[42];
 static char    s_gauge_val_str[24] = "";
 static char    s_gauge_status_buf[24] = "";
 
-static void Reset_EMA(void) { s_ema_ok = 0; }
+static void Ui_Controller_Reset_EMA(void) { s_ema_ok = 0; }
 
 /* ================================================================
- *  Helpers: Center / Right / Fmt_V / Fmt_I / Fmt_F
+ *  Helpers: Ui_Controller_Center_Text / Ui_Controller_Right_Text / Ui_Controller_Format_Voltage / Ui_Controller_Format_Current / Ui_Controller_Format_Frequency
  * ================================================================ */
 
-static uint8_t Center(const char* s)
+static uint8_t Ui_Controller_Center_Text(const char* s)
 {
     uint8_t w = 0; uint8_t sp = Tft_Driver_Get_Letter_Spacing();
     while (*s) {
@@ -331,7 +329,7 @@ static uint8_t Center(const char* s)
     return (w >= 20) ? 0 : (20 - w) / 2;
 }
 
-static uint8_t Right(const char* s)
+static uint8_t Ui_Controller_Right_Text(const char* s)
 {
     uint8_t w = 0; uint8_t sp = Tft_Driver_Get_Letter_Spacing();
     while (*s) {
@@ -344,72 +342,72 @@ static uint8_t Right(const char* s)
 }
 
 /**
- * @brief  UI 层 EMA 滤波: V/I 平滑 Sys_Safety 输出(显示级二次滤波), F 直接读数无迟滞
+ * @brief  UI 层 EMA 滤波: V/I 平滑 ADC 64点显示窗口输出, F 直接读数无迟滞
  * @note   V/I: α=0.25, τ≈800ms, 减少屏幕数值高频抖动
  *         F:   数字寄存器原子值, 零 EMA 迟滞, 保证按键调频跟手
- *         数据源: Sys_Safety 已对 ADC 做一级滤波, 此处仅做显示平滑
+ *         数据源: Adc_Driver 显示窗口, 此处仅做界面二次平滑
  */
-static void Update_EMA(void)
+static void Ui_Controller_Update_EMA(void)
 {
     if (!s_ema_ok) {
-        s_ema_v = Sys_Safety_Get_EMA_Voltage();
-        s_ema_i = Sys_Safety_Get_EMA_Current();
+        s_ema_v = Adc_Driver_Get_Display_Voltage();
+        s_ema_i = Adc_Driver_Get_Display_Current();
         s_ema_f = (float)Pwm_Driver_Get_Frequency() / 1000.0f;
         s_ema_ok = 1;
     } else {
-        s_ema_v = s_ema_v * 0.75f + Sys_Safety_Get_EMA_Voltage()  * 0.25f;
-        s_ema_i = s_ema_i * 0.75f + Sys_Safety_Get_EMA_Current()  * 0.25f;
+        s_ema_v = s_ema_v * 0.75f + Adc_Driver_Get_Display_Voltage() * 0.25f;
+        s_ema_i = s_ema_i * 0.75f + Adc_Driver_Get_Display_Current() * 0.25f;
         s_ema_f = (float)Pwm_Driver_Get_Frequency() / 1000.0f;  /* 数字量直读, 零迟滞 */
     }
 }
 
-static void Fmt_V(char* buf, float v)
+static void Ui_Controller_Format_Voltage(char* buf, float v)
 {
     int x = (int)(v * 100.0f + 0.5f);
     if (x < 0) x = 0;
     if (x > 99999) x = 99999;
-    snprintf(buf, 21, "%sV:%03d.%02dV", Pick_CN_EN(S_VOLTAGE_CN, S_VOLTAGE_EN), x/100, x%100);
+    snprintf(buf, 21, "%sV:%03d.%02dV", Ui_Controller_Pick_CN_EN(S_VOLTAGE_CN, S_VOLTAGE_EN), x/100, x%100);
 }
 
-static void Fmt_I(char* buf, float c)
+static void Ui_Controller_Format_Current(char* buf, float c)
 {
     char sign = (c < 0) ? '-' : '+';
     float v = (c < 0) ? -c : c;
     int x = (int)(v * 1000.0f + 0.5f);
-    snprintf(buf, 21, "%sI:%c%d.%03dA", Pick_CN_EN(S_CURRENT_CN, S_CURRENT_EN), sign, (int)(x/1000), (int)(x%1000));
+    snprintf(buf, 21, "%sI:%c%d.%03dA", Ui_Controller_Pick_CN_EN(S_CURRENT_CN, S_CURRENT_EN), sign, (int)(x/1000), (int)(x%1000));
 }
 
-static void Fmt_F(char* buf, float f)
+static void Ui_Controller_Format_Frequency(char* buf, float f)
 {
-    snprintf(buf, 21, "%sF:%3d.%01dkHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN), (int)f, (int)((f-(int)f)*10+0.5f)%10);
+    snprintf(buf, 21, "%sF:%3d.%01dkHz", Ui_Controller_Pick_CN_EN(S_FREQ_CN, S_FREQ_EN), (int)f, (int)((f-(int)f)*10+0.5f)%10);
 }
 
 /* ================================================================
- *  Draw_Header: line0 title(left) — icons via Draw_TopRight_Icons
+ *  Ui_Controller_Draw_Header: line0 title(left) — icons via Ui_Controller_Draw_TopRight_Icons
  * ================================================================ */
 /**
  * @brief  绘制页面标题 (全行擦除 + 重绘图标, 防止语言切换残影)
  * @note   Bug 1: 全行 160px Fill_Rect 彻底清除旧像素, 图标紧随重绘。
- *         调用方不再单独调 Draw_TopRight_Icons (避免双泵浪费)。
+ *         调用方不再单独调 Ui_Controller_Draw_TopRight_Icons (避免双泵浪费)。
  */
-static void Draw_Header(const char* title)
+static void Ui_Controller_Draw_Header(const char* title)
 {
-    Tft_Driver_Fill_Rect(0, 0, TFT_WIDTH, TFT_FONT_HEIGHT, Uc_Bg());
-    Tft_Driver_Show_CN_String(0, 0, title, Uc_Title(), Uc_Bg());
-    Draw_TopRight_Icons();
+    Tft_Driver_Fill_Rect(0, 0, TFT_WIDTH, TFT_FONT_HEIGHT, Ui_Controller_Get_Background_Color());
+    Tft_Driver_Show_CN_String(0, 0, title, Ui_Controller_Get_Title_Color(), Ui_Controller_Get_Background_Color());
+    Ui_Controller_Draw_TopRight_Icons();
 }
 
 /* ================================================================
  *  Cursor: ICON_STAR at pixel x=0 — draw/erase (16x16 pixel update)
  * ================================================================ */
-static void Draw_Cursor(uint8_t line)
+static void Ui_Controller_Draw_Cursor(uint8_t line)
 {
     /* ICON_STAR (diamond) at left edge — black star on cyan bg for selected row */
     Tft_Driver_Draw_Icon_By_Id(0, (uint16_t)line * TFT_FONT_HEIGHT,
-                                ICON_ID_STAR, 0, Uc_Bg(), Uc_Value());
+                                ICON_ID_STAR, 0, Ui_Controller_Get_Background_Color(), Ui_Controller_Get_Value_Color());
 }
 
-static void Erase_Cursor(uint8_t line)
+static void Ui_Controller_Erase_Cursor(uint8_t line)
 {
     /* Erase the 16x16 icon area with black */
     Tft_Driver_Erase_Pixel_Area(0, (uint16_t)line * TFT_FONT_HEIGHT, 16, 16);
@@ -418,28 +416,28 @@ static void Erase_Cursor(uint8_t line)
 /* ================================================================
  *  Line primitives
  * ================================================================ */
-static void Erase_Line(uint8_t line)
+static void Ui_Controller_Erase_Line(uint8_t line)
 {
     Tft_Driver_Erase_Pixel_Area(0, (uint16_t)line * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT);
 }
 
-static void Draw_Divider(uint8_t line)
+static void Ui_Controller_Draw_Divider(uint8_t line)
 {
-    Tft_Driver_Show_String(line, 0, S_DIV, Uc_Dim(), Uc_Bg());
+    Tft_Driver_Show_String(line, 0, S_DIV, Uc_Dim(), Ui_Controller_Get_Background_Color());
 }
 
 /* ── Draw menu text at line,col (precise erase excluding cursor zone, text at col>=2 for star) ── */
-static void Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t enabled)
+static void Ui_Controller_Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t enabled)
 {
-    uint16_t color = enabled ? Uc_Text() : Uc_Dim();
+    uint16_t color = enabled ? Ui_Controller_Get_Text_Color() : Uc_Dim();
     Tft_Driver_Erase_Pixel_Area(col * 8, (uint16_t)line * TFT_FONT_HEIGHT, TFT_WIDTH - col * 8, TFT_FONT_HEIGHT);
-    Tft_Driver_Show_CN_String(line, col, text, color, Uc_Bg());
+    Tft_Driver_Show_CN_String(line, col, text, color, Ui_Controller_Get_Background_Color());
 }
 
 /* ================================================================
  *  Page draw: MAIN_MENU (4/5 items) — covers all 8 rows
  * ================================================================ */
-static void Draw_Main_Menu_Full(void)
+static void Ui_Controller_Draw_Main_Menu_Full(void)
 {
     uint8_t is_running = 0;
     uint8_t is_fault   = 0;
@@ -450,8 +448,8 @@ static void Draw_Main_Menu_Full(void)
     }
     is_fault = (Sys_Core_Get_State() == SYS_STATE_FAULT);
 
-    Draw_Header(Pick_CN_EN(S_WPT_PWM_CN, S_WPT_PWM_EN));
-    Draw_Divider(1);
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_WPT_PWM_CN, S_WPT_PWM_EN));
+    Ui_Controller_Draw_Divider(1);
 
     /* V4.5.2: 5 项常驻 — 第 5 项非故障时灰色禁用 */
     for (i = 0; i < 5; i++) {
@@ -460,38 +458,38 @@ static void Draw_Main_Menu_Full(void)
         switch (i) {
             case 0:
                 text = is_running
-                    ? Pick_CN_EN(S_STOP_PWM_CN, S_STOP_PWM_EN)
-                    : Pick_CN_EN(S_START_PWM_CN, S_START_PWM_EN);
+                    ? Ui_Controller_Pick_CN_EN(S_STOP_PWM_CN, S_STOP_PWM_EN)
+                    : Ui_Controller_Pick_CN_EN(S_START_PWM_CN, S_START_PWM_EN);
                 break;
-            case 1: text = Pick_CN_EN("2. " S_MONITOR_CN, S_MON_MENU_EN); break;
-            case 2: text = Pick_CN_EN(S_WIFI_SETUP_CN, S_WIFI_SETUP_EN); break;
-            case 3: text = Pick_CN_EN(S_SETTINGS_MENU_CN, S_SETTINGS_MENU_EN); break;
-            case 4: text = Pick_CN_EN(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN);
+            case 1: text = Ui_Controller_Pick_CN_EN("2. " S_MONITOR_CN, S_MON_MENU_EN); break;
+            case 2: text = Ui_Controller_Pick_CN_EN(S_WIFI_SETUP_CN, S_WIFI_SETUP_EN); break;
+            case 3: text = Ui_Controller_Pick_CN_EN(S_SETTINGS_MENU_CN, S_SETTINGS_MENU_EN); break;
+            case 4: text = Ui_Controller_Pick_CN_EN(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN);
                     enabled = is_fault ? 1 : 0;
                     break;
             default: text = ""; break;
         }
-        Erase_Line(2 + i);
-        Draw_Menu_Text(2 + i, 2, text, enabled);
+        Ui_Controller_Erase_Line(2 + i);
+        Ui_Controller_Draw_Menu_Text(2 + i, 2, text, enabled);
     }
 
-    Draw_Cursor(2 + s_menu_cursor);
+    Ui_Controller_Draw_Cursor(2 + s_menu_cursor);
 
-    Erase_Line(7);
+    Ui_Controller_Erase_Line(7);
 
     s_last_is_running    = is_running;
     s_last_is_fault_menu = is_fault;
 }
 
 /* ── MAIN_MENU cursor move: erase old ★ + draw new ★ ── */
-static void Main_Menu_Cursor_Update(uint8_t old_cursor)
+static void Ui_Controller_Main_Menu_Cursor_Update(uint8_t old_cursor)
 {
-    Erase_Cursor(2 + old_cursor);
-    Draw_Cursor(2 + s_menu_cursor);
+    Ui_Controller_Erase_Cursor(2 + old_cursor);
+    Ui_Controller_Draw_Cursor(2 + s_menu_cursor);
 }
 
 /* ── MAIN_MENU 200ms dynamic: only redraw if PWM/fault state changed ── */
-static void Main_Menu_Dynamic_Update(void)
+static void Ui_Controller_Main_Menu_Dynamic_Update(void)
 {
     uint8_t is_running = 0;
     uint8_t is_fault   = 0;
@@ -503,18 +501,18 @@ static void Main_Menu_Dynamic_Update(void)
 
     if (is_running != s_last_is_running) {
         const char* text = is_running
-            ? Pick_CN_EN(S_STOP_PWM_CN, S_STOP_PWM_EN)
-            : Pick_CN_EN(S_START_PWM_CN, S_START_PWM_EN);
-        Draw_Menu_Text(2, 2, text, 1);
-        if (s_menu_cursor == 0) Draw_Cursor(2);
+            ? Ui_Controller_Pick_CN_EN(S_STOP_PWM_CN, S_STOP_PWM_EN)
+            : Ui_Controller_Pick_CN_EN(S_START_PWM_CN, S_START_PWM_EN);
+        Ui_Controller_Draw_Menu_Text(2, 2, text, 1);
+        if (s_menu_cursor == 0) Ui_Controller_Draw_Cursor(2);
         s_last_is_running = is_running;
     }
 
     if (is_fault != s_last_is_fault_menu) {
-        const char* text = Pick_CN_EN(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN);
+        const char* text = Ui_Controller_Pick_CN_EN(S_FAULT_CLEAR_CN, S_FAULT_CLEAR_EN);
         uint8_t enabled = is_fault ? 1 : 0;
-        Draw_Menu_Text(5, 2, text, enabled);
-        if (s_menu_cursor == 4) Draw_Cursor(5);
+        Ui_Controller_Draw_Menu_Text(5, 2, text, enabled);
+        if (s_menu_cursor == 4) Ui_Controller_Draw_Cursor(5);
         s_last_is_fault_menu = is_fault;
     }
 }
@@ -522,47 +520,47 @@ static void Main_Menu_Dynamic_Update(void)
 /* ================================================================
  *  Page draw: MONITOR_SUB_MENU (5 items, 4-row window) — covers all 8 rows
  * ================================================================ */
-static const char* Sub_Item_Name(uint8_t idx)
+static const char* Ui_Controller_Get_Sub_Item_Name(uint8_t idx)
 {
     switch (idx) {
-        case 0: return Pick_CN_EN(S_SUMMARY_CN, S_SUMMARY_EN);
-        case 1: return Pick_CN_EN(S_MON_FREQ_CN, S_MON_FREQ_EN);
-        case 2: return Pick_CN_EN(S_MON_VOLT_CN, S_MON_VOLT_EN);
-        case 3: return Pick_CN_EN(S_MON_CURR_CN, S_MON_CURR_EN);
-        case 4: return Pick_CN_EN(S_BACK_CN, S_BACK_EN);
+        case 0: return Ui_Controller_Pick_CN_EN(S_SUMMARY_CN, S_SUMMARY_EN);
+        case 1: return Ui_Controller_Pick_CN_EN(S_MON_FREQ_CN, S_MON_FREQ_EN);
+        case 2: return Ui_Controller_Pick_CN_EN(S_MON_VOLT_CN, S_MON_VOLT_EN);
+        case 3: return Ui_Controller_Pick_CN_EN(S_MON_CURR_CN, S_MON_CURR_EN);
+        case 4: return Ui_Controller_Pick_CN_EN(S_BACK_CN, S_BACK_EN);
         default: return "";
     }
 }
 
-static void Draw_Sub_Menu_Full(void)
+static void Ui_Controller_Draw_Sub_Menu_Full(void)
 {
     uint8_t visible_top = (s_menu_cursor >= 3) ? (s_menu_cursor - 2) : 0;
     uint8_t i, line;
 
-    Draw_Header(Pick_CN_EN(S_MONITOR_CN, S_MONITOR_EN));       /* row 0 */
-    Draw_Divider(1);              /* row 1 */
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_MONITOR_CN, S_MONITOR_EN));       /* row 0 */
+    Ui_Controller_Draw_Divider(1);              /* row 1 */
 
     for (line = 2; line <= 5; line++) {
         i = visible_top + (line - 2);
         if (i < 5) {
             char item_buf[22];
-            snprintf(item_buf, sizeof(item_buf), "%d. %s", i + 1, Sub_Item_Name(i));
-            Draw_Menu_Text(line, 2, item_buf, 1);
+            snprintf(item_buf, sizeof(item_buf), "%d. %s", i + 1, Ui_Controller_Get_Sub_Item_Name(i));
+            Ui_Controller_Draw_Menu_Text(line, 2, item_buf, 1);
         } else {
-            Erase_Line(line);
+            Ui_Controller_Erase_Line(line);
         }
     }
 
-    Draw_Cursor(2 + (s_menu_cursor - visible_top));
+    Ui_Controller_Draw_Cursor(2 + (s_menu_cursor - visible_top));
 
-    Erase_Line(6);
-    Erase_Line(7);
+    Ui_Controller_Erase_Line(6);
+    Ui_Controller_Erase_Line(7);
 
     s_last_sub_visible = visible_top;
 }
 
 /* ── Sub-menu cursor ── */
-static void Sub_Menu_Cursor_Update(uint8_t old_cursor)
+static void Ui_Controller_Sub_Menu_Cursor_Update(uint8_t old_cursor)
 {
     uint8_t old_visible = s_last_sub_visible;
     uint8_t new_visible = (s_menu_cursor >= 3) ? (s_menu_cursor - 2) : 0;
@@ -572,23 +570,23 @@ static void Sub_Menu_Cursor_Update(uint8_t old_cursor)
     if (new_visible != old_visible) {
         /* Scroll happened — redraw all 4 visible lines */
         uint8_t i, line;
-        Erase_Cursor(old_line);
+        Ui_Controller_Erase_Cursor(old_line);
 
         for (line = 2; line <= 5; line++) {
             i = new_visible + (line - 2);
             if (i < 5) {
                 char item_buf[22];
-                snprintf(item_buf, sizeof(item_buf), "%d. %s", i + 1, Sub_Item_Name(i));
-                Draw_Menu_Text(line, 2, item_buf, 1);
+                snprintf(item_buf, sizeof(item_buf), "%d. %s", i + 1, Ui_Controller_Get_Sub_Item_Name(i));
+                Ui_Controller_Draw_Menu_Text(line, 2, item_buf, 1);
             } else {
-                Erase_Line(line);
+                Ui_Controller_Erase_Line(line);
             }
         }
-        Draw_Cursor(new_line);
+        Ui_Controller_Draw_Cursor(new_line);
     } else {
         /* Simple cursor move within same window */
-        Erase_Cursor(old_line);
-        Draw_Cursor(new_line);
+        Ui_Controller_Erase_Cursor(old_line);
+        Ui_Controller_Draw_Cursor(new_line);
     }
 
     s_last_sub_visible = new_visible;
@@ -597,20 +595,20 @@ static void Sub_Menu_Cursor_Update(uint8_t old_cursor)
 /* ═══════════════════════════════════════════════════════════════
  *  SWEEP page — covers all 8 rows
  * ═══════════════════════════════════════════════════════════════ */
-static void Draw_Sweep_Full(void)
+static void Ui_Controller_Draw_Sweep_Full(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
     Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
     uint8_t is_stopped = (ss == INVERTER_CONTROL_SS_STATE_IDLE);
     char buf[21];
 
-    Draw_Header(Pick_CN_EN(S_SWEEP_CN, S_SWEEP_EN));         /* row 0 */
-    Draw_Divider(1);              /* row 1 */
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_SWEEP_CN, S_SWEEP_EN));         /* row 0 */
+    Ui_Controller_Draw_Divider(1);              /* row 1 */
 
     /* row 2: Frequency */
-    snprintf(buf, sizeof(buf), "%sF:%3lu.%1lukHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN),
+    snprintf(buf, sizeof(buf), "%sF:%3lu.%1lukHz", Ui_Controller_Pick_CN_EN(S_FREQ_CN, S_FREQ_EN),
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
-    Tft_Driver_Show_CN_String(2, 0, buf, Uc_Value(), Uc_Bg());
+    Tft_Driver_Show_CN_String(2, 0, buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
 
@@ -630,36 +628,36 @@ static void Draw_Sweep_Full(void)
         }
         Tft_Driver_Erase_Pixel_Area(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT + 8);
         if (!is_stopped) {
-            Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+            Ui_Controller_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                            14 * TFT_FONT_WIDTH, 8,
-                           (float)progress, 0.0f, 10.0f, Uc_Bg());
+                           (float)progress, 0.0f, 10.0f, Ui_Controller_Get_Background_Color());
             snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
-            if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
+            if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
         } else {
-            Tft_Driver_Show_CN_String(3, 5, Pick_CN_EN(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
+            Tft_Driver_Show_CN_String(3, 5, Ui_Controller_Pick_CN_EN(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Ui_Controller_Get_Background_Color());
         }
     }
 
     /* row 4: Voltage */
-    Fmt_V(buf, Adc_Driver_Get_Voltage());
-    Tft_Driver_Show_CN_String(4, 0, buf, Uc_Data(), Uc_Bg());
+    Ui_Controller_Format_Voltage(buf, Adc_Driver_Get_Display_Voltage());
+    Tft_Driver_Show_CN_String(4, 0, buf, Ui_Controller_Get_Data_Color(), Ui_Controller_Get_Background_Color());
     strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
     s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
 
     /* row 5: Current */
-    Fmt_I(buf, Adc_Driver_Get_Current());
-    Tft_Driver_Show_CN_String(5, 0, buf, Uc_Data(), Uc_Bg());
+    Ui_Controller_Format_Current(buf, Adc_Driver_Get_Display_Current());
+    Tft_Driver_Show_CN_String(5, 0, buf, Ui_Controller_Get_Data_Color(), Ui_Controller_Get_Background_Color());
     strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
-    Erase_Line(6);
-    Erase_Line(7);
+    Ui_Controller_Erase_Line(6);
+    Ui_Controller_Erase_Line(7);
 
     s_last_sweep_stopped = is_stopped;
 }
 
 /* ── SWEEP 200ms ── */
-static void Sweep_Dynamic_Update(void)
+static void Ui_Controller_Sweep_Dynamic_Update(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
     Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
@@ -667,11 +665,11 @@ static void Sweep_Dynamic_Update(void)
     char buf[21];
 
     /* Frequency */
-    snprintf(buf, sizeof(buf), "%sF:%3lu.%1lukHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN),
+    snprintf(buf, sizeof(buf), "%sF:%3lu.%1lukHz", Ui_Controller_Pick_CN_EN(S_FREQ_CN, S_FREQ_EN),
              (unsigned long)(f / 1000), (unsigned long)((f % 1000) / 100));
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
-        Erase_Line(2);
-        Tft_Driver_Show_CN_String(2, 0, buf, Uc_Value(), Uc_Bg());
+        Ui_Controller_Erase_Line(2);
+        Tft_Driver_Show_CN_String(2, 0, buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
         s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
     }
@@ -702,38 +700,38 @@ static void Sweep_Dynamic_Update(void)
         if (draw) {
             Tft_Driver_Erase_Pixel_Area(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT + 8);
             if (!is_stopped) {
-                Ui_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
+                Ui_Controller_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                                14 * TFT_FONT_WIDTH, 8,
-                               (float)progress, 0.0f, 10.0f, Uc_Bg());
+                               (float)progress, 0.0f, 10.0f, Ui_Controller_Get_Background_Color());
                 snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)(progress * 10));
-                if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Uc_Text(), Uc_Bg());
+                if (buf[0]) Tft_Driver_Show_String(3, 8, buf, Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
             } else {
-                Tft_Driver_Show_CN_String(3, 5, Pick_CN_EN(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Uc_Bg());
+                Tft_Driver_Show_CN_String(3, 5, Ui_Controller_Pick_CN_EN(S_PAUSE_CN, S_PAUSE_EN), Uc_Alarm(), Ui_Controller_Get_Background_Color());
             }
         }
     }
 
     /* Voltage */
-    Fmt_V(buf, Adc_Driver_Get_Voltage());
+    Ui_Controller_Format_Voltage(buf, Adc_Driver_Get_Display_Voltage());
     if (strncmp(buf, s_last_v_str, sizeof(s_last_v_str)) != 0) {
-        Erase_Line(4);
-        Tft_Driver_Show_CN_String(4, 0, buf, Uc_Data(), Uc_Bg());
+        Ui_Controller_Erase_Line(4);
+        Tft_Driver_Show_CN_String(4, 0, buf, Ui_Controller_Get_Data_Color(), Ui_Controller_Get_Background_Color());
         strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
         s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
     }
 
     /* Current */
-    Fmt_I(buf, Adc_Driver_Get_Current());
+    Ui_Controller_Format_Current(buf, Adc_Driver_Get_Display_Current());
     if (strncmp(buf, s_last_i_str, sizeof(s_last_i_str)) != 0) {
-        Erase_Line(5);
-        Tft_Driver_Show_CN_String(5, 0, buf, Uc_Data(), Uc_Bg());
+        Ui_Controller_Erase_Line(5);
+        Tft_Driver_Show_CN_String(5, 0, buf, Ui_Controller_Get_Data_Color(), Ui_Controller_Get_Background_Color());
         strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
         s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
     }
 
     /* Bottom hint */
     if (is_stopped != s_last_sweep_stopped) {
-        Erase_Line(7);
+        Ui_Controller_Erase_Line(7);
         s_last_sweep_stopped = is_stopped;
     }
 }
@@ -741,83 +739,83 @@ static void Sweep_Dynamic_Update(void)
 /* ═══════════════════════════════════════════════════════════════
  *  MONITOR_SUMMARY (line 2=F, 3=V, 4=I) — covers all 8 rows
  * ═══════════════════════════════════════════════════════════════ */
-static void Draw_Summary_Full(void)
+static void Ui_Controller_Draw_Summary_Full(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
     char buf[21];
 
-    Update_EMA();
+    Ui_Controller_Update_EMA();
 
-    Draw_Header(Pick_CN_EN(S_SUMMARY_CN, S_SUMMARY_EN));       /* row 0 */
-    Draw_Divider(1);              /* row 1 */
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_SUMMARY_CN, S_SUMMARY_EN));       /* row 0 */
+    Ui_Controller_Draw_Divider(1);              /* row 1 */
 
     /* row 2: Freq */
-    if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), "%sF:0.0kHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN)); }
-    Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
+    if (is_running) { Ui_Controller_Format_Frequency(buf, s_ema_f); }
+    else            { snprintf(buf, sizeof(buf), "%sF:0.0kHz", Ui_Controller_Pick_CN_EN(S_FREQ_CN, S_FREQ_EN)); }
+    Tft_Driver_Show_CN_String(2, Ui_Controller_Center_Text(buf), buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
     strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
     s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
 
     /* row 3: Voltage */
-    Fmt_V(buf, s_ema_v);
-    Tft_Driver_Show_CN_String(3, Center(buf), buf, Uc_Value(), Uc_Bg());
+    Ui_Controller_Format_Voltage(buf, s_ema_v);
+    Tft_Driver_Show_CN_String(3, Ui_Controller_Center_Text(buf), buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
     strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
     s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
 
     /* row 4: Current */
-    Fmt_I(buf, s_ema_i);
-    Tft_Driver_Show_CN_String(4, Center(buf), buf, Uc_Value(), Uc_Bg());
+    Ui_Controller_Format_Current(buf, s_ema_i);
+    Tft_Driver_Show_CN_String(4, Ui_Controller_Center_Text(buf), buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
     strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
     s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
 
     /* row 5: blank */
-    Erase_Line(5);
+    Ui_Controller_Erase_Line(5);
 
-    Erase_Line(6);
-    Erase_Line(7);
+    Ui_Controller_Erase_Line(6);
+    Ui_Controller_Erase_Line(7);
 
     s_last_is_running = is_running;
 }
 
 /* ── Summary 200ms ── */
-static void Summary_Dynamic_Update(void)
+static void Ui_Controller_Summary_Dynamic_Update(void)
 {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State() == INVERTER_CONTROL_SS_STATE_DONE);
     char buf[21];
 
-    Update_EMA();
+    Ui_Controller_Update_EMA();
 
     /* Frequency */
-    if (is_running) { Fmt_F(buf, s_ema_f); }
-    else            { snprintf(buf, sizeof(buf), "%sF:---.-kHz", Pick_CN_EN(S_FREQ_CN, S_FREQ_EN)); }
+    if (is_running) { Ui_Controller_Format_Frequency(buf, s_ema_f); }
+    else            { snprintf(buf, sizeof(buf), "%sF:---.-kHz", Ui_Controller_Pick_CN_EN(S_FREQ_CN, S_FREQ_EN)); }
     if (strncmp(buf, s_last_f_str, sizeof(s_last_f_str)) != 0) {
-        Erase_Line(2);
-        Tft_Driver_Show_CN_String(2, Center(buf), buf, Uc_Value(), Uc_Bg());
+        Ui_Controller_Erase_Line(2);
+        Tft_Driver_Show_CN_String(2, Ui_Controller_Center_Text(buf), buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         strncpy(s_last_f_str, buf, sizeof(s_last_f_str));
         s_last_f_str[sizeof(s_last_f_str) - 1] = '\0';
     }
 
     /* Voltage */
-    Fmt_V(buf, s_ema_v);
+    Ui_Controller_Format_Voltage(buf, s_ema_v);
     if (strncmp(buf, s_last_v_str, sizeof(s_last_v_str)) != 0) {
-        Erase_Line(3);
-        Tft_Driver_Show_CN_String(3, Center(buf), buf, Uc_Value(), Uc_Bg());
+        Ui_Controller_Erase_Line(3);
+        Tft_Driver_Show_CN_String(3, Ui_Controller_Center_Text(buf), buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         strncpy(s_last_v_str, buf, sizeof(s_last_v_str));
         s_last_v_str[sizeof(s_last_v_str) - 1] = '\0';
     }
 
     /* Current */
-    Fmt_I(buf, s_ema_i);
+    Ui_Controller_Format_Current(buf, s_ema_i);
     if (strncmp(buf, s_last_i_str, sizeof(s_last_i_str)) != 0) {
-        Erase_Line(4);
-        Tft_Driver_Show_CN_String(4, Center(buf), buf, Uc_Value(), Uc_Bg());
+        Ui_Controller_Erase_Line(4);
+        Tft_Driver_Show_CN_String(4, Ui_Controller_Center_Text(buf), buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         strncpy(s_last_i_str, buf, sizeof(s_last_i_str));
         s_last_i_str[sizeof(s_last_i_str) - 1] = '\0';
     }
 
     /* Bottom hint */
     if (is_running != s_last_is_running) {
-        Erase_Line(7);
+        Ui_Controller_Erase_Line(7);
         s_last_is_running = is_running;
     }
 }
@@ -872,7 +870,7 @@ static const char* s_last_gauge_label = NULL;  /* cross-gauge label cache, reset
 /* ── polar: angle 0°=left, 90°=top, 180°=right, center (G_CX, G_CY) ── */
 #define G_CX   80
 #define G_CY   84   /* lowered 18px from original 66 for better gauge proportion */
-static void Gauge_Polar(uint8_t a, uint16_t r, int16_t *px, int16_t *py)
+static void Ui_Controller_Gauge_Polar(uint8_t a, uint16_t r, int16_t *px, int16_t *py)
 {
     int16_t s, c;
     if (a > 180) a = 180;
@@ -885,7 +883,7 @@ static void Gauge_Polar(uint8_t a, uint16_t r, int16_t *px, int16_t *py)
 }
 
 /* ── Bresenham 1px line, pixel pushed via DMA ── */
-static void Bres_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
+static void Ui_Controller_Bres_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
 {
     int16_t dx = (x1 > x0) ? (int16_t)(x1 - x0) : (int16_t)(x0 - x1);
     int16_t dy = (y1 > y0) ? (int16_t)(y1 - y0) : (int16_t)(y0 - y1);
@@ -901,7 +899,7 @@ static void Bres_Line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c
 }
 
 /* ── WIFI icon + MQTT cloud (top-right, for all pages) ── */
-static void Draw_TopRight_Icons(void)
+static void Ui_Controller_Draw_TopRight_Icons(void)
 {
     #define WX 128
     #define MX 144
@@ -916,8 +914,8 @@ static void Draw_TopRight_Icons(void)
     static const uint16_t rainbow[6] = {0xF800,0xFD20,0xFFE0,0x07E0,0x07FF,0x001F};
 
     /* Bug 2: 先强制清除 16x16 像素槽再绘制新帧, 防止动态图标残影叠加 */
-    Tft_Driver_Fill_Rect(WX, 0, 16, 16, Uc_Bg());
-    Tft_Driver_Fill_Rect(MX, 0, 16, 16, Uc_Bg());
+    Tft_Driver_Fill_Rect(WX, 0, 16, 16, Ui_Controller_Get_Background_Color());
+    Tft_Driver_Fill_Rect(MX, 0, 16, 16, Ui_Controller_Get_Background_Color());
 
     /* ── WIFI icon (x=128) ── */
     if ((s_no_wifi_mode == 0U) && (offline == 0U) &&
@@ -929,27 +927,27 @@ static void Draw_TopRight_Icons(void)
     }
 
     if (s_no_wifi_mode || offline) {
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_OFF, 0, Uc_Alarm(), Uc_Bg());
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_OFF, 0, Uc_Alarm(), Ui_Controller_Get_Background_Color());
     } else if (!ready) {
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, wifi_frame, blue_grad[wifi_frame], Uc_Bg());
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, wifi_frame, blue_grad[wifi_frame], Ui_Controller_Get_Background_Color());
     } else if (cs == APP_NETWORK_CONN_ONLINE) {
         int8_t r = App_Network_Get_RSSI();
         if (r >= -50) icon_frame=3; else if (r >= -60) icon_frame=2; else if (r >= -70) icon_frame=1; else icon_frame=0;
         rssi_frame = icon_frame;
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_SIGNAL, icon_frame, Uc_Ok(), Uc_Bg());
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_SIGNAL, icon_frame, Uc_Ok(), Ui_Controller_Get_Background_Color());
     } else if (connecting) {
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, wifi_frame, blue_grad[wifi_frame], Uc_Bg());
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_CONNECT_ANIM, wifi_frame, blue_grad[wifi_frame], Ui_Controller_Get_Background_Color());
     } else {  /* IDLE */
-        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_REMOVE, 0, Uc_Alarm(), Uc_Bg());
+        Tft_Driver_Draw_Icon_By_Id(WX, 0, ICON_ID_WIFI_REMOVE, 0, Uc_Alarm(), Ui_Controller_Get_Background_Color());
     }
 
     /* ── MQTT cloud (x=144) ── */
     if (cs == APP_NETWORK_CONN_ONLINE) {
-        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_YES, 0, Uc_Ok(), Uc_Bg());
+        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_YES, 0, Uc_Ok(), Ui_Controller_Get_Background_Color());
     } else if (connecting) {
-        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_ANIM, mqtt_frame, rainbow[mqtt_frame], Uc_Bg());
+        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_ANIM, mqtt_frame, rainbow[mqtt_frame], Ui_Controller_Get_Background_Color());
     } else {
-        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_NO, 0, Uc_Alarm(), Uc_Bg());
+        Tft_Driver_Draw_Icon_By_Id(MX, 0, ICON_ID_MQTT_NO, 0, Uc_Alarm(), Ui_Controller_Get_Background_Color());
     }
     if (!Tft_Driver_Is_Draw_Blocked()) {
         s_icon_cache_valid = 1U;
@@ -959,15 +957,15 @@ static void Draw_TopRight_Icons(void)
         s_last_mqtt_frame = mqtt_frame;
         s_last_rssi_frame = rssi_frame;
         s_last_icon_page = (uint8_t)s_page;
-        s_last_icon_bg = Uc_Bg();
-        s_last_icon_fg = Uc_Text();
+        s_last_icon_bg = Ui_Controller_Get_Background_Color();
+        s_last_icon_fg = Ui_Controller_Get_Text_Color();
     }
     #undef WX
     #undef MX
 }
 
 /* ── FULL redraw: energy bar (progressive arc) + info cabin + header/bottom ── */
-static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
+static void Ui_Controller_Draw_Gauge_Full(const GaugeConfig* cfg, float val)
 {
     #define R_TICK  56   /* energy bar outer radius */
     #define R_BIG   50   /* main tick inner (6px length) */
@@ -1009,7 +1007,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
 
         if (a <= na) {
             if (is_big || is_red)
-                color = is_red ? Uc_Alarm() : Uc_Text();
+                color = is_red ? Uc_Alarm() : Ui_Controller_Get_Text_Color();
             else
                 color = Uc_Dim();
         } else {
@@ -1018,9 +1016,9 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
 
         {
             int16_t xo, yo, xi, yi;
-            Gauge_Polar(CPS(a), R_TICK, &xo, &yo);
-            Gauge_Polar(CPS(a), ir, &xi, &yi);
-            Bres_Line(xi, yi, xo, yo, color);
+            Ui_Controller_Gauge_Polar(CPS(a), R_TICK, &xo, &yo);
+            Ui_Controller_Gauge_Polar(CPS(a), ir, &xi, &yi);
+            Ui_Controller_Bres_Line(xi, yi, xo, yo, color);
         }
     }
 
@@ -1037,12 +1035,12 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             uint16_t w;
             int32_t s, c;
             int16_t draw_x, draw_y;
-            uint16_t color = (v >= cfg->red_start) ? Uc_Alarm() : Uc_Text();
+            uint16_t color = (v >= cfg->red_start) ? Uc_Alarm() : Ui_Controller_Get_Text_Color();
 
             s = GAUGE_SIN[a];
             c = (a <= 90) ? GAUGE_SIN[90 - a] : -GAUGE_SIN[a - 90];
 
-            Gauge_Polar(CPS(a), R_TICK, &x, &y);
+            Ui_Controller_Gauge_Polar(CPS(a), R_TICK, &x, &y);
 
             if (v == (float)((int)v))
                 snprintf(nb, sizeof(nb), "%d", (int)v);
@@ -1059,7 +1057,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             draw_y = y - 5 - (int32_t)(2 + 5) * s / 10000;
 
             Tft_Driver_Show_5x10_String_Pixel((uint16_t)draw_x, (uint16_t)draw_y,
-                                              nb, color, Uc_Bg());
+                                              nb, color, Ui_Controller_Get_Background_Color());
         }
     }
 
@@ -1072,7 +1070,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
             if (cfg->label == 'F') {
                 Inverter_Control_Soft_Start_State st = Inverter_Control_Soft_Start_Get_State();
                 if      (st == INVERTER_CONTROL_SS_STATE_SWEEP)
-                    { status_text = "SWP"; status_color = Uc_Value(); }
+                    { status_text = "SWP"; status_color = Ui_Controller_Get_Value_Color(); }
                 else if (st == INVERTER_CONTROL_SS_STATE_DONE)
                     { status_text = "DON"; status_color = Uc_Ok(); }
                 else
@@ -1082,12 +1080,12 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
                 if (val >= cfg->red_start)
                     { status_text = "HI"; status_color = Uc_Alarm(); }
                 else if (val >= thr_warn)
-                    { status_text = "WRN"; status_color = Uc_Value(); }
+                    { status_text = "WRN"; status_color = Ui_Controller_Get_Value_Color(); }
                 else
                     { status_text = "OK"; status_color = Uc_Ok(); }
             }
-            Tft_Driver_Show_CN_String(4, Center(status_text), status_text,
-                                      status_color, Uc_Bg());
+            Tft_Driver_Show_CN_String(4, Ui_Controller_Center_Text(status_text), status_text,
+                                      status_color, Ui_Controller_Get_Background_Color());
             strncpy(s_gauge_status_buf, status_text, sizeof(s_gauge_status_buf));
             s_gauge_status_buf[sizeof(s_gauge_status_buf) - 1] = '\0';
         }
@@ -1108,22 +1106,22 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
                 snprintf(buf, sizeof(buf), "0");
             else
                 snprintf(buf, sizeof(buf), "%.2f", (double)val);
-            Tft_Driver_Show_CN_String(5, Center(buf), buf, num_color, Uc_Bg());
+            Tft_Driver_Show_CN_String(5, Ui_Controller_Center_Text(buf), buf, num_color, Ui_Controller_Get_Background_Color());
             strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
             s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
         }
 
         /* -- Row 6 (Y=96): metric label with unit suffix, center-aligned ── */
         if (cfg->label == 'F')
-            Tft_Driver_Show_CN_String(6, Center(Pick_CN_EN(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN)), Pick_CN_EN(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN), Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Ui_Controller_Center_Text(Ui_Controller_Pick_CN_EN(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN)), Ui_Controller_Pick_CN_EN(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN), Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         else if (cfg->label == 'V')
-            Tft_Driver_Show_CN_String(6, Center(Pick_CN_EN(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN)), Pick_CN_EN(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN), Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Ui_Controller_Center_Text(Ui_Controller_Pick_CN_EN(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN)), Ui_Controller_Pick_CN_EN(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN), Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         else
-            Tft_Driver_Show_CN_String(6, Center(Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN)), Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN), Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Ui_Controller_Center_Text(Ui_Controller_Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN)), Ui_Controller_Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN), Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
     }
 
     /* ── 6. Footer: top-right icons only (gauge pages are full-screen, no divider/bottom bar) ── */
-    Draw_TopRight_Icons();
+    Ui_Controller_Draw_TopRight_Icons();
 
     #undef R_TICK
     #undef R_BIG
@@ -1132,7 +1130,7 @@ static void Draw_Gauge_Full(const GaugeConfig* cfg, float val)
 }
 
 /* ── 200ms incremental: energy bar slot diff + info cabin value/status update ── */
-static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_val)
+static void Ui_Controller_Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_val)
 {
     #define R_TICK  56
     #define R_BIG   50
@@ -1154,7 +1152,7 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
     if (oa > 180) oa = 180;
     if (na > 180) na = 180;
 
-    /* ── 1. Energy-bar slot differential update (1px Bres_Line only) ── */
+    /* ── 1. Energy-bar slot differential update (1px Ui_Controller_Bres_Line only) ── */
     if (oa != na) {
         float v;
         uint16_t a;
@@ -1177,14 +1175,14 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
                     }
                     ir = is_big ? R_BIG : R_FINE;
                     if (is_big || is_red)
-                        color = is_red ? Uc_Alarm() : Uc_Text();
+                        color = is_red ? Uc_Alarm() : Ui_Controller_Get_Text_Color();
                     else
                         color = Uc_Dim();
                     {
                         int16_t xo, yo, xi, yi;
-                        Gauge_Polar(CPS(a), R_TICK, &xo, &yo);
-                        Gauge_Polar(CPS(a), ir, &xi, &yi);
-                        Bres_Line(xi, yi, xo, yo, color);
+                        Ui_Controller_Gauge_Polar(CPS(a), R_TICK, &xo, &yo);
+                        Ui_Controller_Gauge_Polar(CPS(a), ir, &xi, &yi);
+                        Ui_Controller_Bres_Line(xi, yi, xo, yo, color);
                     }
                 }
             }
@@ -1207,9 +1205,9 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
                     ir = is_big ? R_BIG : R_FINE;
                     {
                         int16_t xo, yo, xi, yi;
-                        Gauge_Polar(CPS(a), R_TICK, &xo, &yo);
-                        Gauge_Polar(CPS(a), ir, &xi, &yi);
-                        Bres_Line(xi, yi, xo, yo, slot_color);
+                        Ui_Controller_Gauge_Polar(CPS(a), R_TICK, &xo, &yo);
+                        Ui_Controller_Gauge_Polar(CPS(a), ir, &xi, &yi);
+                        Ui_Controller_Bres_Line(xi, yi, xo, yo, slot_color);
                     }
                 }
             }
@@ -1224,7 +1222,7 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
         if (cfg->label == 'F') {
             Inverter_Control_Soft_Start_State st = Inverter_Control_Soft_Start_Get_State();
             if      (st == INVERTER_CONTROL_SS_STATE_SWEEP)
-                { status_text = "SWP"; status_color = Uc_Value(); }
+                { status_text = "SWP"; status_color = Ui_Controller_Get_Value_Color(); }
             else if (st == INVERTER_CONTROL_SS_STATE_DONE)
                 { status_text = "DON"; status_color = Uc_Ok(); }
             else
@@ -1234,15 +1232,15 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
             if (val >= cfg->red_start)
                 { status_text = "HI"; status_color = Uc_Alarm(); }
             else if (val >= thr_warn)
-                { status_text = "WRN"; status_color = Uc_Value(); }
+                { status_text = "WRN"; status_color = Ui_Controller_Get_Value_Color(); }
             else
                 { status_text = "OK"; status_color = Uc_Ok(); }
         }
 
         if (strncmp(status_text, s_gauge_status_buf, sizeof(s_gauge_status_buf)) != 0) {
             Tft_Driver_Erase_Pixel_Area(24, 64, 112, 16);
-            Tft_Driver_Show_CN_String(4, Center(status_text), status_text,
-                                      status_color, Uc_Bg());
+            Tft_Driver_Show_CN_String(4, Ui_Controller_Center_Text(status_text), status_text,
+                                      status_color, Ui_Controller_Get_Background_Color());
             strncpy(s_gauge_status_buf, status_text, sizeof(s_gauge_status_buf));
             s_gauge_status_buf[sizeof(s_gauge_status_buf) - 1] = '\0';
         }
@@ -1266,7 +1264,7 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
             snprintf(buf, sizeof(buf), "%.2f", (double)val);
         if (strncmp(buf, s_gauge_val_str, sizeof(s_gauge_val_str)) != 0) {
             Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
-            Tft_Driver_Show_CN_String(5, Center(buf), buf, num_color, Uc_Bg());
+            Tft_Driver_Show_CN_String(5, Ui_Controller_Center_Text(buf), buf, num_color, Ui_Controller_Get_Background_Color());
             strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
             s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
         }
@@ -1275,13 +1273,13 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
     /* -- Row 6 (Y=96): metric label with unit suffix -- */
     {
         const char* label_text;
-        if (cfg->label == 'F')      label_text = Pick_CN_EN(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN);
-        else if (cfg->label == 'V') label_text = Pick_CN_EN(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN);
-        else                        label_text = Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN);
+        if (cfg->label == 'F')      label_text = Ui_Controller_Pick_CN_EN(S_LABEL_FREQ_CN, S_LABEL_FREQ_EN);
+        else if (cfg->label == 'V') label_text = Ui_Controller_Pick_CN_EN(S_LABEL_VOLT_CN, S_LABEL_VOLT_EN);
+        else                        label_text = Ui_Controller_Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN);
         if (label_text != s_last_gauge_label) {
             s_last_gauge_label = label_text;
             Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
-            Tft_Driver_Show_CN_String(6, Center(label_text), label_text, Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_CN_String(6, Ui_Controller_Center_Text(label_text), label_text, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         }
     }
 
@@ -1292,104 +1290,106 @@ static void Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_va
 }
 
 /* ── 6 thin wrappers for the old function-pointer call sites ── */
-static void Draw_Freq_Full(void) {
+static void Ui_Controller_Draw_Freq_Full(void) {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State()
                          == INVERTER_CONTROL_SS_STATE_DONE
                        || Inverter_Control_Soft_Start_Get_State()
                          == INVERTER_CONTROL_SS_STATE_SWEEP);
-    Update_EMA();
+    float display_val;
+
+    Ui_Controller_Update_EMA();
     /* PWM 未运行时强制 val=0, 防止 EMA 取到默认 90kHz 导致能量条非零 */
-    float display_val = is_running ? s_ema_f : 0.0f;
-    Draw_Gauge_Full(&GAUGE_F, display_val);
+    display_val = is_running ? s_ema_f : 0.0f;
+    Ui_Controller_Draw_Gauge_Full(&GAUGE_F, display_val);
     /* PWM 停止时频率显示 0 (电压电流继续实时监测) */
     if (!is_running) {
         Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
-        Tft_Driver_Show_CN_String(5, Center("0kHz"), "0kHz", Uc_Dim(), Uc_Bg());
+        Tft_Driver_Show_CN_String(5, Ui_Controller_Center_Text("0kHz"), "0kHz", Uc_Dim(), Ui_Controller_Get_Background_Color());
         strncpy(s_gauge_val_str, "0kHz", sizeof(s_gauge_val_str));
     }
     s_last_val_f = s_ema_f;
 }
-static void Freq_Dynamic_Update(void) {
+static void Ui_Controller_Freq_Dynamic_Update(void) {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State()
                          == INVERTER_CONTROL_SS_STATE_DONE
                        || Inverter_Control_Soft_Start_Get_State()
                          == INVERTER_CONTROL_SS_STATE_SWEEP);
     float old = s_last_val_f;
-    Update_EMA();
+    Ui_Controller_Update_EMA();
     if (is_running) {
-        Gauge_Dynamic_Update(&GAUGE_F, s_ema_f, old);
+        Ui_Controller_Gauge_Dynamic_Update(&GAUGE_F, s_ema_f, old);
         s_last_val_f = s_ema_f;
     } else {
         /* PWM 停止时能量条回零 + 数值灰0 */
-        Gauge_Dynamic_Update(&GAUGE_F, 0.0f, old);
+        Ui_Controller_Gauge_Dynamic_Update(&GAUGE_F, 0.0f, old);
         s_last_val_f = 0.0f;  /* Bug 3: must track actual displayed=0, not s_ema_f */
     }
 }
-static void Draw_Volt_Full(void) {
-    Update_EMA(); Draw_Gauge_Full(&GAUGE_V, s_ema_v); s_last_val_v = s_ema_v;
+static void Ui_Controller_Draw_Volt_Full(void) {
+    Ui_Controller_Update_EMA(); Ui_Controller_Draw_Gauge_Full(&GAUGE_V, s_ema_v); s_last_val_v = s_ema_v;
 }
-static void Volt_Dynamic_Update(void) {
-    float old = s_last_val_v; Update_EMA();
-    Gauge_Dynamic_Update(&GAUGE_V, s_ema_v, old); s_last_val_v = s_ema_v;
+static void Ui_Controller_Volt_Dynamic_Update(void) {
+    float old = s_last_val_v; Ui_Controller_Update_EMA();
+    Ui_Controller_Gauge_Dynamic_Update(&GAUGE_V, s_ema_v, old); s_last_val_v = s_ema_v;
 }
-static void Draw_Curr_Full(void) {
-    Update_EMA(); Draw_Gauge_Full(&GAUGE_C, s_ema_i); s_last_val_c = s_ema_i;
+static void Ui_Controller_Draw_Curr_Full(void) {
+    Ui_Controller_Update_EMA(); Ui_Controller_Draw_Gauge_Full(&GAUGE_C, s_ema_i); s_last_val_c = s_ema_i;
 }
-static void Curr_Dynamic_Update(void) {
-    float old = s_last_val_c; Update_EMA();
-    Gauge_Dynamic_Update(&GAUGE_C, s_ema_i, old); s_last_val_c = s_ema_i;
+static void Ui_Controller_Curr_Dynamic_Update(void) {
+    float old = s_last_val_c; Ui_Controller_Update_EMA();
+    Ui_Controller_Gauge_Dynamic_Update(&GAUGE_C, s_ema_i, old); s_last_val_c = s_ema_i;
 }
 
 /* ═══════════════════════════════════════════════════════════════
  *  WIFI_SETUP — covers all 8 rows
  * ═══════════════════════════════════════════════════════════════ */
-static void Draw_WiFi_Full(void)
+static void Ui_Controller_Draw_WiFi_Full(void)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
     const char* status_text;
     const char* hint_text;
 
     if (cs == APP_NETWORK_CONN_ONLINE)
-        status_text = Pick_CN_EN(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
+        status_text = Ui_Controller_Pick_CN_EN(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
     else if (App_Network_Is_Connecting())
-        status_text = Pick_CN_EN(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
+        status_text = Ui_Controller_Pick_CN_EN(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
     else if (App_Network_Is_Offline())
-        status_text = Pick_CN_EN(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
+        status_text = Ui_Controller_Pick_CN_EN(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
     else  /* IDLE */
-        status_text = Pick_CN_EN(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
+        status_text = Ui_Controller_Pick_CN_EN(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
 
     if (App_Network_Is_Offline()) {
-        hint_text = Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
+        hint_text = Ui_Controller_Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
     } else {
-        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? Pick_CN_EN(S_DISCONNECT_CN, S_DISCONNECT_EN) : Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
+        hint_text = (cs == APP_NETWORK_CONN_ONLINE) ? Ui_Controller_Pick_CN_EN(S_DISCONNECT_CN, S_DISCONNECT_EN) : Ui_Controller_Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
     }
 
-    Draw_Header(Pick_CN_EN(S_LAUNCH_CN, S_LAUNCH_EN));         /* row 0 */
-    Draw_Divider(1);               /* row 1 */
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_LAUNCH_CN, S_LAUNCH_EN));         /* row 0 */
+    Ui_Controller_Draw_Divider(1);               /* row 1 */
 
     /* row 2: Status */
     {
         char buf[42];
-        snprintf(buf, sizeof(buf), "%s: %s", Pick_CN_EN(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
-        Tft_Driver_Show_CN_String(2, 0, buf, Uc_Text(), Uc_Bg());
+        snprintf(buf, sizeof(buf), "%s: %s", Ui_Controller_Pick_CN_EN(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
+        Tft_Driver_Show_CN_String(2, 0, buf, Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
         strncpy(s_last_status_buf, buf, sizeof(s_last_status_buf));
         s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
     }
 
     /* row 3~4: blank */
-    Erase_Line(3);
-    Erase_Line(4);
+    Ui_Controller_Erase_Line(3);
+    Ui_Controller_Erase_Line(4);
 
     /* row 5: action hint */
-    Tft_Driver_Show_CN_String(5, Right(hint_text), hint_text, Uc_Text(), Uc_Bg());
+    Tft_Driver_Show_CN_String(5, Ui_Controller_Right_Text(hint_text), hint_text, Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
     /* row 6: long-press clear hint */
-    Tft_Driver_Show_CN_String(6, Right(Pick_CN_EN(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN)), Pick_CN_EN(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN), Uc_Alarm(), Uc_Bg());
-    Erase_Line(7);
+    Tft_Driver_Show_CN_String(6, Ui_Controller_Right_Text(Ui_Controller_Pick_CN_EN(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN)), Ui_Controller_Pick_CN_EN(S_LONG_CLEAR_CN, S_LONG_CLEAR_EN), Uc_Alarm(), Ui_Controller_Get_Background_Color());
+    Ui_Controller_Erase_Line(7);
 
     s_last_wifi_cs = cs;
 }
 
-static void WiFi_Dynamic_Update(void)
+static void Ui_Controller_WiFi_Dynamic_Update(void)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
     uint8_t retry = App_Network_Get_Retry_Count();
@@ -1397,20 +1397,20 @@ static void WiFi_Dynamic_Update(void)
     uint8_t need_hint_update = 0;
 
     if (cs == APP_NETWORK_CONN_ONLINE)
-        status_text = Pick_CN_EN(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
+        status_text = Ui_Controller_Pick_CN_EN(S_WIFI_ONLINE_CN, S_WIFI_ONLINE_EN);
     else if (App_Network_Is_Connecting())
-        status_text = Pick_CN_EN(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
+        status_text = Ui_Controller_Pick_CN_EN(S_WIFI_CONN_CN, S_WIFI_CONN_EN);
     else if (App_Network_Is_Offline())
-        status_text = Pick_CN_EN(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
+        status_text = Ui_Controller_Pick_CN_EN(S_WIFI_OFFLINE_CN, S_WIFI_OFFLINE_EN);
     else  /* IDLE */
-        status_text = Pick_CN_EN(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
+        status_text = Ui_Controller_Pick_CN_EN(S_WIFI_IDLE_CN, S_WIFI_IDLE_EN);
 
     if (cs != s_last_wifi_cs) {
         char buf[42];
-        snprintf(buf, sizeof(buf), "%s: %s", Pick_CN_EN(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
+        snprintf(buf, sizeof(buf), "%s: %s", Ui_Controller_Pick_CN_EN(S_WIFI_TITLE_CN, S_WIFI_TITLE_EN), status_text);
         if (strncmp(buf, s_last_status_buf, sizeof(s_last_status_buf)) != 0) {
-            Erase_Line(2);
-            Tft_Driver_Show_CN_String(2, 0, buf, Uc_Text(), Uc_Bg());
+            Ui_Controller_Erase_Line(2);
+            Tft_Driver_Show_CN_String(2, 0, buf, Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
             strncpy(s_last_status_buf, buf, sizeof(s_last_status_buf));
             s_last_status_buf[sizeof(s_last_status_buf) - 1] = '\0';
         }
@@ -1423,13 +1423,13 @@ static void WiFi_Dynamic_Update(void)
         static char s_last_hint[32] = "";
         const char* new_hint;
         if (App_Network_Is_Offline()) {
-            new_hint = Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
+            new_hint = Ui_Controller_Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
         } else {
-            new_hint = (cs == APP_NETWORK_CONN_ONLINE) ? Pick_CN_EN(S_DISCONNECT_CN, S_DISCONNECT_EN) : Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
+            new_hint = (cs == APP_NETWORK_CONN_ONLINE) ? Ui_Controller_Pick_CN_EN(S_DISCONNECT_CN, S_DISCONNECT_EN) : Ui_Controller_Pick_CN_EN(S_CONNECT_CN, S_CONNECT_EN);
         }
         if (strncmp(s_last_hint, new_hint, sizeof(s_last_hint)) != 0) {
-            Erase_Line(3);
-            Tft_Driver_Show_CN_String(5, Right(new_hint), new_hint, Uc_Text(), Uc_Bg());
+            Ui_Controller_Erase_Line(3);
+            Tft_Driver_Show_CN_String(5, Ui_Controller_Right_Text(new_hint), new_hint, Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
             strncpy(s_last_hint, new_hint, sizeof(s_last_hint));
             s_last_hint[sizeof(s_last_hint) - 1] = '\0';
         }
@@ -1439,7 +1439,7 @@ static void WiFi_Dynamic_Update(void)
 /* ═══════════════════════════════════════════════════════════════
  *  FAULT — fully static, covers all 8 rows
  * ═══════════════════════════════════════════════════════════════ */
-static void Draw_Fault_Full(void)
+static void Ui_Controller_Draw_Fault_Full(void)
 {
     const char* fault_cn;
     const char* fault_en;
@@ -1466,27 +1466,27 @@ static void Draw_Fault_Full(void)
             break;
     }
 
-    Draw_Header(Pick_CN_EN(S_FAULT_TITLE_CN, S_FAULT_TITLE_EN));     /* row 0 */
-    Draw_Divider(1);                /* row 1 */
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_FAULT_TITLE_CN, S_FAULT_TITLE_EN));     /* row 0 */
+    Ui_Controller_Draw_Divider(1);                /* row 1 */
 
-    Tft_Driver_Show_CN_String(2, Center(Pick_CN_EN(fault_cn, fault_en)),
-        Pick_CN_EN(fault_cn, fault_en), Uc_Alarm(), Uc_Bg());      /* row 2 */
-    Tft_Driver_Show_CN_String(3, Center(Pick_CN_EN(S_PWM_OFF_CN, S_PWM_OFF_EN)),
-        Pick_CN_EN(S_PWM_OFF_CN, S_PWM_OFF_EN), Uc_Text(), Uc_Bg());        /* row 3 */
+    Tft_Driver_Show_CN_String(2, Ui_Controller_Center_Text(Ui_Controller_Pick_CN_EN(fault_cn, fault_en)),
+        Ui_Controller_Pick_CN_EN(fault_cn, fault_en), Uc_Alarm(), Ui_Controller_Get_Background_Color());      /* row 2 */
+    Tft_Driver_Show_CN_String(3, Ui_Controller_Center_Text(Ui_Controller_Pick_CN_EN(S_PWM_OFF_CN, S_PWM_OFF_EN)),
+        Ui_Controller_Pick_CN_EN(S_PWM_OFF_CN, S_PWM_OFF_EN), Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());        /* row 3 */
 
-    Erase_Line(4);                  /* row 4: blank spacer */
+    Ui_Controller_Erase_Line(4);                  /* row 4: blank spacer */
 
-    Tft_Driver_Show_CN_String(5, Center(Pick_CN_EN(S_RESET_HINT_CN, S_RESET_HINT_EN)),
-        Pick_CN_EN(S_RESET_HINT_CN, S_RESET_HINT_EN), Uc_Value(), Uc_Bg());    /* row 5 */
+    Tft_Driver_Show_CN_String(5, Ui_Controller_Center_Text(Ui_Controller_Pick_CN_EN(S_RESET_HINT_CN, S_RESET_HINT_EN)),
+        Ui_Controller_Pick_CN_EN(S_RESET_HINT_CN, S_RESET_HINT_EN), Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());    /* row 5 */
 
-    Erase_Line(6);
-    Erase_Line(7);
+    Ui_Controller_Erase_Line(6);
+    Ui_Controller_Erase_Line(7);
 }
 
 /* ================================================================
  *  LED Update
  * ================================================================ */
-static void Update_Leds(void)
+static void Ui_Controller_Update_Leds(void)
 {
     uint8_t cs = App_Network_Get_Connect_Status();
 
@@ -1503,7 +1503,7 @@ static void Update_Leds(void)
 /* ================================================================
  *  Key Dispatch
  * ================================================================ */
-static void Handle_Keys_by_Page(Ui_Page page,
+static void Ui_Controller_Handle_Keys_By_Page(Ui_Page page,
                                 Key_Driver_Event k1, Key_Driver_Event k2,
                                 Key_Driver_Event k3, Key_Driver_Event k4)
 {
@@ -1601,7 +1601,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
                         } else {
                             if (Sys_Core_Request_Start() == SYS_CONTROL_RESULT_OK) {
                                 s_page = UI_PAGE_SWEEP;
-                                Reset_EMA();
+                                Ui_Controller_Reset_EMA();
                             }
                         }
                         break;
@@ -1622,10 +1622,10 @@ static void Handle_Keys_by_Page(Ui_Page page,
 
             case UI_PAGE_MONITOR_SUB_MENU:
                 switch (s_menu_cursor) {
-                    case 0: s_page = UI_PAGE_MONITOR_SUMMARY; Reset_EMA(); break;
-                    case 1: s_page = UI_PAGE_MONITOR_FREQ;    Reset_EMA(); break;
-                    case 2: s_page = UI_PAGE_MONITOR_VOLT;    Reset_EMA(); break;
-                    case 3: s_page = UI_PAGE_MONITOR_CURR;    Reset_EMA(); break;
+                    case 0: s_page = UI_PAGE_MONITOR_SUMMARY; Ui_Controller_Reset_EMA(); break;
+                    case 1: s_page = UI_PAGE_MONITOR_FREQ;    Ui_Controller_Reset_EMA(); break;
+                    case 2: s_page = UI_PAGE_MONITOR_VOLT;    Ui_Controller_Reset_EMA(); break;
+                    case 3: s_page = UI_PAGE_MONITOR_CURR;    Ui_Controller_Reset_EMA(); break;
                     case 4: s_page = UI_PAGE_MAIN_MENU;       s_menu_cursor = 0; break;
                 }
                 break;
@@ -1637,7 +1637,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
                         (void)Sys_Core_Request_Stop();
                     } else if (ss == INVERTER_CONTROL_SS_STATE_IDLE) {
                         if (Sys_Core_Request_Start() == SYS_CONTROL_RESULT_OK) {
-                            Reset_EMA();
+                            Ui_Controller_Reset_EMA();
                         }
                     }
                 }
@@ -1662,7 +1662,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
                     s_page = UI_PAGE_MAIN_MENU;
                     s_menu_cursor = 0;
                     s_was_fault_state = 0;
-                    Reset_EMA();
+                    Ui_Controller_Reset_EMA();
                 }
                 break;
 
@@ -1679,7 +1679,7 @@ static void Handle_Keys_by_Page(Ui_Page page,
            DOUBLE_CLICK and CLICK are mutually exclusive per-key */
     }
     /* BACK (k1): single click — return to previous page.
-       Settings 子页由 Handle_Settings_Keys 拦截, 但这里作为保底 */
+       Settings 子页由 Ui_Controller_Handle_Settings_Keys 拦截, 但这里作为保底 */
     else if (k1 == KEY_DRIVER_EVENT_CLICK) {
         switch (page) {
             case UI_PAGE_MAIN_MENU:
@@ -1712,13 +1712,13 @@ static void Handle_Keys_by_Page(Ui_Page page,
  * ═══════════════════════════════════════════════════════════════ */
 
 /* ── Settings Menu Item Text — V4.5.2: spacing replaces font ── */
-static const char* Get_Menu_Setting_Text(uint8_t idx)
+static const char* Ui_Controller_Get_Menu_Setting_Text(uint8_t idx)
 {
     switch (idx) {
-        case 0: return Pick_CN_EN("1. \xe8\xaf\xad\xe8\xa8\x80", "1. Language");
-        case 1: return Pick_CN_EN("2. \xe5\xad\x97\xe9\x97\xb4\xe8\xb7\x9d", "2. Spacing");
-        case 2: return Pick_CN_EN("3. \xe5\x9b\xbe\xe6\xa0\x87", "3. Icons");
-        case 3: return Pick_CN_EN("4. \xe9\xa2\x9c\xe8\x89\xb2", "4. Color");
+        case 0: return Ui_Controller_Pick_CN_EN("1. \xe8\xaf\xad\xe8\xa8\x80", "1. Language");
+        case 1: return Ui_Controller_Pick_CN_EN("2. \xe5\xad\x97\xe9\x97\xb4\xe8\xb7\x9d", "2. Spacing");
+        case 2: return Ui_Controller_Pick_CN_EN("3. \xe5\x9b\xbe\xe6\xa0\x87", "3. Icons");
+        case 3: return Ui_Controller_Pick_CN_EN("4. \xe9\xa2\x9c\xe8\x89\xb2", "4. Color");
         default: return "";
     }
 }
@@ -1726,27 +1726,27 @@ static const char* Get_Menu_Setting_Text(uint8_t idx)
 /* ═══════════════════════════════════════════════════════════════
  *  S1. SETTING Main Menu
  * ═══════════════════════════════════════════════════════════════ */
-static void Draw_Setting_Full(void)
+static void Ui_Controller_Draw_Setting_Full(void)
 {
     uint8_t i;
     uint8_t enabled;
     const char* text;
 
-    Draw_Header(Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN));
-    Draw_Divider(1);
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN));
+    Ui_Controller_Draw_Divider(1);
 
     /* Row 2-5: language, spacing, icons and color. */
     for (i = 0U; i < 4U; i++) {
-        text = Get_Menu_Setting_Text(i);
+        text = Ui_Controller_Get_Menu_Setting_Text(i);
         enabled = (i == 2U) ? Tft_Driver_Is_Font_Flash_Valid() : 1U;
-        Erase_Line(2 + i);
-        Draw_Menu_Text(2 + i, 2, text, enabled);
+        Ui_Controller_Erase_Line(2 + i);
+        Ui_Controller_Draw_Menu_Text(2 + i, 2, text, enabled);
     }
 
-    Draw_Cursor(2 + s_setting_cursor);
+    Ui_Controller_Draw_Cursor(2 + s_setting_cursor);
 }
 
-static void Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+static void Ui_Controller_Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
                                  Key_Driver_Event k3, Key_Driver_Event k4)
 {
     /* BACK -> main menu + flush settings to Flash if dirty */
@@ -1791,39 +1791,39 @@ static void Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
  *  UP/DOWN → preview cursor, bottom shows live example
  *  PAGE    → commit selection, ON → cancel (restore old value)
  * ═══════════════════════════════════════════════════════════════ */
-static void Draw_Lang_Full(void)
+static void Ui_Controller_Draw_Lang_Full(void)
 {
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
 
-    Draw_Header(Pick_CN_EN(S_TITLE_LANG_CN, S_TITLE_LANG_EN));
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_TITLE_LANG_CN, S_TITLE_LANG_EN));
 
-    Erase_Line(3);
+    Ui_Controller_Erase_Line(3);
     Tft_Driver_Show_CN_String(3, 3,
-        Pick_CN_EN((s_preview_choice == 0) ? "* \xe4\xb8\xad\xe6\x96\x87" : "  \xe4\xb8\xad\xe6\x96\x87",
+        Ui_Controller_Pick_CN_EN((s_preview_choice == 0) ? "* \xe4\xb8\xad\xe6\x96\x87" : "  \xe4\xb8\xad\xe6\x96\x87",
                    (s_preview_choice == 0) ? "* Chinese" : "  Chinese"),
-        (s_preview_choice == 0 && flash_ok) ? Uc_Value() : Uc_Text(), Uc_Bg());
-    Erase_Line(4);
+        (s_preview_choice == 0 && flash_ok) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
+    Ui_Controller_Erase_Line(4);
     Tft_Driver_Show_CN_String(4, 3,
-        Pick_CN_EN((s_preview_choice == 1) ? "* \xe8\x8b\xb1\xe6\x96\x87" : "  \xe8\x8b\xb1\xe6\x96\x87",
+        Ui_Controller_Pick_CN_EN((s_preview_choice == 1) ? "* \xe8\x8b\xb1\xe6\x96\x87" : "  \xe8\x8b\xb1\xe6\x96\x87",
                    (s_preview_choice == 1) ? "* English" : "  English"),
-        (s_preview_choice == 1 || !flash_ok) ? Uc_Value() : Uc_Text(), Uc_Bg());
+        (s_preview_choice == 1 || !flash_ok) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
 
-    Draw_Cursor(s_preview_choice == 0 ? 3 : 4);
+    Ui_Controller_Draw_Cursor(s_preview_choice == 0 ? 3 : 4);
 
     /* Bottom rows: live preview + Flash diagnostic */
-    Erase_Line(6);
+    Ui_Controller_Erase_Line(6);
     if (flash_ok)
-        Tft_Driver_Show_String(6, 0, " Flash:OK  Chinese OK", Uc_Dim(), Uc_Bg());
+        Tft_Driver_Show_String(6, 0, " Flash:OK  Chinese OK", Uc_Dim(), Ui_Controller_Get_Background_Color());
     else
-        Tft_Driver_Show_String(6, 0, " Flash:--  EN only", 0xE8E4U, Uc_Bg());
-    Erase_Line(7);
+        Tft_Driver_Show_String(6, 0, " Flash:--  EN only", 0xE8E4U, Ui_Controller_Get_Background_Color());
+    Ui_Controller_Erase_Line(7);
     if (s_preview_choice == 0 && flash_ok)
-        Tft_Driver_Show_CN_String(7, Center("\xe4\xbd\xa0\xe5\xa5\xbd\xe4\xb8\x96\xe7\x95\x8c"), "\xe4\xbd\xa0\xe5\xa5\xbd\xe4\xb8\x96\xe7\x95\x8c", Uc_Dim(), Uc_Bg());
+        Tft_Driver_Show_CN_String(7, Ui_Controller_Center_Text("\xe4\xbd\xa0\xe5\xa5\xbd\xe4\xb8\x96\xe7\x95\x8c"), "\xe4\xbd\xa0\xe5\xa5\xbd\xe4\xb8\x96\xe7\x95\x8c", Uc_Dim(), Ui_Controller_Get_Background_Color());
     else
-        Tft_Driver_Show_String(7, Center("Hello World"), "Hello World", Uc_Dim(), Uc_Bg());
+        Tft_Driver_Show_String(7, Ui_Controller_Center_Text("Hello World"), "Hello World", Uc_Dim(), Ui_Controller_Get_Background_Color());
 }
 
-static void Handle_Lang_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+static void Ui_Controller_Handle_Lang_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
                               Key_Driver_Event k3, Key_Driver_Event k4)
 {
     uint8_t up   = (k2 == KEY_DRIVER_EVENT_CLICK);
@@ -1860,64 +1860,64 @@ static void Handle_Lang_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
 #define ICON_TOTAL      35
 #define ICON_TOTAL_PAGES ((ICON_TOTAL + ICON_PER_PAGE - 1) / ICON_PER_PAGE)
 
-/* ── 35-icon name table (localized via Pick_CN_EN) ── */
-static const char* Get_Icon_Name(uint8_t icon_id)
+/* ── 35-icon name table (localized via Ui_Controller_Pick_CN_EN) ── */
+static const char* Ui_Controller_Get_Icon_Name(uint8_t icon_id)
 {
     switch (icon_id) {
-        case 0:  return Pick_CN_EN("WIFI_SIG",    "WIFI_SIG");
-        case 1:  return Pick_CN_EN("WIFI_CONN",   "WIFI_CONN");
-        case 2:  return Pick_CN_EN("WIFI_OFF",    "WIFI_OFF");
-        case 3:  return Pick_CN_EN("WIFI_RMV",    "WIFI_RMV");
-        case 4:  return Pick_CN_EN("MQTT",        "MQTT");
-        case 5:  return Pick_CN_EN("MQTT_YES",    "MQTT_YES");
-        case 6:  return Pick_CN_EN("MQTT_NO",     "MQTT_NO");
-        case 7:  return Pick_CN_EN("MQTT_ANIM",   "MQTT_ANIM");
-        case 8:  return Pick_CN_EN("\xe6\x98\x9f\xe6\xa0\x87",  "STAR");
-        case 9:  return Pick_CN_EN("\xe5\x85\x89\xe6\xa0\x87\xe5\x8a\xa8", "STAR_CUR");
-        case 10: return Pick_CN_EN("\xe7\x81\xab\xe7\xae\xad",  "ROCKET");
-        case 11: return Pick_CN_EN("\xe7\x94\xb5\xe6\xb1\xa0",  "BATTERY");
-        case 12: return Pick_CN_EN("\xe8\xad\xa6\xe5\x91\x8a",  "WARNING");
-        case 13: return Pick_CN_EN("\xe5\x8b\xbe",    "CHECK");
-        case 14: return Pick_CN_EN("\xe5\x8f\x89",    "CROSS");
-        case 15: return Pick_CN_EN("\xe7\x94\xb5\xe6\xba\x90",  "POWER");
-        case 16: return Pick_CN_EN("\xe9\x97\xaa\xe7\x94\xb5",  "LIGHTNING");
-        case 17: return Pick_CN_EN("\xe6\xb8\xa9\xe5\xba\xa6",  "TEMP");
-        case 18: return Pick_CN_EN("\xe9\xa3\x8e\xe6\x89\x87",  "FAN");
-        case 19: return Pick_CN_EN("\xe9\x94\x81",    "LOCK");
-        case 20: return Pick_CN_EN("\xe4\xb8\xbb\xe9\xa1\xb5",  "HOME");
-        case 21: return Pick_CN_EN("\xe8\xae\xbe\xe7\xbd\xae",  "GEAR");
-        case 22: return Pick_CN_EN("\xe5\x88\xb7\xe6\x96\xb0",  "REFRESH");
-        case 23: return Pick_CN_EN("\xe4\xb8\x8a\xe7\xae\xad",  "ARROW_UP");
-        case 24: return Pick_CN_EN("\xe4\xb8\x8b\xe7\xae\xad",  "ARROW_DN");
-        case 25: return Pick_CN_EN("\xe5\xb7\xa6\xe7\xae\xad",  "ARROW_LT");
-        case 26: return Pick_CN_EN("\xe5\x8f\xb3\xe7\xae\xad",  "ARROW_RT");
-        case 27: return Pick_CN_EN("\xe4\xbf\xa1\xe5\x8f\xb7",  "SIGNAL");
-        case 28: return Pick_CN_EN("\xe5\x85\xa8\xe7\x90\x83",  "GLOBE");
-        case 29: return Pick_CN_EN("\xe5\x9b\xbe\xe8\xa1\xa8",  "CHART");
-        case 30: return Pick_CN_EN("\xe6\x97\xb6\xe9\x92\x9f",  "CLOCK");
-        case 31: return Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "1", "EXTRA1");
-        case 32: return Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "2", "EXTRA2");
-        case 33: return Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "3", "EXTRA3");
-        case 34: return Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "4", "EXTRA4");
+        case 0:  return Ui_Controller_Pick_CN_EN("WIFI_SIG",    "WIFI_SIG");
+        case 1:  return Ui_Controller_Pick_CN_EN("WIFI_CONN",   "WIFI_CONN");
+        case 2:  return Ui_Controller_Pick_CN_EN("WIFI_OFF",    "WIFI_OFF");
+        case 3:  return Ui_Controller_Pick_CN_EN("WIFI_RMV",    "WIFI_RMV");
+        case 4:  return Ui_Controller_Pick_CN_EN("MQTT",        "MQTT");
+        case 5:  return Ui_Controller_Pick_CN_EN("MQTT_YES",    "MQTT_YES");
+        case 6:  return Ui_Controller_Pick_CN_EN("MQTT_NO",     "MQTT_NO");
+        case 7:  return Ui_Controller_Pick_CN_EN("MQTT_ANIM",   "MQTT_ANIM");
+        case 8:  return Ui_Controller_Pick_CN_EN("\xe6\x98\x9f\xe6\xa0\x87",  "STAR");
+        case 9:  return Ui_Controller_Pick_CN_EN("\xe5\x85\x89\xe6\xa0\x87\xe5\x8a\xa8", "STAR_CUR");
+        case 10: return Ui_Controller_Pick_CN_EN("\xe7\x81\xab\xe7\xae\xad",  "ROCKET");
+        case 11: return Ui_Controller_Pick_CN_EN("\xe7\x94\xb5\xe6\xb1\xa0",  "BATTERY");
+        case 12: return Ui_Controller_Pick_CN_EN("\xe8\xad\xa6\xe5\x91\x8a",  "WARNING");
+        case 13: return Ui_Controller_Pick_CN_EN("\xe5\x8b\xbe",    "CHECK");
+        case 14: return Ui_Controller_Pick_CN_EN("\xe5\x8f\x89",    "CROSS");
+        case 15: return Ui_Controller_Pick_CN_EN("\xe7\x94\xb5\xe6\xba\x90",  "POWER");
+        case 16: return Ui_Controller_Pick_CN_EN("\xe9\x97\xaa\xe7\x94\xb5",  "LIGHTNING");
+        case 17: return Ui_Controller_Pick_CN_EN("\xe6\xb8\xa9\xe5\xba\xa6",  "TEMP");
+        case 18: return Ui_Controller_Pick_CN_EN("\xe9\xa3\x8e\xe6\x89\x87",  "FAN");
+        case 19: return Ui_Controller_Pick_CN_EN("\xe9\x94\x81",    "LOCK");
+        case 20: return Ui_Controller_Pick_CN_EN("\xe4\xb8\xbb\xe9\xa1\xb5",  "HOME");
+        case 21: return Ui_Controller_Pick_CN_EN("\xe8\xae\xbe\xe7\xbd\xae",  "GEAR");
+        case 22: return Ui_Controller_Pick_CN_EN("\xe5\x88\xb7\xe6\x96\xb0",  "REFRESH");
+        case 23: return Ui_Controller_Pick_CN_EN("\xe4\xb8\x8a\xe7\xae\xad",  "ARROW_UP");
+        case 24: return Ui_Controller_Pick_CN_EN("\xe4\xb8\x8b\xe7\xae\xad",  "ARROW_DN");
+        case 25: return Ui_Controller_Pick_CN_EN("\xe5\xb7\xa6\xe7\xae\xad",  "ARROW_LT");
+        case 26: return Ui_Controller_Pick_CN_EN("\xe5\x8f\xb3\xe7\xae\xad",  "ARROW_RT");
+        case 27: return Ui_Controller_Pick_CN_EN("\xe4\xbf\xa1\xe5\x8f\xb7",  "SIGNAL");
+        case 28: return Ui_Controller_Pick_CN_EN("\xe5\x85\xa8\xe7\x90\x83",  "GLOBE");
+        case 29: return Ui_Controller_Pick_CN_EN("\xe5\x9b\xbe\xe8\xa1\xa8",  "CHART");
+        case 30: return Ui_Controller_Pick_CN_EN("\xe6\x97\xb6\xe9\x92\x9f",  "CLOCK");
+        case 31: return Ui_Controller_Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "1", "EXTRA1");
+        case 32: return Ui_Controller_Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "2", "EXTRA2");
+        case 33: return Ui_Controller_Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "3", "EXTRA3");
+        case 34: return Ui_Controller_Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "4", "EXTRA4");
         default: return "?";
     }
 }
 
-static void Draw_Icons_Full(void)
+static void Ui_Controller_Draw_Icons_Full(void)
 {
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
 
     if (!flash_ok) {
-        Draw_Header(Pick_CN_EN("\xe5\x9b\xbe\xe6\xa0\x87", "Icons"));
-        Tft_Driver_Show_String(3, 2, Pick_CN_EN(S_FLASH_REQUIRED_CN, S_FLASH_REQUIRED_EN), Uc_Alarm(), Uc_Bg());
+        Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN("\xe5\x9b\xbe\xe6\xa0\x87", "Icons"));
+        Tft_Driver_Show_String(3, 2, Ui_Controller_Pick_CN_EN(S_FLASH_REQUIRED_CN, S_FLASH_REQUIRED_EN), Uc_Alarm(), Ui_Controller_Get_Background_Color());
         return;
     }
 
     {
         char buf[24];
-        snprintf(buf, 24, "%s [%d/%d]", Pick_CN_EN(S_TITLE_ICONS_CN, S_TITLE_ICONS_EN),
+        snprintf(buf, 24, "%s [%d/%d]", Ui_Controller_Pick_CN_EN(S_TITLE_ICONS_CN, S_TITLE_ICONS_EN),
                  s_icon_page + 1, ICON_TOTAL_PAGES);
-        Draw_Header(buf);
+        Ui_Controller_Draw_Header(buf);
     }
 
     /* 7×5 grid (7 cols × 5 rows), 18px cells, starting y=16 */
@@ -1930,11 +1930,11 @@ static void Draw_Icons_Full(void)
                 uint16_t y = (uint16_t)((uint16_t)row * ICON_CELL_SZ + 16U);
                 if (icon_id < ICON_TOTAL) {
                     uint8_t  cursor_id = (uint8_t)(s_icon_page * ICON_PER_PAGE + s_icon_cursor);
-                    uint16_t fg = Uc_Text();
-                    uint16_t bg = Uc_Bg();
+                    uint16_t fg = Ui_Controller_Get_Text_Color();
+                    uint16_t bg = Ui_Controller_Get_Background_Color();
                     if (icon_id == cursor_id) {
-                        Tft_Driver_Fill_Rect(x - 1U, y - 1U, 18U, 18U, Uc_Value());
-                        bg = Uc_Value();
+                        Tft_Driver_Fill_Rect(x - 1U, y - 1U, 18U, 18U, Ui_Controller_Get_Value_Color());
+                        bg = Ui_Controller_Get_Value_Color();
                     }
                     Tft_Driver_Draw_Icon_By_Id(x, y, icon_id, 0, fg, bg);
                 }
@@ -1947,14 +1947,16 @@ static void Draw_Icons_Full(void)
         uint8_t  icon_id = (uint8_t)(s_icon_page * ICON_PER_PAGE + s_icon_cursor);
         if (icon_id < ICON_TOTAL) {
             char buf[32];
-            snprintf(buf, 32, "%s [#%d]", Get_Icon_Name(icon_id), (int)(icon_id + 1));
-            uint8_t col = Center(buf);
-            Tft_Driver_Show_String(7, col, buf, Uc_Value(), Uc_Bg());
+            uint8_t col;
+
+            snprintf(buf, 32, "%s [#%d]", Ui_Controller_Get_Icon_Name(icon_id), (int)(icon_id + 1));
+            col = Ui_Controller_Center_Text(buf);
+            Tft_Driver_Show_String(7, col, buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         }
     }
 }
 
-static void Handle_Icons_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+static void Ui_Controller_Handle_Icons_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
                                Key_Driver_Event k3, Key_Driver_Event k4)
 {
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
@@ -2020,54 +2022,54 @@ static void Handle_Icons_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
     /* Spacing labels V4.5.2 — each label shows check on confirmed value, star on preview.
      *   The labels themselves contain embedded spacing for demo effect.
      *   ARMCC V5 multibyte-safe: all chars are ASCII or verified UTF-8 sequences. */
-static const char* Spacing_Label(uint8_t v)
+static const char* Ui_Controller_Get_Spacing_Label(uint8_t v)
 {
     switch (v) {
-        case 0: return Pick_CN_EN("  \xe6\x97\xa0 (0px)", "  None (0)");
-        case 1: return Pick_CN_EN("  \xe5\xb0\x8f (2px)", "  Small (2)");
-        case 2: return Pick_CN_EN("  \xe4\xb8\xad (4px)", "  Medium (4)");
-        case 3: return Pick_CN_EN("  \xe5\xa4\xa7 (6px)", "  Large (6)");
+        case 0: return Ui_Controller_Pick_CN_EN("  \xe6\x97\xa0 (0px)", "  None (0)");
+        case 1: return Ui_Controller_Pick_CN_EN("  \xe5\xb0\x8f (2px)", "  Small (2)");
+        case 2: return Ui_Controller_Pick_CN_EN("  \xe4\xb8\xad (4px)", "  Medium (4)");
+        case 3: return Ui_Controller_Pick_CN_EN("  \xe5\xa4\xa7 (6px)", "  Large (6)");
         default: return "";
     }
 }
 
-static void Draw_Spacing_Full(void)
+static void Ui_Controller_Draw_Spacing_Full(void)
 {
     uint8_t i;
-    Draw_Header(Pick_CN_EN(S_SPACING_TITLE_CN, S_SPACING_TITLE_EN));
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_SPACING_TITLE_CN, S_SPACING_TITLE_EN));
 
     for (i = 0; i < 4; i++) {
-        Erase_Line(3 + i);
+        Ui_Controller_Erase_Line(3 + i);
         /* Show star on preview choice, apply spacing ONLY to label text via local set/restore */
         {
             uint8_t saved = s_letter_spacing;
             Tft_Driver_Set_Letter_Spacing((uint8_t)(i * 2));
             Tft_Driver_Show_CN_String(3 + i, 2,
-                Spacing_Label(i),
-                (s_preview_choice == i) ? Uc_Value() : Uc_Text(), Uc_Bg());
+                Ui_Controller_Get_Spacing_Label(i),
+                (s_preview_choice == i) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
             Tft_Driver_Set_Letter_Spacing((uint8_t)(saved * 2));
         }
         if (s_preview_choice == i) {
-            Tft_Driver_Show_String(3 + i, 0, "*", Uc_Value(), Uc_Bg());
+            Tft_Driver_Show_String(3 + i, 0, "*", Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         }
     }
 
-    Draw_Cursor(3 + s_preview_choice);
+    Ui_Controller_Draw_Cursor(3 + s_preview_choice);
 
     /* Bottom row 7: live preview with spacing applied to sample text */
-    Erase_Line(7);
+    Ui_Controller_Erase_Line(7);
     {
         char preview_buf[21] = "";
         /* Build localized sample string at runtime to avoid ARMCC multibyte warnings */
-        snprintf(preview_buf, 21, "%s", Pick_CN_EN("Aa\xe4\xb8\xad\xe6\x96\x87\xe6\xa8\xa1\xe5\xbc\x8f",
+        snprintf(preview_buf, 21, "%s", Ui_Controller_Pick_CN_EN("Aa\xe4\xb8\xad\xe6\x96\x87\xe6\xa8\xa1\xe5\xbc\x8f",
                                                     "Aa Zh Demo"));
         Tft_Driver_Set_Letter_Spacing((uint8_t)(s_preview_choice * 2));
-        Tft_Driver_Show_CN_String(7, Center(preview_buf), preview_buf, Uc_Dim(), Uc_Bg());
+        Tft_Driver_Show_CN_String(7, Ui_Controller_Center_Text(preview_buf), preview_buf, Uc_Dim(), Ui_Controller_Get_Background_Color());
         Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));  /* restore */
     }
 }
 
-static void Handle_Spacing_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+static void Ui_Controller_Handle_Spacing_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
                                  Key_Driver_Event k3, Key_Driver_Event k4)
 {
     uint8_t back = (k1 == KEY_DRIVER_EVENT_CLICK);
@@ -2101,7 +2103,7 @@ static void Handle_Spacing_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
  *  PAGE    → commit + full clear + force redraw
  *  ON      → cancel (restore old preset)
  * ═══════════════════════════════════════════════════════════════ */
-static void Apply_Color_Preset(uint8_t preset_idx)
+static void Ui_Controller_Apply_Color_Preset(uint8_t preset_idx)
 {
     const ColorPreset* p = &COLOR_PRESETS[preset_idx];
     s_color_fg      = p->fg;
@@ -2109,30 +2111,30 @@ static void Apply_Color_Preset(uint8_t preset_idx)
     s_color_accent  = p->accent;
     sc_preset = preset_idx;
 }
-static void Draw_Color_Full(void)
+static void Ui_Controller_Draw_Color_Full(void)
 {
     uint8_t i;
 
-    Draw_Header(Pick_CN_EN(S_TITLE_COLOR_CN, S_TITLE_COLOR_EN));
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_TITLE_COLOR_CN, S_TITLE_COLOR_EN));
 
     for (i = 0; i < 6; i++) {
         char buf[24];
-        const char* name = Pick_CN_EN(COLOR_PRESETS[i].name_cn, COLOR_PRESETS[i].name_en);
-        Erase_Line(2 + i);
+        const char* name = Ui_Controller_Pick_CN_EN(COLOR_PRESETS[i].name_cn, COLOR_PRESETS[i].name_en);
+        Ui_Controller_Erase_Line(2 + i);
         /* V4.5.2: show check-mark on confirmed (active) preset, star on preview choice */
         {
             const char* prefix = (sc_preset == i) ? "\xe2\x9c\x93 " :
                                 (s_preview_choice == i) ? "* " : "  ";
             snprintf(buf, 24, "%s%s", prefix, name);
             Tft_Driver_Show_CN_String(2 + i, 2, buf,
-                (s_preview_choice == i) ? Uc_Value() : Uc_Text(), Uc_Bg());
+                (s_preview_choice == i) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
         }
     }
 
-    Draw_Cursor(2 + s_preview_choice);
+    Ui_Controller_Draw_Cursor(2 + s_preview_choice);
 
     /* Bottom row 7: 3-color preview bar using current preview choice */
-    Erase_Line(7);
+    Ui_Controller_Erase_Line(7);
     {
         const ColorPreset* p = &COLOR_PRESETS[s_preview_choice];
         uint16_t bar_y = 7 * TFT_FONT_HEIGHT;
@@ -2143,16 +2145,16 @@ static void Draw_Color_Full(void)
         Tft_Driver_Fill_Rect((uint16_t)(bw * 2), bar_y, bw, TFT_FONT_HEIGHT, p->accent);
         /* Label each block */
         {
-            uint16_t bg_label_fg = (p->bg == 0x0000 || p->bg < 0x2104) ? Uc_Text() : TFT_COLOR_BLACK;
+            uint16_t bg_label_fg = (p->bg == 0x0000 || p->bg < 0x2104) ? Ui_Controller_Get_Text_Color() : TFT_COLOR_BLACK;
             Tft_Driver_Show_String(7, 0,  "B", bg_label_fg, p->bg);
-            Tft_Driver_Show_String(7, 7,  "F", (p->fg < 0x8410) ? Uc_Text() : TFT_COLOR_BLACK, p->fg);
-            Tft_Driver_Show_String(7, 14, "A", (p->accent < 0x8410) ? Uc_Text() : TFT_COLOR_BLACK, p->accent);
+            Tft_Driver_Show_String(7, 7,  "F", (p->fg < 0x8410) ? Ui_Controller_Get_Text_Color() : TFT_COLOR_BLACK, p->fg);
+            Tft_Driver_Show_String(7, 14, "A", (p->accent < 0x8410) ? Ui_Controller_Get_Text_Color() : TFT_COLOR_BLACK, p->accent);
         }
     }
 
 }
 
-static void Handle_Color_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
+static void Ui_Controller_Handle_Color_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
                                Key_Driver_Event k3, Key_Driver_Event k4)
 {
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
@@ -2172,7 +2174,7 @@ static void Handle_Color_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
 
     /* CONFIRM -> commit: apply new color and let Phase 7 redraw once */
     if (k4 == KEY_DRIVER_EVENT_CLICK && s_preview_choice != sc_preset) {
-        Apply_Color_Preset(s_preview_choice);
+        Ui_Controller_Apply_Color_Preset(s_preview_choice);
         s_settings_dirty = 1;
         s_page_drawn = 0;  /* trigger Phase 7 full-page redraw with new bg */
     }
@@ -2181,16 +2183,16 @@ static void Handle_Color_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
 /* ═══════════════════════════════════════════════════════════════
  *  Settings Key Dispatch
  * ═══════════════════════════════════════════════════════════════ */
-static uint8_t Handle_Settings_Keys(Ui_Page page,
+static uint8_t Ui_Controller_Handle_Settings_Keys(Ui_Page page,
     Key_Driver_Event k1, Key_Driver_Event k2,
     Key_Driver_Event k3, Key_Driver_Event k4)
 {
     switch (page) {
-        case UI_PAGE_SETTING:           Handle_Setting_Keys(k1,k2,k3,k4); return 1;
-        case UI_PAGE_SETTING_LANG:      Handle_Lang_Keys(k1,k2,k3,k4); return 1;
-        case UI_PAGE_SETTING_SPACING:   Handle_Spacing_Keys(k1,k2,k3,k4); return 1;
-        case UI_PAGE_SETTING_ICONS:     Handle_Icons_Keys(k1,k2,k3,k4); return 1;
-        case UI_PAGE_SETTING_COLOR:     Handle_Color_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING:           Ui_Controller_Handle_Setting_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_LANG:      Ui_Controller_Handle_Lang_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_SPACING:   Ui_Controller_Handle_Spacing_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_ICONS:     Ui_Controller_Handle_Icons_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_COLOR:     Ui_Controller_Handle_Color_Keys(k1,k2,k3,k4); return 1;
         default: return 0;
     }
 }
@@ -2198,7 +2200,7 @@ static uint8_t Handle_Settings_Keys(Ui_Page page,
 /* ================================================================
  *  Main Scheduler — V4.2.0 incremental refresh architecture
  *
- *  Phase 0: Global Top-Right Icons Manager (Always On, Auto-Sync)
+ *  Phase 0: Global Top-Ui_Controller_Right_Text Icons Manager (Always On, Auto-Sync)
  *  Phase 1: Fault edge detection → may set s_page, s_page_drawn=0
  *  Phase 2: Sweep complete detection → may set s_page
  *  Phase 3: Key scan + dispatch → may set s_page or s_menu_cursor
@@ -2217,7 +2219,7 @@ void Ui_Controller_Task(
 
     Tft_Driver_Begin_Draw_Cycle();
 
-    /* ── Phase 0: Global Top-Right Icons Manager (Always On, Auto-Sync) ── */
+    /* ── Phase 0: Global Top-Ui_Controller_Right_Text Icons Manager (Always On, Auto-Sync) ── */
     {
         uint8_t cs = App_Network_Get_Connect_Status();
         uint8_t connecting = App_Network_Is_Connecting();
@@ -2251,11 +2253,11 @@ void Ui_Controller_Task(
                 mqtt_frame != s_last_mqtt_frame ||
                 rssi_frame != s_last_rssi_frame ||
                 (uint8_t)s_page != s_last_icon_page ||
-                Uc_Bg() != s_last_icon_bg ||
-                Uc_Text() != s_last_icon_fg) {
+                Ui_Controller_Get_Background_Color() != s_last_icon_bg ||
+                Ui_Controller_Get_Text_Color() != s_last_icon_fg) {
 
                 /* 直接局部泵送图标，不再重绘 Header */
-                Draw_TopRight_Icons();
+                Ui_Controller_Draw_TopRight_Icons();
             }
         } else {
             /* 页面跳转瞬间，强制失效状态，以便进入新页后图标能立刻跟进刷新 */
@@ -2268,7 +2270,7 @@ void Ui_Controller_Task(
         uint8_t sys_fault = (Sys_Core_Get_State() == SYS_STATE_FAULT);
         if (sys_fault != s_was_fault_state) {
             s_was_fault_state = sys_fault;
-            s_last_is_fault_menu = 0xFF;  /* force Main_Menu_Dynamic_Update redraw */
+            s_last_is_fault_menu = 0xFF;  /* force Ui_Controller_Main_Menu_Dynamic_Update redraw */
         }
     }
 
@@ -2278,7 +2280,7 @@ void Ui_Controller_Task(
         if (ss == INVERTER_CONTROL_SS_STATE_DONE) {
             s_page = UI_PAGE_MONITOR_SUMMARY;
             s_page_drawn = 0;
-            Reset_EMA();
+            Ui_Controller_Reset_EMA();
             s_user_target_synced = 0;
         }
     }
@@ -2288,12 +2290,12 @@ void Ui_Controller_Task(
     {
         uint8_t old_setting_cur = s_setting_cursor;
         /* Settings key dispatch (includes back-navigation) */
-        if (!Handle_Settings_Keys(s_page,
+        if (!Ui_Controller_Handle_Settings_Keys(s_page,
                                    events[KEY_DRIVER_ID_BACK],
                                    events[KEY_DRIVER_ID_UP],
                                    events[KEY_DRIVER_ID_DOWN],
                                    events[KEY_DRIVER_ID_CONFIRM])) {
-            Handle_Keys_by_Page(s_page,
+            Ui_Controller_Handle_Keys_By_Page(s_page,
                                 events[KEY_DRIVER_ID_BACK],
                                 events[KEY_DRIVER_ID_UP],
                                 events[KEY_DRIVER_ID_DOWN],
@@ -2348,24 +2350,24 @@ void Ui_Controller_Task(
 
     if (!s_page_drawn) {
         /* Full page draw: clear screen to current bg, then render */
-        Tft_Driver_Clear(Uc_Bg());
+        Tft_Driver_Clear(Ui_Controller_Get_Background_Color());
         switch (s_page) {
-            case UI_PAGE_MAIN_MENU:        Draw_Main_Menu_Full();   break;
-            case UI_PAGE_MONITOR_SUB_MENU: Draw_Sub_Menu_Full();    break;
-            case UI_PAGE_SWEEP:            Draw_Sweep_Full();       break;
-            case UI_PAGE_MONITOR_SUMMARY:  Draw_Summary_Full();     break;
-            case UI_PAGE_MONITOR_FREQ:     Draw_Freq_Full();        break;
-            case UI_PAGE_MONITOR_VOLT:     Draw_Volt_Full();        break;
-            case UI_PAGE_MONITOR_CURR:     Draw_Curr_Full();        break;
-            case UI_PAGE_WIFI_SETUP:       Draw_WiFi_Full();        break;
-            case UI_PAGE_FAULT:            Draw_Fault_Full();       break;
-            case UI_PAGE_SETTING:          Draw_Setting_Full();     break;
-            case UI_PAGE_SETTING_LANG:      Draw_Lang_Full();        break;
-            case UI_PAGE_SETTING_SPACING:   Draw_Spacing_Full();     break;
-            case UI_PAGE_SETTING_ICONS:     Draw_Icons_Full();       break;
-            case UI_PAGE_SETTING_COLOR:     Draw_Color_Full();       break;
+            case UI_PAGE_MAIN_MENU:        Ui_Controller_Draw_Main_Menu_Full();   break;
+            case UI_PAGE_MONITOR_SUB_MENU: Ui_Controller_Draw_Sub_Menu_Full();    break;
+            case UI_PAGE_SWEEP:            Ui_Controller_Draw_Sweep_Full();       break;
+            case UI_PAGE_MONITOR_SUMMARY:  Ui_Controller_Draw_Summary_Full();     break;
+            case UI_PAGE_MONITOR_FREQ:     Ui_Controller_Draw_Freq_Full();        break;
+            case UI_PAGE_MONITOR_VOLT:     Ui_Controller_Draw_Volt_Full();        break;
+            case UI_PAGE_MONITOR_CURR:     Ui_Controller_Draw_Curr_Full();        break;
+            case UI_PAGE_WIFI_SETUP:       Ui_Controller_Draw_WiFi_Full();        break;
+            case UI_PAGE_FAULT:            Ui_Controller_Draw_Fault_Full();       break;
+            case UI_PAGE_SETTING:          Ui_Controller_Draw_Setting_Full();     break;
+            case UI_PAGE_SETTING_LANG:      Ui_Controller_Draw_Lang_Full();        break;
+            case UI_PAGE_SETTING_SPACING:   Ui_Controller_Draw_Spacing_Full();     break;
+            case UI_PAGE_SETTING_ICONS:     Ui_Controller_Draw_Icons_Full();       break;
+            case UI_PAGE_SETTING_COLOR:     Ui_Controller_Draw_Color_Full();       break;
         }
-        Update_Leds();
+        Ui_Controller_Update_Leds();
         if (!Tft_Driver_Is_Draw_Blocked()) {
             s_page_drawn = 1;
             cursor_changed = 0;
@@ -2378,16 +2380,16 @@ void Ui_Controller_Task(
                 /* V4.5.2: cursor moved in settings — only for SETTING main menu pages.
                  *   Other pages use s_preview_choice and redraw via s_page_drawn=0. */
                 if (s_page == UI_PAGE_SETTING) {
-                    Erase_Cursor(2 + s_last_setting_cursor);
-                    Draw_Cursor(2 + s_setting_cursor);
+                    Ui_Controller_Erase_Cursor(2 + s_last_setting_cursor);
+                    Ui_Controller_Draw_Cursor(2 + s_setting_cursor);
                 }
             } else {
                 switch (s_page) {
                     case UI_PAGE_MAIN_MENU:
-                        Main_Menu_Cursor_Update(old_cursor);
+                        Ui_Controller_Main_Menu_Cursor_Update(old_cursor);
                         break;
                     case UI_PAGE_MONITOR_SUB_MENU:
-                        Sub_Menu_Cursor_Update(old_cursor);
+                        Ui_Controller_Sub_Menu_Cursor_Update(old_cursor);
                         break;
                     default:
                         s_page_drawn = 0;
@@ -2398,14 +2400,14 @@ void Ui_Controller_Task(
 
         if (tick_200ms) {
             switch (s_page) {
-                case UI_PAGE_MAIN_MENU:        Main_Menu_Dynamic_Update(); break;
+                case UI_PAGE_MAIN_MENU:        Ui_Controller_Main_Menu_Dynamic_Update(); break;
                 case UI_PAGE_MONITOR_SUB_MENU: /* static */               break;
-                case UI_PAGE_SWEEP:            Sweep_Dynamic_Update();    break;
-                case UI_PAGE_MONITOR_SUMMARY:  Summary_Dynamic_Update();  break;
-                case UI_PAGE_MONITOR_FREQ:     Freq_Dynamic_Update();     break;
-                case UI_PAGE_MONITOR_VOLT:     Volt_Dynamic_Update();     break;
-                case UI_PAGE_MONITOR_CURR:     Curr_Dynamic_Update();     break;
-                case UI_PAGE_WIFI_SETUP:       WiFi_Dynamic_Update();     break;
+                case UI_PAGE_SWEEP:            Ui_Controller_Sweep_Dynamic_Update();    break;
+                case UI_PAGE_MONITOR_SUMMARY:  Ui_Controller_Summary_Dynamic_Update();  break;
+                case UI_PAGE_MONITOR_FREQ:     Ui_Controller_Freq_Dynamic_Update();     break;
+                case UI_PAGE_MONITOR_VOLT:     Ui_Controller_Volt_Dynamic_Update();     break;
+                case UI_PAGE_MONITOR_CURR:     Ui_Controller_Curr_Dynamic_Update();     break;
+                case UI_PAGE_WIFI_SETUP:       Ui_Controller_WiFi_Dynamic_Update();     break;
                 case UI_PAGE_FAULT:            /* static */               break;
                 case UI_PAGE_SETTING:          /* static */               break;
                 case UI_PAGE_SETTING_LANG:      /* static */               break;
@@ -2413,7 +2415,7 @@ void Ui_Controller_Task(
                 case UI_PAGE_SETTING_ICONS:     /* static */               break;
                 case UI_PAGE_SETTING_COLOR:     /* static */               break;
             }
-            Update_Leds();
+            Ui_Controller_Update_Leds();
         }
         if (Tft_Driver_Is_Draw_Blocked()) {
             s_page_drawn = 0;
@@ -2424,18 +2426,7 @@ void Ui_Controller_Task(
 /* ================================================================
  *  Public Interface
  * ================================================================ */
-Ui_Page Ui_Controller_Get_Page(void)      { return s_page; }
 uint8_t Ui_Controller_Is_No_WiFi_Mode(void) { return s_no_wifi_mode; }
-
-/**
- * @brief  外部强制跳转到目标页面 (物理级)
- * @note   远程指令触发或系统状态迁移时, 调用此函数同步 UI 页面, 防止 UI 展示不同步
- */
-void Ui_Controller_Force_Page(Ui_Page page)
-{
-    s_page = page;
-    s_page_drawn = 0;  /* 强制全量重绘 */
-}
 
 /**
  * @brief  外部强制跳转到目标页面并重置菜单光标
@@ -2464,7 +2455,7 @@ void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
     (void)bl;
     Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));  /* 0-3 -> actual px 0/2/4/6 */
     if (preset < 6) {
-        Apply_Color_Preset(preset);
+        Ui_Controller_Apply_Color_Preset(preset);
     } else {
         s_color_fg     = fg;
         s_color_bg     = bg;

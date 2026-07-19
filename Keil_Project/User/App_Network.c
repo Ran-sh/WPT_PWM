@@ -84,15 +84,6 @@ uint8_t App_Network_Start_Connect(void)
     return 0;
 }
 
-uint8_t App_Network_Soft_Reset(void)
-{
-    s_conn_state    = APP_NETWORK_CONN_IDLE;
-    s_retry_count   = 0;
-    s_rssi          = -100;
-    Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
-    return 0;
-}
-
 void App_Network_Manual_Connect(void)
 {
     /* 仅从主动离线恢复: 清除离线标记, 开始连接 */
@@ -145,11 +136,6 @@ uint8_t App_Network_Get_Connect_Status(void)
 }
 
 uint8_t App_Network_Get_Retry_Count(void)  { return s_retry_count; }
-
-uint8_t App_Network_Is_Connected(void)
-{
-    return (s_conn_state == APP_NETWORK_CONN_ONLINE);
-}
 
 uint8_t App_Network_Is_Offline(void)
 {

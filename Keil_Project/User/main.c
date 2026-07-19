@@ -35,7 +35,7 @@
  *    App_Storage_Init -> Sys_Startup_Screen(SPLASH) -> Sys_Post_Init ->
  *    Delay(1s) -> SYS_STATE_IDLE
  *
- * @note    V5.0: GPIO 全面重映射, 5 键系统 (KEY0-4), 三灯系统
+ * @note    V5.0: GPIO 全面重映射, 5 键系统 (KEY0-4), 四灯系统
  *          Sys_Timer_Init 必须在 SPLASH 之前 (Delay_Ms 依赖 SysTick)
  ******************************************************************************
  */

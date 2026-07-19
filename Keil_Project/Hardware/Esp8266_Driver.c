@@ -288,56 +288,13 @@ void Esp8266_Driver_Rx_Char(uint8_t ch)
     }
 }
 
-uint8_t Esp8266_Driver_Get_Rx_Flag(void)
-{
-    return (s_rx_frame_count > 0) ? 1 : 0;
-}
-
-const char* Esp8266_Driver_Get_Rx_Buffer(void)
-{
-    return s_rx_buf[s_rx_ring_rd];  /* 返回最早未消费帧 */
-}
-
-void Esp8266_Driver_Clear_Rx_Buffer(void)
-{
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();
-    s_rx_buf[0][0]  = '\0';
-    s_rx_index      = 0;
-    s_rx_ring_wr    = 0;
-    s_rx_ring_rd    = 0;
-    s_rx_frame_count = 0;
-    __set_PRIMASK(primask);
-}
-
-uint16_t Esp8266_Driver_Copy_Rx_Frame(char* dst, uint16_t max_len)
-{
-    uint16_t len = 0;
-    uint32_t primask; uint8_t rd;
-    if (max_len < 2) return 0;
-    primask = __get_PRIMASK();
-    __disable_irq();
-    if (s_rx_frame_count == 0) { __set_PRIMASK(primask); return 0; }
-    rd = s_rx_ring_rd;
-    while (s_rx_buf[rd][len] && len < max_len - 1) {
-        dst[len] = s_rx_buf[rd][len];
-        len++;
-    }
-    dst[len]            = '\0';
-    s_rx_buf[rd][0]     = '\0';
-    s_rx_ring_rd        = (rd + 1) % ESP8266_DRIVER_RX_RING_SIZE;
-    s_rx_frame_count--;
-    __set_PRIMASK(primask);
-    return len;
-}
-
 /**
  * @brief  原子检查+复制: flag-check + frame-copy + clear 在同一临界区内完成
  * @note   V4.5.2: 3 槽环形缓冲, 消费最旧帧 (s_rx_ring_rd), 推进读指针
- *         消除 Get_Rx_Flag()→Copy_Rx_Frame() 之间的中断窗口:
+ *         消除旧分离式“先检查、后复制”接口之间的中断窗口:
  *         若检测到帧标志后 ISR 又写入新帧, 旧原子方案会在 Copy 内清标志,
  *         导致新帧标志也一并被清零, 帧静默丢失。
- *         本函数将"判断+复制"合一, 返回 0 (无帧) 或有效帧长, 调用方无需先调 Get_Rx_Flag。
+ *         本函数将"判断+复制"合一, 返回 0 (无帧) 或有效帧长。
  */
 uint16_t Esp8266_Driver_Try_Copy_Rx_Frame(char* dst, uint16_t max_len)
 {

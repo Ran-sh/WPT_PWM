@@ -56,7 +56,7 @@ static uint32_t s_status_last    = 0;
 static uint32_t s_heartbeat_last = 0;
 
 /* -- Per-pin blink driver (active HIGH) -- */
-static void Drive_Pin(GPIO_TypeDef* port, uint16_t pin,
+static void Led_Driver_Drive_Pin(GPIO_TypeDef* port, uint16_t pin,
                       Led_Driver_State state, uint32_t* p_last)
 {
     uint32_t now = Sys_Timer_Get_Tick();
@@ -126,8 +126,8 @@ void Led_Driver_Init(void)
 
 void Led_Driver_Task(void)
 {
-    Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_WIFI_PIN,   s_wifi_state,   &s_wifi_last);
-    Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_STATUS_PIN,  s_status_state, &s_status_last);
+    Led_Driver_Drive_Pin(LED_DRIVER_PORT_B, LED_DRIVER_WIFI_PIN,   s_wifi_state,   &s_wifi_last);
+    Led_Driver_Drive_Pin(LED_DRIVER_PORT_A, LED_DRIVER_STATUS_PIN,  s_status_state, &s_status_last);
 
     /* POWER LED: direct GPIO follow s_power_on (no state machine) */
     if (s_power_on)

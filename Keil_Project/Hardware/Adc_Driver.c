@@ -277,16 +277,6 @@ void Adc_Driver_DMA_Transfer_Complete_ISR(void)
     s_adc_sample_sequence++;
 }
 
-uint32_t Adc_Driver_Get_Sample_Sequence(void)
-{
-    return s_adc_sample_sequence;
-}
-
-uint32_t Adc_Driver_Get_Last_Sample_Tick(void)
-{
-    return s_adc_last_sample_tick;
-}
-
 uint32_t Adc_Driver_Get_Processed_Sequence(void)
 {
     return s_adc_processed_sequence;
@@ -330,11 +320,6 @@ void Adc_Driver_Calibration_Task(uint8_t power_enabled)
     }
 }
 
-void Adc_Driver_Calibrate_Offset(void)
-{
-    Adc_Driver_Calibration_Task(0U);
-}
-
 Adc_Driver_Calibration_State Adc_Driver_Get_Calibration_State(void)
 {
     return s_cal_state;
@@ -359,8 +344,6 @@ uint8_t Adc_Driver_Is_Data_Fresh(void)
 float Adc_Driver_Get_Display_Voltage(void) { return s_display_voltage; }
 float Adc_Driver_Get_Display_Current(void) { return s_display_current; }
 float Adc_Driver_Get_Safety_Current(void) { return s_safety_current; }
-float Adc_Driver_Get_Voltage(void) { return Adc_Driver_Get_Display_Voltage(); }
-float Adc_Driver_Get_Current(void) { return Adc_Driver_Get_Display_Current(); }
 
 /** @brief V4.3.0: 从 Flash 固化值写入校准参数 (W25Q128 参数区加载后调用) */
 void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)

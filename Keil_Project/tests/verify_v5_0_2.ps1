@@ -5,6 +5,7 @@ param(
                  'Storage', 'StorageConfig', 'Blackbox', 'BlackboxJournal',
                   'BlackboxLifecycle', 'BlackboxSnapshot',
                   'Keys', 'KeyRouting', 'Ui', 'UiPerf', 'UartTx', 'Network', 'Scheduler', 'Timeout',
+                 'CodeQuality',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -220,6 +221,13 @@ $networkC = Read-ProjectText 'Keil_Project\User\App_Network.c'
 $mainC = Read-ProjectText 'Keil_Project\User\main.c'
 $projectText = Read-ProjectText 'Keil_Project\Project.uvprojx'
 $timerC = Read-ProjectText 'Keil_Project\System\Sys_Timer.c'
+$stm32Files = Get-ChildItem (Join-Path $keilRoot 'Hardware'),
+                               (Join-Path $keilRoot 'System'),
+                               (Join-Path $keilRoot 'User') -File |
+    Where-Object { $_.Extension -in '.c', '.h' }
+$stm32Text = ($stm32Files | ForEach-Object {
+    [System.IO.File]::ReadAllText($_.FullName, [System.Text.Encoding]::UTF8)
+}) -join "`n"
 
 Write-Check 'Build' 'Keil does not rewrite environment-specific batch files' `
     ($projectText -match '<CreateBatchFile>0</CreateBatchFile>')
@@ -316,9 +324,11 @@ Write-Check 'AdcTrigger' 'DMA1 Channel1 circular transfer interrupt is handled' 
      ($adcC -match 'DMA_ITConfig\s*\(\s*DMA1_Channel1\s*,\s*DMA_IT_TC') -and
      ($irqC -match 'DMA1_Channel1_IRQHandler') -and
      ($irqC -match 'Adc_Driver_DMA_Transfer_Complete_ISR'))
-Write-Check 'AdcTrigger' 'ADC exposes sample sequence and timestamp' `
-    ((Test-Contains $adcH '\bAdc_Driver_Get_Sample_Sequence\s*\(') -and
-     (Test-Contains $adcH '\bAdc_Driver_Get_Last_Sample_Tick\s*\('))
+Write-Check 'AdcTrigger' 'ADC tracks sample sequence and timestamp internally' `
+    (($adcC -match 's_adc_sample_sequence') -and
+     ($adcC -match 's_adc_last_sample_tick') -and
+     (Test-Contains $adcH '\bAdc_Driver_Get_Processed_Sequence\s*\(') -and
+     (Test-Contains $adcH '\bAdc_Driver_Is_Data_Fresh\s*\('))
 Write-Check 'AdcFilter' 'ADC defines 64-sample display and 8-sample safety windows' `
     (($adcC -match 'ADC_DRIVER_DISPLAY_WINDOW\s+64U') -and
      ($adcC -match 'ADC_DRIVER_SAFETY_WINDOW\s+8U'))
@@ -587,7 +597,7 @@ Write-Check 'KeyRouting' 'UI no longer scans keys or calls the system power hand
     (($uiC -notmatch 'Key_Driver_Get_All_Events') -and
      ($uiC -notmatch 'Sys_Power_Control_Handle'))
 Write-Check 'KeyRouting' 'Sys_Core scans, consumes KEY0, then forwards remaining events' `
-    ($sysCoreC -match 'Key_Driver_Get_All_Events\s*\(\s*events\s*\)[\s\S]*Sys_Power_Control_Handle\s*\(\s*events\s*\)[\s\S]*Ui_Controller_Task\s*\(\s*events\s*\)')
+    ($sysCoreC -match 'Key_Driver_Get_All_Events\s*\(\s*events\s*\)[\s\S]*Sys_Core_Handle_Power_Key\s*\(\s*events\s*\)[\s\S]*Ui_Controller_Task\s*\(\s*events\s*\)')
 Write-Check 'KeyRouting' 'KEY4 long press is local to WiFi page and power-safe IDLE only' `
     (($uiC -match 'page\s*==\s*UI_PAGE_WIFI_SETUP[\s\S]{0,500}k4\s*==\s*KEY_DRIVER_EVENT_LONG_PRESS') -and
      ($uiC -match 'k4\s*==\s*KEY_DRIVER_EVENT_LONG_PRESS[\s\S]{0,500}Sys_Core_Get_State\s*\(\s*\)\s*==\s*SYS_STATE_IDLE') -and
@@ -618,11 +628,11 @@ Write-Check 'Ui' 'GPIO backlight turns on after TFT init without fake fade' `
 
 $gaugeFullMatch = [regex]::Match(
     $uiC,
-    'static\s+void\s+Draw_Gauge_Full\s*\([\s\S]*?\n\}'
+    'static\s+void\s+Ui_Controller_Draw_Gauge_Full\s*\([\s\S]*?\n\}'
 )
 $colorKeysMatch = [regex]::Match(
     $uiC,
-    'static\s+void\s+Handle_Color_Keys\s*\([\s\S]*?\n\}'
+    'static\s+void\s+Ui_Controller_Handle_Color_Keys\s*\([\s\S]*?\n\}'
 )
 Write-Check 'UiPerf' 'gauge and color handlers do not duplicate full-screen clear' `
     ($gaugeFullMatch.Success -and $colorKeysMatch.Success -and
@@ -631,8 +641,8 @@ Write-Check 'UiPerf' 'gauge and color handlers do not duplicate full-screen clea
 Write-Check 'UiPerf' 'top-right icon cache includes palette colors' `
     (($uiC -match 's_last_icon_bg') -and
      ($uiC -match 's_last_icon_fg') -and
-     ($uiC -match 'Uc_Bg\s*\(\s*\)\s*!=\s*s_last_icon_bg') -and
-     ($uiC -match 'Uc_Text\s*\(\s*\)\s*!=\s*s_last_icon_fg'))
+     ($uiC -match 'Ui_Controller_Get_Background_Color\s*\(\s*\)\s*!=\s*s_last_icon_bg') -and
+     ($uiC -match 'Ui_Controller_Get_Text_Color\s*\(\s*\)\s*!=\s*s_last_icon_fg'))
 Write-Check 'UiPerf' 'TFT exposes draw-cycle error state' `
     (($tftH -match 'Tft_Driver_Result') -and
      ($tftH -match 'Tft_Driver_Begin_Draw_Cycle\s*\(') -and
@@ -743,13 +753,13 @@ if (($commonStart -ge 0) -and ($commonEnd -gt $commonStart)) {
 }
 $scheduleCalls = @(
     'Adc_Driver_Filter_Task',
-    'Sys_Safety_Task',
-    'Sys_Run_Key_And_Ui_Task',
+    'Sys_Core_Safety_Task',
+    'Sys_Core_Run_Key_And_Ui_Task',
     'state_task();',
     'App_Network_Task',
     'App_Storage_Task',
-    'Sys_Run_Led_Tick',
-    'Sys_Run_Buzzer_Tick',
+    'Sys_Core_Run_Led_Tick',
+    'Sys_Core_Run_Buzzer_Tick',
     'IWDG_ReloadCounter',
     '__WFI'
 )
@@ -814,6 +824,75 @@ Write-Check 'Timeout' 'initialization delay sleeps on interrupts instead of hot 
      ($timerC -match 's_sys_tick\s*-\s*start'))
 Write-Check 'Timeout' 'USART2 runtime transmission has no polling wait' `
     ($espC -notmatch 'while\s*\(\s*USART_GetFlagStatus\s*\(\s*USART2')
+
+$staticPrefixFailures = @()
+foreach ($sourceFile in ($stm32Files | Where-Object { $_.Extension -eq '.c' })) {
+    $modulePrefix = [System.IO.Path]::GetFileNameWithoutExtension($sourceFile.Name) + '_'
+    $sourceText = [System.IO.File]::ReadAllText(
+        $sourceFile.FullName, [System.Text.Encoding]::UTF8)
+    $staticMatches = [System.Text.RegularExpressions.Regex]::Matches(
+        $sourceText,
+        '(?m)^static\s+(?:const\s+)?[A-Za-z_][\w\s\*]*?\s+([A-Za-z_]\w*)\s*\(')
+    foreach ($staticMatch in $staticMatches) {
+        if (-not $staticMatch.Groups[1].Value.StartsWith($modulePrefix)) {
+            $staticPrefixFailures += ('{0}:{1}' -f $sourceFile.Name,
+                $staticMatch.Groups[1].Value)
+        }
+    }
+}
+$removedPublicApis = @(
+    'Adc_Driver_Get_Sample_Sequence', 'Adc_Driver_Get_Last_Sample_Tick',
+    'Adc_Driver_Calibrate_Offset', 'Adc_Driver_Get_Voltage',
+    'Adc_Driver_Get_Current', 'Esp8266_Driver_Get_Rx_Flag',
+    'Esp8266_Driver_Get_Rx_Buffer', 'Esp8266_Driver_Clear_Rx_Buffer',
+    'Esp8266_Driver_Copy_Rx_Frame', 'Inverter_Control_Freq_Ramp_Get_Target',
+    'Tft_Driver_Get_Config', 'Tft_Driver_Set_Font_Scale',
+    'Tft_Driver_Get_Font_Scale', 'Tft_Driver_Show_Num',
+    'Tft_Driver_Show_Float', 'Ui_Controller_Get_Page',
+    'Ui_Controller_Force_Page', 'Sys_Timer_Get_Cycles',
+    'App_Network_Soft_Reset', 'App_Network_Is_Connected'
+)
+$remainingRemovedApis = @($removedPublicApis | Where-Object {
+    $stm32Text -match ('\b' + [regex]::Escape($_) + '\s*\(')
+})
+Write-Check 'CodeQuality' 'C sources contain no double-slash comments' `
+    ($stm32Text -notmatch '//')
+Write-Check 'CodeQuality' 'for loops contain no C99 declarations' `
+    ($stm32Text -notmatch 'for\s*\(\s*(?:const\s+)?(?:unsigned\s+|signed\s+)?(?:char|short|int|long|float|double|uint\d+_t|int\d+_t)\s+')
+Write-Check 'CodeQuality' 'known mixed declarations are moved to block starts' `
+    (($stm32Text -notmatch 'INVERTER_CONTROL_RAMP_IDLE\s*\)\s*return;\s*uint32_t\s+current') -and
+     ($stm32Text -notmatch 'Ui_Controller_Update_EMA\s*\(\s*\)\s*;\s*float\s+display_val') -and
+     ($stm32Text -notmatch 'snprintf\s*\([^;]+;\s*uint8_t\s+col'))
+Write-Check 'CodeQuality' 'all static functions use their module prefix' `
+    ($staticPrefixFailures.Count -eq 0) `
+    $(if ($staticPrefixFailures.Count) { $staticPrefixFailures -join ', ' } else { 'clean' })
+Write-Check 'CodeQuality' 'obsolete public compatibility APIs are removed' `
+    ($remainingRemovedApis.Count -eq 0) `
+    $(if ($remainingRemovedApis.Count) { $remainingRemovedApis -join ', ' } else { 'clean' })
+Write-Check 'CodeQuality' 'Sys_Core internal key and safety helpers are private' `
+    (($sysCoreH -notmatch 'Key_Driver\.h|Sys_Safety_Task|Sys_Power_Control_Handle|Sys_Safety_Get_EMA') -and
+     ($sysCoreC -match 'static\s+void\s+Sys_Core_Safety_Task') -and
+     ($sysCoreC -match 'static\s+void\s+Sys_Core_Handle_Power_Key'))
+$documentationChecks = [ordered]@{
+    'UI C says 14 pages' = ($uiC -match '14 pages')
+    'UI H page count is 14' = ($uiH -match 'UI_PAGE_COUNT\s*=\s*14')
+    'five-key pin list' = ($uiC -match 'PB9/PB8/PB7/PB6/PB5')
+    'heartbeat PC13' = ($uiC -match 'PC13')
+    'main lists four LEDs' = (($mainC -match 'LED_STATUS') -and
+        ($mainC -match 'LED_WIFI') -and ($mainC -match 'LED_POWER') -and
+        ($mainC -match 'LED_HEARTBEAT'))
+    'GPIO backlight' = (($tftH -match 'PA12=BL') -and
+        ($stm32Text -notmatch 'backlight PWM'))
+    'Flash font count' = (($tftH -match '20897') -and ($tftH -match '31'))
+    'V2 log partition' = ($appStorageC -match '0x312000~0x6CFFFF')
+    'sweep safety' = ($sysCoreC -match 'SWEEP/RUNNING protected')
+    'no stale descriptions' = ($stm32Text -notmatch '17 pages|4 keys:|ROM 76|Flash 6763')
+}
+$documentationFailures = @($documentationChecks.GetEnumerator() |
+    Where-Object { -not $_.Value } | ForEach-Object { $_.Key })
+Write-Check 'CodeQuality' 'driver comments describe V5 hardware and UI accurately' `
+    ($documentationFailures.Count -eq 0) `
+    $(if ($documentationFailures.Count) { $documentationFailures -join ', ' } else { 'clean' })
 
 if (Test-CategoryEnabled 'Version') {
     $wrongVersionFiles = @()

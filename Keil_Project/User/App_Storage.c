@@ -5,7 +5,7 @@
  *
  *  W25Q128 Flash partition map (16MB):
  *  +------------------------------------------------------------+
- *  |    W25Q128 16MB SPI NOR Flash (SPI1: PA5/PA7/PA6(MISO)/PA1  |
+ *  |    W25Q128 16MB SPI NOR Flash (SPI1, PB12 chip select)      |
  *  |                                                             |
  *  |    [0x300000~0x300FFF] Param copy A (4KB)                   |
  *  |      sys_config: WiFi creds + ADC cal + preferences         |
@@ -14,10 +14,11 @@
  *  |    [0x301000~0x301FFF] Param copy B (4KB)                   |
  *  |      Alternates with copy A, either valid = recoverable     |
  *  |                                                             |
- *  |    [0x400000~0x7FFFFF] Blackbox circular log (4MB)          |
- *  |      Circular: pointer wraps 0x800000 -> 0x400256           |
- *  |      Granularity: 1s/entry, ~174762 entries (~48 hours)     |
- *  |      Fault latch: SYS_FAULT pre-5s + post-5s window preser  |
+ *  |    [0x310000~0x311FFF] Dual-sector metadata journal         |
+ *  |    [0x312000~0x6CFFFF] 12B circular log, 200ms sampling     |
+ *  |      326678 recoverable entries, about 18.1h continuous    |
+ *  |    [0x6D0000~0x70FFFF] 64 fault slots (4KB each)            |
+ *  |      Fault snapshot: 25 pre + 25 post samples (10 seconds)  |
  *  |                                                             |
  *  |    Safety: Four guards in W25Q_Driver (L1~L4),              |
  *  |      this layer handles partition logic + CRC + recovery    |
@@ -438,7 +439,7 @@ static uint8_t App_Storage_Verify_Log_Entry(
 }
 
 /** @brief Pack physical values into one fixed 12-byte V2 record. */
-static void Blackbox_Pack(float v, float i, uint32_t freq_hz, uint8_t state,
+static void App_Storage_Blackbox_Pack(float v, float i, uint32_t freq_hz, uint8_t state,
                           uint8_t sample_valid,
                           App_Storage_Log_Entry *out)
 {
@@ -471,7 +472,7 @@ void Blackbox_Log_Tick(float v, float i, uint32_t freq_hz, uint8_t state)
 
     if (s_blackbox_v2_ready == 0U) return;
 
-    Blackbox_Pack(v, i, freq_hz, state, 1U, &entry);
+    App_Storage_Blackbox_Pack(v, i, freq_hz, state, 1U, &entry);
     addr = App_Storage_Log_Normalize_Address(
         s_blackbox_metadata.write_addr);
     sector_base = App_Storage_Log_Sector_Base(addr);
@@ -515,7 +516,7 @@ void Blackbox_Capture_Tick(float v, float i, uint32_t freq_hz,
     App_Storage_Log_Entry entry;
     uint8_t target;
 
-    Blackbox_Pack(v, i, freq_hz, state, sample_valid, &entry);
+    App_Storage_Blackbox_Pack(v, i, freq_hz, state, sample_valid, &entry);
     if (s_fault_capture_state == APP_STORAGE_FAULT_CAPTURE_ARMED) {
         if (sample_valid == 0U || pretrigger_eligible == 0U) return;
         s_fault_pre_ring[s_fault_pre_write] = entry;
@@ -554,7 +555,7 @@ void Blackbox_Lock_Fault_Snapshot(uint8_t fault_reason)
 
     if (s_fault_capture_state != APP_STORAGE_FAULT_CAPTURE_ARMED) return;
 
-    Blackbox_Pack(0.0f, 0.0f, 0U, 0U, 0U, &invalid_entry);
+    App_Storage_Blackbox_Pack(0.0f, 0.0f, 0U, 0U, 0U, &invalid_entry);
     invalid_entry.timestamp = 0U;
     invalid_entry.crc8 = Checksum_CRC8((const uint8_t *)&invalid_entry, 11U);
     for (i = 0U; i < APP_STORAGE_FAULT_PRE_SAMPLES; i++) {

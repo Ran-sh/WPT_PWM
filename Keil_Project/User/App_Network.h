@@ -25,13 +25,9 @@ typedef enum {
 
 /** @brief 启动联网 (非阻塞, 立即返回) */
 uint8_t App_Network_Start_Connect(void);
-/** @brief 软复位状态机 (进入无WIFI模式时调用, 仅复位网络状态) */
-uint8_t App_Network_Soft_Reset(void);
-
 /** @brief 获取连接状态 (0=空闲 1=WiFi 2=MQTT 3=在线 4=被动离线 5=主动离线) */
 uint8_t App_Network_Get_Connect_Status(void);
 uint8_t App_Network_Get_Retry_Count(void);
-uint8_t App_Network_Is_Connected(void);
 /** @brief 是否处于离线状态 (被动或主动) */
 uint8_t App_Network_Is_Offline(void);
 /** @brief 用户手动触发连接 (从主动离线恢复) */
