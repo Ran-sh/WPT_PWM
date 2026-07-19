@@ -709,7 +709,24 @@ Write-Check 'Network' 'telemetry mapping covers S=0/1/2/3' `
     (($networkC -match 'SYS_STATE_IDLE') -and ($networkC -match 'SYS_STATE_SWEEP') -and
      ($networkC -match 'SYS_STATE_RUNNING') -and ($networkC -match 'SYS_STATE_FAULT') -and
      ($networkC -match 'return\s+0U') -and ($networkC -match 'return\s+1U') -and
-     ($networkC -match 'return\s+2U') -and ($networkC -match 'return\s+3U'))
+      ($networkC -match 'return\s+2U') -and ($networkC -match 'return\s+3U'))
+Write-Check 'Network' 'ONLINE telemetry is independent of the current UI page' `
+    (($networkC -notmatch 'allow_telemetry') -and
+     ($networkC -notmatch 'Ui_Controller_Get_Page\s*\(') -and
+     ($networkC -match 's_conn_state\s*==\s*APP_NETWORK_CONN_ONLINE'))
+Write-Check 'Network' 'telemetry uses display-filtered voltage and current' `
+    (($networkC -match 'Adc_Driver_Get_Display_Voltage\s*\(') -and
+     ($networkC -match 'Adc_Driver_Get_Display_Current\s*\('))
+Write-Check 'Network' 'frequency is live only in SWEEP and RUNNING' `
+    (($networkC -match 'state\s*==\s*SYS_STATE_SWEEP') -and
+     ($networkC -match 'state\s*==\s*SYS_STATE_RUNNING') -and
+     ($networkC -match 'frequency_hz\s*=\s*0U') -and
+     ($networkC -match 'frequency_hz\s*=\s*Pwm_Driver_Get_Frequency\s*\('))
+Write-Check 'Network' 'telemetry period advances only after successful enqueue' `
+    ($networkC -match 'Esp8266_Driver_Send_String\s*\(\s*json_buf\s*\)\s*==\s*ESP8266_DRIVER_TX_OK[\s\S]{0,160}last_telemetry\s*=')
+Write-Check 'Network' 'remote ON and OFF remain idempotent through unified control' `
+    (($networkC -match 'CMD:ON[\s\S]{0,500}INVERTER_CONTROL_SS_STATE_IDLE[\s\S]{0,300}Sys_Core_Request_Start') -and
+     ($networkC -match 'CMD:OFF[\s\S]{0,500}INVERTER_CONTROL_SS_STATE_SWEEP[\s\S]{0,400}Sys_Core_Request_Stop'))
 
 Write-Check 'Scheduler' 'main dispatches through Sys_Core getter' `
     (($mainC -match 'Sys_Core_Get_State\s*\(') -and ($mainC -notmatch '\bg_sys_state\b'))

@@ -57,6 +57,22 @@ static uint32_t               s_connect_start = 0;
 static int8_t                 s_rssi          = -100;
 static uint32_t               s_last_esp_ms   = 0;
 
+static uint8_t App_Network_Map_Telemetry_State(Sys_State state)
+{
+    switch (state) {
+        case SYS_STATE_SWEEP:
+            return 1U;
+        case SYS_STATE_RUNNING:
+            return 2U;
+        case SYS_STATE_FAULT:
+            return 3U;
+        case SYS_STATE_INIT:
+        case SYS_STATE_IDLE:
+        default:
+            return 0U;
+    }
+}
+
 uint8_t App_Network_Start_Connect(void)
 {
     s_conn_state    = APP_NETWORK_CONN_WIFI;
@@ -324,41 +340,36 @@ void App_Network_Task(void)
     /* ── 遥测发送 ── */
     {
         static uint32_t last_telemetry = 0;
+        uint32_t now;
+        uint32_t frequency_hz;
+        Sys_State state;
+        uint8_t protocol_state;
+        char json_buf[80];
+        int written;
 
-        if (Sys_Timer_Get_Tick() - last_telemetry >= APP_NETWORK_TELEMETRY_PERIOD_MS) {
-            last_telemetry = Sys_Timer_Get_Tick();
-
-            uint8_t allow_telemetry = 1;
-
-            if (s_conn_state != APP_NETWORK_CONN_ONLINE) allow_telemetry = 0;
-            {
-                Ui_Page page = Ui_Controller_Get_Page();
-                if (page == UI_PAGE_MAIN_MENU || page == UI_PAGE_MONITOR_SUB_MENU
-                    || page == UI_PAGE_WIFI_SETUP || page == UI_PAGE_SWEEP
-                    || page == UI_PAGE_FAULT)
-                    allow_telemetry = 0;
+        now = Sys_Timer_Get_Tick();
+        if ((s_conn_state == APP_NETWORK_CONN_ONLINE) &&
+            (now - last_telemetry >= APP_NETWORK_TELEMETRY_PERIOD_MS)) {
+            state = Sys_Core_Get_State();
+            frequency_hz = 0U;
+            if ((state == SYS_STATE_SWEEP) ||
+                (state == SYS_STATE_RUNNING)) {
+                frequency_hz = Pwm_Driver_Get_Frequency();
             }
-
-            Inverter_Control_Soft_Start_State ss = Inverter_Control_Soft_Start_Get_State();
-            if (ss == INVERTER_CONTROL_SS_STATE_SWEEP)       allow_telemetry = 0;
-
-            if (allow_telemetry) {
-                char json_buf[80];
-                int written;
-                written = snprintf(json_buf, sizeof(json_buf),
-                         "{\"V\":%.2f,\"I\":%.3f,\"F\":%lu,\"S\":%d}\n",
-                         (double)Sys_Safety_Get_EMA_Voltage(),
-                         (double)Sys_Safety_Get_EMA_Current(),
-                         (ss == INVERTER_CONTROL_SS_STATE_DONE)
-                            ? (unsigned long)Pwm_Driver_Get_Frequency()
-                            : 0UL,
-                         (int)Sys_Core_Get_State());  /* 临时原始状态值, 后续协议映射统一 */
-                if (written > 0 && (uint16_t)written < sizeof(json_buf)) {
-                    if (Esp8266_Driver_Send_String(json_buf) !=
-                        ESP8266_DRIVER_TX_OK) {
-                        last_telemetry -= APP_NETWORK_TELEMETRY_PERIOD_MS;
-                    }
+            protocol_state = App_Network_Map_Telemetry_State(state);
+            written = snprintf(json_buf, sizeof(json_buf),
+                     "{\"V\":%.2f,\"I\":%.3f,\"F\":%lu,\"S\":%u}\n",
+                     (double)Adc_Driver_Get_Display_Voltage(),
+                     (double)Adc_Driver_Get_Display_Current(),
+                     (unsigned long)frequency_hz,
+                     (unsigned int)protocol_state);
+            if ((written > 0) && ((uint16_t)written < sizeof(json_buf))) {
+                if (Esp8266_Driver_Send_String(json_buf) ==
+                    ESP8266_DRIVER_TX_OK) {
+                    last_telemetry = now;
                 }
+            } else {
+                last_telemetry = now;
             }
         }
     }
