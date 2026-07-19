@@ -2,7 +2,7 @@ param(
     [ValidateSet('All', 'Baseline', 'Checksum', 'Pwm', 'Safety', 'Adc',
                  'AdcTrigger', 'AdcFilter', 'AdcCal',
                  'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
-                 'Storage', 'Keys', 'Ui', 'Network', 'Scheduler',
+                 'Storage', 'StorageConfig', 'Blackbox', 'Keys', 'Ui', 'Network', 'Scheduler',
                  'Version', 'Build')]
     [string]$Scope = 'All'
 )
@@ -429,15 +429,33 @@ Write-Check 'Spi' 'TFT reset delays use the millisecond timebase' `
 Write-Check 'Spi' 'LED startup self-test is an exact 500ms delay' `
     ($ledC -match 'Sys_Timer_Delay_Ms\s*\(\s*500U?\s*\)')
 
-Write-Check 'Storage' 'blackbox log record is fixed at 12 bytes' `
+Write-Check 'Blackbox' 'blackbox log record is fixed at 12 bytes' `
     (($appStorageH -match '#define\s+BLACKBOX_ENTRY_SIZE\s+12U') -and
      ($appStorageH -match 'sizeof\s*\(\s*App_Storage_Log_Entry\s*\)\s*==\s*12U'))
-Write-Check 'Storage' 'blackbox V2 partition addresses are complete' `
+Write-Check 'Blackbox' 'blackbox V2 partition addresses are complete' `
     (($appStorageH -match '0x310000') -and ($appStorageH -match '0x311000') -and
      ($appStorageH -match '0x312000') -and ($appStorageH -match '0x6D0000') -and
      ($appStorageH -match '0x710000'))
-Write-Check 'Storage' 'config save uses background request API' `
+Write-Check 'StorageConfig' 'config save uses background request API' `
     (Test-Contains $appStorageH '\bApp_Storage_Request_Save_Config\s*\(')
+Write-Check 'StorageConfig' 'storage exposes task and result state' `
+    ((Test-Contains $appStorageH '\bApp_Storage_Task\s*\(') -and
+     (Test-Contains $appStorageH '\bApp_Storage_Get_Last_Result\s*\(') -and
+     ($appStorageH -match 'APP_STORAGE_RESULT_PENDING') -and
+     ($appStorageC -match 's_config_save_pending'))
+Write-Check 'StorageConfig' 'config defaults clear the full structure first' `
+    ($appStorageC -match 'memset\s*\(\s*cfg\s*,\s*0\s*,\s*sizeof\s*\(\s*\*cfg\s*\)\s*\)')
+Write-Check 'StorageConfig' 'A and B copies are read back and CRC verified' `
+    (($appStorageC -match 'App_Storage_Verify_Config_Copy') -and
+     ($appStorageC -match 'W25Q_ADDR_CFG_A[\s\S]*App_Storage_Verify_Config_Copy\s*\(\s*W25Q_ADDR_CFG_A') -and
+     ($appStorageC -match 'W25Q_ADDR_CFG_B[\s\S]*App_Storage_Verify_Config_Copy\s*\(\s*W25Q_ADDR_CFG_B'))
+Write-Check 'StorageConfig' 'pending save clears only after both copies verify' `
+    ($appStorageC -match 'if\s*\(\s*result\s*==\s*APP_STORAGE_RESULT_OK\s*\)[\s\S]*s_config_save_pending\s*=\s*0U')
+Write-Check 'StorageConfig' 'IDLE scheduler runs storage task' `
+    ($sysCoreC -match 'void\s+Sys_Run_Idle\s*\([^)]*\)[\s\S]*App_Storage_Task\s*\(')
+Write-Check 'StorageConfig' 'UI settings save only requests persistence' `
+    (($uiC -notmatch '\bApp_Storage_Save_Settings\s*\(') -and
+     ($uiC -match '\bApp_Storage_Request_Save_Settings\s*\('))
 
 Write-Check 'Keys' 'key capabilities split DOUBLE and LONG' `
     (($keyH -match 'KEY_DRIVER_CFG_DOUBLE_ENABLE') -and

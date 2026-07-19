@@ -1724,9 +1724,9 @@ static void Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
     /* BACK -> main menu + flush settings to Flash if dirty */
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         if (s_settings_dirty) {
-            App_Storage_Save_Settings(s_language, 0, s_bl_user_val,
-                                      s_letter_spacing, sc_preset,
-                                      s_color_fg, s_color_bg);
+            App_Storage_Request_Save_Settings(s_language, 0, s_bl_user_val,
+                                              s_letter_spacing, sc_preset,
+                                              s_color_fg, s_color_bg);
             /* V4.5.2: restore BL from user pref */
             s_backlight_val = (uint8_t)((s_bl_user_val * 255 + 50) / 100);
             Tft_Driver_Set_Backlight(s_backlight_val);

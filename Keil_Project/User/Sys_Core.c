@@ -467,9 +467,7 @@ void Sys_Run_Idle(void)
     Adc_Driver_Filter_Task();
     App_Network_Task();
     Sys_Safety_Task();
-    if (Sys_Core_Is_Power_Enabled() == 0U) {
-        App_Storage_Save_Pending_ADC_Calibration();
-    }
+    App_Storage_Task();
     IWDG_ReloadCounter();
     __WFI();
 }

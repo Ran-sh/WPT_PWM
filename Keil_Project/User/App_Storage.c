@@ -35,15 +35,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define APP_STORAGE_RETRY_MS  1000U
+
 /* ── 黑匣子运行时状态 ── */
 static uint32_t s_log_wr_ptr  = 0;       /* 当前写偏移 (相对 BLACKBOX 基址) */
 static uint32_t s_log_seq     = 0;       /* 总写入条数 */
 static uint32_t s_log_wrapped = 0;       /* 循环次数 */
 static uint32_t s_fault_lock_addr = 0;   /* 故障锁存区写入地址 */
 static uint32_t s_log_last_save = 0;     /* 上次写回 Block 0 时的 s_log_seq */
-static uint8_t s_adc_cal_save_pending = 0U;
-static float s_pending_i_offset = 1.65f;
-static float s_pending_v_gain = 1.0f;
+static App_Storage_Config s_pending_config;
+static uint8_t s_config_save_pending = 0U;
+static uint8_t s_config_save_attempted = 0U;
+static uint32_t s_config_save_last_attempt = 0U;
+static App_Storage_Result s_storage_last_result = APP_STORAGE_RESULT_OK;
 
 /* V4.5.2: Blackbox_Save_Header — 每 60 条日志写回一次指针到 Block 0,
  *   防止重启后丢失全部历史数据. 不每帧写 (减少 Flash 磨损). */
@@ -66,11 +70,9 @@ static void Blackbox_Save_Header(void)
 /** @brief 安全默认出厂值 — V4.5.2: BL 1-100%, font 小号, letter_spacing 0 */
 static void App_Storage_Defaults(App_Storage_Config *cfg)
 {
-    uint8_t i;
+    memset(cfg, 0, sizeof(*cfg));
     cfg->magic     = CFG_MAGIC;
     cfg->version   = CFG_VERSION;
-    for (i = 0; i < 32; i++) cfg->ssid[i] = 0;
-    for (i = 0; i < 64; i++) { cfg->password[i] = 0; cfg->mqtt_key[i] = 0; }
     cfg->adc_i_offset  = 0.0f;
     cfg->adc_v_gain    = 1.0f;
     cfg->freq_trim_hz = 0;
@@ -84,84 +86,147 @@ static void App_Storage_Defaults(App_Storage_Config *cfg)
     cfg->color_bg      = 0x0000;
 }
 
-uint8_t App_Storage_Load_Config(App_Storage_Config *cfg)
+static uint8_t App_Storage_Is_Config_Valid(const App_Storage_Config *cfg)
 {
-    uint32_t stored_crc, computed_crc;
+    uint32_t computed_crc;
 
-    if (cfg == 0) return 0;
-
-    /* 读 A */
-    W25Q_Driver_Read(W25Q_ADDR_CFG_A, (uint8_t*)cfg, sizeof(App_Storage_Config));
-    if (cfg->magic == CFG_MAGIC && cfg->version == CFG_VERSION) {
-        W25Q_Driver_Read(W25Q_ADDR_CFG_A + sizeof(App_Storage_Config) - 4,
-                         (uint8_t*)&stored_crc, 4);
-        computed_crc = Checksum_CRC32((uint8_t*)cfg, sizeof(App_Storage_Config) - 4);
-        if (stored_crc == computed_crc) return 1;            /* A 完好 */
-    }
-
-    /* A 坏 → 读 B */
-    W25Q_Driver_Read(W25Q_ADDR_CFG_B, (uint8_t*)cfg, sizeof(App_Storage_Config));
-    if (cfg->magic == CFG_MAGIC && cfg->version == CFG_VERSION) {
-        W25Q_Driver_Read(W25Q_ADDR_CFG_B + sizeof(App_Storage_Config) - 4,
-                         (uint8_t*)&stored_crc, 4);
-        computed_crc = Checksum_CRC32((uint8_t*)cfg, sizeof(App_Storage_Config) - 4);
-        if (stored_crc == computed_crc) return 1;            /* B 完好 */
-    }
-
-    /* 全坏 → 出厂安全默认 */
-    App_Storage_Defaults(cfg);
-    return 0;
+    if (cfg->magic != CFG_MAGIC || cfg->version != CFG_VERSION) return 0U;
+    computed_crc = Checksum_CRC32((const uint8_t *)cfg,
+                                  sizeof(App_Storage_Config) - 4U);
+    return (cfg->crc32 == computed_crc) ? 1U : 0U;
 }
 
-void App_Storage_Save_Config(const App_Storage_Config *cfg)
+uint8_t App_Storage_Load_Config(App_Storage_Config *cfg)
 {
-    App_Storage_Config tmp;
-    uint32_t crc;
-    if (cfg == 0) return;
-    tmp = *cfg;  /* 栈拷贝, 不修改原始 */
-    tmp.magic   = CFG_MAGIC;
-    tmp.version = CFG_VERSION;
-    crc = Checksum_CRC32((uint8_t*)&tmp, sizeof(App_Storage_Config) - 4);
-    tmp.crc32 = crc;
+    if (cfg == 0) return 0U;
 
-    /* 写 A → 写 B (顺序写入, 保持至少 1 份有效) */
-    W25Q_Driver_Erase_Sector(W25Q_ADDR_CFG_A);
-    W25Q_Driver_Write_Page(W25Q_ADDR_CFG_A, (uint8_t*)&tmp, sizeof(App_Storage_Config));
+    memset(cfg, 0, sizeof(*cfg));
+    if (W25Q_Driver_Read(W25Q_ADDR_CFG_A, (uint8_t *)cfg,
+                         sizeof(*cfg)) == W25Q_DRIVER_RESULT_OK &&
+        App_Storage_Is_Config_Valid(cfg) != 0U) return 1U;
 
-    W25Q_Driver_Erase_Sector(W25Q_ADDR_CFG_B);
-    W25Q_Driver_Write_Page(W25Q_ADDR_CFG_B, (uint8_t*)&tmp, sizeof(App_Storage_Config));
+    memset(cfg, 0, sizeof(*cfg));
+    if (W25Q_Driver_Read(W25Q_ADDR_CFG_B, (uint8_t *)cfg,
+                         sizeof(*cfg)) == W25Q_DRIVER_RESULT_OK &&
+        App_Storage_Is_Config_Valid(cfg) != 0U) return 1U;
+
+    App_Storage_Defaults(cfg);
+    return 0U;
+}
+
+void App_Storage_Request_Save_Config(const App_Storage_Config *cfg)
+{
+    if (cfg == 0) {
+        s_storage_last_result = APP_STORAGE_RESULT_INVALID_ARGUMENT;
+        return;
+    }
+
+    s_pending_config = *cfg;
+    s_pending_config.magic = CFG_MAGIC;
+    s_pending_config.version = CFG_VERSION;
+    s_pending_config.crc32 = Checksum_CRC32(
+        (const uint8_t *)&s_pending_config,
+        sizeof(App_Storage_Config) - 4U);
+    s_config_save_pending = 1U;
+    s_config_save_attempted = 0U;
+    s_storage_last_result = APP_STORAGE_RESULT_PENDING;
+}
+
+static App_Storage_Result App_Storage_Verify_Config_Copy(
+    uint32_t addr, const App_Storage_Config *expected)
+{
+    App_Storage_Config actual;
+
+    memset(&actual, 0, sizeof(actual));
+    if (W25Q_Driver_Read(addr, (uint8_t *)&actual, sizeof(actual)) !=
+        W25Q_DRIVER_RESULT_OK) return APP_STORAGE_RESULT_READ_FAILED;
+    if (App_Storage_Is_Config_Valid(&actual) == 0U ||
+        memcmp(&actual, expected, sizeof(actual)) != 0) {
+        return APP_STORAGE_RESULT_VERIFY_FAILED;
+    }
+    return APP_STORAGE_RESULT_OK;
+}
+
+static App_Storage_Result App_Storage_Write_Config_Copy(
+    uint32_t addr, const App_Storage_Config *cfg)
+{
+    if (W25Q_Driver_Erase_Sector(addr) != W25Q_DRIVER_RESULT_OK) {
+        return APP_STORAGE_RESULT_ERASE_FAILED;
+    }
+    if (W25Q_Driver_Write(addr, (const uint8_t *)cfg, sizeof(*cfg)) !=
+        W25Q_DRIVER_RESULT_OK) return APP_STORAGE_RESULT_WRITE_FAILED;
+    return APP_STORAGE_RESULT_OK;
+}
+
+void App_Storage_Task(void)
+{
+    App_Storage_Result result;
+    uint32_t now;
+
+    if (s_config_save_pending == 0U) return;
+    now = Sys_Timer_Get_Tick();
+    if (s_config_save_attempted != 0U &&
+        (uint32_t)(now - s_config_save_last_attempt) < APP_STORAGE_RETRY_MS) return;
+    s_config_save_attempted = 1U;
+    s_config_save_last_attempt = now;
+    if (W25Q_Driver_Is_Available() == 0U) {
+        s_storage_last_result = APP_STORAGE_RESULT_NO_DEVICE;
+        return;
+    }
+
+    result = App_Storage_Write_Config_Copy(W25Q_ADDR_CFG_A,
+                                           &s_pending_config);
+    if (result == APP_STORAGE_RESULT_OK) {
+        result = App_Storage_Verify_Config_Copy(W25Q_ADDR_CFG_A,
+                                                &s_pending_config);
+    }
+    if (result == APP_STORAGE_RESULT_OK) {
+        result = App_Storage_Write_Config_Copy(W25Q_ADDR_CFG_B,
+                                               &s_pending_config);
+    }
+    if (result == APP_STORAGE_RESULT_OK) {
+        result = App_Storage_Verify_Config_Copy(W25Q_ADDR_CFG_B,
+                                                &s_pending_config);
+    }
+
+    s_storage_last_result = result;
+    if (result == APP_STORAGE_RESULT_OK) {
+        s_config_save_pending = 0U;
+        s_config_save_attempted = 0U;
+    }
+}
+
+App_Storage_Result App_Storage_Get_Last_Result(void)
+{
+    return s_storage_last_result;
+}
+
+uint8_t App_Storage_Is_Save_Pending(void)
+{
+    return s_config_save_pending;
 }
 
 void App_Storage_Request_Save_ADC_Calibration(float i_offset, float v_gain)
 {
-    if (i_offset <= 0.5f || i_offset >= 2.8f) return;
-    if (v_gain <= 0.0f || v_gain > 10.0f) v_gain = 1.0f;
-    s_pending_i_offset = i_offset;
-    s_pending_v_gain = v_gain;
-    s_adc_cal_save_pending = 1U;
-}
-
-void App_Storage_Save_Pending_ADC_Calibration(void)
-{
     App_Storage_Config cfg;
 
-    if (s_adc_cal_save_pending == 0U) return;
-    if (g_w25q_jedec_id != W25Q_JEDEC_ID) return;
-
-    if (App_Storage_Load_Config(&cfg) == 0U) {
+    if (i_offset <= 0.5f || i_offset >= 2.8f) return;
+    if (v_gain <= 0.0f || v_gain > 10.0f) v_gain = 1.0f;
+    if (s_config_save_pending != 0U) {
+        cfg = s_pending_config;
+    } else if (App_Storage_Load_Config(&cfg) == 0U) {
         App_Storage_Defaults(&cfg);
     }
-    cfg.adc_i_offset = s_pending_i_offset;
-    cfg.adc_v_gain = s_pending_v_gain;
-    App_Storage_Save_Config(&cfg);
-    s_adc_cal_save_pending = 0U;
+    cfg.adc_i_offset = i_offset;
+    cfg.adc_v_gain = v_gain;
+    App_Storage_Request_Save_Config(&cfg);
 }
 
 void App_Storage_Write_Factory_Defaults(void)
 {
     App_Storage_Config defs;
     App_Storage_Defaults(&defs);
-    App_Storage_Save_Config(&defs);
+    App_Storage_Request_Save_Config(&defs);
 }
 
 /* ═══════════════════════════════════════════════
@@ -191,12 +256,14 @@ void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
     }
 }
 
-void App_Storage_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
-                                uint8_t spacing, uint8_t preset,
-                                uint16_t fg, uint16_t bg)
+void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
+                                       uint8_t spacing, uint8_t preset,
+                                       uint16_t fg, uint16_t bg)
 {
     App_Storage_Config cfg;
-    if (App_Storage_Load_Config(&cfg) == 0) {
+    if (s_config_save_pending != 0U) {
+        cfg = s_pending_config;
+    } else if (App_Storage_Load_Config(&cfg) == 0U) {
         App_Storage_Defaults(&cfg);
     }
     cfg.language       = lang;
@@ -206,7 +273,7 @@ void App_Storage_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
     cfg.color_preset   = preset;
     cfg.color_fg       = fg;
     cfg.color_bg       = bg;
-    App_Storage_Save_Config(&cfg);
+    App_Storage_Request_Save_Config(&cfg);
 }
 
 /* ═══════════════════════════════════════════════

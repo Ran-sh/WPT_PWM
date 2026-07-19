@@ -54,6 +54,17 @@ typedef struct {
     uint32_t crc32;          /* 4B  CRC32 (不含自身) */
 } App_Storage_Config;         /* 总计 196B (V4.5.2实测); 远在 4KB 扇区/256B 页内 */
 
+typedef enum {
+    APP_STORAGE_RESULT_OK = 0,
+    APP_STORAGE_RESULT_PENDING,
+    APP_STORAGE_RESULT_INVALID_ARGUMENT,
+    APP_STORAGE_RESULT_NO_DEVICE,
+    APP_STORAGE_RESULT_READ_FAILED,
+    APP_STORAGE_RESULT_ERASE_FAILED,
+    APP_STORAGE_RESULT_WRITE_FAILED,
+    APP_STORAGE_RESULT_VERIFY_FAILED
+} App_Storage_Result;
+
 /* ══ 公开接口 ══ */
 
 /** @brief 上电初始化: 恢复黑匣子写指针 */
@@ -63,14 +74,20 @@ void App_Storage_Init(void);
 /** @brief 上电加载配置: A→B→出厂默认 三级回退, 返回 0=用了默认 */
 uint8_t App_Storage_Load_Config(App_Storage_Config *cfg);
 
-/** @brief 保存配置: 写A→验A CRC→写B (回路上电时加载A优先) */
-void App_Storage_Save_Config(const App_Storage_Config *cfg);
+/** @brief Copy configuration to RAM and request deferred verified persistence. */
+void App_Storage_Request_Save_Config(const App_Storage_Config *cfg);
+
+/** @brief Execute one pending verified save; call only from the IDLE scheduler. */
+void App_Storage_Task(void);
+
+/** @brief Return the latest configuration persistence result. */
+App_Storage_Result App_Storage_Get_Last_Result(void);
+
+/** @brief Return one while a configuration save is pending or retryable. */
+uint8_t App_Storage_Is_Save_Pending(void);
 
 /** @brief 挂起ADC校准保存请求，不在调用栈中擦写Flash */
 void App_Storage_Request_Save_ADC_Calibration(float i_offset, float v_gain);
-/** @brief 在IDLE且PB10关闭时执行挂起的ADC校准保存 */
-void App_Storage_Save_Pending_ADC_Calibration(void);
-
 /** @brief 写入出厂安全默认值 (所有字段归零/安全值) */
 void App_Storage_Write_Factory_Defaults(void);
 
@@ -93,9 +110,9 @@ uint8_t Blackbox_Read_Entry(uint32_t index, Blackbox_Entry_Packed *out);
 void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
                                 uint8_t* spacing, uint8_t* preset,
                                 uint16_t* fg, uint16_t* bg);
-/** @brief 保存设置参数 */
-void App_Storage_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
-                                uint8_t spacing, uint8_t preset,
-                                uint16_t fg, uint16_t bg);
+/** @brief Request deferred persistence of UI settings. */
+void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
+                                       uint8_t spacing, uint8_t preset,
+                                       uint16_t fg, uint16_t bg);
 
 #endif /* APP_STORAGE_H */
