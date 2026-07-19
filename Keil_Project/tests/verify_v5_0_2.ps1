@@ -432,10 +432,23 @@ Write-Check 'Spi' 'LED startup self-test is an exact 500ms delay' `
 Write-Check 'Blackbox' 'blackbox log record is fixed at 12 bytes' `
     (($appStorageH -match '#define\s+BLACKBOX_ENTRY_SIZE\s+12U') -and
      ($appStorageH -match 'sizeof\s*\(\s*App_Storage_Log_Entry\s*\)\s*==\s*12U'))
+Write-Check 'Blackbox' 'blackbox CRC8 covers exactly the first 11 bytes' `
+    ($appStorageC -match 'Checksum_CRC8\s*\([^,]+,\s*11U\s*\)')
 Write-Check 'Blackbox' 'blackbox V2 partition addresses are complete' `
     (($appStorageH -match '0x310000') -and ($appStorageH -match '0x311000') -and
      ($appStorageH -match '0x312000') -and ($appStorageH -match '0x6D0000') -and
      ($appStorageH -match '0x710000'))
+Write-Check 'Blackbox' 'V2 metadata and fault headers are self-describing' `
+    (($appStorageH -match 'App_Storage_Blackbox_Metadata') -and
+     ($appStorageH -match 'App_Storage_Fault_Header') -and
+     ($appStorageH -match 'magic') -and ($appStorageH -match 'version') -and
+     ($appStorageH -match 'size') -and ($appStorageH -match 'crc32') -and
+     ($appStorageC -match 'memset\s*\([^;]+sizeof\([^;]+\)'))
+Write-Check 'Blackbox' 'migration keeps config partitions and rejects V1 pointers' `
+    ((($appStorageH -match 'W25Q_ADDR_CFG_A|APP_STORAGE_CFG_A') -or
+      (($w25H -match 'W25Q_ADDR_CFG_A\s+0x300000') -and
+       ($w25H -match 'W25Q_ADDR_CFG_B\s+0x301000'))) -and
+     ($appStorageC -notmatch 'ptr_buf\s*\[\s*3\s*\]'))
 Write-Check 'StorageConfig' 'config save uses background request API' `
     (Test-Contains $appStorageH '\bApp_Storage_Request_Save_Config\s*\(')
 Write-Check 'StorageConfig' 'storage exposes task and result state' `

@@ -38,30 +38,13 @@
 #define APP_STORAGE_RETRY_MS  1000U
 
 /* ── 黑匣子运行时状态 ── */
-static uint32_t s_log_wr_ptr  = 0;       /* 当前写偏移 (相对 BLACKBOX 基址) */
-static uint32_t s_log_seq     = 0;       /* 总写入条数 */
-static uint32_t s_log_wrapped = 0;       /* 循环次数 */
-static uint32_t s_fault_lock_addr = 0;   /* 故障锁存区写入地址 */
-static uint32_t s_log_last_save = 0;     /* 上次写回 Block 0 时的 s_log_seq */
+static App_Storage_Blackbox_Metadata s_blackbox_metadata;
+static uint8_t s_blackbox_v2_ready = 0U;
 static App_Storage_Config s_pending_config;
 static uint8_t s_config_save_pending = 0U;
 static uint8_t s_config_save_attempted = 0U;
 static uint32_t s_config_save_last_attempt = 0U;
 static App_Storage_Result s_storage_last_result = APP_STORAGE_RESULT_OK;
-
-/* V4.5.2: Blackbox_Save_Header — 每 60 条日志写回一次指针到 Block 0,
- *   防止重启后丢失全部历史数据. 不每帧写 (减少 Flash 磨损). */
-static void Blackbox_Save_Header(void)
-{
-    uint32_t ptr_buf[3];
-    if (s_log_seq - s_log_last_save < 60) return;  /* 未到 60 条, 跳过 */
-    s_log_last_save = s_log_seq;
-    ptr_buf[0] = s_log_wr_ptr;
-    ptr_buf[1] = s_fault_lock_addr;
-    ptr_buf[2] = s_log_wrapped;
-    W25Q_Driver_Erase_Sector(W25Q_ADDR_BLACKBOX);              /* Block 0 头 4KB */
-    W25Q_Driver_Write_Page(W25Q_ADDR_BLACKBOX, (uint8_t*)ptr_buf, 12);
-}
 
 /* ═══════════════════════════════════════════════
  *  参数配置 (P3) — 双副本 CRC32 闭锁
@@ -282,120 +265,145 @@ void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
 
 /** @brief Pack: float params → 14B compact binary */
 static void Blackbox_Pack(float v, float i, uint16_t freq, uint8_t state,
-                          Blackbox_Entry_Packed *out)
+                          App_Storage_Log_Entry *out)
 {
+    memset(out, 0, sizeof(*out));
+    if (v < 0.0f) v = 0.0f;
+    if (i < 0.0f) i = 0.0f;
+    if (v > 655.35f) v = 655.35f;
+    if (i > 65.535f) i = 65.535f;
     out->timestamp = Sys_Timer_Get_Tick();
-    out->v_ema     = (uint16_t)(v * 100.0f  + 0.5f);        /* V ×100 */
-    out->i_ema     = (uint16_t)(i * 1000.0f + 0.5f);        /* I ×1000 */
-    out->freq_hz   = freq;
-    out->sys_state = state;
-    out->crc8      = Checksum_CRC8((uint8_t*)out, 12);       /* 前12B */
+    out->voltage_x100 = (uint16_t)(v * 100.0f + 0.5f);
+    out->current_x1000 = (uint16_t)(i * 1000.0f + 0.5f);
+    out->frequency_hz = freq;
+    out->system_state = state;
+    out->crc8 = Checksum_CRC8((const uint8_t *)out, 11U);
 }
 
 void Blackbox_Log_Tick(float v, float i, uint16_t freq, uint8_t state)
 {
-    uint32_t addr, pos_in_page;
-    Blackbox_Entry_Packed entry;
+    uint32_t addr;
+    uint32_t pos_in_page;
+    App_Storage_Log_Entry entry;
+
+    if (s_blackbox_v2_ready == 0U) return;
 
     Blackbox_Pack(v, i, freq, state, &entry);
 
-    /* Page Program 跨页保护 */
-    addr = W25Q_ADDR_BLACKBOX + s_log_wr_ptr;
+    addr = s_blackbox_metadata.write_addr;
     pos_in_page = addr & (W25Q_PAGE_SIZE - 1U);
     if (pos_in_page + BLACKBOX_ENTRY_SIZE > W25Q_PAGE_SIZE) {
-        /* 跨页 → 跳到下页头部 */
-        s_log_wr_ptr = (s_log_wr_ptr & ~(W25Q_PAGE_SIZE - 1U)) + W25Q_PAGE_SIZE;
+        addr = (addr & ~(W25Q_PAGE_SIZE - 1U)) + W25Q_PAGE_SIZE;
     }
-    /* 循环回绕 */
-    if (s_log_wr_ptr >= (W25Q_ADDR_BLACKBOX_END - W25Q_ADDR_BLACKBOX -
-                         (BLACKBOX_LOCK_BLOCKS * 65536U))) {
-        s_log_wr_ptr = 256U;  /* 跳过 Block 0 头部, 回到 Block 1 */
-        s_log_wrapped++;
+    if (addr + BLACKBOX_ENTRY_SIZE > APP_STORAGE_FAULT_START_ADDR) {
+        addr = APP_STORAGE_LOG_START_ADDR;
+        s_blackbox_metadata.wrap_count++;
     }
-    addr = W25Q_ADDR_BLACKBOX + s_log_wr_ptr;
 
-    W25Q_Driver_Write_Page(addr, (uint8_t*)&entry, BLACKBOX_ENTRY_SIZE);
-    s_log_wr_ptr += BLACKBOX_ENTRY_SIZE;
-    s_log_seq++;
-
-    /* V4.5.2: 每 60 条写回指针到 Block 0, 重启后可恢复 */
-    Blackbox_Save_Header();
+    if (W25Q_Driver_Write(addr, (const uint8_t *)&entry,
+                          sizeof(entry)) == W25Q_DRIVER_RESULT_OK) {
+        s_blackbox_metadata.write_addr = addr + sizeof(entry);
+        s_blackbox_metadata.entry_count++;
+    } else {
+        s_blackbox_metadata.dropped_count++;
+    }
 }
 
 void Blackbox_Lock_Fault_Snapshot(void)
 {
-    uint32_t i, lock_addr;
+    App_Storage_Fault_Header header;
 
-    /* 在锁存保护区分配一个新块 (每块 64KB = 4680 条) */
-    lock_addr = W25Q_ADDR_BLACKBOX_END -
-                (BLACKBOX_LOCK_BLOCKS * 65536U) +
-                (s_fault_lock_addr % (BLACKBOX_LOCK_BLOCKS * 65536U));
-
-    /* V4.5.2: 擦除目标扇区 (4KB) + 跨页保护扇区.
-     *   50条×14B=700B, 锁存地址若靠近扇区末尾可能跨页, 多擦一个扇区保安全. */
-    {
-        uint32_t sec_start = lock_addr & ~(4096U - 1U);
-        W25Q_Driver_Erase_Sector(sec_start);                     /* 主扇区 (L4: FAULT 放行) */
-        if ((lock_addr & 4095U) + 50U * BLACKBOX_ENTRY_SIZE > 4096U) {
-            W25Q_Driver_Erase_Sector(sec_start + 4096U);         /* 跨页: 擦下一扇区 */
-        }
-    }
-
-    /* 前5s+后5s 数据: 从循环日志区拷贝 (实际实现: 读→写锁存区) */
-    for (i = 0; i < 50U && i < s_log_seq; i++) {
-        uint32_t src_idx; Blackbox_Entry_Packed tmp_entry;
-        if (i < 25U) src_idx = (s_log_seq > 50U) ? s_log_seq - 50U + i : i;
-        else         src_idx = (s_log_seq > 25U) ? s_log_seq - 25U + (i - 25U) : i;
-        if (Blackbox_Read_Entry(src_idx, &tmp_entry)) {
-            W25Q_Driver_Write_Page(lock_addr + i * BLACKBOX_ENTRY_SIZE,
-                                   (uint8_t*)&tmp_entry, BLACKBOX_ENTRY_SIZE);
-        }
-    }
-    s_fault_lock_addr += BLACKBOX_ENTRY_SIZE * 50U;
+    memset(&header, 0, sizeof(header));
+    header.magic = APP_STORAGE_FAULT_MAGIC;
+    header.version = APP_STORAGE_BLACKBOX_VERSION;
+    header.size = sizeof(header);
+    header.trigger_timestamp = Sys_Timer_Get_Tick();
+    header.data_addr = APP_STORAGE_FAULT_START_ADDR + sizeof(header);
+    header.crc32 = Checksum_CRC32((const uint8_t *)&header,
+                                  sizeof(header) - 4U);
+    (void)header;
 }
 
-uint32_t Blackbox_Get_Entry_Count(void) { return s_log_seq; }
-
-uint8_t Blackbox_Read_Entry(uint32_t index, Blackbox_Entry_Packed *out)
+uint32_t Blackbox_Get_Entry_Count(void)
 {
-    uint32_t addr, effective_start, total_size;
-    if (out == 0 || index >= s_log_seq) return 0;
+    return (s_blackbox_v2_ready != 0U) ?
+           s_blackbox_metadata.entry_count : 0U;
+}
 
-    /* 换行后偏移从 256 开始 (跳过 Block 0 头部), 对齐写指针逻辑 */
-    effective_start = (s_log_wrapped > 0) ? 256U : 0U;
-    total_size = W25Q_ADDR_BLACKBOX_END - W25Q_ADDR_BLACKBOX
-               - (BLACKBOX_LOCK_BLOCKS * 65536U) - effective_start;
-    addr = W25Q_ADDR_BLACKBOX + effective_start +
-           ((index * BLACKBOX_ENTRY_SIZE) % total_size);
-    W25Q_Driver_Read(addr, (uint8_t*)out, BLACKBOX_ENTRY_SIZE);
-    return (out->crc8 == Checksum_CRC8((uint8_t*)out, 12)) ? 1 : 0;
+uint8_t Blackbox_Read_Entry(uint32_t index, App_Storage_Log_Entry *out)
+{
+    uint32_t addr;
+
+    if (out == 0 || s_blackbox_v2_ready == 0U ||
+        index >= s_blackbox_metadata.entry_count) return 0U;
+    addr = APP_STORAGE_LOG_START_ADDR + index * BLACKBOX_ENTRY_SIZE;
+    if (addr + sizeof(*out) > APP_STORAGE_FAULT_START_ADDR) return 0U;
+    if (W25Q_Driver_Read(addr, (uint8_t *)out, sizeof(*out)) !=
+        W25Q_DRIVER_RESULT_OK) return 0U;
+    return (out->crc8 == Checksum_CRC8((const uint8_t *)out, 11U)) ? 1U : 0U;
 }
 
 /* ═══════════════════════════════════════════════
  *  上电自检 (仅 SYS_STATE_INIT 调用一次, ~200ms)
  * ═══════════════════════════════════════════════ */
 
+static uint8_t App_Storage_Is_Metadata_Valid(
+    const App_Storage_Blackbox_Metadata *metadata)
+{
+    uint32_t crc;
+
+    if (metadata->magic != APP_STORAGE_BLACKBOX_MAGIC ||
+        metadata->version != APP_STORAGE_BLACKBOX_VERSION ||
+        metadata->size != sizeof(*metadata) ||
+        metadata->write_addr < APP_STORAGE_LOG_START_ADDR ||
+        metadata->write_addr > APP_STORAGE_FAULT_START_ADDR ||
+        metadata->next_fault_slot >= APP_STORAGE_FAULT_SLOT_COUNT) return 0U;
+    crc = Checksum_CRC32((const uint8_t *)metadata,
+                         sizeof(*metadata) - 4U);
+    return (metadata->crc32 == crc) ? 1U : 0U;
+}
+
+static void App_Storage_Reset_Blackbox_V2(void)
+{
+    memset(&s_blackbox_metadata, 0, sizeof(s_blackbox_metadata));
+    s_blackbox_metadata.magic = APP_STORAGE_BLACKBOX_MAGIC;
+    s_blackbox_metadata.version = APP_STORAGE_BLACKBOX_VERSION;
+    s_blackbox_metadata.size = sizeof(s_blackbox_metadata);
+    s_blackbox_metadata.write_addr = APP_STORAGE_LOG_START_ADDR;
+    s_blackbox_metadata.crc32 = Checksum_CRC32(
+        (const uint8_t *)&s_blackbox_metadata,
+        sizeof(s_blackbox_metadata) - 4U);
+    s_blackbox_v2_ready = 0U;
+}
+
 void App_Storage_Init(void)
 {
-    /* 校验算法异常时禁止解释Flash内容，避免错误CRC放行损坏数据。 */
-    if (Checksum_Self_Test() == 0U) {
-        s_log_wr_ptr = 256U;
-        s_fault_lock_addr = 0U;
-        s_log_wrapped = 0U;
-        return;
-    }
+    App_Storage_Blackbox_Metadata metadata_a;
+    App_Storage_Blackbox_Metadata metadata_b;
+    uint8_t valid_a;
+    uint8_t valid_b;
 
-    /* ── 恢复黑匣子写指针 (从 Block 0 头部读取) ── */
-    {
-        uint32_t ptr_buf[3];
-        W25Q_Driver_Read(W25Q_ADDR_BLACKBOX, (uint8_t*)ptr_buf, 12);
-        s_log_wr_ptr  = ptr_buf[0];
-        s_fault_lock_addr = ptr_buf[1];
-        s_log_wrapped = ptr_buf[2];
-        /* 合法性检查 */
-        if (s_log_wr_ptr < 256U ||
-            s_log_wr_ptr >= (W25Q_ADDR_BLACKBOX_END - W25Q_ADDR_BLACKBOX -
-                             (BLACKBOX_LOCK_BLOCKS * 65536U)))
-            s_log_wr_ptr = 256U;                            /* 非法 → 重置 */
+    App_Storage_Reset_Blackbox_V2();
+    if (Checksum_Self_Test() == 0U ||
+        W25Q_Driver_Is_Available() == 0U) return;
+
+    memset(&metadata_a, 0, sizeof(metadata_a));
+    memset(&metadata_b, 0, sizeof(metadata_b));
+    valid_a = (W25Q_Driver_Read(APP_STORAGE_META_A_ADDR,
+                                (uint8_t *)&metadata_a,
+                                sizeof(metadata_a)) == W25Q_DRIVER_RESULT_OK &&
+               App_Storage_Is_Metadata_Valid(&metadata_a) != 0U) ? 1U : 0U;
+    valid_b = (W25Q_Driver_Read(APP_STORAGE_META_B_ADDR,
+                                (uint8_t *)&metadata_b,
+                                sizeof(metadata_b)) == W25Q_DRIVER_RESULT_OK &&
+               App_Storage_Is_Metadata_Valid(&metadata_b) != 0U) ? 1U : 0U;
+
+    if (valid_a != 0U &&
+        (valid_b == 0U || metadata_a.generation >= metadata_b.generation)) {
+        s_blackbox_metadata = metadata_a;
+        s_blackbox_v2_ready = 1U;
+    } else if (valid_b != 0U) {
+        s_blackbox_metadata = metadata_b;
+        s_blackbox_v2_ready = 1U;
     }
 }

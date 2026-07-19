@@ -12,19 +12,61 @@
 
 #include "stm32f10x.h"
 
-/* ══ 黑匣子日志结构 (14字节 紧凑二进制, 对齐设计文档 §3.4) ══ */
-#define BLACKBOX_ENTRY_SIZE  14U
-#define BLACKBOX_ENTRIES_PER_BLOCK  4680U  /* 64KB/14B */
-#define BLACKBOX_LOCK_BLOCKS 4U            /* 故障锁存保护区块数 */
+/* Blackbox V2 partition map; configuration A/B remain at 0x300000/0x301000. */
+#define APP_STORAGE_META_A_ADDR       0x310000U
+#define APP_STORAGE_META_B_ADDR       0x311000U
+#define APP_STORAGE_LOG_START_ADDR    0x312000U
+#define APP_STORAGE_FAULT_START_ADDR  0x6D0000U
+#define APP_STORAGE_BLACK_END_ADDR    0x710000U
+#define APP_STORAGE_FAULT_SLOT_SIZE   4096U
+#define APP_STORAGE_FAULT_SLOT_COUNT  64U
+
+#define APP_STORAGE_BLACKBOX_MAGIC    0x32424257UL
+#define APP_STORAGE_FAULT_MAGIC       0x32544657UL
+#define APP_STORAGE_BLACKBOX_VERSION  2U
+#define BLACKBOX_ENTRY_SIZE           12U
 
 typedef struct {
-    uint32_t timestamp;      /* Sys_Timer_Get_Tick() 4B */
-    uint16_t v_ema;          /* 电压 EMA ×100      2B */
-    uint16_t i_ema;          /* 电流 EMA ×1000     2B */
-    uint16_t freq_hz;        /* 实际频率 Hz         2B */
-    uint8_t  sys_state;      /* Sys_State 枚举      1B */
-    uint8_t  crc8;           /* 前12B CRC8 校验     1B */
-} Blackbox_Entry_Packed;     /* 共 12+1+1=14 */
+    uint32_t timestamp;
+    uint16_t voltage_x100;
+    uint16_t current_x1000;
+    uint16_t frequency_hz;
+    uint8_t  system_state;
+    uint8_t  crc8;
+} App_Storage_Log_Entry;
+
+typedef char App_Storage_Log_Size_Check[
+    (sizeof(App_Storage_Log_Entry) == 12U) ? 1 : -1];
+
+typedef struct {
+    uint32_t magic;
+    uint16_t version;
+    uint16_t size;
+    uint32_t generation;
+    uint32_t write_addr;
+    uint32_t entry_count;
+    uint32_t wrap_count;
+    uint16_t next_fault_slot;
+    uint16_t reserved16;
+    uint32_t dropped_count;
+    uint32_t reserved[2];
+    uint32_t crc32;
+} App_Storage_Blackbox_Metadata;
+
+typedef struct {
+    uint32_t magic;
+    uint16_t version;
+    uint16_t size;
+    uint32_t generation;
+    uint32_t trigger_timestamp;
+    uint16_t entry_count;
+    uint16_t pre_trigger_count;
+    uint16_t post_trigger_count;
+    uint16_t reserved16;
+    uint32_t data_addr;
+    uint32_t reserved[2];
+    uint32_t crc32;
+} App_Storage_Fault_Header;
 
 /* ══ 参数配置结构 (252B 有效载荷, 对齐设计文档 §3.3) ══ */
 #define CFG_MAGIC     0x57434647U  /* "WCFG" */
@@ -103,7 +145,7 @@ void Blackbox_Lock_Fault_Snapshot(void);
 uint32_t Blackbox_Get_Entry_Count(void);
 
 /** @brief 按序号读单条日志 (0=最旧), 返回值 1=有效 0=CRC坏 */
-uint8_t Blackbox_Read_Entry(uint32_t index, Blackbox_Entry_Packed *out);
+uint8_t Blackbox_Read_Entry(uint32_t index, App_Storage_Log_Entry *out);
 
 /* ── V4.5.2 Settings Convenience — includes letter_spacing ── */
 /** @brief 加载设置参数到 Ui_Controller */
