@@ -60,10 +60,6 @@ typedef struct {
 /** @brief 上电初始化: 恢复黑匣子写指针 */
 void App_Storage_Init(void);
 
-/* ── CRC32 代数量具 — 暴露给 W25Q_Driver Font_Header_Load 复用 ── */
-/** @brief CRC32 (多项式 0x04C11DB7, 含 final XOR, 与 WinRAR/zlib 一致) */
-uint32_t CRC32_Compute(const uint8_t *data, uint32_t len);
-
 /* ── 参数配置 (P3) ── */
 /** @brief 上电加载配置: A→B→出厂默认 三级回退, 返回 0=用了默认 */
 uint8_t App_Storage_Load_Config(App_Storage_Config *cfg);

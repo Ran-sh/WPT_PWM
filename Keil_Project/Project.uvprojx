@@ -660,6 +660,16 @@
               <FileType>5</FileType>
               <FilePath>.\System\Sys_Timer.h</FilePath>
             </File>
+            <File>
+              <FileName>Checksum.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\System\Checksum.c</FilePath>
+            </File>
+            <File>
+              <FileName>Checksum.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\System\Checksum.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

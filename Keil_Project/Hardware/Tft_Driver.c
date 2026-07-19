@@ -34,8 +34,7 @@
 #include "TFT_Font_Data.h"
 #include "W25Q_Driver.h"
 #include "Sys_Timer.h"
-
-extern uint32_t CRC32_Compute(const uint8_t *data, uint32_t len);
+#include "Checksum.h"
 
 #define TFT_DRIVER_CS_PIN   GPIO_Pin_4
 #define TFT_DRIVER_DC_PIN   GPIO_Pin_6
@@ -358,7 +357,7 @@ void Tft_Driver_Font_Init(void)
     s_font_flash_valid = 0;
     if (g_font_header.magic == FONT_MAGIC) {
         crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
-        crc_computed = CRC32_Compute((uint8_t*)&g_font_header + 0x0C, 20);
+        crc_computed = Checksum_CRC32((uint8_t*)&g_font_header + 0x0C, 20);
         g_font_header.crc32 = crc_stored;
         s_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
     }

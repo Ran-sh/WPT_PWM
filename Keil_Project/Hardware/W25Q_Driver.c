@@ -37,7 +37,7 @@
 #include "W25Q_Driver.h"
 #include "Sys_Core.h"       /* g_sys_state */
 #include "Sys_Timer.h"      /* Sys_Timer_Get_Tick */
-#include "App_Storage.h"    /* CRC32_Compute */
+#include "Checksum.h"
 
 /* ═══════════════════════════════════════════════
  *  引脚宏 (行内高聚合)
@@ -248,8 +248,7 @@ void W25Q_Driver_Erase_Sector(uint32_t addr)
  *  Font_Header_Load — 上电校验字库头部
  * ═══════════════════════════════════════════════ */
 
-/** @brief 加载并 CRC32 校验 Font Header, 返回 1=有效
- *  @note  依赖 extern CRC32_Compute (App_Storage.c) */
+/** @brief 加载并 CRC32 校验 Font Header, 返回 1=有效 */
 uint8_t Font_Header_Load(Font_Header *hdr)
 {
     uint32_t crc_stored; uint32_t crc_computed;
@@ -257,7 +256,7 @@ uint8_t Font_Header_Load(Font_Header *hdr)
     W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)hdr, sizeof(Font_Header));
     if (hdr->magic != FONT_MAGIC) return 0;
     crc_stored = hdr->crc32; hdr->crc32 = 0;                    /* 临时清零用于计算 */
-    crc_computed = CRC32_Compute((uint8_t*)hdr + 0x0C, 20);     /* 0x0C→0x1F */
+    crc_computed = Checksum_CRC32((uint8_t*)hdr + 0x0C, 20);    /* 0x0C→0x1F */
     hdr->crc32 = crc_stored;
     return (crc_stored == crc_computed) ? 1 : 0;
 }

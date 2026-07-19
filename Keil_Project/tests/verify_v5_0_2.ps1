@@ -218,8 +218,18 @@ Write-Check 'Checksum' 'App_Storage no longer exports CRC32_Compute' `
 Write-Check 'Checksum' 'App_Storage uses Checksum CRC APIs' `
     ((Test-Contains $appStorageC '\bChecksum_CRC8\s*\(') -and
      (Test-Contains $appStorageC '\bChecksum_CRC32\s*\('))
+Write-Check 'Checksum' 'legacy CRC function names are removed from production code' `
+    (($appStorageC -notmatch '\bCRC8_Compute\s*\(') -and
+     ($appStorageC -notmatch '\bCRC32_Compute\s*\(') -and
+     ($tftC -notmatch '\bCRC32_Compute\s*\(') -and
+     ($w25C -notmatch '\bCRC32_Compute\s*\('))
+Write-Check 'Checksum' 'TFT and W25Q use shared CRC32 implementation' `
+    (($tftC -match '\bChecksum_CRC32\s*\(') -and
+     ($w25C -match '\bChecksum_CRC32\s*\('))
 Write-Check 'Checksum' 'fixed CRC self-test vectors exist' `
     (($checksumC -match '0xF4U') -and ($checksumC -match '0xFC891918UL'))
+Write-Check 'Checksum' 'storage initialization executes CRC self-test' `
+    (Test-Contains $appStorageC '\bChecksum_Self_Test\s*\(')
 
 $oldPwmOrder = '(?s)CR1\s*\|=\s*TIM_CR1_UDIS.*?EGR\s*=\s*TIM_EGR_UG.*?CR1\s*&=\s*~TIM_CR1_UDIS'
 Write-Check 'Pwm' 'TIM1 update does not use old UDIS-UG order' (-not (Test-Contains $pwmC $oldPwmOrder))
