@@ -902,25 +902,40 @@ static const int16_t GAUGE_SIN[] = {
 };
 
 typedef struct {
-    float    range_min, range_max;
-    float    big_step, mid_step, fine_step;
-    float    red_start;
-    char     label;        /* 电压、电流或频率的单字节标记 */
+    float start;
+    float end;
+    float step;
+} GaugeSegment;
+
+typedef struct {
+    const GaugeSegment* segments;
+    uint8_t segment_count;
+    float warn_start;
+    float red_start;
+    char label;
 } GaugeConfig;
 
-/* 电压表盘范围0至50V，共50个小格，每格1V。 */
-/* 大刻度: 0, 10, 20, 30, 40, 50 */
-static const GaugeConfig GAUGE_V = {0.0f,  50.0f, 10.0f, 5.0f, 1.0f, 42.0f, 'V'};
+/* 每个视觉格占用相同角度，分段内只改变每格代表的物理量。 */
+static const GaugeSegment GAUGE_V_SEGMENTS[] = {
+    {0.0f, 20.0f, 2.0f}, {20.0f, 40.0f, 5.0f}, {40.0f, 50.0f, 10.0f}
+};
+static const GaugeSegment GAUGE_C_SEGMENTS[] = {
+    {0.0f, 1.0f, 0.1f}, {1.0f, 3.0f, 0.5f}, {3.0f, 5.0f, 1.0f}
+};
+static const GaugeSegment GAUGE_F_LOW_SEGMENTS[] = {
+    {20.0f, 50.0f, 5.0f}, {50.0f, 80.0f, 10.0f}, {80.0f, 100.0f, 20.0f}
+};
+static const GaugeSegment GAUGE_F_HIGH_SEGMENTS[] = {
+    {100.0f, 140.0f, 5.0f}, {140.0f, 180.0f, 10.0f}, {180.0f, 200.0f, 20.0f}
+};
 
-/* 电流表盘范围0至2A，共20个小格，每格0.1A。 */
-/* 大刻度: 0.0, 0.5, 1.0, 1.5, 2.0 */
-static const GaugeConfig GAUGE_C = {0.0f,   2.0f,  0.5f, 0.25f, 0.1f,  1.8f, 'C'};
-
-/* 频率表盘范围90至150kHz，共60个小格，每格1kHz。 */
-/* 大刻度: 90, 100, 110, 120, 130, 140, 150 */
-static const GaugeConfig GAUGE_F = {90.0f, 150.0f, 10.0f, 5.0f, 1.0f, 140.0f, 'F'};
+static const GaugeConfig GAUGE_V = {GAUGE_V_SEGMENTS, 3U, 36.0f, 42.0f, 'V'};
+static const GaugeConfig GAUGE_C = {GAUGE_C_SEGMENTS, 3U, 4.0f, 4.5f, 'C'};
+static const GaugeConfig GAUGE_F_LOW = {GAUGE_F_LOW_SEGMENTS, 3U, 200.0f, 200.0f, 'F'};
+static const GaugeConfig GAUGE_F_HIGH = {GAUGE_F_HIGH_SEGMENTS, 3U, 200.0f, 200.0f, 'F'};
 
 static float s_last_val_v = -1.0f, s_last_val_c = -1.0f, s_last_val_f = -1.0f;
+static const GaugeConfig* s_last_freq_gauge_cfg = NULL;
 static const char* s_last_gauge_label = NULL;  /* 跨表盘标签缓存，切换页面时清除 */
 
 /* 极坐标约定：0度在左，90度在上，180度在右。 */
@@ -1021,7 +1036,8 @@ static void Ui_Controller_Draw_TopRight_Icons(void)
 }
 
 /* 整页重绘：能量弧、信息舱和页面标题。 */
-static void Ui_Controller_Draw_Gauge_Full(const GaugeConfig* cfg, float val)
+#if defined(UI_CONTROLLER_LEGACY_LINEAR_GAUGE)
+static void Ui_Controller_Draw_Gauge_Full_Legacy(const GaugeConfig* cfg, float val)
 {
     #define R_TICK  56   /* 能量弧外半径 */
     #define R_BIG   50   /* 主刻度内半径，线长6像素 */
@@ -1185,7 +1201,7 @@ static void Ui_Controller_Draw_Gauge_Full(const GaugeConfig* cfg, float val)
 }
 
 /* 每200ms差分更新能量弧和信息舱。 */
-static void Ui_Controller_Gauge_Dynamic_Update(const GaugeConfig* cfg, float val, float old_val)
+static void Ui_Controller_Gauge_Dynamic_Update_Legacy(const GaugeConfig* cfg, float val, float old_val)
 {
     #define R_TICK  56
     #define R_BIG   50
@@ -1344,6 +1360,250 @@ static void Ui_Controller_Gauge_Dynamic_Update(const GaugeConfig* cfg, float val
     #undef CPS
 }
 
+#endif
+
+static uint16_t Ui_Controller_Gauge_Total_Cells(const GaugeConfig* cfg)
+{
+    uint8_t i;
+    uint16_t cells = 0U;
+    for (i = 0U; i < cfg->segment_count; i++) {
+        cells = (uint16_t)(cells + (uint16_t)((cfg->segments[i].end -
+                cfg->segments[i].start) / cfg->segments[i].step + 0.5f));
+    }
+    return cells;
+}
+
+static float Ui_Controller_Gauge_Min_Value(const GaugeConfig* cfg)
+{
+    return cfg->segments[0].start;
+}
+
+static float Ui_Controller_Gauge_Max_Value(const GaugeConfig* cfg)
+{
+    return cfg->segments[cfg->segment_count - 1U].end;
+}
+
+static float Ui_Controller_Gauge_Clamp_Value(const GaugeConfig* cfg, float value)
+{
+    if (value < Ui_Controller_Gauge_Min_Value(cfg)) return Ui_Controller_Gauge_Min_Value(cfg);
+    if (value > Ui_Controller_Gauge_Max_Value(cfg)) return Ui_Controller_Gauge_Max_Value(cfg);
+    return value;
+}
+
+/* 分段映射的累计格数保证边界连续、全量程单调。 */
+static uint16_t Ui_Controller_Gauge_Value_To_Angle(const GaugeConfig* cfg, float value)
+{
+    uint8_t i;
+    float cells_before = 0.0f;
+    float local_cells = 0.0f;
+    float clamped = Ui_Controller_Gauge_Clamp_Value(cfg, value);
+    float total_cells = (float)Ui_Controller_Gauge_Total_Cells(cfg);
+
+    for (i = 0U; i < cfg->segment_count; i++) {
+        const GaugeSegment* seg = &cfg->segments[i];
+        float seg_cells = (seg->end - seg->start) / seg->step;
+        if (clamped <= seg->end || i == (uint8_t)(cfg->segment_count - 1U)) {
+            local_cells = (clamped - seg->start) / seg->step;
+            if (local_cells < 0.0f) local_cells = 0.0f;
+            if (local_cells > seg_cells) local_cells = seg_cells;
+            break;
+        }
+        cells_before += seg_cells;
+    }
+    return (uint16_t)((cells_before + local_cells) * 180.0f / total_cells + 0.5f);
+}
+
+static uint8_t Ui_Controller_Gauge_Is_Key_Tick(const GaugeConfig* cfg, float value)
+{
+    uint8_t i;
+    for (i = 0U; i < cfg->segment_count; i++) {
+        float d1 = value - cfg->segments[i].start;
+        float d2 = value - cfg->segments[i].end;
+        if (d1 < 0.0f) d1 = -d1;
+        if (d2 < 0.0f) d2 = -d2;
+        if (d1 < 0.01f || d2 < 0.01f) return 1U;
+    }
+    return 0U;
+}
+
+static uint16_t Ui_Controller_Gauge_Tick_Color(const GaugeConfig* cfg,
+                                                float tick_value, uint8_t active)
+{
+    if (active == 0U) return 0x18C3U;
+    if (tick_value >= cfg->red_start) return Uc_Alarm();
+    if (tick_value >= cfg->warn_start) return Ui_Controller_Get_Value_Color();
+    return Ui_Controller_Get_Text_Color();
+}
+
+static void Ui_Controller_Gauge_Draw_Tick(const GaugeConfig* cfg, float tick_value,
+                                          uint8_t active)
+{
+    uint16_t angle = Ui_Controller_Gauge_Value_To_Angle(cfg, tick_value);
+    uint16_t inner_radius = Ui_Controller_Gauge_Is_Key_Tick(cfg, tick_value) ? 50U : 53U;
+    uint16_t color = Ui_Controller_Gauge_Tick_Color(cfg, tick_value, active);
+    int16_t xo, yo, xi, yi;
+    Ui_Controller_Gauge_Polar((uint8_t)angle, 56U, &xo, &yo);
+    Ui_Controller_Gauge_Polar((uint8_t)angle, inner_radius, &xi, &yi);
+    Ui_Controller_Bres_Line(xi, yi, xo, yo, color);
+}
+
+static void Ui_Controller_Gauge_Draw_Tick_Label(const GaugeConfig* cfg, float tick_value)
+{
+    uint16_t angle = Ui_Controller_Gauge_Value_To_Angle(cfg, tick_value);
+    int16_t x, y;
+    int32_t s, c;
+    int16_t draw_x, draw_y;
+    char number[8];
+    uint16_t width;
+    uint16_t color = Ui_Controller_Gauge_Tick_Color(cfg, tick_value, 1U);
+
+    if (Ui_Controller_Gauge_Is_Key_Tick(cfg, tick_value) == 0U) return;
+    if (tick_value == (float)((int)tick_value))
+        snprintf(number, sizeof(number), "%d", (int)tick_value);
+    else
+        snprintf(number, sizeof(number), "%.1f", (double)tick_value);
+    width = (uint16_t)(strlen(number) * 7U - 2U);
+    s = GAUGE_SIN[angle];
+    c = (angle <= 90U) ? GAUGE_SIN[90U - angle] : -GAUGE_SIN[angle - 90U];
+    Ui_Controller_Gauge_Polar((uint8_t)angle, 58U, &x, &y);
+    draw_x = (int16_t)(x - (int16_t)(width / 2U) - (int32_t)(2U + width / 2U) * c / 10000);
+    draw_y = (int16_t)(y - 5 - (int32_t)7 * s / 10000);
+    Tft_Driver_Show_5x10_String_Pixel((uint16_t)draw_x, (uint16_t)draw_y,
+                                       number, color, Ui_Controller_Get_Background_Color());
+}
+
+static const GaugeConfig* Ui_Controller_Gauge_Get_Frequency_Config(void)
+{
+    Inverter_Control_Soft_Start_State state = Inverter_Control_Soft_Start_Get_State();
+    if (state == INVERTER_CONTROL_SS_STATE_SWEEP) {
+        return (Inverter_Control_Get_Sweep_Start_Freq() <= 99900U) ?
+            &GAUGE_F_LOW : &GAUGE_F_HIGH;
+    }
+    return (s_startup_freq_band == APP_STORAGE_FREQ_BAND_LOW) ?
+        &GAUGE_F_LOW : &GAUGE_F_HIGH;
+}
+
+static const char* Ui_Controller_Gauge_Status_Text(const GaugeConfig* cfg, float value)
+{
+    Inverter_Control_Soft_Start_State state = Inverter_Control_Soft_Start_Get_State();
+    if (cfg->label == 'F') {
+        if (state == INVERTER_CONTROL_SS_STATE_SWEEP) return Ui_Controller_Pick_CN_EN("\xe6\x89\xab\xe9\xa2\x91", "Sweep");
+        if (state == INVERTER_CONTROL_SS_STATE_DONE) return Ui_Controller_Pick_CN_EN("\xe8\xbf\x90\xe8\xa1\x8c", "Run");
+        return Ui_Controller_Pick_CN_EN("\xe5\xbe\x85\xe6\x9c\xba", "Idle");
+    }
+    if (value > Ui_Controller_Gauge_Max_Value(cfg)) return Ui_Controller_Pick_CN_EN("\xe8\xb6\x85\xe9\x87\x8f\xe7\xa8\x8b", "Overrange");
+    if (value >= cfg->red_start) return Ui_Controller_Pick_CN_EN("\xe8\xbf\x87\xe9\xab\x98", "High");
+    if (value >= cfg->warn_start) return Ui_Controller_Pick_CN_EN("\xe6\xb3\xa8\xe6\x84\x8f", "Warning");
+    return Ui_Controller_Pick_CN_EN("\xe6\xad\xa3\xe5\xb8\xb8", "Normal");
+}
+
+static uint16_t Ui_Controller_Gauge_Status_Color(const GaugeConfig* cfg, float value)
+{
+    Inverter_Control_Soft_Start_State state = Inverter_Control_Soft_Start_Get_State();
+    if (cfg->label == 'F') {
+        if (state == INVERTER_CONTROL_SS_STATE_SWEEP) return Ui_Controller_Get_Value_Color();
+        if (state == INVERTER_CONTROL_SS_STATE_DONE) return Uc_Ok();
+        return Uc_Dim();
+    }
+    if (value >= cfg->red_start || value > Ui_Controller_Gauge_Max_Value(cfg)) return Uc_Alarm();
+    if (value >= cfg->warn_start) return Ui_Controller_Get_Value_Color();
+    return Uc_Ok();
+}
+
+static void Ui_Controller_Gauge_Format_Value(const GaugeConfig* cfg, float value,
+                                             char* number, uint16_t size)
+{
+    if (cfg->label == 'F') snprintf(number, size, "%d", (int)(value + 0.5f));
+    else if (cfg->label == 'C') snprintf(number, size, "%.2f", (double)value);
+    else snprintf(number, size, "%.1f", (double)value);
+}
+
+static void Ui_Controller_Gauge_Draw_Center(const GaugeConfig* cfg, float value, uint8_t force)
+{
+    const char* status = Ui_Controller_Gauge_Status_Text(cfg, value);
+    const char* unit = (cfg->label == 'F') ? "kHz" : ((cfg->label == 'V') ? "V" : "A");
+    char number[12];
+    uint16_t number_width;
+    uint16_t group_width;
+    uint16_t x;
+    uint16_t color;
+
+    Ui_Controller_Gauge_Format_Value(cfg, value, number, sizeof(number));
+    if (force != 0U || strncmp(number, s_gauge_val_str, sizeof(s_gauge_val_str)) != 0) {
+        /* 中央数值区避开半圆两侧刻度，差分擦除不会留下断裂的能量弧。 */
+        Tft_Driver_Fill_Rect(38U, 60U, 84U, 42U, Ui_Controller_Get_Background_Color());
+        number_width = (uint16_t)(strlen(number) * 14U - 4U);
+        group_width = (uint16_t)(number_width + 18U);
+        x = (uint16_t)((TFT_WIDTH - group_width) / 2U);
+        color = (cfg->label == 'F' && Inverter_Control_Soft_Start_Get_State()
+            == INVERTER_CONTROL_SS_STATE_IDLE) ? Uc_Dim() : TFT_COLOR_YELLOW;
+        Tft_Driver_Show_5x10_String_Scaled_Pixel(x, 64U, number, 2U,
+                                                   color, Ui_Controller_Get_Background_Color());
+        Tft_Driver_Show_CN_String(5U, (uint8_t)(x + number_width + 3U), unit,
+                                   Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
+        strncpy(s_gauge_val_str, number, sizeof(s_gauge_val_str));
+        s_gauge_val_str[sizeof(s_gauge_val_str) - 1U] = '\0';
+    }
+    if (force != 0U || strncmp(status, s_gauge_status_buf, sizeof(s_gauge_status_buf)) != 0) {
+        Tft_Driver_Fill_Rect(0U, 112U, TFT_WIDTH, 16U, Ui_Controller_Get_Background_Color());
+        Tft_Driver_Show_CN_String(7U, Ui_Controller_Center_Text(status), status,
+                                   Ui_Controller_Gauge_Status_Color(cfg, value), Ui_Controller_Get_Background_Color());
+        strncpy(s_gauge_status_buf, status, sizeof(s_gauge_status_buf));
+        s_gauge_status_buf[sizeof(s_gauge_status_buf) - 1U] = '\0';
+    }
+}
+
+static void Ui_Controller_Draw_Gauge_Full(const GaugeConfig* cfg, float value)
+{
+    uint8_t i;
+    float tick;
+    float clamped = Ui_Controller_Gauge_Clamp_Value(cfg, value);
+    const char* title = (cfg->label == 'F') ? Ui_Controller_Pick_CN_EN(S_MON_FREQ_CN, S_MON_FREQ_EN) :
+        ((cfg->label == 'V') ? Ui_Controller_Pick_CN_EN(S_MON_VOLT_CN, S_MON_VOLT_EN) :
+                               Ui_Controller_Pick_CN_EN(S_MON_CURR_CN, S_MON_CURR_EN));
+    Ui_Controller_Draw_Header(title);
+    for (i = 0U; i < cfg->segment_count; i++) {
+        for (tick = cfg->segments[i].start; tick <= cfg->segments[i].end + 0.001f;
+             tick += cfg->segments[i].step) {
+            if (i != 0U && tick == cfg->segments[i].start) continue;
+            Ui_Controller_Gauge_Draw_Tick(cfg, tick, (tick <= clamped) ? 1U : 0U);
+            Ui_Controller_Gauge_Draw_Tick_Label(cfg, tick);
+        }
+    }
+    s_last_gauge_label = title;
+    Ui_Controller_Gauge_Draw_Center(cfg, value, 1U);
+}
+
+static void Ui_Controller_Gauge_Dynamic_Update(const GaugeConfig* cfg, float value, float old_value)
+{
+    uint8_t i;
+    float tick;
+    float clamped = Ui_Controller_Gauge_Clamp_Value(cfg, value);
+    float old_clamped = Ui_Controller_Gauge_Clamp_Value(cfg, old_value);
+    uint16_t angle = Ui_Controller_Gauge_Value_To_Angle(cfg, clamped);
+    uint16_t old_angle = Ui_Controller_Gauge_Value_To_Angle(cfg, old_clamped);
+
+    if (s_last_gauge_label == NULL) {
+        Ui_Controller_Draw_Gauge_Full(cfg, value);
+        return;
+    }
+    if (angle != old_angle) {
+        for (i = 0U; i < cfg->segment_count; i++) {
+            for (tick = cfg->segments[i].start; tick <= cfg->segments[i].end + 0.001f;
+                 tick += cfg->segments[i].step) {
+                uint16_t tick_angle;
+                if (i != 0U && tick == cfg->segments[i].start) continue;
+                tick_angle = Ui_Controller_Gauge_Value_To_Angle(cfg, tick);
+                if ((angle > old_angle && tick_angle > old_angle && tick_angle <= angle) ||
+                    (angle < old_angle && tick_angle > angle && tick_angle <= old_angle)) {
+                    Ui_Controller_Gauge_Draw_Tick(cfg, tick, (tick_angle <= angle) ? 1U : 0U);
+                }
+            }
+        }
+    }
+    Ui_Controller_Gauge_Draw_Center(cfg, value, 0U);
+}
+
 /* 六个轻量包装函数，用于保持既有页面绘制调用形式。 */
 static void Ui_Controller_Draw_Freq_Full(void) {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State()
@@ -1351,34 +1611,33 @@ static void Ui_Controller_Draw_Freq_Full(void) {
                        || Inverter_Control_Soft_Start_Get_State()
                          == INVERTER_CONTROL_SS_STATE_SWEEP);
     float display_val;
+    const GaugeConfig* cfg;
 
     Ui_Controller_Update_EMA();
-    /* PWM未运行时强制显示0，避免默认频率让停机仪表盘出现非零能量弧。 */
     display_val = is_running ? s_ema_f : 0.0f;
-    Ui_Controller_Draw_Gauge_Full(&GAUGE_F, display_val);
-    /* PWM停止时频率显示0，电压和电流仍保持实时监测。 */
-    if (!is_running) {
-        Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
-        Tft_Driver_Show_CN_String(5, Ui_Controller_Center_Text("0kHz"), "0kHz", Uc_Dim(), Ui_Controller_Get_Background_Color());
-        strncpy(s_gauge_val_str, "0kHz", sizeof(s_gauge_val_str));
-    }
-    s_last_val_f = s_ema_f;
+    cfg = Ui_Controller_Gauge_Get_Frequency_Config();
+    Ui_Controller_Draw_Gauge_Full(cfg, display_val);
+    s_last_freq_gauge_cfg = cfg;
+    s_last_val_f = display_val;
 }
 static void Ui_Controller_Freq_Dynamic_Update(void) {
     uint8_t is_running = (Inverter_Control_Soft_Start_Get_State()
                          == INVERTER_CONTROL_SS_STATE_DONE
                        || Inverter_Control_Soft_Start_Get_State()
                          == INVERTER_CONTROL_SS_STATE_SWEEP);
-    float old = s_last_val_f;
+    float old_value = s_last_val_f;
+    float display_val;
+    const GaugeConfig* cfg;
     Ui_Controller_Update_EMA();
-    if (is_running) {
-        Ui_Controller_Gauge_Dynamic_Update(&GAUGE_F, s_ema_f, old);
-        s_last_val_f = s_ema_f;
+    display_val = is_running ? s_ema_f : 0.0f;
+    cfg = Ui_Controller_Gauge_Get_Frequency_Config();
+    if (cfg != s_last_freq_gauge_cfg) {
+        Ui_Controller_Draw_Gauge_Full(cfg, display_val);
+        s_last_freq_gauge_cfg = cfg;
     } else {
-        /* PWM停止时把能量弧归零，并用灰色显示数值0。 */
-        Ui_Controller_Gauge_Dynamic_Update(&GAUGE_F, 0.0f, old);
-        s_last_val_f = 0.0f;  /* 缓存必须记录屏幕实际显示值0，而不是内部频率值。 */
+        Ui_Controller_Gauge_Dynamic_Update(cfg, display_val, old_value);
     }
+    s_last_val_f = display_val;
 }
 static void Ui_Controller_Draw_Volt_Full(void) {
     Ui_Controller_Update_EMA(); Ui_Controller_Draw_Gauge_Full(&GAUGE_V, s_ema_v); s_last_val_v = s_ema_v;

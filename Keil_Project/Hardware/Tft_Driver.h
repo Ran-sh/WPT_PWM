@@ -112,6 +112,10 @@ void Tft_Driver_Erase_Pixel_Area(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
                                        const char* s,
                                        uint16_t fg, uint16_t bg);
+/** @brief 按像素坐标绘制整数倍放大的5乘10数字字符串，scale为1或2 */
+void Tft_Driver_Show_5x10_String_Scaled_Pixel(uint16_t x, uint16_t y,
+                                               const char* s, uint8_t scale,
+                                               uint16_t fg, uint16_t bg);
 
 /** @brief 按编号和帧号绘制16乘16图标
  *  @param x 图标左上角横坐标，从0开始

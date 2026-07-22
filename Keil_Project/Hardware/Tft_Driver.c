@@ -853,6 +853,41 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
     }
 }
 
+/* 使用同一套片内数字字模进行整数倍像素放大，避免引入新的大字号资源。 */
+void Tft_Driver_Show_5x10_String_Scaled_Pixel(uint16_t x, uint16_t y,
+                                               const char* s, uint8_t scale,
+                                               uint16_t fg, uint16_t bg)
+{
+    uint8_t row, b, dx, dy, idx;
+    uint16_t* p;
+    uint16_t glyph_w;
+    uint16_t glyph_h;
+
+    if (scale == 0U) scale = 1U;
+    if (scale > 2U) scale = 2U;
+    glyph_w = (uint16_t)(5U * scale);
+    glyph_h = (uint16_t)(10U * scale);
+
+    while (*s && (uint16_t)(x + glyph_w) <= TFT_WIDTH) {
+        idx = Tft_Driver_Map_5x10_Index(*s);
+        Tft_Driver_Set_Window(x, y, (uint16_t)(x + glyph_w - 1U),
+                              (uint16_t)(y + glyph_h - 1U));
+        p = s_dma_buf;
+        for (row = 0U; row < 10U; row++) {
+            uint8_t byte_val = FONT_5X10[idx][row];
+            for (dy = 0U; dy < scale; dy++) {
+                for (b = 0U; b < 5U; b++) {
+                    uint16_t color = (byte_val & (uint8_t)(1U << b)) ? fg : bg;
+                    for (dx = 0U; dx < scale; dx++) *p++ = color;
+                }
+            }
+        }
+        Tft_Driver_DMA_Send(s_dma_buf, (uint16_t)(glyph_w * glyph_h));
+        x = (uint16_t)(x + 7U * scale);
+        s++;
+    }
+}
+
 /* ==============================================================
  *  按编号读取并绘制16乘16图标
  * ============================================================== */
