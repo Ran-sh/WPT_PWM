@@ -4,7 +4,7 @@
 #include "stm32f10x.h"
 #include "Key_Driver.h"
 
-/** @brief 十四个界面页面的固定编号 */
+/** @brief 十五个界面页面的固定编号 */
 typedef enum {
     UI_PAGE_MAIN_MENU          = 0,   /* 主菜单 - 4/5项 */
     UI_PAGE_MONITOR_SUB_MENU   = 1,   /* 监测子菜单 - 5项 */
@@ -15,13 +15,14 @@ typedef enum {
     UI_PAGE_MONITOR_CURR       = 6,   /* 监测电流 - 仪表盘 */
     UI_PAGE_WIFI_SETUP         = 7,   /* 无线配网 - 状态+清除 */
     UI_PAGE_FAULT              = 8,   /* 故障清除 - 过流锁存 */
-    /* 以下五项为设置页面，与前九项合计十四页。 */
+    /* 以下六项为设置页面，与前九项合计十五页。 */
     UI_PAGE_SETTING            = 9,   /* 设置主菜单 */
     UI_PAGE_SETTING_LANG       = 10,  /* 语言切换 */
-    UI_PAGE_SETTING_SPACING    = 11,  /* 字符间距四档 */
-    UI_PAGE_SETTING_ICONS      = 12,  /* 图标浏览 */
-    UI_PAGE_SETTING_COLOR      = 13,  /* 颜色方案 */
-    UI_PAGE_COUNT              = 14
+    UI_PAGE_SETTING_FREQUENCY  = 11,  /* 启动频率 */
+    UI_PAGE_SETTING_SPACING    = 12,  /* 字符间距四档 */
+    UI_PAGE_SETTING_ICONS      = 13,  /* 光标图标 */
+    UI_PAGE_SETTING_COLOR      = 14,  /* 颜色方案 */
+    UI_PAGE_COUNT              = 15
 } Ui_Page;
 
 /** @brief 根据系统核心层过滤后的按键事件刷新页面并分发操作

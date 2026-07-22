@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <string.h>
 static void Ui_Controller_Draw_TopRight_Icons(void);
+static const char* Ui_Controller_Get_Icon_Name(uint8_t icon_id);
 
 /* 能量条颜色表与增量绘制逻辑。 */
 static const uint16_t EB_COLOR_TABLE[8] = {
@@ -109,7 +110,14 @@ static uint16_t s_color_accent     = 0xFFE0;/* 默认强调色为黄色 */
 static uint32_t s_startup_low_freq_hz = 20000U;
 static uint32_t s_startup_high_freq_hz = 100000U;
 static uint8_t s_startup_freq_band = APP_STORAGE_FREQ_BAND_HIGH;
+static uint8_t s_frequency_edit_band = APP_STORAGE_FREQ_BAND_LOW;
+static uint32_t s_frequency_edit_value = 20000U;
+static uint8_t s_frequency_editing = 0U;
 static uint8_t s_menu_cursor_icon = 0U;
+static const uint8_t s_cursor_icon_ids[8] = {
+    ICON_ID_STAR, ICON_ID_CHECK, ICON_ID_ROCKET_ANIM, ICON_ID_LIGHTNING,
+    ICON_ID_HOME, ICON_ID_GEAR, ICON_ID_REFRESH, ICON_ID_ARROW_RT
+};
 static uint8_t  s_icon_cache_valid = 0U;
 static uint8_t  s_last_icon_cs     = 0xFFU;
 static uint8_t  s_last_icon_mode   = 0xFFU;
@@ -122,7 +130,6 @@ static uint16_t s_last_icon_fg     = 0xFFFFU;
 
 /* 设置子页面光标。 */
 static uint8_t  s_setting_cursor   = 0;
-static uint8_t  s_icon_page        = 0;
 static uint8_t  s_icon_cursor      = 0;
 
 /* 语言、间距和配色页面共用的预览光标。 */
@@ -130,7 +137,26 @@ static uint8_t  s_preview_choice   = 0;     /* 确认后才把预览位置写入
 
 /* 等待持久化的设置状态。 */
 static uint8_t  s_settings_dirty       = 0;
+static uint32_t s_settings_saved_until_ms = 0U;
 static uint8_t  s_last_setting_cursor  = 0xFF; /* 第七阶段用于判断设置光标是否改变 */
+
+typedef enum {
+    UI_SETTING_ITEM_LANGUAGE = 0,
+    UI_SETTING_ITEM_FREQUENCY,
+    UI_SETTING_ITEM_SPACING,
+    UI_SETTING_ITEM_ICONS,
+    UI_SETTING_ITEM_COLOR,
+    UI_SETTING_ITEM_COUNT
+} Ui_Setting_Item;
+
+#define UI_FREQUENCY_LOW_MIN_HZ   20000U
+#define UI_FREQUENCY_LOW_MAX_HZ   99900U
+#define UI_FREQUENCY_HIGH_MIN_HZ  100000U
+#define UI_FREQUENCY_HIGH_MAX_HZ  200000U
+#define UI_FREQUENCY_LOW_STEP_HZ  100U
+#define UI_FREQUENCY_HIGH_STEP_HZ 1000U
+#define UI_SETTINGS_SAVED_MS      1200U
+#define UI_CURSOR_ICON_COUNT      8U
 
 /* ==============================================================
  *  动态配色辅助函数
@@ -402,11 +428,29 @@ static void Ui_Controller_Draw_Header(const char* title)
 /* ================================================================
  *  菜单光标：在横坐标0处绘制或擦除16乘16星形图标
  * ================================================================ */
+static void Ui_Controller_Draw_Menu_Cursor(uint8_t row, uint8_t selected)
+{
+    uint8_t icon_id;
+
+    Tft_Driver_Erase_Pixel_Area(0U,
+        (uint16_t)row * TFT_FONT_HEIGHT, 16U, TFT_FONT_HEIGHT);
+    if (selected == 0U) return;
+
+    icon_id = s_cursor_icon_ids[s_menu_cursor_icon];
+    if (Tft_Driver_Draw_Icon_By_Id(0U,
+        (uint16_t)row * TFT_FONT_HEIGHT, icon_id, 0U,
+        Ui_Controller_Get_Value_Color(),
+        Ui_Controller_Get_Background_Color()) == 0U) {
+        Tft_Driver_Draw_Icon_By_Id(0U,
+            (uint16_t)row * TFT_FONT_HEIGHT, ICON_ID_STAR, 0U,
+            Ui_Controller_Get_Value_Color(),
+            Ui_Controller_Get_Background_Color());
+    }
+}
+
 static void Ui_Controller_Draw_Cursor(uint8_t line)
 {
-    /* 选中行在左边缘绘制青色底、黑色星形的光标。 */
-    Tft_Driver_Draw_Icon_By_Id(0, (uint16_t)line * TFT_FONT_HEIGHT,
-                                ICON_ID_STAR, 0, Ui_Controller_Get_Background_Color(), Ui_Controller_Get_Value_Color());
+    Ui_Controller_Draw_Menu_Cursor(line, 1U);
 }
 
 static void Ui_Controller_Erase_Cursor(uint8_t line)
@@ -1625,7 +1669,7 @@ static void Ui_Controller_Handle_Keys_By_Page(Ui_Page page,
                         break;
                     case 3:
                         s_page = UI_PAGE_SETTING;
-                        s_setting_cursor = 0;
+                        s_setting_cursor = UI_SETTING_ITEM_LANGUAGE;
                         break;
                     default: break;  /* 第4项仅在故障状态下可用。 */
                 }
@@ -1725,12 +1769,32 @@ static void Ui_Controller_Handle_Keys_By_Page(Ui_Page page,
 static const char* Ui_Controller_Get_Menu_Setting_Text(uint8_t idx)
 {
     switch (idx) {
-        case 0: return Ui_Controller_Pick_CN_EN("1. \xe8\xaf\xad\xe8\xa8\x80", "1. Language");
-        case 1: return Ui_Controller_Pick_CN_EN("2. \xe5\xad\x97\xe9\x97\xb4\xe8\xb7\x9d", "2. Spacing");
-        case 2: return Ui_Controller_Pick_CN_EN("3. \xe5\x9b\xbe\xe6\xa0\x87", "3. Icons");
-        case 3: return Ui_Controller_Pick_CN_EN("4. \xe9\xa2\x9c\xe8\x89\xb2", "4. Color");
+        case UI_SETTING_ITEM_LANGUAGE: return Ui_Controller_Pick_CN_EN("1. \xe8\xaf\xad\xe8\xa8\x80", "1. Language");
+        case UI_SETTING_ITEM_FREQUENCY: return Ui_Controller_Pick_CN_EN("2. \xe5\x90\xaf\xe5\x8a\xa8\xe9\xa2\x91\xe7\x8e\x87", "2. Startup Freq");
+        case UI_SETTING_ITEM_SPACING: return Ui_Controller_Pick_CN_EN("3. \xe5\xad\x97\xe9\x97\xb4\xe8\xb7\x9d", "3. Spacing");
+        case UI_SETTING_ITEM_ICONS: return Ui_Controller_Pick_CN_EN("4. \xe5\x85\x89\xe6\xa0\x87\xe5\x9b\xbe\xe6\xa0\x87", "4. Cursor Icon");
+        case UI_SETTING_ITEM_COLOR: return Ui_Controller_Pick_CN_EN("5. \xe9\xa2\x9c\xe8\x89\xb2", "5. Color");
         default: return "";
     }
+}
+
+static void Ui_Controller_Save_Settings(void)
+{
+    App_Storage_Request_Save_Settings(s_language, 0U, 100U,
+                                      s_letter_spacing, sc_preset,
+                                      s_color_fg, s_color_bg,
+                                      s_startup_low_freq_hz,
+                                      s_startup_high_freq_hz,
+                                      s_startup_freq_band,
+                                      s_menu_cursor_icon);
+    Inverter_Control_Configure_Startup(
+        (s_startup_freq_band == APP_STORAGE_FREQ_BAND_LOW) ?
+            INVERTER_CONTROL_STARTUP_LOW :
+            INVERTER_CONTROL_STARTUP_HIGH,
+        s_startup_low_freq_hz, s_startup_high_freq_hz);
+    Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2U));
+    s_settings_dirty = 0U;
+    s_settings_saved_until_ms = Sys_Timer_Get_Tick() + UI_SETTINGS_SAVED_MS;
 }
 
 /* ==============================================================
@@ -1745,15 +1809,21 @@ static void Ui_Controller_Draw_Setting_Full(void)
     Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_SETTINGS_CN, S_SETTINGS_EN));
     Ui_Controller_Draw_Divider(1);
 
-    /* 第2至5行依次显示语言、间距、图标和配色选项。 */
-    for (i = 0U; i < 4U; i++) {
+    /* 第2至6行固定显示五项设置。 */
+    for (i = 0U; i < UI_SETTING_ITEM_COUNT; i++) {
         text = Ui_Controller_Get_Menu_Setting_Text(i);
-        enabled = (i == 2U) ? Tft_Driver_Is_Font_Flash_Valid() : 1U;
+        enabled = 1U;
         Ui_Controller_Erase_Line(2 + i);
         Ui_Controller_Draw_Menu_Text(2 + i, 2, text, enabled);
     }
 
     Ui_Controller_Draw_Cursor(2 + s_setting_cursor);
+    Ui_Controller_Erase_Line(7);
+    if ((uint32_t)(s_settings_saved_until_ms - Sys_Timer_Get_Tick()) < UI_SETTINGS_SAVED_MS) {
+        Tft_Driver_Show_CN_String(7, 2,
+            Ui_Controller_Pick_CN_EN("\xe5\xb7\xb2\xe4\xbf\x9d\xe5\xad\x98", "Saved"),
+            Uc_Ok(), Ui_Controller_Get_Background_Color());
+    }
 }
 
 static void Ui_Controller_Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
@@ -1762,44 +1832,33 @@ static void Ui_Controller_Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Ev
     /* 返回主菜单前，如设置已变化则请求后台写入外部存储器。 */
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         if (s_settings_dirty) {
-            App_Storage_Request_Save_Settings(s_language, 0U, 100U,
-                                              s_letter_spacing, sc_preset,
-                                              s_color_fg, s_color_bg,
-                                              s_startup_low_freq_hz,
-                                              s_startup_high_freq_hz,
-                                              s_startup_freq_band,
-                                              s_menu_cursor_icon);
-            /* 保存后的档位仅供下一次触发扫频使用，不修改当前扫频快照。 */
-            Inverter_Control_Configure_Startup(
-                (s_startup_freq_band == APP_STORAGE_FREQ_BAND_LOW) ?
-                    INVERTER_CONTROL_STARTUP_LOW :
-                    INVERTER_CONTROL_STARTUP_HIGH,
-                s_startup_low_freq_hz, s_startup_high_freq_hz);
-            /* 存储值为0至3的选项，需要换算为实际像素间距。 */
-            Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));
-            s_settings_dirty = 0;
+            Ui_Controller_Save_Settings();
         }
         s_page = UI_PAGE_MAIN_MENU; s_menu_cursor = 3; s_page_drawn = 0; return;
     }
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
-        if (s_setting_cursor == 0U) s_setting_cursor = 3U;
+        if (s_setting_cursor == UI_SETTING_ITEM_LANGUAGE) s_setting_cursor = UI_SETTING_ITEM_COUNT - 1U;
         else s_setting_cursor--;
     }
     if (k3 == KEY_DRIVER_EVENT_CLICK) {
-        if (s_setting_cursor >= 3U) s_setting_cursor = 0U;
+        if (s_setting_cursor >= UI_SETTING_ITEM_COUNT - 1U) s_setting_cursor = UI_SETTING_ITEM_LANGUAGE;
         else s_setting_cursor++;
     }
     if (k4 == KEY_DRIVER_EVENT_CLICK) {
-        if (s_setting_cursor == 2 && !Tft_Driver_Is_Font_Flash_Valid()) return;  /* 图标浏览需要有效外部字库。 */
         switch (s_setting_cursor) {
-            case 0: s_page = UI_PAGE_SETTING_LANG;
+            case UI_SETTING_ITEM_LANGUAGE: s_page = UI_PAGE_SETTING_LANG;
                     s_preview_choice = s_language;  /* 用已保存语言初始化预览光标。 */
                     break;
-            case 1: s_page = UI_PAGE_SETTING_SPACING;
+            case UI_SETTING_ITEM_FREQUENCY: s_page = UI_PAGE_SETTING_FREQUENCY;
+                    s_frequency_editing = 0U;
+                    s_frequency_edit_band = s_startup_freq_band;
+                    break;
+            case UI_SETTING_ITEM_SPACING: s_page = UI_PAGE_SETTING_SPACING;
                     s_preview_choice = s_letter_spacing;
                     break;
-            case 2: s_page = UI_PAGE_SETTING_ICONS; s_icon_page = 0; s_icon_cursor = 0; break;
-            case 3: s_page = UI_PAGE_SETTING_COLOR;
+            case UI_SETTING_ITEM_ICONS: s_page = UI_PAGE_SETTING_ICONS;
+                    s_icon_cursor = s_menu_cursor_icon; break;
+            case UI_SETTING_ITEM_COLOR: s_page = UI_PAGE_SETTING_COLOR;
                     s_preview_choice = sc_preset;  /* 用已保存配色初始化预览光标。 */
                     break;
         }
@@ -1818,12 +1877,12 @@ static void Ui_Controller_Draw_Lang_Full(void)
     Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN(S_TITLE_LANG_CN, S_TITLE_LANG_EN));
 
     Ui_Controller_Erase_Line(3);
-    Tft_Driver_Show_CN_String(3, 3,
+    Tft_Driver_Show_CN_String(3, 2,
         Ui_Controller_Pick_CN_EN((s_preview_choice == 0) ? "* \xe4\xb8\xad\xe6\x96\x87" : "  \xe4\xb8\xad\xe6\x96\x87",
                    (s_preview_choice == 0) ? "* Chinese" : "  Chinese"),
         (s_preview_choice == 0 && flash_ok) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
     Ui_Controller_Erase_Line(4);
-    Tft_Driver_Show_CN_String(4, 3,
+    Tft_Driver_Show_CN_String(4, 2,
         Ui_Controller_Pick_CN_EN((s_preview_choice == 1) ? "* \xe8\x8b\xb1\xe6\x96\x87" : "  \xe8\x8b\xb1\xe6\x96\x87",
                    (s_preview_choice == 1) ? "* English" : "  English"),
         (s_preview_choice == 1 || !flash_ok) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
@@ -1854,7 +1913,7 @@ static void Ui_Controller_Handle_Lang_Keys(Key_Driver_Event k1, Key_Driver_Event
     /* 返回键取消预览，恢复原值且不保存。 */
     if (back) {
         s_preview_choice = s_language;
-        s_page = UI_PAGE_SETTING; s_setting_cursor = 0; s_page_drawn = 0; return;
+        s_page = UI_PAGE_SETTING; s_setting_cursor = UI_SETTING_ITEM_LANGUAGE; s_page_drawn = 0; return;
     }
 
     /* 上下键循环移动预览光标。 */
@@ -1866,6 +1925,116 @@ static void Ui_Controller_Handle_Lang_Keys(Key_Driver_Event k1, Key_Driver_Event
         s_language  = s_preview_choice;
         s_settings_dirty = 1;
         s_page_drawn = 0;
+    }
+}
+
+/* ==============================================================
+ *  设置二：双档启动频率。总览只选择档位，进入编辑后使用副本，
+ *  返回键丢弃副本，确认键才提交到持久化配置和下一轮软启动配置。
+ * ============================================================== */
+static void Ui_Controller_Draw_Frequency_Full(void)
+{
+    char line_buf[24];
+    uint8_t low_selected = (s_frequency_edit_band == APP_STORAGE_FREQ_BAND_LOW);
+
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN("\xe5\x90\xaf\xe5\x8a\xa8\xe9\xa2\x91\xe7\x8e\x87", "Startup Freq"));
+    if (s_frequency_editing != 0U) {
+        snprintf(line_buf, sizeof(line_buf), "%s %s",
+                 Ui_Controller_Pick_CN_EN("编辑", "Edit"),
+                 low_selected ? Ui_Controller_Pick_CN_EN("低档", "Low") : Ui_Controller_Pick_CN_EN("高档", "High"));
+        Ui_Controller_Draw_Menu_Text(2, 2, line_buf, 1U);
+        if (low_selected) {
+            snprintf(line_buf, sizeof(line_buf), "%.1fkHz",
+                     (float)s_frequency_edit_value / 1000.0f);
+        } else {
+            snprintf(line_buf, sizeof(line_buf), "%lukHz",
+                     (unsigned long)(s_frequency_edit_value / 1000U));
+        }
+        Ui_Controller_Draw_Menu_Text(4, 2, line_buf, 1U);
+        Ui_Controller_Draw_Menu_Text(6, 2,
+            Ui_Controller_Pick_CN_EN("返回取消  确定保存", "Back Cancel  OK Save"), 1U);
+        Ui_Controller_Draw_Menu_Cursor(4U, 1U);
+        return;
+    }
+
+    snprintf(line_buf, sizeof(line_buf), "Low  %.1fkHz",
+             (float)s_startup_low_freq_hz / 1000.0f);
+    Ui_Controller_Draw_Menu_Text(2, 2, line_buf, 1U);
+    snprintf(line_buf, sizeof(line_buf), "High %lukHz",
+             (unsigned long)(s_startup_high_freq_hz / 1000U));
+    Ui_Controller_Draw_Menu_Text(3, 2, line_buf, 1U);
+    Ui_Controller_Draw_Menu_Text(5, 2,
+        low_selected ? "Active: Low" : "Active: High", 1U);
+    if ((uint32_t)(s_settings_saved_until_ms - Sys_Timer_Get_Tick()) < UI_SETTINGS_SAVED_MS) {
+        Ui_Controller_Draw_Menu_Text(6, 2,
+            Ui_Controller_Pick_CN_EN("\xe5\xb7\xb2\xe4\xbf\x9d\xe5\xad\x98", "Saved"), 1U);
+    }
+    Ui_Controller_Draw_Menu_Text(7, 2,
+        Ui_Controller_Pick_CN_EN("确定编辑", "OK Edit"), 1U);
+    Ui_Controller_Draw_Menu_Cursor(low_selected ? 2U : 3U, 1U);
+}
+
+static void Ui_Controller_Handle_Frequency_Keys(Key_Driver_Event k1,
+    Key_Driver_Event k2, Key_Driver_Event k3, Key_Driver_Event k4)
+{
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {
+        if (s_frequency_editing != 0U) {
+            s_frequency_editing = 0U;
+        }
+        s_page = UI_PAGE_SETTING;
+        s_setting_cursor = UI_SETTING_ITEM_FREQUENCY;
+        s_page_drawn = 0U;
+        return;
+    }
+
+    if (s_frequency_editing == 0U) {
+        if ((k2 == KEY_DRIVER_EVENT_CLICK) || (k3 == KEY_DRIVER_EVENT_CLICK)) {
+            s_frequency_edit_band = (s_frequency_edit_band == APP_STORAGE_FREQ_BAND_LOW) ?
+                APP_STORAGE_FREQ_BAND_HIGH : APP_STORAGE_FREQ_BAND_LOW;
+            s_page_drawn = 0U;
+        }
+        if (k4 == KEY_DRIVER_EVENT_CLICK) {
+            s_frequency_edit_value = (s_frequency_edit_band == APP_STORAGE_FREQ_BAND_LOW) ?
+                s_startup_low_freq_hz : s_startup_high_freq_hz;
+            s_frequency_editing = 1U;
+            s_page_drawn = 0U;
+        }
+        return;
+    }
+
+    if (s_frequency_edit_band == APP_STORAGE_FREQ_BAND_LOW) {
+        if (k2 == KEY_DRIVER_EVENT_CLICK &&
+            s_frequency_edit_value <= UI_FREQUENCY_LOW_MAX_HZ - UI_FREQUENCY_LOW_STEP_HZ) {
+            s_frequency_edit_value += UI_FREQUENCY_LOW_STEP_HZ;
+        }
+        if (k3 == KEY_DRIVER_EVENT_CLICK &&
+            s_frequency_edit_value >= UI_FREQUENCY_LOW_MIN_HZ + UI_FREQUENCY_LOW_STEP_HZ) {
+            s_frequency_edit_value -= UI_FREQUENCY_LOW_STEP_HZ;
+        }
+    } else {
+        if (k2 == KEY_DRIVER_EVENT_CLICK &&
+            s_frequency_edit_value <= UI_FREQUENCY_HIGH_MAX_HZ - UI_FREQUENCY_HIGH_STEP_HZ) {
+            s_frequency_edit_value += UI_FREQUENCY_HIGH_STEP_HZ;
+        }
+        if (k3 == KEY_DRIVER_EVENT_CLICK &&
+            s_frequency_edit_value >= UI_FREQUENCY_HIGH_MIN_HZ + UI_FREQUENCY_HIGH_STEP_HZ) {
+            s_frequency_edit_value -= UI_FREQUENCY_HIGH_STEP_HZ;
+        }
+    }
+    if ((k2 == KEY_DRIVER_EVENT_CLICK) || (k3 == KEY_DRIVER_EVENT_CLICK)) {
+        s_page_drawn = 0U;
+    }
+    if (k4 == KEY_DRIVER_EVENT_CLICK) {
+        if (s_frequency_edit_band == APP_STORAGE_FREQ_BAND_LOW) {
+            s_startup_low_freq_hz = s_frequency_edit_value;
+        } else {
+            s_startup_high_freq_hz = s_frequency_edit_value;
+        }
+        s_startup_freq_band = s_frequency_edit_band;
+        s_settings_dirty = 1U;
+        Ui_Controller_Save_Settings();
+        s_frequency_editing = 0U;
+        s_page_drawn = 0U;
     }
 }
 
@@ -1925,6 +2094,35 @@ static const char* Ui_Controller_Get_Icon_Name(uint8_t icon_id)
 
 static void Ui_Controller_Draw_Icons_Full(void)
 {
+    uint8_t i;
+    uint8_t icon_id;
+    uint16_t x;
+    uint16_t y;
+
+    Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN("\xe5\x85\x89\xe6\xa0\x87\xe5\x9b\xbe\xe6\xa0\x87", "Cursor Icon"));
+    for (i = 0U; i < UI_CURSOR_ICON_COUNT; i++) {
+        x = (uint16_t)(24U + (uint16_t)(i % 4U) * 32U);
+        y = (uint16_t)(28U + (uint16_t)(i / 4U) * 36U);
+        icon_id = s_cursor_icon_ids[i];
+        if (i == s_icon_cursor) {
+            Tft_Driver_Fill_Rect(x - 2U, y - 2U, 20U, 20U,
+                                 Ui_Controller_Get_Value_Color());
+        }
+        if (Tft_Driver_Draw_Icon_By_Id(x, y, icon_id, 0U,
+            Ui_Controller_Get_Text_Color(),
+            (i == s_icon_cursor) ? Ui_Controller_Get_Value_Color() :
+                Ui_Controller_Get_Background_Color()) == 0U) {
+            Tft_Driver_Draw_Icon_By_Id(x, y, ICON_ID_STAR, 0U,
+                Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
+        }
+    }
+    Ui_Controller_Draw_Menu_Text(6, 2,
+        Ui_Controller_Get_Icon_Name(s_cursor_icon_ids[s_icon_cursor]), 1U);
+    Ui_Controller_Draw_Menu_Text(7, 2,
+        Ui_Controller_Pick_CN_EN("确定保存光标", "OK Save Cursor"), 1U);
+    return;
+
+#if 0
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
 
     if (!flash_ok) {
@@ -1974,11 +2172,39 @@ static void Ui_Controller_Draw_Icons_Full(void)
             Tft_Driver_Show_String(7, col, buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         }
     }
+#endif
 }
 
 static void Ui_Controller_Handle_Icons_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
                                Key_Driver_Event k3, Key_Driver_Event k4)
 {
+    if (k1 == KEY_DRIVER_EVENT_CLICK) {
+        s_page = UI_PAGE_SETTING;
+        s_setting_cursor = UI_SETTING_ITEM_ICONS;
+        s_page_drawn = 0U;
+        return;
+    }
+    if (k2 == KEY_DRIVER_EVENT_CLICK) {
+        s_icon_cursor = (s_icon_cursor == 0U) ? UI_CURSOR_ICON_COUNT - 1U :
+            s_icon_cursor - 1U;
+        s_page_drawn = 0U;
+    }
+    if (k3 == KEY_DRIVER_EVENT_CLICK) {
+        s_icon_cursor = (s_icon_cursor >= UI_CURSOR_ICON_COUNT - 1U) ? 0U :
+            s_icon_cursor + 1U;
+        s_page_drawn = 0U;
+    }
+    if (k4 == KEY_DRIVER_EVENT_CLICK) {
+        s_menu_cursor_icon = s_icon_cursor;
+        s_settings_dirty = 1U;
+        Ui_Controller_Save_Settings();
+        s_page = UI_PAGE_SETTING;
+        s_setting_cursor = UI_SETTING_ITEM_ICONS;
+        s_page_drawn = 0U;
+    }
+    return;
+
+#if 0
     uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
     uint8_t up    = (k2 == KEY_DRIVER_EVENT_CLICK);
     uint8_t down  = (k3 == KEY_DRIVER_EVENT_CLICK);
@@ -2029,6 +2255,7 @@ static void Ui_Controller_Handle_Icons_Keys(Key_Driver_Event k1, Key_Driver_Even
         s_icon_cursor = cur;
         s_page_drawn   = 0;
     }
+#endif
 }
 
 /* ==============================================================
@@ -2100,7 +2327,7 @@ static void Ui_Controller_Handle_Spacing_Keys(Key_Driver_Event k1, Key_Driver_Ev
     if (back) {
         s_preview_choice = s_letter_spacing;
         Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));
-        s_page = UI_PAGE_SETTING; s_setting_cursor = 1; s_page_drawn = 0; return;
+        s_page = UI_PAGE_SETTING; s_setting_cursor = UI_SETTING_ITEM_SPACING; s_page_drawn = 0; return;
     }
 
     /* 上下键在0至3之间循环移动预览光标。 */
@@ -2178,7 +2405,7 @@ static void Ui_Controller_Handle_Color_Keys(Key_Driver_Event k1, Key_Driver_Even
 {
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
         s_preview_choice = sc_preset;  /* 恢复已保存方案。 */
-        s_page = UI_PAGE_SETTING; s_setting_cursor = 3; s_page_drawn = 0; return;
+        s_page = UI_PAGE_SETTING; s_setting_cursor = UI_SETTING_ITEM_COLOR; s_page_drawn = 0; return;
     }
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
         if (s_preview_choice == 0) s_preview_choice = 5;
@@ -2206,9 +2433,18 @@ static uint8_t Ui_Controller_Handle_Settings_Keys(Ui_Page page,
     Key_Driver_Event k1, Key_Driver_Event k2,
     Key_Driver_Event k3, Key_Driver_Event k4)
 {
+    if (k1 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
+        s_frequency_editing = 0U;
+        s_page = UI_PAGE_MAIN_MENU;
+        s_menu_cursor = 3U;
+        s_setting_cursor = UI_SETTING_ITEM_LANGUAGE;
+        s_page_drawn = 0U;
+        return 1U;
+    }
     switch (page) {
         case UI_PAGE_SETTING:           Ui_Controller_Handle_Setting_Keys(k1,k2,k3,k4); return 1;
         case UI_PAGE_SETTING_LANG:      Ui_Controller_Handle_Lang_Keys(k1,k2,k3,k4); return 1;
+        case UI_PAGE_SETTING_FREQUENCY: Ui_Controller_Handle_Frequency_Keys(k1,k2,k3,k4); return 1;
         case UI_PAGE_SETTING_SPACING:   Ui_Controller_Handle_Spacing_Keys(k1,k2,k3,k4); return 1;
         case UI_PAGE_SETTING_ICONS:     Ui_Controller_Handle_Icons_Keys(k1,k2,k3,k4); return 1;
         case UI_PAGE_SETTING_COLOR:     Ui_Controller_Handle_Color_Keys(k1,k2,k3,k4); return 1;
@@ -2349,6 +2585,13 @@ void Ui_Controller_Task(
         s_last_ui_ms = Sys_Timer_Get_Tick();
         tick_200ms = 1;
     }
+    if (s_settings_saved_until_ms != 0U &&
+        (uint32_t)(Sys_Timer_Get_Tick() - s_settings_saved_until_ms) < 0x80000000U) {
+        s_settings_saved_until_ms = 0U;
+        if (s_page == UI_PAGE_SETTING || s_page == UI_PAGE_SETTING_FREQUENCY) {
+            s_page_drawn = 0U;
+        }
+    }
 
     /* 第六阶段：钳位光标边界。 */
     if (s_page == UI_PAGE_MAIN_MENU) {
@@ -2360,7 +2603,9 @@ void Ui_Controller_Task(
         if (s_menu_cursor > 4) s_menu_cursor = 0;
     }
     if (s_page == UI_PAGE_SETTING) {
-        if (s_setting_cursor > 3U) s_setting_cursor = 0U;
+        if (s_setting_cursor >= UI_SETTING_ITEM_COUNT) {
+            s_setting_cursor = UI_SETTING_ITEM_LANGUAGE;
+        }
     }
 
     /* ============================================================
@@ -2382,6 +2627,7 @@ void Ui_Controller_Task(
             case UI_PAGE_FAULT:            Ui_Controller_Draw_Fault_Full();       break;
             case UI_PAGE_SETTING:          Ui_Controller_Draw_Setting_Full();     break;
             case UI_PAGE_SETTING_LANG:      Ui_Controller_Draw_Lang_Full();        break;
+            case UI_PAGE_SETTING_FREQUENCY: Ui_Controller_Draw_Frequency_Full();   break;
             case UI_PAGE_SETTING_SPACING:   Ui_Controller_Draw_Spacing_Full();     break;
             case UI_PAGE_SETTING_ICONS:     Ui_Controller_Draw_Icons_Full();       break;
             case UI_PAGE_SETTING_COLOR:     Ui_Controller_Draw_Color_Full();       break;
@@ -2429,6 +2675,7 @@ void Ui_Controller_Task(
                 case UI_PAGE_FAULT:            /* 静态页面 */               break;
                 case UI_PAGE_SETTING:          /* 静态页面 */               break;
                 case UI_PAGE_SETTING_LANG:      /* 静态页面 */               break;
+                case UI_PAGE_SETTING_FREQUENCY: /* 静态页面 */               break;
                 case UI_PAGE_SETTING_SPACING:   /* 静态页面 */               break;
                 case UI_PAGE_SETTING_ICONS:     /* 静态页面 */               break;
                 case UI_PAGE_SETTING_COLOR:     /* 静态页面 */               break;
@@ -2477,6 +2724,23 @@ void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
     s_startup_high_freq_hz = startup_freq_high_hz;
     s_startup_freq_band = startup_freq_band;
     s_menu_cursor_icon = cursor_icon;
+    if (s_startup_low_freq_hz < UI_FREQUENCY_LOW_MIN_HZ ||
+        s_startup_low_freq_hz > UI_FREQUENCY_LOW_MAX_HZ ||
+        (s_startup_low_freq_hz % UI_FREQUENCY_LOW_STEP_HZ) != 0U) {
+        s_startup_low_freq_hz = UI_FREQUENCY_LOW_MIN_HZ;
+    }
+    if (s_startup_high_freq_hz < UI_FREQUENCY_HIGH_MIN_HZ ||
+        s_startup_high_freq_hz > UI_FREQUENCY_HIGH_MAX_HZ ||
+        (s_startup_high_freq_hz % UI_FREQUENCY_HIGH_STEP_HZ) != 0U) {
+        s_startup_high_freq_hz = UI_FREQUENCY_HIGH_MIN_HZ;
+    }
+    if (s_startup_freq_band != APP_STORAGE_FREQ_BAND_LOW &&
+        s_startup_freq_band != APP_STORAGE_FREQ_BAND_HIGH) {
+        s_startup_freq_band = APP_STORAGE_FREQ_BAND_HIGH;
+    }
+    if (s_menu_cursor_icon >= UI_CURSOR_ICON_COUNT) {
+        s_menu_cursor_icon = 0U;
+    }
     (void)font;  /* 字体大小已由字符间距取代，该字段仅用于兼容旧配置。 */
     (void)bl;
     Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));  /* 选项0至3映射为0、2、4、6像素。 */
