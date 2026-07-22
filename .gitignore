@@ -49,6 +49,9 @@ Thumbs.db
 # Brainstorming visual companion
 .superpowers/
 
+# Isolated feature worktrees
+.worktrees/
+
 # CH341 flashrom — 仅排除临时产物, 保留工具可执行文件
 /ch341/flashrom-1.4.zip
 /ch341/flashrom_ch341a/
