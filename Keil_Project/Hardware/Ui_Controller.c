@@ -15,7 +15,7 @@
  *  |    系统核心：状态机、安全保护和统一电源控制               |
  *  |    系统时基：提供200ms增量刷新节拍                        |
  *  |                                                           |
- *  |    页面数量：9个主功能或监测页面，5个设置页面             |
+ *  |    页面数量：9个主功能或监测页面，6个设置页面             |
  *  |                                                           |
  *  |    调度分为0至7共八个阶段：图标、故障、扫频、按键、       |
  *  |    页面切换、动态数据、光标边界和最终绘制                 |
@@ -1878,13 +1878,11 @@ static void Ui_Controller_Draw_Lang_Full(void)
 
     Ui_Controller_Erase_Line(3);
     Tft_Driver_Show_CN_String(3, 2,
-        Ui_Controller_Pick_CN_EN((s_preview_choice == 0) ? "* \xe4\xb8\xad\xe6\x96\x87" : "  \xe4\xb8\xad\xe6\x96\x87",
-                   (s_preview_choice == 0) ? "* Chinese" : "  Chinese"),
+        Ui_Controller_Pick_CN_EN("\xe4\xb8\xad\xe6\x96\x87", "Chinese"),
         (s_preview_choice == 0 && flash_ok) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
     Ui_Controller_Erase_Line(4);
     Tft_Driver_Show_CN_String(4, 2,
-        Ui_Controller_Pick_CN_EN((s_preview_choice == 1) ? "* \xe8\x8b\xb1\xe6\x96\x87" : "  \xe8\x8b\xb1\xe6\x96\x87",
-                   (s_preview_choice == 1) ? "* English" : "  English"),
+        Ui_Controller_Pick_CN_EN("\xe8\x8b\xb1\xe6\x96\x87", "English"),
         (s_preview_choice == 1 || !flash_ok) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
 
     Ui_Controller_Draw_Cursor(s_preview_choice == 0 ? 3 : 4);
@@ -1929,7 +1927,7 @@ static void Ui_Controller_Handle_Lang_Keys(Key_Driver_Event k1, Key_Driver_Event
 }
 
 /* ==============================================================
- *  设置二：双档启动频率。总览只选择档位，进入编辑后使用副本，
+ *  设置三：双档启动频率。总览只选择档位，进入编辑后使用副本，
  *  返回键丢弃副本，确认键才提交到持久化配置和下一轮软启动配置。
  * ============================================================== */
 static void Ui_Controller_Draw_Frequency_Full(void)
@@ -2039,17 +2037,9 @@ static void Ui_Controller_Handle_Frequency_Keys(Key_Driver_Event k1,
 }
 
 /* ==============================================================
- *  设置三：图标浏览，每页7列乘5行，共35个图标
+ *  设置四：八项前导光标图标选择。
  * ============================================================== */
-#define ICON_COLS       7   /* 每页七列。 */
-#define ICON_ROWS       5
-#define ICON_CELL_SZ    18
-#define ICON_GRID_X     ((160 - ICON_COLS * ICON_CELL_SZ) / 2)  /* (160-126)/2 = 17 */
-#define ICON_PER_PAGE   (ICON_COLS * ICON_ROWS)  /* 每页三十五个图标。 */
-#define ICON_TOTAL      35
-#define ICON_TOTAL_PAGES ((ICON_TOTAL + ICON_PER_PAGE - 1) / ICON_PER_PAGE)
-
-/* 三十五个图标的中英文名称表。 */
+/* 八项候选图标的中英文名称表。 */
 static const char* Ui_Controller_Get_Icon_Name(uint8_t icon_id)
 {
     switch (icon_id) {
@@ -2120,59 +2110,6 @@ static void Ui_Controller_Draw_Icons_Full(void)
         Ui_Controller_Get_Icon_Name(s_cursor_icon_ids[s_icon_cursor]), 1U);
     Ui_Controller_Draw_Menu_Text(7, 2,
         Ui_Controller_Pick_CN_EN("确定保存光标", "OK Save Cursor"), 1U);
-    return;
-
-#if 0
-    uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
-
-    if (!flash_ok) {
-        Ui_Controller_Draw_Header(Ui_Controller_Pick_CN_EN("\xe5\x9b\xbe\xe6\xa0\x87", "Icons"));
-        Tft_Driver_Show_String(3, 2, Ui_Controller_Pick_CN_EN(S_FLASH_REQUIRED_CN, S_FLASH_REQUIRED_EN), Uc_Alarm(), Ui_Controller_Get_Background_Color());
-        return;
-    }
-
-    {
-        char buf[24];
-        snprintf(buf, 24, "%s [%d/%d]", Ui_Controller_Pick_CN_EN(S_TITLE_ICONS_CN, S_TITLE_ICONS_EN),
-                 s_icon_page + 1, ICON_TOTAL_PAGES);
-        Ui_Controller_Draw_Header(buf);
-    }
-
-    /* 从纵坐标16开始绘制7列乘5行网格，每格18像素。 */
-    {
-        uint8_t row, col;
-        for (row = 0U; row < ICON_ROWS; row++) {
-            for (col = 0U; col < ICON_COLS; col++) {
-                uint8_t icon_id = (uint8_t)(s_icon_page * ICON_PER_PAGE + row * ICON_COLS + col);
-                uint16_t x = (uint16_t)(ICON_GRID_X + (uint16_t)col * ICON_CELL_SZ);
-                uint16_t y = (uint16_t)((uint16_t)row * ICON_CELL_SZ + 16U);
-                if (icon_id < ICON_TOTAL) {
-                    uint8_t  cursor_id = (uint8_t)(s_icon_page * ICON_PER_PAGE + s_icon_cursor);
-                    uint16_t fg = Ui_Controller_Get_Text_Color();
-                    uint16_t bg = Ui_Controller_Get_Background_Color();
-                    if (icon_id == cursor_id) {
-                        Tft_Driver_Fill_Rect(x - 1U, y - 1U, 18U, 18U, Ui_Controller_Get_Value_Color());
-                        bg = Ui_Controller_Get_Value_Color();
-                    }
-                    Tft_Driver_Draw_Icon_By_Id(x, y, icon_id, 0, fg, bg);
-                }
-            }
-        }
-    }
-
-    /* 底部信息栏显示图标名称和从1开始的编号。 */
-    {
-        uint8_t  icon_id = (uint8_t)(s_icon_page * ICON_PER_PAGE + s_icon_cursor);
-        if (icon_id < ICON_TOTAL) {
-            char buf[32];
-            uint8_t col;
-
-            snprintf(buf, 32, "%s [#%d]", Ui_Controller_Get_Icon_Name(icon_id), (int)(icon_id + 1));
-            col = Ui_Controller_Center_Text(buf);
-            Tft_Driver_Show_String(7, col, buf, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
-        }
-    }
-#endif
 }
 
 static void Ui_Controller_Handle_Icons_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
@@ -2202,72 +2139,17 @@ static void Ui_Controller_Handle_Icons_Keys(Key_Driver_Event k1, Key_Driver_Even
         s_setting_cursor = UI_SETTING_ITEM_ICONS;
         s_page_drawn = 0U;
     }
-    return;
-
-#if 0
-    uint8_t flash_ok = Tft_Driver_Is_Font_Flash_Valid();
-    uint8_t up    = (k2 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t down  = (k3 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t back  = (k1 == KEY_DRIVER_EVENT_CLICK);
-    uint8_t page  = s_icon_page;
-    uint8_t cur   = s_icon_cursor;
-
-    /* 返回键回到设置主菜单。 */
-    if (back) {
-        s_page = UI_PAGE_SETTING; s_setting_cursor = 2; s_page_drawn = 0; return;
-    }
-
-    if (!flash_ok) return;
-
-    /* 上移键减小编号，越过页首时回到上一页末尾。 */
-    if (up) {
-        if (cur == 0) {
-            if (page > 0) { page--; cur = (uint8_t)(ICON_PER_PAGE - 1U); }
-            else          { cur   = (uint8_t)(ICON_PER_PAGE - 1U); }  /* 第一页继续向前时回到本页末尾。 */
-        } else { cur--; }
-    }
-
-    /* 下移键增加编号，越过页尾时进入下一页。 */
-    if (down) {
-        uint8_t items_on_page = ICON_PER_PAGE;
-        if (page == (ICON_TOTAL_PAGES - 1U)) {
-            items_on_page = (uint8_t)(ICON_TOTAL - page * ICON_PER_PAGE);
-        }
-        if (cur + 1U >= items_on_page) {
-            if (page + 1U < ICON_TOTAL_PAGES) { page++; cur = 0; }
-            else                              { cur   = 0; }  /* 最后一页继续向后时回到本页开头。 */
-        } else { cur++; }
-    }
-
-    /* 写回状态前再次钳位页码和光标，防止数组越界。 */
-    if (page >= ICON_TOTAL_PAGES) page = (uint8_t)(ICON_TOTAL_PAGES - 1U);
-    {
-        uint8_t items_on_cur_page = ICON_PER_PAGE;
-        if (page == (ICON_TOTAL_PAGES - 1U)) {
-            items_on_cur_page = (uint8_t)(ICON_TOTAL - page * ICON_PER_PAGE);
-        }
-        if (cur >= items_on_cur_page) cur = (uint8_t)(items_on_cur_page - 1U);
-    }
-
-    /* 图标浏览页面忽略确定键。 */
-    if (page != s_icon_page || cur != s_icon_cursor) {
-        s_icon_page   = page;
-        s_icon_cursor = cur;
-        s_page_drawn   = 0;
-    }
-#endif
 }
 
 /* ==============================================================
- *  设置四：字符间距，替代旧字体大小选项
+ *  设置五：字符间距，替代旧字体大小选项
  *  上下键在0至3之间移动预览光标，底部即时显示间距效果；
  *  确定键保存，返回键取消。
  * ============================================================== */
 #define S_SPACING_TITLE_CN "\xe5\xad\x97\xe9\x97\xb4\xe8\xb7\x9d"
 #define S_SPACING_TITLE_EN "Spacing"
 
-    /* 已保存选项显示勾号，当前预览选项显示星标。
-     * 标签本身带有不同间距，直接展示预览效果。
+    /* 标签本身带有不同间距，直接展示预览效果。
      * 字符串均使用已验证的UTF-8编码，兼容ARMCC V5。 */
 static const char* Ui_Controller_Get_Spacing_Label(uint8_t v)
 {
@@ -2295,9 +2177,6 @@ static void Ui_Controller_Draw_Spacing_Full(void)
                 Ui_Controller_Get_Spacing_Label(i),
                 (s_preview_choice == i) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
             Tft_Driver_Set_Letter_Spacing((uint8_t)(saved * 2));
-        }
-        if (s_preview_choice == i) {
-            Tft_Driver_Show_String(3 + i, 0, "*", Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         }
     }
 
@@ -2345,7 +2224,7 @@ static void Ui_Controller_Handle_Spacing_Keys(Key_Driver_Event k1, Key_Driver_Ev
 }
 
 /* ==============================================================
- *  设置五：配色方案，先预览再确认
+ *  设置六：配色方案，先预览再确认
  *  上下键移动预览光标，底部显示三种颜色样块；
  *  确定键保存并触发整页重绘，返回键取消并恢复原方案。
  * ============================================================== */
@@ -2367,10 +2246,9 @@ static void Ui_Controller_Draw_Color_Full(void)
         char buf[24];
         const char* name = Ui_Controller_Pick_CN_EN(COLOR_PRESETS[i].name_cn, COLOR_PRESETS[i].name_en);
         Ui_Controller_Erase_Line(2 + i);
-        /* 已生效方案显示勾号，当前预览方案显示星标。 */
+        /* 已生效方案保留勾号，行选择由统一前导光标表示。 */
         {
-            const char* prefix = (sc_preset == i) ? "\xe2\x9c\x93 " :
-                                (s_preview_choice == i) ? "* " : "  ";
+            const char* prefix = (sc_preset == i) ? "\xe2\x9c\x93 " : "  ";
             snprintf(buf, 24, "%s%s", prefix, name);
             Tft_Driver_Show_CN_String(2 + i, 2, buf,
                 (s_preview_choice == i) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
@@ -2435,6 +2313,9 @@ static uint8_t Ui_Controller_Handle_Settings_Keys(Ui_Page page,
 {
     if (k1 == KEY_DRIVER_EVENT_DOUBLE_CLICK) {
         s_frequency_editing = 0U;
+        if (s_settings_dirty) {
+            Ui_Controller_Save_Settings();
+        }
         s_page = UI_PAGE_MAIN_MENU;
         s_menu_cursor = 3U;
         s_setting_cursor = UI_SETTING_ITEM_LANGUAGE;

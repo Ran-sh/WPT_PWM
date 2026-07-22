@@ -29,3 +29,10 @@ Missing startup frequency page
 ## 偏差与说明
 
 `Target 1.BAT` 在清理后仍引用不存在的 `Objects/w25q_driver_1.__i`，不能独立重建；改用 Keil μVision 的 `-r Project.uvprojx` 完成同一全量 ARMCC 重建。该脚本问题不由本任务引入，未修改其内容。
+
+## 审查修复
+
+- 返回键双击从任意设置子页直接退出时，先丢弃未确认的频率副本；若已有确认但尚未写入的设置，则统一调用 `Ui_Controller_Save_Settings()` 后再回主菜单。
+- 删除两段旧的 35 项图标浏览死代码和过时注释，图标页仅保留八项候选实现。
+- 语言、字间距和配色页删除与全局图标光标重复的星号选择标记；配色勾号仅表示已保存方案。
+- 审查修复后的全量重建：Code=55282，RO-data=3958，RW-data=540，ZI-data=7180；Code+RO=59240 bytes，距 64KB Flash 还余 6296 bytes，`0 Error(s), 0 Warning(s)`。
