@@ -17,6 +17,24 @@ function Assert-NotContains([string]$text, [string]$pattern, [string]$message) {
     if ($text -match $pattern) { throw $message }
 }
 
+function Assert-CursorIconNamesMatchCandidates([string]$text) {
+    $match = [regex]::Match($text,
+        'static const char\* Ui_Controller_Get_Icon_Name\(uint8_t icon_id\)\s*\{(?<body>[\s\S]*?)\n\s*\}\s*\n\s*\}')
+    if (-not $match.Success) { throw 'Cannot find cursor icon name table' }
+
+    $expected = @(
+        'ICON_ID_STAR', 'ICON_ID_CHECK', 'ICON_ID_ROCKET_ANIM', 'ICON_ID_LIGHTNING',
+        'ICON_ID_HOME', 'ICON_ID_GEAR', 'ICON_ID_REFRESH', 'ICON_ID_ARROW_RT'
+    )
+    $actual = [regex]::Matches($match.Groups['body'].Value, 'case\s+(ICON_ID_[A-Z_]+)\s*:') |
+        ForEach-Object { $_.Groups[1].Value }
+
+    if ($actual.Count -ne $expected.Count -or @($actual | Where-Object { $_ -notin $expected }).Count -ne 0 -or
+        @($expected | Where-Object { $_ -notin $actual }).Count -ne 0) {
+        throw 'Cursor icon name table must contain exactly the eight selectable icon IDs'
+    }
+}
+
 Assert-Contains $storageH '#define CFG_VERSION\s+2U' 'Configuration version must upgrade to 2'
 Assert-Contains $storageH 'uint32_t\s+startup_low_freq_hz;' 'Missing low-band frequency field'
 Assert-Contains $storageH 'uint32_t\s+startup_high_freq_hz;' 'Missing high-band frequency field'
@@ -57,6 +75,7 @@ Assert-Contains $uiC 's_frequency_edit_value' 'UI missing frequency edit copy'
 Assert-Contains $uiC 's_frequency_editing' 'UI missing frequency edit state flag'
 Assert-Contains $uiC 's_menu_cursor_icon' 'UI missing global cursor state'
 Assert-Contains $uiC 's_cursor_icon_ids\[8\]' 'Cursor icon choices are not fixed to eight entries'
+Assert-CursorIconNamesMatchCandidates $uiC
 Assert-Contains $uiC 'Ui_Controller_Draw_Menu_Cursor' 'Menus do not use the unified cursor renderer'
 Assert-NotContains $uiC 'Sys_Timer_Delay_Ms' 'Settings UI must not block with runtime delays'
 Assert-Contains $uiC 'k1\s*==\s*KEY_DRIVER_EVENT_DOUBLE_CLICK[\s\S]{0,300}if\s*\(s_settings_dirty\)\s*\{[\s\S]{0,100}Ui_Controller_Save_Settings' 'Settings double-click exit does not save confirmed changes'

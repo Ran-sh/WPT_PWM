@@ -2043,41 +2043,14 @@ static void Ui_Controller_Handle_Frequency_Keys(Key_Driver_Event k1,
 static const char* Ui_Controller_Get_Icon_Name(uint8_t icon_id)
 {
     switch (icon_id) {
-        case 0:  return Ui_Controller_Pick_CN_EN("WIFI_SIG",    "WIFI_SIG");
-        case 1:  return Ui_Controller_Pick_CN_EN("WIFI_CONN",   "WIFI_CONN");
-        case 2:  return Ui_Controller_Pick_CN_EN("WIFI_OFF",    "WIFI_OFF");
-        case 3:  return Ui_Controller_Pick_CN_EN("WIFI_RMV",    "WIFI_RMV");
-        case 4:  return Ui_Controller_Pick_CN_EN("MQTT",        "MQTT");
-        case 5:  return Ui_Controller_Pick_CN_EN("MQTT_YES",    "MQTT_YES");
-        case 6:  return Ui_Controller_Pick_CN_EN("MQTT_NO",     "MQTT_NO");
-        case 7:  return Ui_Controller_Pick_CN_EN("MQTT_ANIM",   "MQTT_ANIM");
-        case 8:  return Ui_Controller_Pick_CN_EN("\xe6\x98\x9f\xe6\xa0\x87",  "STAR");
-        case 9:  return Ui_Controller_Pick_CN_EN("\xe5\x85\x89\xe6\xa0\x87\xe5\x8a\xa8", "STAR_CUR");
-        case 10: return Ui_Controller_Pick_CN_EN("\xe7\x81\xab\xe7\xae\xad",  "ROCKET");
-        case 11: return Ui_Controller_Pick_CN_EN("\xe7\x94\xb5\xe6\xb1\xa0",  "BATTERY");
-        case 12: return Ui_Controller_Pick_CN_EN("\xe8\xad\xa6\xe5\x91\x8a",  "WARNING");
-        case 13: return Ui_Controller_Pick_CN_EN("\xe5\x8b\xbe",    "CHECK");
-        case 14: return Ui_Controller_Pick_CN_EN("\xe5\x8f\x89",    "CROSS");
-        case 15: return Ui_Controller_Pick_CN_EN("\xe7\x94\xb5\xe6\xba\x90",  "POWER");
-        case 16: return Ui_Controller_Pick_CN_EN("\xe9\x97\xaa\xe7\x94\xb5",  "LIGHTNING");
-        case 17: return Ui_Controller_Pick_CN_EN("\xe6\xb8\xa9\xe5\xba\xa6",  "TEMP");
-        case 18: return Ui_Controller_Pick_CN_EN("\xe9\xa3\x8e\xe6\x89\x87",  "FAN");
-        case 19: return Ui_Controller_Pick_CN_EN("\xe9\x94\x81",    "LOCK");
-        case 20: return Ui_Controller_Pick_CN_EN("\xe4\xb8\xbb\xe9\xa1\xb5",  "HOME");
-        case 21: return Ui_Controller_Pick_CN_EN("\xe8\xae\xbe\xe7\xbd\xae",  "GEAR");
-        case 22: return Ui_Controller_Pick_CN_EN("\xe5\x88\xb7\xe6\x96\xb0",  "REFRESH");
-        case 23: return Ui_Controller_Pick_CN_EN("\xe4\xb8\x8a\xe7\xae\xad",  "ARROW_UP");
-        case 24: return Ui_Controller_Pick_CN_EN("\xe4\xb8\x8b\xe7\xae\xad",  "ARROW_DN");
-        case 25: return Ui_Controller_Pick_CN_EN("\xe5\xb7\xa6\xe7\xae\xad",  "ARROW_LT");
-        case 26: return Ui_Controller_Pick_CN_EN("\xe5\x8f\xb3\xe7\xae\xad",  "ARROW_RT");
-        case 27: return Ui_Controller_Pick_CN_EN("\xe4\xbf\xa1\xe5\x8f\xb7",  "SIGNAL");
-        case 28: return Ui_Controller_Pick_CN_EN("\xe5\x85\xa8\xe7\x90\x83",  "GLOBE");
-        case 29: return Ui_Controller_Pick_CN_EN("\xe5\x9b\xbe\xe8\xa1\xa8",  "CHART");
-        case 30: return Ui_Controller_Pick_CN_EN("\xe6\x97\xb6\xe9\x92\x9f",  "CLOCK");
-        case 31: return Ui_Controller_Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "1", "EXTRA1");
-        case 32: return Ui_Controller_Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "2", "EXTRA2");
-        case 33: return Ui_Controller_Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "3", "EXTRA3");
-        case 34: return Ui_Controller_Pick_CN_EN("\xe6\x89\xa9\xe5\xb1\x95" "4", "EXTRA4");
+        case ICON_ID_STAR:        return Ui_Controller_Pick_CN_EN("\xe6\x98\x9f\xe6\xa0\x87", "STAR");
+        case ICON_ID_CHECK:       return Ui_Controller_Pick_CN_EN("\xe5\x8b\xbe", "CHECK");
+        case ICON_ID_ROCKET_ANIM: return Ui_Controller_Pick_CN_EN("\xe7\x81\xab\xe7\xae\xad", "ROCKET");
+        case ICON_ID_LIGHTNING:   return Ui_Controller_Pick_CN_EN("\xe9\x97\xaa\xe7\x94\xb5", "LIGHTNING");
+        case ICON_ID_HOME:        return Ui_Controller_Pick_CN_EN("\xe4\xb8\xbb\xe9\xa1\xb5", "HOME");
+        case ICON_ID_GEAR:        return Ui_Controller_Pick_CN_EN("\xe8\xae\xbe\xe7\xbd\xae", "GEAR");
+        case ICON_ID_REFRESH:     return Ui_Controller_Pick_CN_EN("\xe5\x88\xb7\xe6\x96\xb0", "REFRESH");
+        case ICON_ID_ARROW_RT:    return Ui_Controller_Pick_CN_EN("\xe5\x8f\xb3\xe7\xae\xad", "ARROW_RT");
         default: return "?";
     }
 }
