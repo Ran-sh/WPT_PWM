@@ -36,6 +36,7 @@
 #include "Sys_Timer.h"
 #include "Checksum.h"
 #include "Spi1_Shared.h"
+#include <stddef.h>
 
 #define TFT_DRIVER_RST_PIN  GPIO_Pin_0
 #define TFT_DRIVER_BL_PIN   GPIO_Pin_12
@@ -853,38 +854,51 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
     }
 }
 
-/* 使用同一套片内数字字模进行整数倍像素放大，避免引入新的大字号资源。 */
-void Tft_Driver_Show_5x10_String_Scaled_Pixel(uint16_t x, uint16_t y,
-                                               const char* s, uint8_t scale,
-                                               uint16_t fg, uint16_t bg)
+/* 2倍字符保持独立坐标与独立缩放，不改变页面文字使用的全局字号状态。 */
+void Tft_Driver_Show_Char_2X(uint16_t x, uint16_t y, char ch,
+                              uint16_t fg, uint16_t bg)
 {
-    uint8_t row, b, dx, dy, idx;
+    uint8_t idx;
+    uint8_t row;
     uint16_t* p;
-    uint16_t glyph_w;
-    uint16_t glyph_h;
+    uint8_t ascii_rows[16];
+    const uint8_t* glyph = TFT_FONT_8X16[0];
 
-    if (scale == 0U) scale = 1U;
-    if (scale > 2U) scale = 2U;
-    glyph_w = (uint16_t)(5U * scale);
-    glyph_h = (uint16_t)(10U * scale);
+    if (Tft_Driver_Is_Draw_Blocked()) return;
+    if (x > (uint16_t)(TFT_WIDTH - 16U) || y > (uint16_t)(TFT_HEIGHT - 32U)) return;
+    if ((uint8_t)ch < 32U || (uint8_t)ch > 126U) ch = ' ';
+    idx = (uint8_t)(ch - 32);
 
-    while (*s && (uint16_t)(x + glyph_w) <= TFT_WIDTH) {
-        idx = Tft_Driver_Map_5x10_Index(*s);
-        Tft_Driver_Set_Window(x, y, (uint16_t)(x + glyph_w - 1U),
-                              (uint16_t)(y + glyph_h - 1U));
-        p = s_dma_buf;
-        for (row = 0U; row < 10U; row++) {
-            uint8_t byte_val = FONT_5X10[idx][row];
-            for (dy = 0U; dy < scale; dy++) {
-                for (b = 0U; b < 5U; b++) {
-                    uint16_t color = (byte_val & (uint8_t)(1U << b)) ? fg : bg;
-                    for (dx = 0U; dx < scale; dx++) *p++ = color;
-                }
-            }
-        }
-        Tft_Driver_DMA_Send(s_dma_buf, (uint16_t)(glyph_w * glyph_h));
-        x = (uint16_t)(x + 7U * scale);
-        s++;
+    if (s_font_flash_valid) {
+        uint32_t base = g_font_header.ascii_offset + (uint32_t)idx * 16U;
+        if (W25Q_Driver_Read(base, ascii_rows, 16U) == W25Q_DRIVER_RESULT_OK)
+            glyph = ascii_rows;
+        else
+            s_font_flash_valid = 0U;
+    }
+
+    Tft_Driver_Set_Window(x, y, (uint16_t)(x + 15U), (uint16_t)(y + 31U));
+    p = s_dma_buf;
+    for (row = 0U; row < 16U; row++) {
+        uint8_t column;
+        Tft_Driver_Decode_Char_Row(glyph[row], fg, bg, p, 2U);
+        for (column = 0U; column < 16U; column++) p[16U + column] = p[column];
+        p += 32U;
+    }
+    Tft_Driver_DMA_Send(s_dma_buf, 512U);
+}
+
+void Tft_Driver_Show_String_2X(uint16_t x, uint16_t y, const char* str,
+                                uint16_t fg, uint16_t bg)
+{
+    if (str == NULL) return;
+    if (Tft_Driver_Is_Draw_Blocked()) return;
+    while (*str) {
+        if (x > (uint16_t)(TFT_WIDTH - 16U) || y > (uint16_t)(TFT_HEIGHT - 32U)) return;
+        Tft_Driver_Show_Char_2X(x, y, *str, fg, bg);
+        if (Tft_Driver_Is_Draw_Blocked()) return;
+        x = (uint16_t)(x + 16U);
+        str++;
     }
 }
 

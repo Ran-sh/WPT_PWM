@@ -1475,7 +1475,7 @@ static void Ui_Controller_Gauge_Draw_Tick_Label(const GaugeConfig* cfg, float ti
 static const GaugeConfig* Ui_Controller_Gauge_Get_Frequency_Config(void)
 {
     Inverter_Control_Soft_Start_State state = Inverter_Control_Soft_Start_Get_State();
-    if (state == INVERTER_CONTROL_SS_STATE_SWEEP) {
+    if (state != INVERTER_CONTROL_SS_STATE_IDLE) {
         return (Inverter_Control_Get_Sweep_Start_Freq() <= 99900U) ?
             &GAUGE_F_LOW : &GAUGE_F_HIGH;
     }
@@ -1486,6 +1486,14 @@ static const GaugeConfig* Ui_Controller_Gauge_Get_Frequency_Config(void)
 static const char* Ui_Controller_Gauge_Status_Text(const GaugeConfig* cfg, float value)
 {
     Inverter_Control_Soft_Start_State state = Inverter_Control_Soft_Start_Get_State();
+    if (Sys_Core_Get_State() == SYS_STATE_FAULT) {
+        switch (Sys_Core_Get_Fault()) {
+            case SYS_FAULT_OVERCURRENT: return Ui_Controller_Pick_CN_EN(S_OVERCUR_CN, S_OVERCUR_EN);
+            case SYS_FAULT_ADC_STALE: return Ui_Controller_Pick_CN_EN(S_ADC_STALE_CN, S_ADC_STALE_EN);
+            case SYS_FAULT_CONTROL_INVARIANT: return Ui_Controller_Pick_CN_EN(S_CONTROL_ERR_CN, S_CONTROL_ERR_EN);
+            default: return Ui_Controller_Pick_CN_EN(S_UNKNOWN_FAULT_CN, S_UNKNOWN_FAULT_EN);
+        }
+    }
     if (cfg->label == 'F') {
         if (state == INVERTER_CONTROL_SS_STATE_SWEEP) return Ui_Controller_Pick_CN_EN("\xe6\x89\xab\xe9\xa2\x91", "Sweep");
         if (state == INVERTER_CONTROL_SS_STATE_DONE) return Ui_Controller_Pick_CN_EN("\xe8\xbf\x90\xe8\xa1\x8c", "Run");
@@ -1500,6 +1508,7 @@ static const char* Ui_Controller_Gauge_Status_Text(const GaugeConfig* cfg, float
 static uint16_t Ui_Controller_Gauge_Status_Color(const GaugeConfig* cfg, float value)
 {
     Inverter_Control_Soft_Start_State state = Inverter_Control_Soft_Start_Get_State();
+    if (Sys_Core_Get_State() == SYS_STATE_FAULT) return Uc_Alarm();
     if (cfg->label == 'F') {
         if (state == INVERTER_CONTROL_SS_STATE_SWEEP) return Ui_Controller_Get_Value_Color();
         if (state == INVERTER_CONTROL_SS_STATE_DONE) return Uc_Ok();
@@ -1524,23 +1533,26 @@ static void Ui_Controller_Gauge_Draw_Center(const GaugeConfig* cfg, float value,
     const char* unit = (cfg->label == 'F') ? "kHz" : ((cfg->label == 'V') ? "V" : "A");
     char number[12];
     uint16_t number_width;
+    uint16_t unit_width;
     uint16_t group_width;
     uint16_t x;
+    uint16_t unit_x;
     uint16_t color;
 
     Ui_Controller_Gauge_Format_Value(cfg, value, number, sizeof(number));
     if (force != 0U || strncmp(number, s_gauge_val_str, sizeof(s_gauge_val_str)) != 0) {
         /* 中央数值区避开半圆两侧刻度，差分擦除不会留下断裂的能量弧。 */
         Tft_Driver_Fill_Rect(38U, 60U, 84U, 42U, Ui_Controller_Get_Background_Color());
-        number_width = (uint16_t)(strlen(number) * 14U - 4U);
-        group_width = (uint16_t)(number_width + 18U);
+        number_width = (uint16_t)(strlen(number) * 16U);
+        unit_width = (uint16_t)(strlen(unit) * TFT_FONT_WIDTH);
+        group_width = (uint16_t)(number_width + 2U + unit_width);
         x = (uint16_t)((TFT_WIDTH - group_width) / 2U);
+        unit_x = (uint16_t)(x + number_width + 2U);
         color = (cfg->label == 'F' && Inverter_Control_Soft_Start_Get_State()
             == INVERTER_CONTROL_SS_STATE_IDLE) ? Uc_Dim() : TFT_COLOR_YELLOW;
-        Tft_Driver_Show_5x10_String_Scaled_Pixel(x, 64U, number, 2U,
-                                                   color, Ui_Controller_Get_Background_Color());
-        Tft_Driver_Show_CN_String(5U, (uint8_t)(x + number_width + 3U), unit,
-                                   Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
+        Tft_Driver_Show_String_2X(x, 64U, number, color, Ui_Controller_Get_Background_Color());
+        Tft_Driver_Show_String(5U, (uint8_t)(unit_x / TFT_FONT_WIDTH), unit,
+                               Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         strncpy(s_gauge_val_str, number, sizeof(s_gauge_val_str));
         s_gauge_val_str[sizeof(s_gauge_val_str) - 1U] = '\0';
     }
