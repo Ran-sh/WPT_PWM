@@ -338,7 +338,9 @@ void Sys_Post_Init(void)
         App_Storage_Load_Settings(&lang, &font, &bl, &spacing, &preset, &fg,
                                   &bg, &low_freq_hz, &high_freq_hz,
                                   &freq_band, &cursor_icon);
-        Ui_Controller_Apply_Settings(lang, font, bl, spacing, preset, fg, bg);
+        Ui_Controller_Apply_Settings(lang, font, bl, spacing, preset, fg, bg,
+                                     low_freq_hz, high_freq_hz, freq_band,
+                                     cursor_icon);
     }
 
     App_Network_Start_Connect();

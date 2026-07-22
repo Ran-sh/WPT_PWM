@@ -61,7 +61,7 @@ typedef struct {
     uint32_t crc32;
 } App_Storage_Fault_Header;
 
-/* 参数配置结构，共196字节，不跨越256字节写入页。 */
+/* 参数配置结构，共208字节，不跨越256字节写入页。 */
 #define CFG_MAGIC     0x57434647U  /* 参数区固定识别标记 */
 #define CFG_VERSION   2U
 

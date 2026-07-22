@@ -2,6 +2,9 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $storageH = Get-Content -Raw -Encoding UTF8 "$repo/Keil_Project/User/App_Storage.h"
 $storageC = Get-Content -Raw -Encoding UTF8 "$repo/Keil_Project/User/App_Storage.c"
+$uiH = Get-Content -Raw -Encoding UTF8 "$repo/Keil_Project/Hardware/Ui_Controller.h"
+$uiC = Get-Content -Raw -Encoding UTF8 "$repo/Keil_Project/Hardware/Ui_Controller.c"
+$sysCore = Get-Content -Raw -Encoding UTF8 "$repo/Keil_Project/User/Sys_Core.c"
 
 function Assert-Contains([string]$text, [string]$pattern, [string]$message) {
     if ($text -notmatch $pattern) { throw $message }
@@ -14,4 +17,15 @@ Assert-Contains $storageH 'uint8_t\s+startup_freq_band;' 'Missing selected frequ
 Assert-Contains $storageH 'uint8_t\s+menu_cursor_icon;' 'Missing global cursor field'
 Assert-Contains $storageC 'App_Storage_Config_V1' 'Missing V1 migration structure'
 Assert-Contains $storageC 'App_Storage_Migrate_V1' 'Missing V1 migration function'
+Assert-Contains $storageC 'memcpy\(dst->ssid, src->ssid' 'V1 SSID is not migrated field by field'
+Assert-Contains $storageC 'dst->adc_i_offset = src->adc_i_offset;' 'V1 ADC current calibration is not migrated'
+Assert-Contains $storageC 'dst->letter_spacing = src->letter_spacing;' 'V1 letter spacing is not migrated'
+Assert-Contains $storageC 'dst->color_bg = src->color_bg;' 'V1 colour settings are not migrated'
+Assert-Contains $uiH 'Ui_Controller_Apply_Settings\s*\([\s\S]*uint32_t\s+startup_freq_low_hz[\s\S]*uint32_t\s+startup_freq_high_hz[\s\S]*uint8_t\s+startup_freq_band[\s\S]*uint8_t\s+cursor_icon' 'UI settings interface does not accept V2 frequency state'
+Assert-Contains $uiC 's_startup_low_freq_hz\s*=\s*startup_freq_low_hz;' 'Loaded low-band frequency is not applied to UI state'
+Assert-Contains $uiC 's_startup_high_freq_hz\s*=\s*startup_freq_high_hz;' 'Loaded high-band frequency is not applied to UI state'
+Assert-Contains $uiC 's_startup_freq_band\s*=\s*startup_freq_band;' 'Loaded frequency band is not applied to UI state'
+Assert-Contains $uiC 's_menu_cursor_icon\s*=\s*cursor_icon;' 'Loaded cursor icon is not applied to UI state'
+Assert-Contains $uiC 'App_Storage_Request_Save_Settings\([\s\S]*s_startup_low_freq_hz[\s\S]*s_startup_high_freq_hz[\s\S]*s_startup_freq_band[\s\S]*s_menu_cursor_icon' 'UI save path does not preserve V2 frequency state'
+Assert-Contains $sysCore 'Ui_Controller_Apply_Settings\([\s\S]*low_freq_hz[\s\S]*high_freq_hz[\s\S]*freq_band[\s\S]*cursor_icon' 'Sys_Core does not forward loaded V2 state to UI'
 Write-Host 'Settings configuration contract passed'

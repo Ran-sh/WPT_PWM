@@ -43,9 +43,17 @@ uint8_t Ui_Controller_Is_No_WiFi_Mode(void);
  *  @param preset 配色预设编号
  *  @param fg RGB565前景色
  *  @param bg RGB565背景色
+ *  @param startup_freq_low_hz 低频档启动频率
+ *  @param startup_freq_high_hz 高频档启动频率
+ *  @param startup_freq_band 启动频率档位
+ *  @param cursor_icon 菜单图标光标位置
  */
 void    Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                       uint8_t spacing, uint8_t preset,
-                                      uint16_t fg, uint16_t bg);
+                                      uint16_t fg, uint16_t bg,
+                                      uint32_t startup_freq_low_hz,
+                                      uint32_t startup_freq_high_hz,
+                                      uint8_t startup_freq_band,
+                                      uint8_t cursor_icon);
 
 #endif /* 人机界面控制接口结束 */

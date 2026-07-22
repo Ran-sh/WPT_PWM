@@ -2449,10 +2449,18 @@ void Ui_Controller_Force_Page_And_Reset(Ui_Page page)
  */
 void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                    uint8_t spacing, uint8_t preset,
-                                   uint16_t fg, uint16_t bg)
+                                   uint16_t fg, uint16_t bg,
+                                   uint32_t startup_freq_low_hz,
+                                   uint32_t startup_freq_high_hz,
+                                   uint8_t startup_freq_band,
+                                   uint8_t cursor_icon)
 {
     s_language        = lang;
     s_letter_spacing  = spacing;
+    s_startup_low_freq_hz = startup_freq_low_hz;
+    s_startup_high_freq_hz = startup_freq_high_hz;
+    s_startup_freq_band = startup_freq_band;
+    s_menu_cursor_icon = cursor_icon;
     (void)font;  /* 字体大小已由字符间距取代，该字段仅用于兼容旧配置。 */
     (void)bl;
     Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));  /* 选项0至3映射为0、2、4、6像素。 */
