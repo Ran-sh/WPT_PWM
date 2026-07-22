@@ -1527,6 +1527,29 @@ static void Ui_Controller_Gauge_Format_Value(const GaugeConfig* cfg, float value
     else snprintf(number, size, "%.1f", (double)value);
 }
 
+/* 单位必须落在完整8像素字符列；反复收敛后以最终边界重新居中整个数值组。 */
+static void Ui_Controller_Gauge_Calc_Center_Layout(uint16_t number_width,
+                                                    uint16_t unit_width,
+                                                    uint16_t* number_x,
+                                                    uint16_t* unit_x)
+{
+    uint8_t pass;
+    uint16_t group_width = (uint16_t)(number_width + 2U + unit_width);
+    uint16_t calculated_number_x = 0U;
+    uint16_t calculated_unit_x = 0U;
+
+    if (number_x == NULL || unit_x == NULL) return;
+    for (pass = 0U; pass < 3U; pass++) {
+        if (group_width >= TFT_WIDTH) calculated_number_x = 0U;
+        else calculated_number_x = (uint16_t)((TFT_WIDTH - group_width) / 2U);
+        calculated_unit_x = (uint16_t)(((calculated_number_x + number_width + 2U +
+                              TFT_FONT_WIDTH - 1U) / TFT_FONT_WIDTH) * TFT_FONT_WIDTH);
+        group_width = (uint16_t)(calculated_unit_x - calculated_number_x + unit_width);
+    }
+    *number_x = calculated_number_x;
+    *unit_x = calculated_unit_x;
+}
+
 static void Ui_Controller_Gauge_Draw_Center(const GaugeConfig* cfg, float value, uint8_t force)
 {
     const char* status = Ui_Controller_Gauge_Status_Text(cfg, value);
@@ -1534,7 +1557,6 @@ static void Ui_Controller_Gauge_Draw_Center(const GaugeConfig* cfg, float value,
     char number[12];
     uint16_t number_width;
     uint16_t unit_width;
-    uint16_t group_width;
     uint16_t x;
     uint16_t unit_x;
     uint16_t color;
@@ -1545,9 +1567,7 @@ static void Ui_Controller_Gauge_Draw_Center(const GaugeConfig* cfg, float value,
         Tft_Driver_Fill_Rect(38U, 60U, 84U, 42U, Ui_Controller_Get_Background_Color());
         number_width = (uint16_t)(strlen(number) * 16U);
         unit_width = (uint16_t)(strlen(unit) * TFT_FONT_WIDTH);
-        group_width = (uint16_t)(number_width + 2U + unit_width);
-        x = (uint16_t)((TFT_WIDTH - group_width) / 2U);
-        unit_x = (uint16_t)(x + number_width + 2U);
+        Ui_Controller_Gauge_Calc_Center_Layout(number_width, unit_width, &x, &unit_x);
         color = (cfg->label == 'F' && Inverter_Control_Soft_Start_Get_State()
             == INVERTER_CONTROL_SS_STATE_IDLE) ? Uc_Dim() : TFT_COLOR_YELLOW;
         Tft_Driver_Show_String_2X(x, 64U, number, color, Ui_Controller_Get_Background_Color());

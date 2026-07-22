@@ -862,12 +862,13 @@ void Tft_Driver_Show_Char_2X(uint16_t x, uint16_t y, char ch,
     uint8_t row;
     uint16_t* p;
     uint8_t ascii_rows[16];
-    const uint8_t* glyph = TFT_FONT_8X16[0];
+    const uint8_t* glyph;
 
     if (Tft_Driver_Is_Draw_Blocked()) return;
     if (x > (uint16_t)(TFT_WIDTH - 16U) || y > (uint16_t)(TFT_HEIGHT - 32U)) return;
     if ((uint8_t)ch < 32U || (uint8_t)ch > 126U) ch = ' ';
     idx = (uint8_t)(ch - 32);
+    glyph = TFT_FONT_8X16[idx];
 
     if (s_font_flash_valid) {
         uint32_t base = g_font_header.ascii_offset + (uint32_t)idx * 16U;

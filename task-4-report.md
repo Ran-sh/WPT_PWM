@@ -6,6 +6,8 @@
 - 中央测量值改用现有 8×16 ASCII 字模的 2×接口，单位宽度按实际像素计算；`kHz` 也参与整体居中计算。
 - 新的 2×字符与字符串接口处理 NULL、完整 x/y 边界和绘制总线阻塞；阻塞后立即退出。
 - 表盘状态优先显示 `Sys_Core_Get_Fault()` 返回的具体锁存故障并使用红色。现有 UI Phase 不强制跳转故障页，因此保持当前页面显示具体原因、同时保留故障菜单入口，避免改变既有导航语义。
+- 单位起点向上对齐至完整8像素字符列，并在对齐后重新计算数值组宽度与左边界；`0 kHz`、`50.0 V`、`5.00 A` 三种布局均在契约中校验居中且无重叠。
+- 2×字符先按当前 ASCII 索引选择 ROM 字模，只有 Flash 读取成功才覆盖；单次读取失败立即使用对应 ROM 字符。
 
 ## 完成内容
 
@@ -20,7 +22,7 @@
 - `powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_task4_gauge.ps1`：通过。
 - `powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_settings_frequency.ps1`：通过。
 - `cmd.exe /c Keil_Project/keilkill.bat` 后执行 `D:\Keil5\UV4\UV4.exe -r Project.uvprojx -t "Target 1"`：ARMCC V5.06 为 0 Error(s), 0 Warning(s)。
-- 容量：Code 52250B、RO-data 4098B、RW-data 544B、ZI-data 7184B；ROM 56892B / 65536B，RAM 7728B / 20480B。
+- 容量：Code 52334B、RO-data 4098B、RW-data 544B、ZI-data 7184B；ROM 56976B / 65536B，RAM 7728B / 20480B。
 
 ## 偏差
 

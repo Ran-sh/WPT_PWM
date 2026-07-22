@@ -14,6 +14,29 @@ function Assert-NotContains([string]$text, [string]$pattern, [string]$message) {
     if ($text -match $pattern) { throw $message }
 }
 
+function Get-CenterLayout([int]$numberChars, [int]$unitChars) {
+    $numberWidth = $numberChars * 16
+    $unitWidth = $unitChars * 8
+    $groupWidth = $numberWidth + 2 + $unitWidth
+    $numberX = 0
+    $unitX = 0
+    for ($i = 0; $i -lt 3; $i++) {
+        $numberX = [int][math]::Floor((160 - $groupWidth) / 2)
+        $unitX = [int][math]::Floor(($numberX + $numberWidth + 2 + 7) / 8) * 8
+        $groupWidth = ($unitX - $numberX) + $unitWidth
+    }
+    return @{ NumberX = $numberX; UnitX = $unitX; Right = $unitX + $unitWidth }
+}
+
+function Assert-CenterLayout([string]$name, [int]$numberChars, [int]$unitChars,
+                             [int]$expectedNumberX, [int]$expectedUnitX) {
+    $layout = Get-CenterLayout $numberChars $unitChars
+    if ($layout.NumberX -ne $expectedNumberX -or $layout.UnitX -ne $expectedUnitX -or
+        $layout.UnitX % 8 -ne 0 -or $layout.UnitX -lt ($layout.NumberX + $numberChars * 16)) {
+        throw "Center layout failed for $name"
+    }
+}
+
 Assert-Contains $ui 'typedef\s+struct\s*\{[\s\S]*?float\s+start;[\s\S]*?float\s+end;[\s\S]*?float\s+step;' 'Gauge segments must be represented by a shared range table'
 Assert-Contains $ui 'GAUGE_V_SEGMENTS[\s\S]*?0\.0f[\s\S]*?20\.0f[\s\S]*?2\.0f[\s\S]*?20\.0f[\s\S]*?40\.0f[\s\S]*?5\.0f[\s\S]*?40\.0f[\s\S]*?50\.0f[\s\S]*?10\.0f' 'Voltage gauge segments must be 0-20/2, 20-40/5, 40-50/10'
 Assert-Contains $ui 'GAUGE_C_SEGMENTS[\s\S]*?0\.0f[\s\S]*?1\.0f[\s\S]*?0\.1f[\s\S]*?1\.0f[\s\S]*?3\.0f[\s\S]*?0\.5f[\s\S]*?3\.0f[\s\S]*?5\.0f[\s\S]*?1\.0f' 'Current gauge segments must be 0-1/0.1, 1-3/0.5, 3-5/1'
@@ -32,9 +55,16 @@ Assert-Contains $tftC 'void\s+Tft_Driver_Show_Char_2X' 'Two-times character API 
 Assert-Contains $tftC 'void\s+Tft_Driver_Show_String_2X' 'Two-times string API implementation is missing'
 Assert-Contains $tftC 'if\s*\(\s*str\s*==\s*NULL\s*\)\s*return' 'Two-times string API must reject NULL'
 Assert-Contains $tftC 'Tft_Driver_Is_Draw_Blocked\s*\(\s*\)' 'Two-times text API must exit after a blocked draw'
+Assert-Contains $ui 'Ui_Controller_Gauge_Calc_Center_Layout' 'Gauge must calculate an alignment-safe center layout'
+Assert-Contains $tftC 'glyph\s*=\s*TFT_FONT_8X16\[idx\]' 'Two-times glyph must default to the matching ROM character'
+Assert-NotContains $tftC 'glyph\s*=\s*TFT_FONT_8X16\[0\]' 'Two-times glyph must not fall back to the first ROM character'
 Assert-NotContains $ui 'Show_5x10_String_Scaled_Pixel' 'Gauge must not use the removed 5x10 scaling API'
 Assert-NotContains $tftH 'Show_5x10_String_Scaled_Pixel' 'Obsolete 5x10 scaling API remains public'
 Assert-NotContains $tftC 'Show_5x10_String_Scaled_Pixel' 'Obsolete 5x10 scaling implementation remains'
 Assert-NotContains $activeUi 'range_max - cfg->range_min\) \* 180\.0f' 'Linear full-range gauge mapping must be removed'
+
+Assert-CenterLayout '0 kHz' 1 3 56 80
+Assert-CenterLayout '50.0 V' 4 1 40 112
+Assert-CenterLayout '5.00 A' 4 1 40 112
 
 Write-Host 'Task 4 segmented gauge contract passed' -ForegroundColor Green
