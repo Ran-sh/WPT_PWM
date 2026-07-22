@@ -13,6 +13,10 @@ function Assert-Contains([string]$text, [string]$pattern, [string]$message) {
     if ($text -notmatch $pattern) { throw $message }
 }
 
+function Assert-NotContains([string]$text, [string]$pattern, [string]$message) {
+    if ($text -match $pattern) { throw $message }
+}
+
 Assert-Contains $storageH '#define CFG_VERSION\s+2U' 'Configuration version must upgrade to 2'
 Assert-Contains $storageH 'uint32_t\s+startup_low_freq_hz;' 'Missing low-band frequency field'
 Assert-Contains $storageH 'uint32_t\s+startup_high_freq_hz;' 'Missing high-band frequency field'
@@ -41,4 +45,8 @@ Assert-Contains $invC 's_sweep_step_hz\s*=\s*100U;' 'Low-band sweep step is not 
 Assert-Contains $invC 's_sweep_start_freq\s*=\s*200000U;' 'High-band sweep start is not 200kHz'
 Assert-Contains $invC 's_sweep_step_hz\s*=\s*1000U;' 'High-band sweep step is not 1kHz'
 Assert-Contains $sysCore 'Inverter_Control_Configure_Startup\([\s\S]*s_sys_config\.startup_low_freq_hz[\s\S]*s_sys_config\.startup_high_freq_hz' 'Sys_Core does not inject stored startup frequency state'
+Assert-Contains $uiC 'Inverter_Control_Get_Sweep_Start_Freq' 'UI does not read the dynamic sweep start frequency'
+Assert-Contains $uiC 'Inverter_Control_Get_Sweep_Target_Freq' 'UI does not read the dynamic sweep target frequency'
+Assert-Contains $uiC 'start_freq\s*<=\s*target_freq' 'UI does not handle a zero-length sweep safely'
+Assert-NotContains $uiC 'SOFTSTART_(START|TARGET)_FREQ_HZ|SOFTSTART_STEP_HZ' 'UI still references removed fixed sweep macros'
 Write-Host 'Settings configuration contract passed'

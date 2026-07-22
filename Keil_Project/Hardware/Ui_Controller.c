@@ -597,6 +597,28 @@ static void Ui_Controller_Sub_Menu_Cursor_Update(uint8_t old_cursor)
 /* ==============================================================
  *  扫频页面，占用全部八行
  * ============================================================== */
+static uint32_t Ui_Controller_Get_Sweep_Progress(uint32_t current_freq,
+                                                  uint8_t is_stopped)
+{
+    uint32_t start_freq;
+    uint32_t target_freq;
+
+    if (is_stopped != 0U) return 0U;
+
+    start_freq = Inverter_Control_Get_Sweep_Start_Freq();
+    target_freq = Inverter_Control_Get_Sweep_Target_Freq();
+
+    /* 扫频固定为降频；零跨度配置在触发后应直接显示为完成。 */
+    if (start_freq <= target_freq) {
+        return (current_freq <= target_freq) ? 10U : 0U;
+    }
+    if (current_freq >= start_freq) return 0U;
+    if (current_freq <= target_freq) return 10U;
+
+    return ((start_freq - current_freq) * 10U) /
+           (start_freq - target_freq);
+}
+
 static void Ui_Controller_Draw_Sweep_Full(void)
 {
     uint32_t f = Inverter_Control_Soft_Start_Get_Current_Freq();
@@ -617,17 +639,7 @@ static void Ui_Controller_Draw_Sweep_Full(void)
     /* 第3行显示扫频进度条。 */
     {
         uint32_t progress;
-        if (is_stopped) {
-            progress = 0;
-        } else {
-            int32_t delta = (int32_t)SOFTSTART_START_FREQ_HZ - (int32_t)f;
-            if (delta <= 0) {
-                progress = 0;
-            } else {
-                progress = (uint32_t)(delta * 10 / ((int32_t)SOFTSTART_START_FREQ_HZ - (int32_t)SOFTSTART_TARGET_FREQ_HZ));
-                if (progress > 10) progress = 10;
-            }
-        }
+        progress = Ui_Controller_Get_Sweep_Progress(f, is_stopped);
         Tft_Driver_Erase_Pixel_Area(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT + 8);
         if (!is_stopped) {
             Ui_Controller_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
@@ -684,9 +696,7 @@ static void Ui_Controller_Sweep_Dynamic_Update(void)
         uint8_t  draw = 0;
 
         if (!is_stopped) {
-            progress = (SOFTSTART_START_FREQ_HZ - f) * 10
-                     / (SOFTSTART_START_FREQ_HZ - SOFTSTART_TARGET_FREQ_HZ);
-            if (progress > 10) progress = 10;
+            progress = Ui_Controller_Get_Sweep_Progress(f, is_stopped);
             if (progress != s_last_progress || s_last_stopped != 0) {
                 draw = 1;
                 s_last_progress = progress;

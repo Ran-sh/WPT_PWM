@@ -33,7 +33,8 @@ powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_settings_freq
 ## ARMCC
 
 ```powershell
-& 'D:\Keil5\UV4\UV4.exe' -b 'Keil_Project\Project.uvprojx' -j0
+cmd.exe /c Keil_Project\keilkill.bat
+& 'D:\Keil5\UV4\UV4.exe' -r 'Keil_Project\Project.uvprojx' -j0
 ```
 
 结果：
@@ -46,3 +47,11 @@ powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_settings_freq
 
 - 任务简报中指定的契约脚本是既有的 `verify_settings_frequency.ps1`；仓库中不存在 `verify_frequency_profiles.ps1`，因此未新建重复脚本。
 - 为满足“设置保存后更新下一次触发配置”，最小关联修改了 `Ui_Controller.c`；该文件已有 `Inverter_Control.h` 引用，未引入新的层级依赖。
+
+## 审查修复
+
+- 根因：双档扫频落地后，UI 的全量绘制和增量绘制仍引用已移除的固定扫频宏；增量构建未重新编译该依赖文件。
+- 修复：新增统一的动态进度计算，起点和目标均通过 `Inverter_Control_Get_Sweep_Start_Freq()` 与 `Inverter_Control_Get_Sweep_Target_Freq()` 获取。计算只接受降频方向；起点等于目标时直接返回100%，避免除零。
+- RED：强化契约后首次失败为 `UI does not read the dynamic sweep start frequency`。
+- GREEN：契约脚本输出 `Settings configuration contract passed`，并额外扫描确认不存在旧固定扫频宏或95–150kHz、150→100kHz描述。
+- ARMCC：执行 `keilkill.bat` 后以正确引用工作树项目路径的 Keil `-r` 全量重建，退出码0，日志为 `0 Error(s), 0 Warning(s)`。
