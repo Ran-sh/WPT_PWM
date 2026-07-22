@@ -3,9 +3,6 @@
 
 #include "stm32f10x.h"
 
-#define SOFTSTART_START_FREQ_HZ   150000
-#define SOFTSTART_TARGET_FREQ_HZ  100000
-#define SOFTSTART_STEP_HZ         200
 #define SOFTSTART_STEP_MS         10
 
 #define FREQ_RAMP_STEP_HZ         1000
@@ -18,6 +15,11 @@ typedef enum {
     INVERTER_CONTROL_SS_STATE_FAULT  = 3
 } Inverter_Control_Soft_Start_State;
 
+typedef enum {
+    INVERTER_CONTROL_STARTUP_LOW  = 0,
+    INVERTER_CONTROL_STARTUP_HIGH = 1
+} Inverter_Control_Startup_Band;
+
 /** @brief 频率斜坡状态 */
 typedef enum {
     INVERTER_CONTROL_RAMP_IDLE  = 0,
@@ -25,8 +27,23 @@ typedef enum {
 } Inverter_Control_Ramp_State;
 
 /** @brief 在空闲状态下触发150kHz至100kHz的软启动扫频 */
+/** @brief 保存下一次软启动使用的经校验档位配置；不改变正在执行的扫频快照
+ *  @param band 启动档位
+ *  @param low_freq_hz 低频档目标频率，20kHz至99.9kHz且步进100Hz
+ *  @param high_freq_hz 高频档目标频率，100kHz至200kHz且步进1kHz
+ */
+void     Inverter_Control_Configure_Startup(Inverter_Control_Startup_Band band,
+                                             uint32_t low_freq_hz,
+                                             uint32_t high_freq_hz);
+/** @brief 获取当前或下一次扫频锁定的起始频率，单位为Hz */
+uint32_t Inverter_Control_Get_Sweep_Start_Freq(void);
+/** @brief 获取当前或下一次扫频锁定的目标频率，单位为Hz */
+uint32_t Inverter_Control_Get_Sweep_Target_Freq(void);
+
+/** @brief 在空闲状态下按已配置档位触发非阻塞软启动扫频 */
 void     Inverter_Control_Soft_Start_Trigger(void);
 /** @brief 周期推进软启动状态机，每10ms降低200Hz */
+/** @brief 每10ms按已锁定档位步进推进软启动状态机 */
 void     Inverter_Control_Soft_Start_Task(void);
 /** @brief 停止逆变器并返回空闲状态，同时关闭PWM主输出 */
 void     Inverter_Control_Soft_Start_Stop(void);

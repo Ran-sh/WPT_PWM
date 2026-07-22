@@ -3,8 +3,8 @@
 
 #include "stm32f10x.h"
 
-#define PWM_DRIVER_FREQ_MIN_HZ   95000
-#define PWM_DRIVER_FREQ_MAX_HZ  150000
+#define PWM_DRIVER_FREQ_MIN_HZ   20000U
+#define PWM_DRIVER_FREQ_MAX_HZ  200000U
 #define PWM_DRIVER_DEADTIME_NS   1000
 
 /** @brief 初始化TIM1全桥PWM，保持计数器和主输出关闭 */
@@ -17,6 +17,7 @@ void     Pwm_Driver_Disable(void);
  *  @param freq_hz 目标频率，单位为Hz，超出95kHz至150kHz时自动钳位
  *  @retval 实际设定频率，可能因整数分频与目标值存在微小偏差
  */
+/** @brief 设置20kHz至200kHz范围内的PWM频率并保持50%占空比 */
 uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz);
 /** @brief 获取当前PWM频率，单位为Hz */
 uint32_t Pwm_Driver_Get_Frequency(void);

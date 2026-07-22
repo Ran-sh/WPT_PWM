@@ -1759,6 +1759,12 @@ static void Ui_Controller_Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Ev
                                               s_startup_high_freq_hz,
                                               s_startup_freq_band,
                                               s_menu_cursor_icon);
+            /* 保存后的档位仅供下一次触发扫频使用，不修改当前扫频快照。 */
+            Inverter_Control_Configure_Startup(
+                (s_startup_freq_band == APP_STORAGE_FREQ_BAND_LOW) ?
+                    INVERTER_CONTROL_STARTUP_LOW :
+                    INVERTER_CONTROL_STARTUP_HIGH,
+                s_startup_low_freq_hz, s_startup_high_freq_hz);
             /* 存储值为0至3的选项，需要换算为实际像素间距。 */
             Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));
             s_settings_dirty = 0;

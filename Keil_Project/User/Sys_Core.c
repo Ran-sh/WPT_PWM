@@ -310,6 +310,13 @@ void Sys_Post_Init(void)
     /* 从外部存储器加载参数，双副本均失效时回退到安全默认值。 */
     cfg_valid = App_Storage_Load_Config(&s_sys_config);
 
+    /* 频率配置在应用层完成持久化校验后注入硬件层；硬件层自行复核边界。 */
+    Inverter_Control_Configure_Startup(
+        (s_sys_config.startup_freq_band == APP_STORAGE_FREQ_BAND_LOW) ?
+            INVERTER_CONTROL_STARTUP_LOW : INVERTER_CONTROL_STARTUP_HIGH,
+        s_sys_config.startup_low_freq_hz,
+        s_sys_config.startup_high_freq_hz);
+
     /* 模数转换校准优先使用持久化值，无有效配置时进入非阻塞自校准。 */
     if (cfg_valid && s_sys_config.adc_i_offset != 0.0f) {
         Adc_Driver_Set_Calibration(s_sys_config.adc_i_offset,
