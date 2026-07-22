@@ -3,7 +3,7 @@
  * @file    Hardware/Esp8266_Driver.c
  * @brief   ESP8266 串口通信驱动 — V5.0.2
  *
- *  Pinout:  STM32 <-> ESP8266 (USART2 + control)
+ *  硬件连接（USART2与控制引脚）:
  *  +------------------------------------------------------------+
  *  |    STM32F103C8T6                      ESP8266               |
  *  |                                                             |
@@ -12,13 +12,14 @@
  *  |    PA1  --- GPIO_PP    ----------------->  RST              |
  *  |    PB11 --- GPIO_PP    ----------------->  CH_PD / EN       |
  *  |                                                             |
- *  |    UART: 115200-8-N-1, plain JSON, zero AT commands         |
- *  |    Sequence: CH_PD high -> 100ms -> RST pulse(100ms) -> 4s  |
- *  |    RX: RXNE ISR -> ring buf(3x256B) -> Try_Copy_Rx_Frame    |
- *  |    TX: polling TXE + TC dual confirm                        |
+ *  |    串口参数：115200位/秒，8位数据，无校验，1位停止位       |
+ *  |    通信内容：纯JSON透传，STM32不发送AT指令                 |
+ *  |    启动顺序：使能模块，等待100ms，复位100ms，再等待启动    |
+ *  |    接收路径：串口中断写入三个256字节环形缓冲槽             |
+ *  |    发送路径：中断发送队列，并检查发送完成标志              |
  *  +------------------------------------------------------------+
  *
- * @note    CH_PD=PB11 (EN), RST=PA1, USART2=PA2/PA3
+ * @note    PB11控制模块使能，PA1控制复位，PA2和PA3用于串口通信。
  ******************************************************************************
  */
 
@@ -26,32 +27,32 @@
 #include "Sys_Timer.h"
 
 #define ESP8266_DRIVER_RX_BUF_SIZE      256
-#define ESP8266_DRIVER_RX_RING_SIZE      3   /* 双帧缓冲: 防止 ESP 连续发送多条帧时丢弃后续帧 */
+#define ESP8266_DRIVER_RX_RING_SIZE      3   /* 三槽缓冲可承接ESP连续发送的多条数据帧 */
 #define ESP8266_DRIVER_TX_BUF_SIZE      256U
 #define ESP8266_DRIVER_CH_PD_PIN        GPIO_Pin_11
 #define ESP8266_DRIVER_CH_PD_PORT       GPIOB
 #define ESP8266_DRIVER_RST_PIN          GPIO_Pin_1
 #define ESP8266_DRIVER_RST_PORT         GPIOA
 
-#define ESP8266_DRIVER_RST_PULSE_MS     100    /* RST拉低脉冲宽度 */
-#define ESP8266_DRIVER_BOOT_WAIT_MS     4000   /* 释放RST后等待固件启动 */
+#define ESP8266_DRIVER_RST_PULSE_MS     100    /* 复位引脚低电平脉冲宽度 */
+#define ESP8266_DRIVER_BOOT_WAIT_MS     4000   /* 释放复位引脚后的最长启动等待时间 */
 
 typedef enum {
     ESP8266_DRIVER_INIT_IDLE = 0,       /* 未初始化 */
-    ESP8266_DRIVER_INIT_HW_READY,       /* 硬件已配, 等待Start_Init触发 */
-    ESP8266_DRIVER_INIT_RST_PULSE,      /* RST拉低脉冲中 */
-    ESP8266_DRIVER_INIT_BOOT_WAIT,      /* RST释放, 等待固件加载 */
+    ESP8266_DRIVER_INIT_HW_READY,       /* 硬件已配置，等待启动请求 */
+    ESP8266_DRIVER_INIT_RST_PULSE,      /* 正在输出复位低电平脉冲 */
+    ESP8266_DRIVER_INIT_BOOT_WAIT,      /* 已释放复位，等待固件启动 */
     ESP8266_DRIVER_INIT_READY           /* 就绪 */
 } Esp8266_Driver_Init_State;
 
-/* 3槽环形缓冲, 防ESP连续发送多条帧时丢弃后续帧
- *   ISR 写入当前槽 (s_rx_ring_wr), 主循环从 s_rx_ring_rd 读取
- *   s_rx_frame_count > 0 表示有待消费帧, Try_Copy_Rx_Frame 消费一帧后 count-- */
+/* 三槽环形缓冲用于承接ESP连续发送的数据帧。
+ * 中断写入当前槽，主循环按顺序读取最早的数据帧。
+ * 待处理帧计数大于零表示至少存在一帧可供读取。 */
 static char    s_rx_buf[ESP8266_DRIVER_RX_RING_SIZE][ESP8266_DRIVER_RX_BUF_SIZE];
 static volatile uint16_t s_rx_index = 0;
-static volatile uint8_t  s_rx_ring_wr = 0;  /* ISR 正在写入的槽位 */
+static volatile uint8_t  s_rx_ring_wr = 0;  /* 中断当前写入的槽位 */
 static volatile uint8_t  s_rx_ring_rd = 0;  /* 主循环下次读取的槽位 */
-static volatile uint8_t  s_rx_frame_count = 0;  /* 待消费帧数 (0..RING_SIZE) */
+static volatile uint8_t  s_rx_frame_count = 0;  /* 等待主循环处理的帧数 */
 static uint8_t s_tx_buf[ESP8266_DRIVER_TX_BUF_SIZE];
 static volatile uint16_t s_tx_head = 0U;
 static volatile uint16_t s_tx_tail = 0U;
@@ -61,7 +62,7 @@ static Esp8266_Driver_Init_State s_init_state = ESP8266_DRIVER_INIT_IDLE;
 static uint32_t                  s_init_timer = 0;
 static uint8_t                   s_hw_configured = 0;  /* 硬件仅配一次 */
 
-/* ── 内部: 仅配置 GPIO (只执行一次) ── */
+/* 内部硬件配置：控制引脚只初始化一次。 */
 static void Esp8266_Driver_Config_GPIO_Once(void)
 {
     GPIO_InitTypeDef gpio;
@@ -71,20 +72,20 @@ static void Esp8266_Driver_Config_GPIO_Once(void)
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_GPIOA, ENABLE);
 
-    /* RST: PA1, 初始高 — 不用复位时保持高 */
+    /* PA1为复位引脚，空闲时保持高电平。 */
     gpio.GPIO_Pin   = ESP8266_DRIVER_RST_PIN;
     gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(ESP8266_DRIVER_RST_PORT, &gpio);
     GPIO_SetBits(ESP8266_DRIVER_RST_PORT, ESP8266_DRIVER_RST_PIN);
 
-    /* CH_PD/EN: PB11, 初始低 — 默认断电 */
+    /* PB11为模块使能引脚，初始化时保持低电平。 */
     gpio.GPIO_Pin   = ESP8266_DRIVER_CH_PD_PIN;
     GPIO_Init(ESP8266_DRIVER_CH_PD_PORT, &gpio);
     GPIO_ResetBits(ESP8266_DRIVER_CH_PD_PORT, ESP8266_DRIVER_CH_PD_PIN);
 }
 
-/* ── 内部: 配置 USART2 (只执行一次) ── */
+/* 内部硬件配置：USART2只初始化一次。 */
 static void Esp8266_Driver_Config_USART_Once(void)
 {
     GPIO_InitTypeDef  gpio;
@@ -94,7 +95,7 @@ static void Esp8266_Driver_Config_USART_Once(void)
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
-    /* PA2=TX(AF_PP), PA3=RX(IN_FLOATING) */
+    /* PA2配置为复用推挽发送，PA3配置为浮空输入接收。 */
     gpio.GPIO_Pin   = GPIO_Pin_2;
     gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
@@ -123,17 +124,17 @@ static void Esp8266_Driver_Config_USART_Once(void)
     NVIC_Init(&nvic);
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* ==============================================================
  *  公开接口
- * ═══════════════════════════════════════════════════════════════ */
+ * ============================================================== */
 
 void Esp8266_Driver_Start_Init(void)
 {
-    /* 硬件只配一次, 避免反复 USART_Init 干扰正在接收的数据 */
+    /* 硬件只配置一次，避免重复初始化串口干扰正在接收的数据。 */
     Esp8266_Driver_Config_GPIO_Once();
     Esp8266_Driver_Config_USART_Once();
 
-    /* 清空环形接收缓冲 */
+    /* 清空环形接收缓冲区和帧计数。 */
     {
         uint32_t primask = __get_PRIMASK();
         __disable_irq();
@@ -150,11 +151,11 @@ void Esp8266_Driver_Start_Init(void)
         __set_PRIMASK(primask);
     }
 
-    /* 先给 CH_PD 供电, 让模块上电 (此时 RST 已经是高, 模块会开始启动但马上会被拉低复位) */
+    /* 先使能模块并等待电源稳定，再输出一个完整的硬件复位脉冲。 */
     GPIO_SetBits(ESP8266_DRIVER_CH_PD_PORT, ESP8266_DRIVER_CH_PD_PIN);
-    { volatile uint32_t i; for (i = 0; i < 7000; i++) __NOP(); } /* 建立稳定供电腹地, 等待 VCC 充放电建立 */
+    { volatile uint32_t i; for (i = 0; i < 7000; i++) __NOP(); } /* 为模块电源稳定预留短暂建立时间 */
 
-    /* 给一个干净的硬件复位脉冲: 拉低 RST */
+    /* 拉低复位引脚，开始输出硬件复位脉冲。 */
     GPIO_ResetBits(ESP8266_DRIVER_RST_PORT, ESP8266_DRIVER_RST_PIN);
     s_init_timer = Sys_Timer_Get_Tick();
     s_init_state = ESP8266_DRIVER_INIT_RST_PULSE;
@@ -170,7 +171,7 @@ void Esp8266_Driver_Init_Task(void)
 
         case ESP8266_DRIVER_INIT_RST_PULSE:
             if (Sys_Timer_Get_Tick() - s_init_timer >= ESP8266_DRIVER_RST_PULSE_MS) {
-                /* 释放 RST, 模块启动 */
+                /* 释放复位引脚，让模块开始启动。 */
                 GPIO_SetBits(ESP8266_DRIVER_RST_PORT, ESP8266_DRIVER_RST_PIN);
                 s_init_timer = Sys_Timer_Get_Tick();
                 s_init_state = ESP8266_DRIVER_INIT_BOOT_WAIT;
@@ -178,11 +179,11 @@ void Esp8266_Driver_Init_Task(void)
             break;
 
         case ESP8266_DRIVER_INIT_BOOT_WAIT:
-            /* 到达超时 → 就绪 */
+            /* 等待时间到达上限后进入就绪状态。 */
             if (Sys_Timer_Get_Tick() - s_init_timer >= ESP8266_DRIVER_BOOT_WAIT_MS) {
                 s_init_state = ESP8266_DRIVER_INIT_READY;
             }
-            /* 提前完成: ESP 已在串口发数据 → 说明固件已启动, 立即就绪 */
+            /* 串口已经收到数据，说明模块固件已启动，可提前进入就绪状态。 */
             {
                 uint32_t primask = __get_PRIMASK();
                 __disable_irq();
@@ -279,7 +280,7 @@ void Esp8266_Driver_Rx_Char(uint8_t ch)
             s_rx_buf[wr][s_rx_index] = '\0';
             s_rx_index = 0;
             s_rx_frame_count++;
-            /* 推进写指针到下一个空闲槽 */
+            /* 将写入位置推进到下一个空闲槽。 */
             s_rx_ring_wr = (wr + 1) % ESP8266_DRIVER_RX_RING_SIZE;
         }
     } else if (s_rx_frame_count < ESP8266_DRIVER_RX_RING_SIZE
@@ -289,18 +290,17 @@ void Esp8266_Driver_Rx_Char(uint8_t ch)
 }
 
 /**
- * @brief  原子检查+复制: flag-check + frame-copy + clear 在同一临界区内完成
- * @note   3槽环形缓冲, 消费最旧帧 (s_rx_ring_rd), 推进读指针
- *         消除旧分离式“先检查、后复制”接口之间的中断窗口:
- *         若检测到帧标志后 ISR 又写入新帧, 旧原子方案会在 Copy 内清标志,
- *         导致新帧标志也一并被清零, 帧静默丢失。
- *         本函数将"判断+复制"合一, 返回 0 (无帧) 或有效帧长。
+ * @brief  在同一临界区内完成帧检查、复制和消费
+ * @note   每次读取最早进入三槽环形缓冲区的数据帧，并推进读取位置。
+ *         合并检查与复制操作，可以避免中断在两步之间写入新帧造成静默丢失。
+ * @retval 实际帧长；返回0表示当前没有可用数据帧
  */
 uint16_t Esp8266_Driver_Try_Copy_Rx_Frame(char* dst, uint16_t max_len)
 {
     uint16_t len = 0;
     uint32_t primask; uint8_t rd;
-    if (max_len < 2) return 0;
+    /* 输出缓冲区无效时不得进入临界区，更不能写入字符串结束符。 */
+    if (dst == 0 || max_len < 2U) return 0U;
     primask = __get_PRIMASK();
     __disable_irq();
     if (s_rx_frame_count == 0) {

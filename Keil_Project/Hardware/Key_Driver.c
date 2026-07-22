@@ -1,24 +1,23 @@
 /**
  ******************************************************************************
  * @file    Hardware/Key_Driver.c
- * @brief   按键驱动 — V5.0.2 (5 keys)
+ * @brief   五键扫描与按键事件驱动 — V5.0.2
  *
- *  Pinout (5 keys, all IPU pull-up, press = LOW):
+ *  硬件连接（全部使用内部上拉，按下时为低电平）:
  *  +----------------------------------------------------------+
  *  |                      STM32F103C8T6                        |
  *  |                                                           |
- *  |    PB9  --- IPU ---+--- Key --- GND    KEY0  (电源开关)    |
- *  |    PB8  --- IPU ---+--- Key --- GND    KEY1  (返回)        |
- *  |    PB7  --- IPU ---+--- Key --- GND    KEY2  (UP/加)      |
- *  |    PB6  --- IPU ---+--- Key --- GND    KEY3  (DOWN/减)    |
- *  |    PB5  --- IPU ---+--- Key --- GND    KEY4  (确定/启停)   |
+ *  |    PB9  --- KEY0 --- GND    电源开关                       |
+ *  |    PB8  --- KEY1 --- GND    返回                           |
+ *  |    PB7  --- KEY2 --- GND    上移或增加                     |
+ *  |    PB6  --- KEY3 --- GND    下移或减少                     |
+ *  |    PB5  --- KEY4 --- GND    确定或启停                     |
  *  |                                                           |
- *  |    Per-key FSM: IDLE -> DEBOUNCE(10ms) -> PRESS           |
- *  |      -> WAIT_DOUBLE(200ms) -> LONG(3s)                    |
- *  |    Batch read: Key_Driver_Get_All_Events in critical sec   |
+ *  |    单键状态机：消抖10ms，双击窗口200ms，长按阈值3s        |
+ *  |    五键事件在同一临界区内批量读取，避免跨键竞争           |
  *  +----------------------------------------------------------+
  *
- * @note    5 keys, KEY0=power hardware switch (handled by Sys_Core)
+ * @note    KEY0的电源事件由系统核心层优先消费，不传递给页面逻辑。
  ******************************************************************************
  */
 
@@ -50,7 +49,7 @@ typedef struct {
     uint8_t             flags;
 } Key_Driver_Instance;
 
-/* KEY0=PB9, KEY1=PB8, KEY2=PB7, KEY3=PB6, KEY4=PB5 */
+/* 五个按键依次连接PB9、PB8、PB7、PB6和PB5。 */
 static Key_Driver_Instance s_keys[KEY_DRIVER_COUNT] = {
     { GPIOB, GPIO_Pin_9, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0, 0 },
     { GPIOB, GPIO_Pin_8, KEY_DRIVER_FSM_IDLE, 0, KEY_DRIVER_EVENT_NONE, 0, 0 },
@@ -70,9 +69,9 @@ void Key_Driver_Init(void)
 }
 
 /**
- * @brief  Configure key behavior
- * @param  key_id   Key index (0=POWER, 1=BACK, 2=UP, 3=DOWN, 4=CONFIRM)
- * @param  config   Independent DOUBLE_ENABLE/LONG_ENABLE capability bits
+ * @brief  配置指定按键允许产生的扩展事件
+ * @param  key_id 按键编号：0为电源，1为返回，2为上移，3为下移，4为确定
+ * @param  config 双击与长按能力标志的按位组合
  */
 void Key_Driver_Configure(uint8_t key_id, uint8_t config)
 {
@@ -82,7 +81,7 @@ void Key_Driver_Configure(uint8_t key_id, uint8_t config)
     }
 }
 
-/* Single-key FSM with independent double-click and long-press paths. */
+/* 单键状态机分别处理单击、双击和长按路径。 */
 static void Key_Driver_Update_Fsm(Key_Driver_Instance* key)
 {
     uint8_t pressed;
@@ -187,7 +186,12 @@ void Key_Driver_Task(void)
 
 void Key_Driver_Get_All_Events(Key_Driver_Event out[5])
 {
-    uint32_t primask = __get_PRIMASK();
+    uint32_t primask;
+
+    /* 调用方未提供事件数组时保留现有事件，避免误清除尚未消费的按键。 */
+    if (out == 0) return;
+
+    primask = __get_PRIMASK();
     __disable_irq();
     {
         uint8_t i;

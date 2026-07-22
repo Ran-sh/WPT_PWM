@@ -3,40 +3,40 @@
  * @file    User/Sys_Core.c
  * @brief   系统核心模块 — V5.0.2
  *
- *  System-wide pin overview (all peripherals, hardware-exclusive pins):
+ *  全系统引脚总览（各外设独占引脚）:
  *  +------------------------------------------------------------+
  *  |                      STM32F103C8T6  LQFP-48                 |
  *  |                                                             |
- *  |    -- Display --                                            |
+ *  |    -- 显示屏 --                                             |
  *  |    PA5=SCK  PA7=MOSI  PA4=TFT_CS  PA6=DC/MISO  PA0=TFT_RST  |
- *  |    PA12=TFT_BL (GPIO ON/OFF)                                 |
- *  |    -- Flash --                                              |
- *  |    PA5=SCK  PA7=MOSI  PA6=DC/MISO(dyn)  PB12=FLASH_CS       |
- *  |    -- PWM --                                                |
+ *  |    PA12=TFT_BL（GPIO开关）                                  |
+ *  |    -- 外部存储器 --                                         |
+ *  |    PA5=SCK  PA7=MOSI  PA6=DC/MISO（动态切换） PB12=FLASH_CS |
+ *  |    -- 脉宽调制 --                                           |
  *  |    PA8=CH1  PA9=CH2  PB13=CH1N  PB14=CH2N                   |
- *  |    -- ADC --                                                |
+ *  |    -- 模数转换 --                                           |
  *  |    PB0=CH8(I)  PB1=CH9(V)                                   |
  *  |    -- ESP8266 --                                            |
  *  |    PA2=TX  PA3=RX  PA1=RST  PB11=EN                         |
- *  |    -- Keys --                                               |
- *  |    PB9=KEY0(电源) PB8=KEY1(返回) PB7=KEY2(UP) PB6=KEY3(DOWN) PB5=KEY4(确定) |
- *  |    -- LEDs --                                               |
- *  |    PA15=STATUS(PWM指示) PB4=WIFI PB3=POWER(12V) PC13=HEARTBEAT |
- *  |    -- Power control --                                      |
- *  |    PB10=PowerCtrl (KEY0 manual toggle, HIGH=12V enable)     |
- *  |    -- Buzzer --                                             |
- *  |    PB15=Buzzer                                              |
+ *  |    -- 按键 --                                               |
+ *  |    PB9=电源 PB8=返回 PB7=上移 PB6=下移 PB5=确定             |
+ *  |    -- 指示灯 --                                             |
+ *  |    PA15=PWM状态 PB4=无线 PB3=12V电源 PC13=程序心跳          |
+ *  |    -- 电源控制 --                                           |
+ *  |    PB10由电源键切换，高电平开启12V                          |
+ *  |    -- 蜂鸣器 --                                             |
+ *  |    PB15=蜂鸣器                                              |
  *  |                                                             |
- *  |    State machine: SYS_INIT -> SYS_IDLE -> SYS_SWEEP -> SYS  |
+ *  |    状态机：初始化 -> 空闲 -> 扫频 -> 运行                   |
  *  |                       ^             |            |          |
  *  |                       +--- SYS_FAULT <-----------+          |
  *  |                                                             |
- *  |    Sys_Safety (independent of UI):                          |
- *  |      ADC 8-sample safety window, SWEEP/RUNNING protected    |
- *  |      I > 5.0A for 3 samples -> FAULT + PWM/12V off          |
+ *  |    安全监测独立于界面：                                    |
+ *  |      模数转换8点快速窗口保护扫频和运行阶段                  |
+ *  |      连续3个样本超过5.0A时进入故障并关闭PWM和12V            |
  *  +------------------------------------------------------------+
  *
- * @note    Init order: Sys_Timer_Init -> Sys_Hardware_Init ->
+ * @note    初始化顺序：Sys_Timer_Init -> Sys_Hardware_Init ->
  *          W25Q_Driver_Init -> Tft_Driver_Font_Init ->
  *          App_Storage_Init -> Sys_Startup_Screen -> Sys_Post_Init
  ******************************************************************************
@@ -263,11 +263,11 @@ void Sys_Clamp_ESP(void)
     gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &gpio);
-    GPIO_ResetBits(GPIOA, GPIO_Pin_1);          /* RST=0 */
+    GPIO_ResetBits(GPIOA, GPIO_Pin_1);          /* 复位引脚保持低电平。 */
 
     gpio.GPIO_Pin   = GPIO_Pin_11;
     GPIO_Init(GPIOB, &gpio);
-    GPIO_ResetBits(GPIOB, GPIO_Pin_11);         /* CH_PD=0 */
+    GPIO_ResetBits(GPIOB, GPIO_Pin_11);         /* 模块使能引脚保持低电平。 */
 }
 
 void Sys_Hardware_Init(void)
@@ -298,25 +298,25 @@ void Sys_Hardware_Init(void)
 void Sys_Startup_Screen(void)
 {
     Tft_Driver_Clear(TFT_COLOR_BLACK);
-    Tft_Driver_Show_Splash();               /* 纯代码 SPLASH: 逐字渐亮 ~4.8s */
+    Tft_Driver_Show_Splash();               /* 纯代码开机画面，逐字渐亮约4.8秒。 */
 }
 
 void Sys_Post_Init(void)
 {
     uint8_t cfg_valid;
-    /* Sys_Timer_Init 已提前到 main.c 中 (SPLASH 需要 SysTick) */
-    Led_Driver_Set_Heartbeat(1);     /* PC13 heartbeat: MCU alive indicator */
+    /* 开机画面依赖系统滴答，因此系统时基已在main.c中提前初始化。 */
+    Led_Driver_Set_Heartbeat(1);     /* 启用PC13心跳灯，指示主循环存活。 */
 
-    /* Flash加载参数配置, 双副本CRC32闭锁回退。 */
+    /* 从外部存储器加载参数，双副本均失效时回退到安全默认值。 */
     cfg_valid = App_Storage_Load_Config(&s_sys_config);
 
-    /* ADC 校准: Flash 优先 → 强制解锁冷启动自测算降级 (设计文档 §9.3) */
+    /* 模数转换校准优先使用持久化值，无有效配置时进入非阻塞自校准。 */
     if (cfg_valid && s_sys_config.adc_i_offset != 0.0f) {
         Adc_Driver_Set_Calibration(s_sys_config.adc_i_offset,
                                     s_sys_config.adc_v_gain,
-                                    s_sys_config.freq_trim_hz);   /* Flash 固化直达 */
+                                    s_sys_config.freq_trim_hz);   /* 直接应用已验证的持久化校准值。 */
     } else {
-        Adc_Driver_Force_Recalibrate();                           /* IDLE中非阻塞自测算 */
+        Adc_Driver_Force_Recalibrate();                           /* 在空闲状态推进非阻塞自校准。 */
     }
 
     /* PA12背光仅支持GPIO开关；保留旧配置字段时，任何非零值都表示开启。 */
@@ -324,12 +324,12 @@ void Sys_Post_Init(void)
 
     IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);
     IWDG_SetPrescaler(IWDG_Prescaler_64);
-    IWDG_SetReload(1500U);  /* LSI tolerance included: approximately 1.6-2.4s */
+    IWDG_SetReload(1500U);  /* 已计入低速内部时钟误差，超时约1.6至2.4秒。 */
     IWDG_ReloadCounter();
     IWDG_Enable();
     DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;
 
-    /* Load persistent settings into UI, including letter_spacing. */
+    /* 加载语言、字符间距和配色等持久化界面设置。 */
     {
         uint8_t lang, font, bl, spacing, preset;
         uint16_t fg, bg;
@@ -408,18 +408,16 @@ static void Sys_Core_Safety_Task(void)
 }
 
 /**
- * @brief  Handle KEY0 power toggle — hardware power switch
- * @note   KEY0 click: toggle PB10(12V) + POWER LED(PB3)
- *         Power ON  -> PB10 HIGH + POWER LED ON
- *         Power OFF -> force PWM stop + PB10 LOW + POWER LED OFF + STATUS LED OFF
- *         PWM restart requires KEY4 explicit action after power-on
+ * @brief  处理电源键单击并同步12V输出与电源指示灯
+ * @note   开电只接通PB10；关电先停止PWM，再关闭PB10和相关指示灯。
+ *         重新开电后仍需通过确定键明确启动PWM，避免自动恢复发波。
  */
 static void Sys_Core_Handle_Power_Key(Key_Driver_Event ke[KEY_DRIVER_COUNT])
 {
     if (ke[KEY_DRIVER_ID_POWER] != KEY_DRIVER_EVENT_CLICK) return;
 
     if (s_sys_state == SYS_STATE_FAULT || s_fault_code != SYS_FAULT_NONE) {
-        /* FAULT锁存期间KEY0不得重新接通12V。 */
+        /* 故障锁存期间电源键不得重新接通12V。 */
         Inverter_Control_Soft_Start_Fault();
         Sys_Core_Set_Power_Output(0U);
     }
@@ -432,14 +430,14 @@ static void Sys_Core_Handle_Power_Key(Key_Driver_Event ke[KEY_DRIVER_COUNT])
         }
     }
     else {
-        /* KEY0关电必须先停止PWM，再拉低PB10。 */
+        /* 电源键关电必须先停止PWM，再拉低PB10。 */
         (void)Sys_Core_Request_Stop();
         Sys_Core_Set_Power_Output(0U);
     }
 
     (void)Sys_Core_Check_Control_Invariant();
 
-    /* Consume KEY0 event — do not propagate to UI */
+    /* 消费电源键事件，避免界面层再次处理同一次按键。 */
     ke[KEY_DRIVER_ID_POWER] = KEY_DRIVER_EVENT_NONE;
 }
 

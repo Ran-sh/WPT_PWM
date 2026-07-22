@@ -1,25 +1,25 @@
 /**
  ******************************************************************************
  * @file    Hardware/Inverter_Control.c
- * @brief   逆变器控制 — 软启动状态机 + 频率斜坡 ( V5.0.2
+ * @brief   逆变器软启动与频率斜坡控制 — V5.0.2
  *
- *  Pinout (via dependent modules):
+ *  相关硬件连接:
  *  +----------------------------------------------------------+
  *  |                       STM32F103C8T6                       |
  *  |                                                           |
- *  |    PA8  --- TIM1_CH1  ---+--- Full-bridge CH1   (Pwm_Dri  |
- *  |    PA9  --- TIM1_CH2  ---+--- Full-bridge CH2   (Pwm_Dri  |
- *  |    PB13 --- TIM1_CH1N ---+--- FB CH1N complement (Pwm_Dr  |
- *  |    PB14 --- TIM1_CH2N ---+--- FB CH2N complement (Pwm_Dr  |
+ *  |    PA8  --- TIM1_CH1  ------- 全桥高侧输入甲              |
+ *  |    PA9  --- TIM1_CH2  ------- 全桥高侧输入乙              |
+ *  |    PB13 --- TIM1_CH1N ------- 全桥低侧互补输入甲          |
+ *  |    PB14 --- TIM1_CH2N ------- 全桥低侧互补输入乙          |
  *  |                                                           |
- *  |    PB10 --- GPIO_PP ---------- 12V power enable (Sys_Cor  |
- *  |              (HIGH=enable, LOW=disable)                   |
+ *  |    PB10 --- 推挽输出 ---------- 12V电源使能                |
+ *  |              高电平开启，低电平关闭                       |
  *  |                                                           |
- *  |    Soft-start: freq ramp 150kHz -> 100kHz, 1kHz step, 20  |
- *  |    FAULT: instant brake, all ramps cancel, PWM disabled   |
+ *  |    软启动：150kHz降至100kHz，每10ms降低200Hz              |
+ *  |    故障处理：立即停止PWM并取消全部频率斜坡                |
  *  +----------------------------------------------------------+
  *
- * @note    Soft-start 150k->100kHz non-blocking, PWM deadtime 1000ns
+ * @note    所有斜坡均由时间戳驱动，不阻塞主循环。
  ******************************************************************************
  */
 
@@ -27,9 +27,9 @@
 #include "Pwm_Driver.h"
 #include "Sys_Timer.h"
 
-/* ═══════════════════════════════════════════════════════════════
+/* ==============================================================
  *  软启动状态机
- * ═══════════════════════════════════════════════════════════════ */
+ * ============================================================== */
 
 static Inverter_Control_Soft_Start_State s_ss_state        = INVERTER_CONTROL_SS_STATE_IDLE;
 static uint32_t s_ss_current_freq = SOFTSTART_START_FREQ_HZ;
@@ -39,7 +39,7 @@ static Inverter_Control_Ramp_State s_ramp_state = INVERTER_CONTROL_RAMP_IDLE;
 static void Inverter_Control_Set_State_Atomic(Inverter_Control_Soft_Start_State new_state)
 {
     s_ss_state = new_state;
-    /* Cortex-M3 对 32-bit 对齐存储保证单指令原子写入, Get_State 无需禁用 IRQ */
+    /* Cortex-M3对32位对齐数据执行单指令写入，读取状态时无需关闭中断。 */
 }
 
 void Inverter_Control_Soft_Start_Trigger(void)
@@ -107,9 +107,9 @@ uint32_t Inverter_Control_Soft_Start_Get_Current_Freq(void)
     return s_ss_current_freq;
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* ==============================================================
  *  频率斜坡 (运行时微调)
- * ═══════════════════════════════════════════════════════════════ */
+ * ============================================================== */
 
 static uint32_t                    s_ramp_target  = 0;
 static uint32_t s_ramp_last_ms  = 0;

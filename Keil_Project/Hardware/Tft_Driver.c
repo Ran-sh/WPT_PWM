@@ -1,32 +1,32 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735 128x160 TFT 彩屏驱动 — SPI1+DMA (V5.0.2 全字库双路径)
+ * @brief   ST7735彩屏显示与字库驱动 — V5.0.2
  *
- *  Pinout (SPI1 TDM: TFT + W25Q128 share bus):
+ *  硬件连接（显示屏与W25Q128分时使用SPI1）:
  *  +------------------------------------------------------------+
- *  |    STM32F103C8T6              ST7735 128x160 Green Tab      |
+ *  |    STM32F103C8T6                   ST7735彩屏                |
  *  |                                                             |
- *  |    PA5 --- SPI1_SCK ------------------> SCL  (18MHz)        |
- *  |    PA7 --- SPI1_MOSI ------------------> SDA  (shared data  |
- *  |    PA4 --- GPIO_PP --------------------> CS   (active low)  |
- *  |    PA6 --- GPIO_PP --------------------> DC   (cmd/data)    |
- *  |    PA0 --- GPIO_PP --------------------> RESET              |
- *  |    PA12 -- GPIO_PP --------------------> BL   (backlight ON/OFF)  |
+ *  |    PA5  --- SPI1_SCK -----------------> SCL，18MHz           |
+ *  |    PA7  --- SPI1_MOSI ----------------> SDA                  |
+ *  |    PA4  --- 推挽输出 -----------------> CS，低电平有效       |
+ *  |    PA6  --- 推挽输出 -----------------> DC，区分命令与数据   |
+ *  |    PA0  --- 推挽输出 -----------------> RES，低电平复位      |
+ *  |    PA12 --- 推挽输出 -----------------> BL，背光开关         |
  *  |                                                             |
- *  |    PA6 --- SPI1_MISO <------------------ W25Q128 DO (Flash  |
- *  |    PB12 -- GPIO_PP --------------------> W25Q128 /CS (Flas  |
+ *  |    PA6  --- SPI1_MISO <--------------- W25Q128 DO           |
+ *  |    PB12 --- 推挽输出 -----------------> W25Q128片选          |
  *  |                                                             |
- *  |    SPI Mode3 (CPOL=H, CPHA=2Edge), full-duplex              |
- *  |    160x128 landscape, MADCTL=0xA0, Tft_Driver_Set_Window offset X+1 Y+2    |
- *  |    DMA1_Channel3 pixel pump, WrCmd/WrDat 8-bit polling      |
+ *  |    SPI采用模式3和全双工配置                                 |
+ *  |    横屏分辨率160x128，窗口坐标横向加1、纵向加2              |
+ *  |    命令使用8位轮询，像素使用DMA1通道3批量发送               |
  *  |                                                             |
- *  |    PA6 dynamic: TFT(DC) <--> W25Q128(MISO)                  |
- *  |      DFF(SPI1_CR1 bit11): 8b(poll) <-> 16b(DMA) atomic swi  |
+ *  |    PA6在显示屏控制输出与存储器数据输入之间动态切换         |
+ *  |    SPI1在8位命令与16位像素模式之间受控切换                  |
  *  +------------------------------------------------------------+
  *
- * @note    Flash 20897 chars (CRC32) -> ROM 4-char splash fallback
- *          SPLASH pure-code 8-frame fade-in (STM32 ROM, no W25Q)
+ * @note    外部字库校验成功时使用完整字库，失败时回退到片内四字启动字库。
+ *          开机动画完全由代码绘制，不依赖W25Q128中的图片资源。
  ******************************************************************************
  */
 
@@ -62,22 +62,22 @@ typedef struct {
     uint32_t cjk_data_offset;
 } Font_Header;
 
-/* ── DMA 状态 ── */
+/* DMA传输状态。 */
 static uint8_t s_dma_configured = 0;
-static uint8_t  s_font_flash_valid = 0;     /* 1=Flash font header CRC32 valid */
-static Font_Header g_font_header;           /* RAM-cached header 32B from W25Q */
+static uint8_t  s_font_flash_valid = 0;     /* 1表示外部字库头及校验值有效 */
+static Font_Header g_font_header;           /* 缓存在内存中的32字节字库头 */
 static Tft_Driver_Result s_tft_last_result = TFT_DRIVER_RESULT_OK;
 static uint8_t s_tft_draw_blocked = 0U;
 
-/* ── 像素缓冲区 ── */
-/* Max scaled char: 16×2=32 cols × 16×2=32 rows × 2 bytes = 2048 B for CN.
- * 1024 half-words fits MCU 20KB SRAM (~2KB). 1× scale uses 128 entries. */
+/* 像素缓冲区。
+ * 两倍中文字符最大为32列乘32行，共需2048字节。
+ * 缓冲区占用约2KB内存，一倍字符只使用其中128个半字。 */
 static uint16_t s_dma_buf[1024];
 
-/* ── Font scale (V4.5.0: pixel-doubling support) ── */
+/* 字体缩放倍数，当前通过像素复制实现两倍放大。 */
 static const uint8_t s_font_scale = 1U;
 
-/* ── Letter spacing (V4.5.0: inter-char gap, 0-3 pixels) ── */
+/* 字符间距，允许在每个字符后增加0至6个像素。 */
 static uint8_t s_letter_spacing = 0;
 
 
@@ -119,9 +119,9 @@ uint8_t Tft_Driver_Is_Draw_Blocked(void)
     return s_tft_draw_blocked;
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* ==============================================================
  *  8位基础通信
- * ═══════════════════════════════════════════════════════════════ */
+ * ============================================================== */
 
 static void Tft_Driver_WrCmd(uint8_t c)
 {
@@ -185,13 +185,13 @@ static void Tft_Driver_WrDat(uint8_t d)
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  SPI 模式切换 — 8bit(命令) ↔ 16bit(像素 DMA)
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  SPI模式切换：8位命令与16位DMA像素数据
+ * ============================================================== */
 
-/* ═══════════════════════════════════════════════════════════════
- *  DMA 一次性初始化
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  DMA一次性初始化
+ * ============================================================== */
 
 static void Tft_Driver_DMA_Init(void)
 {
@@ -216,9 +216,9 @@ static void Tft_Driver_DMA_Init(void)
     s_dma_configured = 1;
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  DMA 核心传输 (V4.5.0: 超时护底防硬锁)
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  DMA核心传输，使用超时保护避免总线永久锁死
+ * ============================================================== */
 
 static void Tft_Driver_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t inc_mem)
 {
@@ -240,7 +240,7 @@ static void Tft_Driver_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t
         return;
     }
 
-    DMA_ClearFlag(DMA1_FLAG_TC3);  /* 清除上轮超时残留: TC 在 DISABLE 后仍保持置位 */
+    DMA_ClearFlag(DMA1_FLAG_TC3);  /* 清除上次超时后仍可能保留的传输完成标志。 */
     DMA_Cmd(DMA1_Channel3, DISABLE);
     DMA1_Channel3->CMAR  = (uint32_t)buf;
     DMA1_Channel3->CNDTR = (uint16_t)count;
@@ -254,7 +254,7 @@ static void Tft_Driver_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t
     while (DMA_GetFlagStatus(DMA1_FLAG_TC3) == RESET) {
         if ((uint32_t)(Sys_Timer_Get_Tick() - start) <
             TFT_DMA_TIMEOUT_MS) continue;
-        /* 超时: 紧急清理, 释放 SPI 总线, 防止系统硬锁 */
+        /* 超时后立即停止DMA并释放SPI总线，避免主循环永久卡死。 */
         SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
         DMA_Cmd(DMA1_Channel3, DISABLE);
         Tft_Driver_Record_Error(TFT_DRIVER_RESULT_DMA_TIMEOUT);
@@ -281,9 +281,9 @@ static void Tft_Driver_DMA_Transfer(const uint16_t* buf, uint32_t count, uint8_t
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  像素泵送 — 双重空闲死等, 防切帧地雷
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  像素批量发送，在切换帧宽前确认DMA和SPI均已空闲
+ * ============================================================== */
 
 static void Tft_Driver_DMA_Fill(uint32_t pixel_count, uint16_t color)
 {
@@ -302,9 +302,9 @@ static void Tft_Driver_DMA_Send(const uint16_t* buf, uint32_t pixel_count)
     Tft_Driver_DMA_Transfer(buf, pixel_count, 1);
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  Tft_Driver_Set_Window
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  设置显示窗口
+ * ============================================================== */
 
 static void Tft_Driver_Set_Window(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
 {
@@ -319,53 +319,53 @@ static void Tft_Driver_Set_Window(uint16_t xs, uint16_t ys, uint16_t xe, uint16_
     Tft_Driver_WrCmd(0x2C);
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  Tft_Driver_Init — 开机三级锁死
+/* ==============================================================
+ *  显示屏初始化的三级上电保护
  *
- *  L1: AFIO+JTAG禁用 绝对第一行, 净化时钟图层
- *  L2: Flash CS(PA12) 强推挽锁高, 封杀开机对灌短路
- *  L3: PA6(共享引脚) ODR 显式初始高, 防飘移
- * ═══════════════════════════════════════════════════════════════ */
+ *  第一级：先接管复用功能并关闭JTAG，释放显示相关引脚。
+ *  第二级：在SPI初始化前把PB12存储器片选强制拉高。
+ *  第三级：明确设置PA6的初始输出电平，避免共享引脚漂移。
+ * ============================================================== */
 
 void Tft_Driver_Init(void)
 {
     GPIO_InitTypeDef  gpio;
-    /* ══ L1: 绝对第一行 — AFIO+JTAG 统合接管, 净化时钟图层 ══ */
+    /* 第一级保护必须最先执行：开启复用功能时钟并关闭JTAG。 */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
-    GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE); /* 释放 PB3/PB4, 封杀毛刺 */
+    GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE); /* 释放PB3、PB4和PA15供普通引脚使用。 */
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
-    /* L2: PB12 Flash CS 无条件前置锁高, 封杀开机 SPI 总线冲突
-       在 SPI 初始化之前必须拉高 Flash CS, 否则 PB12 浮空→Flash 选中→MISO 冲突→TFT 白屏 */
-    /* RST=PA0; Spi1_Shared owns PA4, PA5, PA6, PA7 and PB12. */
+    /* 第二级保护：SPI初始化前必须把PB12片选拉高。
+       如果PB12上电悬空并误选中W25Q128，PA6会发生总线冲突并导致白屏。 */
+    /* PA0用于显示屏复位，其余SPI相关引脚由共享总线模块统一管理。 */
     gpio.GPIO_Pin  = TFT_DRIVER_RST_PIN;
     gpio.GPIO_Mode = GPIO_Mode_Out_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &gpio);
 
-    /* BL=PA12, GPIO ON/OFF */
+    /* PA12作为背光开关，只支持亮灭控制。 */
     gpio.GPIO_Pin   = TFT_DRIVER_BL_PIN;
     gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(TFT_DRIVER_BL_PORT, &gpio);
-    GPIO_ResetBits(TFT_DRIVER_BL_PORT, TFT_DRIVER_BL_PIN);  /* start OFF */
+    GPIO_ResetBits(TFT_DRIVER_BL_PORT, TFT_DRIVER_BL_PIN);  /* 初始化期间保持背光关闭。 */
 
     Spi1_Shared_Init();
 
-    /* ── 硬件复位 ── */
+    /* 执行显示控制器硬件复位。 */
     GPIO_ResetBits(GPIOA, TFT_DRIVER_RST_PIN);
     Sys_Timer_Delay_Ms(20U);
     GPIO_SetBits(GPIOA, TFT_DRIVER_RST_PIN);
     Sys_Timer_Delay_Ms(120U);
 
-    /* ═══════════════════════════════════════════
-     *  ST7735 Green Tab 已验证 init
-     * ═══════════════════════════════════════════ */
+    /* ----------------------------------------------------------
+     *  已通过实机验证的ST7735初始化寄存器序列
+     * ---------------------------------------------------------- */
 
-    Tft_Driver_WrCmd(0x11); Sys_Timer_Delay_Ms(120U);      /* SLPOUT */
+    Tft_Driver_WrCmd(0x11); Sys_Timer_Delay_Ms(120U);      /* 退出休眠模式 */
 
-    Tft_Driver_WrCmd(0x3A); Tft_Driver_WrDat(0x05);       /* COLMOD: RGB565 */
+    Tft_Driver_WrCmd(0x3A); Tft_Driver_WrDat(0x05);       /* 设置RGB565像素格式 */
 
     Tft_Driver_WrCmd(0xB1);
     Tft_Driver_WrDat(0x05); Tft_Driver_WrDat(0x3C); Tft_Driver_WrDat(0x3C);
@@ -375,7 +375,7 @@ void Tft_Driver_Init(void)
     Tft_Driver_WrDat(0x05); Tft_Driver_WrDat(0x3C); Tft_Driver_WrDat(0x3C);
     Tft_Driver_WrDat(0x05); Tft_Driver_WrDat(0x3C); Tft_Driver_WrDat(0x3C);
 
-    Tft_Driver_WrCmd(0xB4); Tft_Driver_WrDat(0x03);       /* INVCTR */
+    Tft_Driver_WrCmd(0xB4); Tft_Driver_WrDat(0x03);       /* 设置显示反转控制 */
 
     Tft_Driver_WrCmd(0xC0);
     Tft_Driver_WrDat(0x28); Tft_Driver_WrDat(0x08); Tft_Driver_WrDat(0x04);
@@ -385,32 +385,32 @@ void Tft_Driver_Init(void)
     Tft_Driver_WrCmd(0xC4); Tft_Driver_WrDat(0x8D); Tft_Driver_WrDat(0xEE);
     Tft_Driver_WrCmd(0xC5); Tft_Driver_WrDat(0x1A);
 
-    Tft_Driver_WrCmd(0x36); Tft_Driver_WrDat(0xA0);        /* MADCTL */  /* Gamma (+) */
+    Tft_Driver_WrCmd(0x36); Tft_Driver_WrDat(0xA0);        /* 设置横屏扫描方向 */  /* 正极性伽马参数 */
     Tft_Driver_WrCmd(0xE0);
     Tft_Driver_WrDat(0x04);Tft_Driver_WrDat(0x22);Tft_Driver_WrDat(0x07);Tft_Driver_WrDat(0x0A);
     Tft_Driver_WrDat(0x2E);Tft_Driver_WrDat(0x30);Tft_Driver_WrDat(0x25);Tft_Driver_WrDat(0x2A);
     Tft_Driver_WrDat(0x28);Tft_Driver_WrDat(0x26);Tft_Driver_WrDat(0x2E);Tft_Driver_WrDat(0x3A);
-    Tft_Driver_WrDat(0x00);Tft_Driver_WrDat(0x01);Tft_Driver_WrDat(0x03);Tft_Driver_WrDat(0x13);   /* Gamma (-) */
+    Tft_Driver_WrDat(0x00);Tft_Driver_WrDat(0x01);Tft_Driver_WrDat(0x03);Tft_Driver_WrDat(0x13);   /* 负极性伽马参数 */
     Tft_Driver_WrCmd(0xE1);
     Tft_Driver_WrDat(0x04);Tft_Driver_WrDat(0x16);Tft_Driver_WrDat(0x06);Tft_Driver_WrDat(0x0D);
     Tft_Driver_WrDat(0x2D);Tft_Driver_WrDat(0x26);Tft_Driver_WrDat(0x23);Tft_Driver_WrDat(0x27);
     Tft_Driver_WrDat(0x27);Tft_Driver_WrDat(0x25);Tft_Driver_WrDat(0x2D);Tft_Driver_WrDat(0x3B);
     Tft_Driver_WrDat(0x00);Tft_Driver_WrDat(0x01);Tft_Driver_WrDat(0x04);Tft_Driver_WrDat(0x13);
 
-    Tft_Driver_WrCmd(0x13);                                 /* NORON */
+    Tft_Driver_WrCmd(0x13);                                 /* 开启正常显示模式 */
 
-    Tft_Driver_WrCmd(0x3A); Tft_Driver_WrDat(0x05);        /* COLMOD: RGB565 */
+    Tft_Driver_WrCmd(0x3A); Tft_Driver_WrDat(0x05);        /* 再次确认RGB565像素格式 */
 
-    Tft_Driver_WrCmd(0x29); Sys_Timer_Delay_Ms(50U);        /* DISPON */
+    Tft_Driver_WrCmd(0x29); Sys_Timer_Delay_Ms(50U);        /* 开启显示输出 */
 
     Tft_Driver_Clear(TFT_COLOR_BLACK);
     Tft_Driver_Set_Backlight(255U);
 }
 
 /* ===============================================================
- *  Tft_Driver_Font_Init — 字库初始化 (W25Q_Driver_Init 之后调用)
- *  读取 Flash 字库头, CRC32 校验通过则启用全字库 20897 字,
- *  否则 s_font_flash_valid 保持 0 → ROM 4 字启动页回退
+ *  字库初始化，必须在W25Q128驱动初始化之后调用
+ *  读取外部字库头并完成CRC32校验；通过后启用20897字完整字库，
+ *  校验失败时保持外部字库无效，并回退到片内四字启动字库。
  * ============================================================= */
 
 void Tft_Driver_Font_Init(void)
@@ -467,15 +467,15 @@ static uint32_t Tft_Driver_Font_Index_Binary_Search(uint16_t unicode,
            ((uint32_t)entry[5] << 24);
 }
 
-/* 公开字库状态查询 (供 Sys_Startup_Screen 显示) */
+/* 公开字库状态查询，供启动页面显示加载结果。 */
 uint8_t Tft_Driver_Is_Font_Flash_Valid(void)
 {
     return s_font_flash_valid;
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* ==============================================================
  *  字符间距配置
- * ═══════════════════════════════════════════════════════════════ */
+ * ============================================================== */
 
 void Tft_Driver_Set_Letter_Spacing(uint8_t sp)
 {
@@ -488,9 +488,9 @@ uint8_t Tft_Driver_Get_Letter_Spacing(void)
     return s_letter_spacing;
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* ==============================================================
  *  基础绘图
- * ═══════════════════════════════════════════════════════════════ */
+ * ============================================================== */
 
 void Tft_Driver_Clear(uint16_t color)
 {
@@ -523,9 +523,9 @@ void Tft_Driver_Erase_Pixel_Area(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     Tft_Driver_Fill_Rect(x, y, w, h, TFT_COLOR_BLACK);
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  位图解码器 (原样保留, LSB-first)
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  位图解码器，字节内最低位对应最先绘制的像素
+ * ============================================================== */
 
 static void Tft_Driver_Decode_Char_Row(uint8_t byte_val, uint16_t fg, uint16_t bg,
                            uint16_t* out, uint8_t scale)
@@ -535,7 +535,7 @@ static void Tft_Driver_Decode_Char_Row(uint8_t byte_val, uint16_t fg, uint16_t b
         for (b = 0; b < 8; b++)
             out[b] = (byte_val & (0x01 << b)) ? fg : bg;
     } else {
-        /* 2x pixel doubling: each source pixel becomes 2×1 output pixels */
+        /* 两倍横向放大时，每个源像素复制为两个相邻输出像素。 */
         for (b = 0; b < 8; b++) {
             uint16_t c = (byte_val & (0x01 << b)) ? fg : bg;
             out[b * 2]     = c;
@@ -554,7 +554,7 @@ static void Tft_Driver_Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16
             out[b + 8] = (hi & (0x01 << b)) ? fg : bg;
         }
     } else {
-        /* 2x pixel doubling: each 16-wide source row becomes 32-wide */
+        /* 两倍横向放大时，16像素源行扩展为32像素输出行。 */
         for (b = 0; b < 8; b++) {
             uint16_t cl = (lo & (0x01 << b)) ? fg : bg;
             uint16_t ch = (hi & (0x01 << b)) ? fg : bg;
@@ -566,16 +566,16 @@ static void Tft_Driver_Decode_CN_Row(uint8_t lo, uint8_t hi, uint16_t fg, uint16
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  ASCII 渲染 — 双路径: Flash 流式读取 / ROM 字模回退
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  单字节字符渲染：外部字库流式读取或片内字模回退
+ * ============================================================== */
 
 void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
                           uint16_t fg, uint16_t bg)
 {
     uint8_t idx; uint16_t* p;
-    uint8_t char_w = TFT_FONT_WIDTH  * s_font_scale;  /* 8 or 16 */
-    uint8_t char_h = TFT_FONT_HEIGHT * s_font_scale;  /* 16 or 32 */
+    uint8_t char_w = TFT_FONT_WIDTH  * s_font_scale;  /* 字符宽度为8或16像素 */
+    uint8_t char_h = TFT_FONT_HEIGHT * s_font_scale;  /* 字符高度为16或32像素 */
     uint8_t row;
     uint16_t line_h_scaled = (uint16_t)TFT_FONT_HEIGHT * s_font_scale;
 
@@ -601,11 +601,11 @@ void Tft_Driver_Show_Char(uint8_t line, uint8_t col, char ch,
                 }
                 Tft_Driver_DMA_Send(s_dma_buf, 128);
             } else {
-                /* 2x: duplicate each row */
+                /* 两倍放大时复制当前像素行。 */
                 for (row = 0; row < 16; row++) {
                     uint8_t r;
                     Tft_Driver_Decode_Char_Row(ascii_rows[row], fg, bg, p, 2);
-                    /* copy doubled row to second line */
+                    /* 将放大后的像素行复制到下一行。 */
                     for (r = 0; r < 16; r++) p[32 + r] = p[r];
                     p += 32;
                 }
@@ -647,9 +647,9 @@ void Tft_Driver_Show_String(uint8_t line, uint8_t col, const char* s,
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  中文渲染 — 双路径: Flash 二分查找 (20897字) / ROM 线性回退 (4字)
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  中文渲染：外部字库二分查找或片内四字线性回退
+ * ============================================================== */
 
 static uint8_t Tft_Driver_Is_UTF8_CN(uint8_t c) { return (c >= 0xE0 && c <= 0xEF); }
 
@@ -657,8 +657,8 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
                                uint16_t fg, uint16_t bg)
 {
     uint8_t row; uint16_t* p;
-    uint8_t char_w = (uint16_t)TFT_FONT_WIDTH * 2 * s_font_scale;  /* 16 or 32 */
-    uint8_t char_h = (uint16_t)TFT_FONT_HEIGHT * s_font_scale;     /* 16 or 32 */
+    uint8_t char_w = (uint16_t)TFT_FONT_WIDTH * 2 * s_font_scale;  /* 字符宽度为16或32像素 */
+    uint8_t char_h = (uint16_t)TFT_FONT_HEIGHT * s_font_scale;     /* 字符高度为16或32像素 */
     uint16_t buf_x_start = col * TFT_FONT_WIDTH;
     uint16_t buf_y_start = ln  * ((uint16_t)TFT_FONT_HEIGHT * s_font_scale);
 
@@ -668,7 +668,7 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
     Tft_Driver_Set_Window(buf_x_start, buf_y_start, buf_x_start + char_w - 1, buf_y_start + char_h - 1);
     p = s_dma_buf;
 
-    /* ROM 优先: 检查 CN_INDEX (4 字: 无/线/充/电, SPLASH 专用) */
+    /* 优先检查片内“无、线、充、电”四字启动字库。 */
     {
         uint8_t g_idx; uint8_t i;
         g_idx = 0xFF;
@@ -697,7 +697,7 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
         }
     }
 
-    /* Flash 路径: ROM 未命中 → W25Q128 全字库 20897 字 */
+    /* 片内字库未命中时，再查询W25Q128中的20897字完整字库。 */
     if (s_font_flash_valid) {
         uint32_t unicode; uint32_t data_offset; uint32_t base;
         uint8_t cn_glyph[32];
@@ -734,25 +734,25 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
         return;
     }
 
-    /* 无 Flash → 空白 (ROM 已检索, 未命中) */
+    /* 两条字库路径均未命中时绘制空白字符。 */
     Tft_Driver_DMA_Fill((uint32_t)char_w * char_h, bg);
 }
 
 void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
                                 uint16_t fg, uint16_t bg)
 {
-    uint8_t as_char_w = TFT_FONT_WIDTH  * s_font_scale;  /* ASCII width: 8 or 16 */
-    uint8_t cn_char_w = TFT_FONT_WIDTH  * 2 * s_font_scale; /* CN width: 16 or 32 */
+    uint8_t as_char_w = TFT_FONT_WIDTH  * s_font_scale;  /* 单字节字符宽度为8或16像素 */
+    uint8_t cn_char_w = TFT_FONT_WIDTH  * 2 * s_font_scale; /* 中文字符宽度为16或32像素 */
     uint8_t max_x = TFT_WIDTH - as_char_w;
 
-    /* V4.5.0: pure pixel-gap spacing.  Each char drawn at pixel position cur_x,
-     *   then cur_x += char_w + s_letter_spacing.  Background fill bridges the gap. */
+    /* 字符间距按像素计算；每绘制一个字符后，横坐标增加字符宽度与设定间距，
+     * 并用背景色填满间隔区域，防止保留旧画面。 */
     {
         uint16_t cur_x = (uint16_t)col * TFT_FONT_WIDTH;
         while (*s && cur_x <= max_x) {
             if (Tft_Driver_Is_UTF8_CN((uint8_t)*s) && *(s+1) && *(s+2)) {
                 if (cur_x + cn_char_w > TFT_WIDTH) break;
-                /* Redraw spacer region as BG first, then draw glyph */
+                /* 先用背景色清除间隔区域，再绘制当前字形。 */
                 if (s_letter_spacing > 0)
                     Tft_Driver_Fill_Rect(cur_x, (uint16_t)ln * (TFT_FONT_HEIGHT * s_font_scale),
                         s_letter_spacing, (uint16_t)TFT_FONT_HEIGHT * s_font_scale, bg);
@@ -772,9 +772,9 @@ void Tft_Driver_Show_CN_String(uint8_t ln, uint8_t col, const char* s,
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  WiFi 图标 — 片内 ROM 读取
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  无线状态图标，从片内只读存储区读取
+ * ============================================================== */
 
 void Tft_Driver_Draw_WiFi_Icon(uint16_t x, uint16_t y, uint8_t frame, uint16_t fg, uint16_t bg)
 {
@@ -805,9 +805,9 @@ void Tft_Driver_Draw_Single_Icon(uint16_t x, uint16_t y, const uint8_t data[32],
     Tft_Driver_DMA_Send(s_dma_buf, 256);
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  5×10 微型数字 — 片内保留 (120B, 零 Flash 等待)
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  5乘10微型数字，保留在片内以避免外部存储器等待
+ * ============================================================== */
 
 static const uint8_t FONT_5X10[12][10] = {
     {0x00,0x00,0x06,0x09,0x09,0x09,0x09,0x09,0x06,0x00},
@@ -853,19 +853,16 @@ void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
- *  Icon By ID — 按编号从 Flash 读取 16x16 图标 (V4.4.0: ROM 不再存储 20 图标)
- * ═══════════════════════════════════════════════════════════════ */
+/* ==============================================================
+ *  按编号读取并绘制16乘16图标
+ * ============================================================== */
 
 uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
                                    uint8_t frame, uint16_t fg, uint16_t bg)
 {
-    /* V4.4.0: 图标数据在 W25Q128 Flash 中 (via Font_Header icon_table).
-     *  无 Flash 时: WIFI/MQTT/ICON_STAR (id 0-8) 可走 ROM 回退.
-     *  其他 id 11-30 仅 Flash 可用. */
-    /* Note: 此函数签名已改为有 frame 参数, 与 .h 一致.
-     *  Flash 路径通过 W25Q_Read icon_table→data 实现.
-     *  为快速修复, 先实现 Flash-only 路径, ROM 回退仅保留 STAR/WIFI/MQTT. */
+    /* 图标数据主要存放在W25Q128字库图标表中。
+     * 外部字库不可用时，编号0至8的无线、消息和星形图标可使用片内回退；
+     * 其余图标必须从有效的外部字库读取。 */
     uint8_t row; uint16_t* p;
 
     if (icon_id > 34) return 0;
@@ -873,67 +870,66 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
     Tft_Driver_Set_Window(x, y, x + 15, y + 15);
     p = s_dma_buf;
 
-    /* ROM 回退: WIFI (0-3), MQTT (4-7), STAR (8) — ROM 优先 */
+    /* 先检查片内保留的无线、消息和星形图标。 */
     switch (icon_id) {
-        case 0:  /* WIFI_SIGNAL: 按 frame 选信号强度帧 */
+        case 0:  /* 根据信号强度帧编号选择无线图标。 */
             if (frame > 3) frame = 3;
             for (row = 0; row < 16; row++)
                 Tft_Driver_Decode_CN_Row(WIFI_ICON[frame][row*2], WIFI_ICON[frame][row*2+1], fg, bg, p + row*16, 1);
             Tft_Driver_DMA_Send(s_dma_buf, 256);
             return 1;
-        case 1:  /* WIFI_CONNECT_ANIM: 按 frame 选动画帧 */
+        case 1:  /* 根据帧编号选择无线连接动画。 */
             if (frame > 5) frame = 5;
             for (row = 0; row < 16; row++)
                 Tft_Driver_Decode_CN_Row(WIFI_CONNECT_ANIM[frame][row*2], WIFI_CONNECT_ANIM[frame][row*2+1], fg, bg, p + row*16, 1);
             Tft_Driver_DMA_Send(s_dma_buf, 256);
             return 1;
-        case 2:  /* WIFI_OFF — 带×的静态图标 */
+        case 2:  /* 带叉号的无线关闭静态图标。 */
             for (row = 0; row < 16; row++)
                 Tft_Driver_Decode_CN_Row(WIFI_OFF_ICON[row*2], WIFI_OFF_ICON[row*2+1], fg, bg, p + row*16, 1);
             Tft_Driver_DMA_Send(s_dma_buf, 256);
             return 1;
-        case 3:  /* WIFI_REMOVE — 带减号的静态图标 */
+        case 3:  /* 带减号的无线移除静态图标。 */
             for (row = 0; row < 16; row++)
                 Tft_Driver_Decode_CN_Row(WIFI_REMOVE_ICON[row*2], WIFI_REMOVE_ICON[row*2+1], fg, bg, p + row*16, 1);
             Tft_Driver_DMA_Send(s_dma_buf, 256);
             return 1;
-        case 4:  /* MQTT_ICON 静态 */
+        case 4:  /* 消息协议静态图标。 */
             for (row = 0; row < 16; row++)
                 Tft_Driver_Decode_CN_Row(MQTT_ICON[row*2], MQTT_ICON[row*2+1], fg, bg, p + row*16, 1);
             Tft_Driver_DMA_Send(s_dma_buf, 256); return 1;
-        case 5:  /* MQTT_YES 静态 */
+        case 5:  /* 消息协议已连接静态图标。 */
             for (row = 0; row < 16; row++)
                 Tft_Driver_Decode_CN_Row(MQTT_YES_ICON[row*2], MQTT_YES_ICON[row*2+1], fg, bg, p + row*16, 1);
             Tft_Driver_DMA_Send(s_dma_buf, 256); return 1;
-        case 6:  /* MQTT_NO 静态 */
+        case 6:  /* 消息协议未连接静态图标。 */
             for (row = 0; row < 16; row++)
                 Tft_Driver_Decode_CN_Row(MQTT_NO_ICON[row*2], MQTT_NO_ICON[row*2+1], fg, bg, p + row*16, 1);
             Tft_Driver_DMA_Send(s_dma_buf, 256); return 1;
-        case 7:  /* MQTT_ANIM 6帧 */
+        case 7:  /* 六帧消息协议连接动画。 */
             if (frame > 5) frame = 5;
             for (row = 0; row < 16; row++)
                 Tft_Driver_Decode_CN_Row(MQTT_ANIM[frame][row*2], MQTT_ANIM[frame][row*2+1], fg, bg, p + row*16, 1);
             Tft_Driver_DMA_Send(s_dma_buf, 256); return 1;
-        case 8:  /* ICON_STAR */
+        case 8:  /* 星形图标。 */
             for (row = 0; row < 16; row++)
                 Tft_Driver_Decode_CN_Row(ICON_STAR[row*2], ICON_STAR[row*2+1], fg, bg, p + row*16, 1);
             Tft_Driver_DMA_Send(s_dma_buf, 256);
             return 1;
-        default: break;  /* ID 9-34: 仅 Flash */
+        default: break;  /* 编号9及以上的图标仅存在于外部字库。 */
     }
 
-    /* Flash path: ID 9+ 或无 ROM 的图标 */
+    /* 读取仅存在于外部字库中的图标。 */
     if (s_font_flash_valid) {
-        /* Read icon frame from Flash icon_data area
-         * Flash layout (from generate_font.py OFF_ICONS):
-         *   0x000700: Icon Table Header 16B
-         *   0x000710: Icon Entries 31×8B = 248B
-         *   0x000808: Icon Bitmap Data
-         * Entry 8B: [id:2][n_frames:2][data_offset:2][reserved:2] */
+        /* 外部字库图标区域布局如下：
+         * 0x000700存放16字节图标表头；
+         * 0x000710存放31个、每个8字节的图标索引项；
+         * 0x000808开始存放图标位图数据。
+         * 每个索引项依次记录编号、帧数、数据偏移和保留字段，各占2字节。 */
         uint32_t icon_idx_base, icon_data_base, data_offset, frame_offset;
         uint8_t n_frames, icon_entry[8], icon_glyph[32];
-        icon_idx_base = 0x000710U;  /* icon entries start */
-        /* Read 8-byte entry: [id:2][n_frames:2][data_offset:2][reserved:2] */
+        icon_idx_base = 0x000710U;  /* 图标索引项起始地址。 */
+        /* 读取包含编号、帧数、数据偏移和保留字段的8字节索引项。 */
         if (W25Q_Driver_Read(icon_idx_base + (uint32_t)icon_id * 8U,
                              icon_entry, sizeof(icon_entry)) !=
             W25Q_DRIVER_RESULT_OK) {
@@ -943,7 +939,7 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
         }
         n_frames     = icon_entry[2] | (uint16_t)icon_entry[3] << 8;
         data_offset  = (uint32_t)icon_entry[4] | (uint32_t)icon_entry[5] << 8;
-        icon_data_base = 0x000808U;  /* icon bitmap data start */
+        icon_data_base = 0x000808U;  /* 图标位图数据起始地址。 */
         if (n_frames == 0U) {
             Tft_Driver_DMA_Fill(256U, bg);
             return 0U;
@@ -963,35 +959,35 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
         return 1;
     }
 
-    /* 无 Flash 且无 ROM → 空白 */
+    /* 片内和外部字库均无对应图标时绘制空白。 */
     { uint8_t i; for (i = 0; i < 256; i++) p[i] = bg; }
     Tft_Driver_DMA_Send(s_dma_buf, 256);
     return 0;
 }
 
 /* ===============================================================
- *  SPLASH 开机动画 — 纯代码实现 (V4.3.2)
+ *  开机动画，由代码直接绘制
  *
  *  布局 (160×128):
  *  +----------------------------------+
- *  |                           V4.3.2|  Row 7 col14: 版本号, 右下角暗灰
+ *  |                           V5.0.2|  第7行右侧显示暗灰版本号
  *  |                                  |
- *  |     无  线  充  电               |  逐字出现, 间隔空格, 亮黄
+ *  |     无  线  充  电               |  中文逐字渐亮
  *  |                                  |
- *  |          W  P  T                 |  逐字出现, 亮青
+ *  |          W  P  T                 |  项目缩写逐字渐亮
  *  +----------------------------------+
  *
- *  动画 (总长约 2.0s):
- *    Phase 1 (1600ms): 4字x8帧x50ms = 400ms/字, 每字渐亮
- *    Hold   (400ms):   全亮定格
+ *  动画总长约2秒：
+ *    渐亮阶段为1600ms，每字使用8帧、每帧50ms；
+ *    全亮后再定格400ms。
  *
- *  使用字库: ROM 4 字 — 无 线 充 电, 不依赖 Flash
+ *  使用片内“无、线、充、电”四字字库，不依赖外部存储器。
  * ============================================================= */
 
 void Tft_Driver_Show_Splash(void)
 {
     uint8_t col;
-    /* UTF-8: 无 U+65E0  线 U+7EBF  充 U+5145  电 U+7535 */
+    /* 四个中文字符按UTF-8编码保存。 */
     const char s_cn[4][4] = {
         "\xe6\x97\xa0", "\xe7\xba\xbf", "\xe5\x85\x85", "\xe7\x94\xb5"
     };
@@ -1001,13 +997,13 @@ void Tft_Driver_Show_Splash(void)
     /* 版本号: 右下角暗灰 */
     Tft_Driver_Show_String(7, 14, "V5.0.2", 0x3186U, TFT_COLOR_BLACK);
 
-    /* Phase 1: 两行同时逐字点亮, 每字 8帧渐亮x50ms=400ms, 4字=1600ms */
+    /* 第一阶段让中文与项目缩写同步逐字渐亮，总计1600ms。 */
     for (col = 0; col < 4; col++) {
         uint16_t cn_fg, wpt_fg;
         uint8_t  sub;
 
         for (sub = 0; sub < 8; sub++) {
-            /* 当前字颜色: 从暗到亮 (0x3186 暗 -> 0xFFE0 亮黄 / 0x031F 暗 -> 0x07FF 亮青) */
+            /* 当前字符颜色由暗逐步过渡到目标亮色。 */
             cn_fg  = 0x31BEU + (uint16_t)((0xFFE0U - 0x31BEU) * (sub + 1) / 8);
             wpt_fg = 0x031FU + (uint16_t)((0x07FFU - 0x031FU) * (sub + 1) / 8);
 
@@ -1034,6 +1030,6 @@ void Tft_Driver_Show_Splash(void)
         }
     }
 
-    /* Phase 2: 全亮定格 400ms */
+    /* 第二阶段保持全亮400ms。 */
     Sys_Timer_Delay_Ms(400);
 }

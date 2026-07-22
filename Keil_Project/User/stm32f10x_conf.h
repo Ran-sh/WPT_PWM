@@ -1,39 +1,7 @@
-/**
-  ******************************************************************************
-  * @file    Project/STM32F10x_StdPeriph_Template/stm32f10x_conf.h 
-  * @author  MCD Application Team
-  * @version V3.5.0
-  * @date    08-April-2011
-  * @brief   Library configuration file. — V5.0.2
-  ******************************************************************************
-  * @attention
-  *
-  * THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
-  * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE
-  * TIME. AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIABLE FOR ANY
-  * DIRECT, INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY CLAIMS ARISING
-  * FROM THE CONTENT OF SUCH FIRMWARE AND/OR THE USE MADE BY CUSTOMERS OF THE
-  * CODING INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
-  *
-  * <h2><center>&copy; COPYRIGHT 2011 STMicroelectronics</center></h2>
-  ******************************************************************************
-  */
-
-/**
- ******************************************************************************
- * @file    User/stm32f10x_conf.h
- * @brief   STM32F10x 标准外设库配置文件
- * @note    存放路径: 项目根目录\User\
- *          管理外设头文件的包含和 assert_param 宏定义。
- *          添加新的外设驱动时, 需在此文件中取消对应头文件的注释。
- ******************************************************************************
- */
-
-/* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __STM32F10x_CONF_H
 #define __STM32F10x_CONF_H
 
-/* Includes ------------------------------------------------------------------*/
+/* 标准外设库头文件。 */
 /* 取消/注释下面某一行可启用/禁用对应外设的头文件包含 */
 #include "stm32f10x_adc.h"
 #include "stm32f10x_bkp.h"
@@ -57,31 +25,23 @@
 #include "stm32f10x_tim.h"
 #include "stm32f10x_usart.h"
 #include "stm32f10x_wwdg.h"
-#include "misc.h" /* High level functions for NVIC and SysTick (add-on to CMSIS functions) */
+#include "misc.h" /* 嵌套向量中断控制器和系统滴答的辅助接口。 */
 
-/* Exported types ------------------------------------------------------------*/
-/* Exported constants --------------------------------------------------------*/
-/* Uncomment the line below to expanse the "assert_param" macro in the 
-   Standard Peripheral Library drivers code */
+/* 取消下一行注释可启用标准外设库参数断言。 */
 /* #define USE_FULL_ASSERT    1 */
 
-/* Exported macro ------------------------------------------------------------*/
+/* 参数断言宏。 */
 #ifdef  USE_FULL_ASSERT
 
 /**
-  * @brief  The assert_param macro is used for function's parameters check.
-  * @param  expr: If expr is false, it calls assert_failed function which reports 
-  *         the name of the source file and the source line number of the call 
-  *         that failed. If expr is true, it returns no value.
-  * @retval None
+  * @brief  检查标准外设库函数的输入参数
+  * @param  expr 待检查表达式；为假时调用assert_failed报告文件名和行号
   */
   #define assert_param(expr) ((expr) ? (void)0 : assert_failed((uint8_t *)__FILE__, __LINE__))
-/* Exported functions ------------------------------------------------------- */
+/* 参数断言失败回调。 */
   void assert_failed(uint8_t* file, uint32_t line);
 #else
   #define assert_param(expr) ((void)0)
-#endif /* USE_FULL_ASSERT */
+#endif /* 完整参数断言配置结束 */
 
-#endif /* __STM32F10x_CONF_H */
-
-/******************* (C) COPYRIGHT 2011 STMicroelectronics *****END OF FILE****/
+#endif /* 标准外设库配置结束 */

@@ -3,30 +3,25 @@
   * @file    User/stm32f10x_it.c
   * @brief   中断服务函数 (V5.0.2 净化版)
   *
-  *  ISR map (Cortex-M3 NVIC):
+  *  中断映射（Cortex-M3嵌套向量中断控制器）:
   *  +------------------------------------------------------------+
   *  |                 STM32F103C8T6  NVIC                        |
   *  |                                                            |
-  *  |  SysTick_Handler                                            |
-  *  |    +--- Sys_Timer_IncTick()  (only call, 1ms timebase)     |
-  *  |    Minimal: NO business logic in ISR                       |
+  *  |  系统滴答中断处理函数                                      |
+  *  |    +--- 仅递增1ms系统时基                                  |
+  *  |    +--- 中断内不执行任何业务逻辑                           |
   *  |                                                            |
-  *  |  USART2_IRQHandler                                         |
- *  |    +--- USART_IT_RXNE check, preserve valid byte           |
- *  |    +--- USART_FLAG_ORE check, read DR to clear overflow    |
- *  |    +--- USART_IT_TXE check, drain TX ring one byte         |
+  *  |  串口2中断处理函数                                         |
+  *  |    +--- 先接收有效字节，再处理溢出错误                     |
+  *  |    +--- 发送寄存器空时从发送环形队列取出一个字节           |
   *  |                                                            |
-  *  |  HardFault/MemManage/BusFault_Handler                       |
-  *  |    +--- PWM off first (TIM1 DISABLE + MOE DISABLE)         |
-  *  |    +--- Then infinite loop (safety first)                  |
+  *  |  硬故障、存储器故障、总线故障和用法故障处理函数            |
+  *  |    +--- 先关闭TIM1主输出和12V电源，再进入死循环            |
   *  |                                                            |
-  *  |  FORBIDDEN:                                                |
-  *  |    x Business logic in ISR                                 |
-  *  |    x Flag_Task_xxx dispatch flags in stm32f10x_it.c        |
-  *  |    x printf / blocking delay in ISR                        |
+  *  |  禁止事项：中断内业务逻辑、调度标志、打印和阻塞延时       |
   *  +------------------------------------------------------------+
   *
-  * @note    USART2 on PA2(TX)/PA3(RX), 115200-8-N-1
+  * @note    串口2使用PA2发送、PA3接收，参数为115200-8-N-1。
   ******************************************************************************
   */
 
@@ -36,23 +31,30 @@
 #include "Adc_Driver.h"
 
 /******************************************************************************/
-/*            Cortex-M3 Processor Exceptions Handlers                         */
+/* Cortex-M3处理器异常处理函数                                                */
 /******************************************************************************/
 
 void NMI_Handler(void)          { }
-/* 故障处理器: 进入死循环前强制关断 PWM 输出 + 拉低 PB10 关 12V, 防止桥臂直通烧毁 MOSFET */
-void HardFault_Handler(void)    { TIM_CtrlPWMOutputs(TIM1, DISABLE); GPIO_ResetBits(GPIOB, GPIO_Pin_10); while (1); }
-void MemManage_Handler(void)    { TIM_CtrlPWMOutputs(TIM1, DISABLE); GPIO_ResetBits(GPIOB, GPIO_Pin_10); while (1); }
-void BusFault_Handler(void)     { TIM_CtrlPWMOutputs(TIM1, DISABLE); GPIO_ResetBits(GPIOB, GPIO_Pin_10); while (1); }
-void UsageFault_Handler(void)   { TIM_CtrlPWMOutputs(TIM1, DISABLE); GPIO_ResetBits(GPIOB, GPIO_Pin_10); while (1); }
+/* 所有致命异常共用同一安全关断路径，防止某一处理函数遗漏关键动作。 */
+static void Stm32f10x_It_Enter_Safe_Loop(void)
+{
+    TIM_CtrlPWMOutputs(TIM1, DISABLE);
+    TIM_Cmd(TIM1, DISABLE);
+    GPIO_ResetBits(GPIOB, GPIO_Pin_10);
+    while (1) { }
+}
+
+void HardFault_Handler(void)    { Stm32f10x_It_Enter_Safe_Loop(); }
+void MemManage_Handler(void)    { Stm32f10x_It_Enter_Safe_Loop(); }
+void BusFault_Handler(void)     { Stm32f10x_It_Enter_Safe_Loop(); }
+void UsageFault_Handler(void)   { Stm32f10x_It_Enter_Safe_Loop(); }
 void SVC_Handler(void)          { }
 void DebugMon_Handler(void)     { }
 void PendSV_Handler(void)       { }
 
 /**
-  * @brief  SysTick 中断服务函数 (每 1ms)
-  * @note   唯一操作: 递增系统时基计数器
-  *         不再包含任何任务调度逻辑 (KEY扫描/OLED刷新/LED闪烁 均已迁移至各模块 Task 函数)
+  * @brief  系统滴答中断服务函数，每1ms执行一次
+  * @note   仅递增系统时基计数器；按键、显示和指示灯任务均由主循环调度。
   */
 void SysTick_Handler(void)
 {
@@ -60,7 +62,7 @@ void SysTick_Handler(void)
 }
 
 /******************************************************************************/
-/*                 STM32F10x Peripherals Interrupt Handlers                   */
+/* STM32F10x外设中断处理函数                                                  */
 /******************************************************************************/
 
 /** @brief ADC1双通道DMA传输完成中断，每2ms复制一次稳定原始值对 */
@@ -74,14 +76,13 @@ void DMA1_Channel1_IRQHandler(void)
 }
 
 /**
-  * @brief  USART2 接收中断 (ESP8266 数据通道)
-  * @note   先 RXNE 保留有效字节，再清 ORE，最后处理 TXE 单字节发送。
-  *         接收字节由 ESP8266 驱动负责帧拼接和缓冲区管理。
+  * @brief  串口2收发中断，服务ESP8266数据通道
+  * @note   先保存接收寄存器中的有效字节，再清除溢出错误，最后处理发送。
+  *         接收字节由ESP8266驱动负责帧拼接和缓冲区管理。
   */
 void USART2_IRQHandler(void)
 {
-    /* 先RXNE后ORE，优先消费有效字节，再清溢出标志。
-     *   旧顺序 (ORE 先) 会因读 DR 清 RXNE 而丢弃 ORE 前最后一个有效字节. */
+    /* 先读取有效字节再处理溢出；若先读数据寄存器清溢出，可能丢失最后一个有效字节。 */
     if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
     {
         uint8_t ch = USART_ReceiveData(USART2);
@@ -89,10 +90,10 @@ void USART2_IRQHandler(void)
         USART_ClearITPendingBit(USART2, USART_IT_RXNE);
     }
 
-    /* ── 溢出错误处理: 读 DR 清除 ORE (溢出数据已丢弃, 不可恢复) ── */
+    /* 读取数据寄存器清除溢出标志；已经溢出的数据无法恢复。 */
     if (USART_GetFlagStatus(USART2, USART_FLAG_ORE) != RESET)
     {
-        USART_ReceiveData(USART2);  /* 哑读清除 ORE */
+        USART_ReceiveData(USART2);  /* 通过哑读清除溢出标志。 */
     }
 
     if (USART_GetITStatus(USART2, USART_IT_TXE) != RESET)
@@ -100,5 +101,3 @@ void USART2_IRQHandler(void)
         Esp8266_Driver_Tx_Ready_ISR();
     }
 }
-
-/******************* (C) COPYRIGHT 2011 STMicroelectronics *****END OF FILE****/

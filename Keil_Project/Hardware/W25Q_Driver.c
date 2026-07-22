@@ -1,8 +1,8 @@
 /**
  ******************************************************************************
  * @file    Hardware/W25Q_Driver.c
- * @brief   W25Q128 bounded SPI NOR Flash implementation - V5.0.2
- * @note    All bus failures release both chip selects and restore TFT PA6 mode.
+ * @brief   W25Q128有界读写驱动实现 — V5.0.2
+ * @note    发生任何总线错误时都会释放两个片选，并把PA6恢复为显示屏控制模式。
  ******************************************************************************
  */
 

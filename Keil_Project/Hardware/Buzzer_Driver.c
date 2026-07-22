@@ -3,19 +3,19 @@
  * @file    Hardware/Buzzer_Driver.c
  * @brief   有源蜂鸣器驱动 — V5.0.2
  *
- *  Pinout:
+ *  硬件连接:
  *  +-------------------------------------------------------+
  *  |                    STM32F103C8T6                       |
  *  |                                                        |
- *  |    PB15 --- GPIO_PP ---+--- R (1k) --- S8050 Base (NP  |
- *  |                         +--- Collector --- Buzzer ---  |
- *  |                         +--- Emitter  --- GND          |
+ *  |    PB15 --- 1k限流电阻 --- S8050基极                   |
+ *  |    S8050集电极 ---------- 有源蜂鸣器负极              |
+ *  |    S8050发射极 ---------- GND                          |
  *  |                                                        |
- *  |    HIGH -> S8050 ON -> buzzer beeps                    |
- *  |    BEEP pattern: 200ms ON / 800ms OFF                  |
+ *  |    PB15输出高电平时，S8050导通，蜂鸣器发声             |
+ *  |    间歇模式：响200ms，停800ms                          |
  *  +-------------------------------------------------------+
  *
- * @note    PB15 GPIO PP, HIGH->S8050->buzzer
+ * @note    使用三极管隔离蜂鸣器负载，禁止由引脚直接承担大电流。
  ******************************************************************************
  */
 
@@ -58,7 +58,7 @@ void Buzzer_Driver_Task(void)
         return;
     }
 
-    /* BEEP 间歇模式: 200ms 响 + 800ms 停 = 占空比 20% (足够引起注意, 避免持续刺耳) */
+    /* 间歇模式采用响200ms、停800ms的节奏，兼顾提醒效果与听感。 */
     {
         uint32_t now    = Sys_Timer_Get_Tick();
         uint32_t period = s_beep_on ? BUZZER_DRIVER_BEEP_ON_MS

@@ -1,23 +1,23 @@
 /**
  ******************************************************************************
  * @file    Hardware/Adc_Driver.c
- * @brief   ADC 模拟量采集驱动 — V5.0.2
+ * @brief   模数转换与模拟量采集驱动 — V5.0.2
  *
- *  Pinout:
+ *  硬件连接:
  *  +--------------------------------------------------------+
  *  |                     STM32F103C8T6                       |
  *  |                                                         |
- *  |    PB0 --- ADC_CH8 ---+--- Current sensor CC6920BSO     |
- *  |                        |   (132mV/A, 0~50A range)       |
- *  |    PB1 --- ADC_CH9 ---+--- Voltage divider 20:1         |
- *  |                            (0~60V -> 0~3.0V)            |
+ *  |    PB0 --- ADC_CH8 ------- CC6920BSO 电流传感器输出     |
+ *  |                           标称灵敏度 132mV/A            |
+ *  |    PB1 --- ADC_CH9 ------- 电压采样分压网络输出         |
+ *  |                           分压比 20:1                   |
  *  |                                                         |
- *  |    Sampling: TIM3 TRGO 500Hz -> ADC1 scan -> DMA1 CH1   |
- *  |    One stable current/voltage pair every 2ms            |
- *  |    64-sample sliding window, EMA a=0.25 (tau~800ms)     |
+ *  |    TIM3 以 500Hz 触发 ADC1 双通道扫描                   |
+ *  |    DMA1 通道1每 2ms 保存一组电流和电压原始值           |
+ *  |    显示使用64点窗口，安全保护使用8点快速窗口            |
  *  +--------------------------------------------------------+
  *
- * @note    PB0=ADC_CH8(I), PB1=ADC_CH9(V)
+ * @note    中断只保存原始快照，滤波、换算和校准均在主循环完成。
  ******************************************************************************
  */
 
@@ -27,7 +27,7 @@
 #define ADC_DRIVER_VREF_MCU            3.30f
 #define ADC_DRIVER_VOLTAGE_DIVIDER     20.0f
 #define ADC_DRIVER_CURRENT_SENSITIVITY 0.132f   /* CC6920BSO 标称灵敏度 132mV/A */
-#define ADC_DRIVER_CURRENT_CAL_FACTOR  0.602f   /* 灵敏度校准系数: 显示值=原始值*系数, 匹配实际电流 */
+#define ADC_DRIVER_CURRENT_CAL_FACTOR  0.602f   /* 灵敏度校准系数: 显示值=原始值*系数 */
 #define ADC_DRIVER_DISPLAY_WINDOW      64U
 #define ADC_DRIVER_SAFETY_WINDOW       8U
 
@@ -86,7 +86,7 @@ static float Adc_Driver_Accum_To_Pin_Voltage(uint32_t accum, uint8_t count)
 }
 
 /* ── 模块状态 ── */
-static volatile uint16_t s_adc_dma_raw[2];  /* DMA目标: [0]=电流, [1]=电压 */
+static volatile uint16_t s_adc_dma_raw[2];  /* DMA目标: 第0项为电流，第1项为电压 */
 static volatile uint16_t s_adc_snapshot[2];
 static volatile uint32_t s_adc_sample_sequence = 0U;
 static volatile uint32_t s_adc_last_sample_tick = 0U;
@@ -345,14 +345,14 @@ float Adc_Driver_Get_Display_Voltage(void) { return s_display_voltage; }
 float Adc_Driver_Get_Display_Current(void) { return s_display_current; }
 float Adc_Driver_Get_Safety_Current(void) { return s_safety_current; }
 
-/** @brief 从Flash固化值写入校准参数 (W25Q128参数区加载后调用) */
+/** @brief 写入从外部存储器参数区读取的校准值 */
 void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
 {
     if (s_adc_hw_ready == 0U) {
         s_cal_state = ADC_DRIVER_CAL_ERROR;
         return;
     }
-    if (i_offset > 0.5f && i_offset < 2.8f) {            /* 合理性守卫: 1.65V 附近 */
+    if (i_offset > 0.5f && i_offset < 2.8f) {            /* 合理范围覆盖1.65V附近的零点 */
         s_i_offset = i_offset;
         s_cal_state = ADC_DRIVER_CAL_READY;
     }
@@ -363,11 +363,11 @@ void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
     (void)freq_trim;
 }
 
-/** @brief 获取当前ADC电流零点值 (用于回写Flash配置) */
+/** @brief 获取当前电流零点值，供参数持久化使用 */
 float Adc_Driver_Get_Current_Offset(void) { return s_i_offset; }
 float Adc_Driver_Get_Voltage_Gain(void) { return s_v_gain; }
 
-/** @brief 强制解锁校准状态机 (双副本全损→冷启动自测算) */
+/** @brief 强制解锁校准状态机，供配置副本全部失效时重新校准 */
 void Adc_Driver_Force_Recalibrate(void)
 {
     if (s_adc_hw_ready == 0U) {

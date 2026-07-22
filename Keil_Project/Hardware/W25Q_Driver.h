@@ -1,11 +1,3 @@
-/**
- ******************************************************************************
- * @file    Hardware/W25Q_Driver.h
- * @brief   W25Q128 bounded SPI NOR Flash interface - V5.0.2
- * @note    Uses Spi1_Shared; contains no application or font-format knowledge.
- ******************************************************************************
- */
-
 #ifndef W25Q_DRIVER_H
 #define W25Q_DRIVER_H
 
@@ -40,41 +32,41 @@ typedef enum {
     W25Q_DRIVER_RESULT_VERIFY_FAILED
 } W25Q_Driver_Result;
 
-/** @brief Raw power-on JEDEC ID, or zero when no valid device was found. */
+/** @brief 上电探测得到的芯片识别码；未发现有效器件时为0 */
 extern uint32_t g_w25q_jedec_id;
 
-/** @brief Probe W25Q128 up to three times. */
+/** @brief 最多尝试三次探测W25Q128 */
 W25Q_Driver_Result W25Q_Driver_Init(void);
 
-/** @brief Read a bounded byte range. */
+/** @brief 在芯片容量范围内读取连续字节 */
 W25Q_Driver_Result W25Q_Driver_Read(uint32_t addr, uint8_t *buf,
                                     uint32_t len);
 
-/** @brief Program one page without crossing its 256-byte boundary. */
+/** @brief 在不跨越256字节页边界的前提下写入一页数据 */
 W25Q_Driver_Result W25Q_Driver_Write_Page(uint32_t addr,
                                           const uint8_t *buf,
                                           uint16_t len);
 
-/** @brief Program an arbitrary bounded range by splitting it into pages. */
+/** @brief 将任意长度的有效地址范围拆分为多页写入 */
 W25Q_Driver_Result W25Q_Driver_Write(uint32_t addr, const uint8_t *buf,
                                      uint32_t len);
 
-/** @brief Erase the 4KB sector containing addr when erasing is permitted. */
+/** @brief 在允许擦除时，擦除指定地址所在的4KB扇区 */
 W25Q_Driver_Result W25Q_Driver_Erase_Sector(uint32_t addr);
 
-/** @brief Read status register 1. */
+/** @brief 读取状态寄存器一 */
 W25Q_Driver_Result W25Q_Driver_Read_SR1(uint8_t *sr1);
 
-/** @brief Read the raw 24-bit JEDEC ID. */
+/** @brief 读取原始24位芯片识别码 */
 W25Q_Driver_Result W25Q_Driver_Read_JEDEC_ID(uint32_t *jedec_id);
 
-/** @brief Permit erases only when the application is in a safe state. */
+/** @brief 设置擦除许可；仅允许上层在安全状态下开启 */
 void W25Q_Driver_Set_Erase_Allowed(uint8_t allowed);
 
-/** @brief Return one when the expected W25Q128 device is available. */
+/** @brief 判断预期型号的W25Q128是否可用 */
 uint8_t W25Q_Driver_Is_Available(void);
 
-/** @brief Return the most recent driver result. */
+/** @brief 获取最近一次驱动操作结果 */
 W25Q_Driver_Result W25Q_Driver_Get_Last_Result(void);
 
-#endif /* W25Q_DRIVER_H */
+#endif /* W25Q128驱动接口结束 */

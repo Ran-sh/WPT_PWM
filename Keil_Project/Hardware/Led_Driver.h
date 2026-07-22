@@ -1,11 +1,3 @@
-/**
- ******************************************************************************
- * @file    Hardware/Led_Driver.h
- * @brief   LED 指示灯驱动 — V5.0.2 (4 LED)
- * @note    PB4=WIFI, PB3=POWER(12V), PA15=STATUS(PWM), PC13=HEARTBEAT(运行)
- ******************************************************************************
- */
-
 #ifndef LED_DRIVER_H
 #define LED_DRIVER_H
 
@@ -14,25 +6,28 @@
 typedef enum {
     LED_DRIVER_STATE_OFF  = 0,
     LED_DRIVER_STATE_ON   = 1,
-    LED_DRIVER_STATE_SLOW = 2,   /* 500ms period blink */
-    LED_DRIVER_STATE_FAST = 3    /* 200ms period blink */
+    LED_DRIVER_STATE_SLOW = 2,   /* 每500ms翻转一次 */
+    LED_DRIVER_STATE_FAST = 3    /* 每200ms翻转一次 */
 } Led_Driver_State;
 
-/** @brief Init 4 LED GPIOs + JTAG disable to free PB3/PB4 */
+/** @brief 关闭JTAG并初始化四个指示灯引脚 */
 void Led_Driver_Init(void);
-/** @brief Periodic LED drive (call from main loop, ~200ms) */
+/** @brief 周期刷新指示灯状态，应由主循环持续调用 */
 void Led_Driver_Task(void);
 
-/** @brief Set WiFi status LED (PB4, active HIGH) */
+/** @brief 设置PB4无线状态灯的工作状态 */
 void Led_Driver_Set_WiFi(Led_Driver_State state);
-/** @brief Set POWER LED ON/OFF (PB3, direct GPIO, no state machine)
- *  @param on 1=12V active (ON), 0=12V off */
+/** @brief 设置PB3电源状态灯
+ *  @param on 1表示12V已开启，0表示12V已关闭
+ */
 void Led_Driver_Set_Power(uint8_t on);
-/** @brief Set STATUS LED (PA15, active HIGH) — PWM state indicator
- *  @param state OFF=idle/fault, SLOW=sweep, ON=running */
+/** @brief 设置PA15的PWM状态灯
+ *  @param state 熄灭表示停机或故障，慢闪表示扫频，常亮表示运行
+ */
 void Led_Driver_Set_Status(Led_Driver_State state);
-/** @brief Enable/disable HEARTBEAT LED (PC13, active LOW, 500ms toggle)
- *  @param on 1=heartbeat active, 0=LED off */
+/** @brief 启用或停用PC13主程序心跳灯
+ *  @param on 1表示启用500ms翻转，0表示保持熄灭
+ */
 void Led_Driver_Set_Heartbeat(uint8_t on);
 
-#endif /* LED_DRIVER_H */
+#endif /* 指示灯驱动接口结束 */

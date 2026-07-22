@@ -1,8 +1,8 @@
 /**
  ******************************************************************************
  * @file    System/Checksum.c
- * @brief   CRC8 and non-reflected CRC32 checksums for V5.0.2
- * @note    Bitwise CRC8 avoids a 256-byte lookup table in STM32 Flash.
+ * @brief   八位与三十二位循环冗余校验实现 — V5.0.2
+ * @note    八位校验采用逐位计算，省去片内存储器中的256字节查找表。
  ******************************************************************************
  */
 

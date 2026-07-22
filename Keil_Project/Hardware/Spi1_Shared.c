@@ -1,8 +1,8 @@
 /**
  ******************************************************************************
  * @file    Hardware/Spi1_Shared.c
- * @brief   SPI1 shared-bus ownership and recovery implementation - V5.0.2
- * @note    TFT and W25Q128 may never have their chip selects low together.
+ * @brief   SPI1共享总线仲裁与故障恢复实现 — V5.0.2
+ * @note    显示屏和W25Q128的片选不得同时为低电平；任何失败都恢复安全空闲状态。
  ******************************************************************************
  */
 

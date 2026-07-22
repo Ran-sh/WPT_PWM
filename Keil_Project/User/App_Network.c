@@ -1,35 +1,32 @@
 /**
  ******************************************************************************
  * @file    User/App_Network.c
- * @brief   网络应用层 — V5.0.2
+ * @brief   ESP8266连接管理、远程命令与遥测应用层 — V5.0.2
  *
- *  Hardware connections:
+ *  硬件连接与通信协议:
  *  +------------------------------------------------------------+
  *  |    STM32                            ESP8266                 |
  *  |    PA2 (USART2_TX) ------------------>  RXD                 |
  *  |    PA3 (USART2_RX) <------------------  TXD                 |
- *  |    PA1 (GPIO_PP)   ------------------>  RST                 |
- *  |    PB11 (GPIO_PP)  ------------------>  CH_PD / EN          |
+ *  |    PA1 (推挽输出)  ------------------>  RST                  |
+ *  |    PB11(推挽输出)  ------------------>  CH_PD / EN           |
  *  |                                                             |
- *  |    Protocol: 115200-8-N-1, plain JSON (zero AT commands)    |
- *  |    JSON: {"V":xx,"I":xx,"F":xx,"S":x}\n   (telemetry up)    |
- *  |          CMD:ON/CMD:OFF/CMD:SETFREQ:xxx (command down)      |
+ *  |    串口参数：115200位/秒，8位数据，无校验，1位停止位       |
+ *  |    遥测上报：{"V":xx,"I":xx,"F":xx,"S":x}\n          |
+ *  |    命令下发：CMD:ON、CMD:OFF、CMD:SETFREQ:xxx               |
  *  |                                                             |
- *  |    State machine: IDLE -> WIFI -> MQTT -> ONLINE            |
- *  |      OFFLINE_PASSIVE: passive disconnect, auto-sniff resto  |
- *  |      OFFLINE_ACTIVE:  active disconnect, need manual ON     |
+ *  |    连接流程：空闲 -> 无线连接 -> 消息连接 -> 在线          |
+ *  |    被动离线会自动监听恢复，主动离线需要用户手动恢复        |
  *  |                                                             |
- *  |    Retry: exponential backoff 5s->15s->30s->60s->2m->5m->3  |
- *  |            5 attempts max, no hardware RST to ESP           |
- *  |    Heartbeat timeout: 8s no ESP frame -> offline            |
- *  |    MQTT timeout: 30s no MQTT frame -> fallback WIFI retry   |
- *  |    BOOT_WAIT early exit: ESP UART data available            |
+ *  |    重试间隔按5s、15s、30s、60s、2min逐步增加，最多5次      |
+ *  |    8s未收到ESP数据判定离线；消息连接30s无进展则回退重试    |
+ *  |    ESP串口一旦收到启动数据，可提前结束上电等待             |
  *  |                                                             |
- *  |    Frame safety: Try_Copy_Rx_Frame atomic copy              |
- *  |      + ss_cmd/conn_cs per-frame snapshot anti-TOCTOU        |
+ *  |    接收帧在临界区内一次性检查、复制并消费                  |
+ *  |    命令状态与连接状态按帧快照，避免解析期间发生竞争        |
  *  +------------------------------------------------------------+
  *
- * @note    WiFi OFFLINE dual-mode + 5 retries + remote ON/OFF UI sync
+ * @note    网络任务不依赖当前显示页面，在线时持续处理指令和遥测。
  ******************************************************************************
  */
 
@@ -48,7 +45,7 @@
 #include <stdlib.h>
 
 #define APP_NETWORK_CONNECT_TIMEOUT_MS   8000
-#define APP_NETWORK_MAX_RETRIES            5   /* 被动断开重试上限, 耗尽进 OFFLINE */
+#define APP_NETWORK_MAX_RETRIES            5   /* 被动断开达到上限后进入被动离线。 */
 #define APP_NETWORK_TELEMETRY_PERIOD_MS  500
 
 static App_Network_Conn_State s_conn_state    = APP_NETWORK_CONN_IDLE;
@@ -86,7 +83,7 @@ uint8_t App_Network_Start_Connect(void)
 
 void App_Network_Manual_Connect(void)
 {
-    /* 仅从主动离线恢复: 清除离线标记, 开始连接 */
+    /* 仅允许从主动离线恢复，清除门控后重新开始连接。 */
     if (s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE) {
         s_conn_state    = APP_NETWORK_CONN_WIFI;
         s_retry_count   = 0;
@@ -99,10 +96,10 @@ void App_Network_Manual_Connect(void)
 
 void App_Network_Manual_Disconnect(void)
 {
-    /* 进入主动离线: STM32 侧 OFFLINE_ACTIVE (忽略所有帧, 需手动ON恢复)
-     * ESP 侧收到 CMD:WIFI_DISC 后进入 OFFLINE_PASSIVE (持续嗅探 WiFi 恢复)
-     * 两个 MCU 状态不同是设计意图: ESP 保持凭证并自动重连 WiFi 层,
-     * 但 STM32 的 ACTIVE 门控阻止了应用层重连 — 直到用户手动 ON 才放行 */
+    /* 主动离线后，STM32忽略连接状态帧，必须由用户手动恢复。
+     * ESP收到断开命令后保留凭证并继续尝试恢复无线链路。
+     * 两个控制器状态不同属于有意设计：ESP维持底层连接能力，
+     * STM32则通过主动离线门控阻止应用层自动恢复。 */
     if (s_conn_state == APP_NETWORK_CONN_ONLINE
         || s_conn_state == APP_NETWORK_CONN_WIFI
         || s_conn_state == APP_NETWORK_CONN_MQTT) {
@@ -118,7 +115,7 @@ void App_Network_Manual_Disconnect(void)
     Led_Driver_Set_WiFi(LED_DRIVER_STATE_OFF);
 }
 
-/** @brief 从被动离线恢复 — ESP 已在运行, 只切状态不发硬件 RST */
+/** @brief 从被动离线恢复；ESP仍在运行，因此只切换状态而不硬件复位 */
 void App_Network_Resume_From_Offline(void)
 {
     if (s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE) {
@@ -143,7 +140,7 @@ uint8_t App_Network_Is_Offline(void)
          || s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE);
 }
 
-/* ── 指数退避 ── */
+/* 连接重试与指数退避。 */
 static uint32_t App_Network_Get_Retry_Timeout(void)
 {
     if (s_retry_count < 3)  return 5000;
@@ -164,7 +161,7 @@ static void App_Network_Check_Retry(void)
     if (Sys_Timer_Get_Tick() - s_connect_start >= App_Network_Get_Retry_Timeout()) {
         s_retry_count++;
 
-        /* 重试达到上限 → 进入被动离线 (热点断开, 自动嗅探恢复) */
+        /* 重试达到上限后进入被动离线，并继续监听热点恢复。 */
         if (s_retry_count >= APP_NETWORK_MAX_RETRIES) {
             s_conn_state  = APP_NETWORK_CONN_OFFLINE_PASSIVE;
             s_retry_count = 0;
@@ -174,13 +171,13 @@ static void App_Network_Check_Retry(void)
 
         s_connect_start = Sys_Timer_Get_Tick();
         s_last_esp_ms   = Sys_Timer_Get_Tick();
-        /* 不发硬件 RST: ESP 已在运行, STATUS:DISCONNECTED 后 ESP 会自动 WiFi.begin()
-         * 发硬件 RST 反而浪费 4s BOOT_WAIT, 5次重试全耗在等待上 */
+        /* ESP仍在运行且会自行尝试恢复无线连接，不需要硬件复位。
+         * 每次复位都会额外等待4s，反而降低有限重试的有效性。 */
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
     }
 
-    /* MQTT 状态额外超时保护: 超过 30s 无进展则回退 WIFI 重试
-     * 防止 WiFi 已连但 MQTT broker 不可达时的死锁 */
+    /* 消息连接超过30s无进展时回退到无线连接阶段，
+     * 防止无线已连接但消息服务器不可达时长期停滞。 */
     if (s_conn_state == APP_NETWORK_CONN_MQTT
         && Sys_Timer_Get_Tick() - s_last_esp_ms >= 30000) {
         s_conn_state    = APP_NETWORK_CONN_WIFI;
@@ -191,21 +188,20 @@ static void App_Network_Check_Retry(void)
     }
 }
 
-/* ── 被动离线嗅探: ESP 上报有效帧 → 热点恢复, 自动重连 ── */
+/* 被动离线监听：收到ESP有效状态帧后恢复自动连接。 */
 static void App_Network_Check_Offline_Recovery(void)
 {
     if (s_conn_state != APP_NETWORK_CONN_OFFLINE_PASSIVE)
         return;
 
-    /* 被动监听: 串口收到任何有效 STATUS 帧表示 ESP 已恢复通信
-     * 注意: 仅切换 STM32 状态为 WIFI, 不发硬件 RST — ESP 已存活且在重连中,
-     * 发硬件 RST 反而会引入 4s BOOT_WAIT 延迟 */
+    /* 被动监听期间，收到有效状态帧说明ESP已经恢复通信。
+     * 此时只把STM32切回无线连接阶段，不复位仍在运行和重连的ESP。 */
     {
         char local_buf[256];
         if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
             return;
 
-        /* 仅响应正向STATUS帧 (排除STATUS:DISCONNECTED防重连震荡) */
+        /* 只响应表示连接进展的状态帧，忽略断开帧以避免反复切换。 */
         if (strstr(local_buf, "STATUS:MQTT") || strstr(local_buf, "STATUS:ONLINE")
             || strstr(local_buf, "STATUS:RSSI=")) {
             s_conn_state    = APP_NETWORK_CONN_WIFI;
@@ -224,17 +220,17 @@ uint8_t App_Network_Is_Connecting(void)
 
 void App_Network_Task(void)
 {
-    /* 驱动 ESP8266 硬件初始化状态机 (非阻塞) */
+    /* 推进ESP8266非阻塞硬件初始化状态机。 */
     Esp8266_Driver_Init_Task();
 
     if (!Esp8266_Driver_Is_Ready()) return;
 
-    /* 被动离线嗅探: ESP 恢复 → 自动重连 (在 App_Network_Check_Retry 之前, 优先级最高) */
+    /* 被动离线恢复优先于常规重试检查。 */
     App_Network_Check_Offline_Recovery();
 
     App_Network_Check_Retry();
 
-    /* ── 心跳超时检测: 8s 无任何 ESP 帧 → 判定离线, 开始重试 ── */
+    /* 在线状态连续8s未收到ESP数据帧时，判定离线并开始重试。 */
     if (s_conn_state == APP_NETWORK_CONN_ONLINE
         && Sys_Timer_Get_Tick() - s_last_esp_ms >= APP_NETWORK_CONNECT_TIMEOUT_MS) {
         s_conn_state    = APP_NETWORK_CONN_WIFI;
@@ -243,23 +239,23 @@ void App_Network_Task(void)
         s_last_esp_ms   = Sys_Timer_Get_Tick();
         s_rssi          = -100;
         Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
-        /* 不发硬件 RST: ESP 仍在运行, 自动 WiFi.begin() 尝试重连 */
+        /* ESP仍在运行并会自行恢复无线连接，因此不执行硬件复位。 */
     }
 
-    /* ── 指令接收 (原子闭环: Try_Copy 一次性完成判定+复制+清零, 防 ISR 抢断丢帧) ── */
+    /* 接收帧在一个临界区内完成判断、复制和消费，避免中断竞争造成丢帧。 */
     {
         char local_buf[256]; const char* p;
         Inverter_Control_Soft_Start_State ss_cmd; uint8_t conn_cs;
 
         if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
-            goto skip_frame;                             /* 无完整帧 → 跳过 */
+            goto skip_frame;                             /* 没有完整帧时跳过解析。 */
 
         s_last_esp_ms = Sys_Timer_Get_Tick();
 
-        ss_cmd  = Inverter_Control_Soft_Start_Get_State(); conn_cs = s_conn_state; /* 帧内快照 */
+        ss_cmd  = Inverter_Control_Soft_Start_Get_State(); conn_cs = s_conn_state; /* 固定本帧解析所用状态。 */
         if (s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE
          || s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE)
-            goto skip_frame;                             /* 离线态吞帧, 防 STATUS 回显转移状态 */
+            goto skip_frame;                             /* 主动离线时丢弃帧，防止状态回显解除门控。 */
 
         if (strstr(local_buf, "STATUS:DISCONNECTED")) {
             s_conn_state    = APP_NETWORK_CONN_WIFI;
@@ -312,7 +308,7 @@ void App_Network_Task(void)
                     const char* f_str = p + 12;
                     if (*f_str >= '0' && *f_str <= '9') {
                         char* endp;
-                        long f = strtol(f_str, &endp, 10);  /* strtol提供溢出安全 */
+                        long f = strtol(f_str, &endp, 10);  /* 使用带结束指针的转换函数检查格式和溢出。 */
                         if (endp != f_str && f >= (long)PWM_DRIVER_FREQ_MIN_HZ
                             && f <= (long)PWM_DRIVER_FREQ_MAX_HZ)
                             Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);
@@ -323,7 +319,7 @@ void App_Network_Task(void)
     }
     skip_frame:
 
-    /* ── 遥测发送 ── */
+    /* 按系统状态生成并发送遥测数据。 */
     {
         static uint32_t last_telemetry = 0;
         uint32_t now;

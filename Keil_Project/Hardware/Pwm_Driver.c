@@ -3,24 +3,23 @@
  * @file    Hardware/Pwm_Driver.c
  * @brief   全桥 PWM 驱动 — V5.0.2
  *
- *  Pinout (TIM1 full-bridge, default mapping):
+ *  硬件连接（TIM1全桥默认映射）:
  *  +---------------------------------------------------------+
  *  |                     STM32F103C8T6                        |
  *  |                                                          |
- *  |    PA8  --- TIM1_CH1  ---+--- High-side Q1 (PWM1)        |
- *  |    PB13 --- TIM1_CH1N ---+--- Low-side  Q2 (complement,  |
+ *  |    PA8  --- TIM1_CH1  ------- 高侧驱动输入甲             |
+ *  |    PB13 --- TIM1_CH1N ------- 低侧互补驱动输入甲         |
  *  |                                                          |
- *  |    PA9  --- TIM1_CH2  ---+--- High-side Q3 (PWM2)        |
- *  |    PB14 --- TIM1_CH2N ---+--- Low-side  Q4 (complement,  |
+ *  |    PA9  --- TIM1_CH2  ------- 高侧驱动输入乙             |
+ *  |    PB14 --- TIM1_CH2N ------- 低侧互补驱动输入乙         |
  *  |                                                          |
- *  |    Up mode, 50% duty, deadtime 1000ns                    |
- *  |    Freq 95~150kHz (1kHz step)                            |
- *  |    OC/OCN polarity=Low, UDIS shadow-register atomic upd  |
- *  |    Power-on safe: TIM_Cmd(DISABLE)+MOE(DISABLE)          |
+ *  |    向上计数，固定50%占空比，死区时间1000ns               |
+ *  |    允许频率95kHz至150kHz                                 |
+ *  |    预装载寄存器在同一更新事件中装载，避免半周期畸变      |
+ *  |    上电时计数器和主输出均关闭，保证无脉冲输出            |
  *  +---------------------------------------------------------+
  *
- * @note    PA8=CH1, PA9=CH2, PB13=CH1N, PB14=CH2N
- *          Deadtime 1000ns, 50% duty, compile-time DTG calc
+ * @note    频率更新强制使用偶数周期计数，降低全桥偏磁风险。
  ******************************************************************************
  */
 
@@ -28,8 +27,8 @@
 
 /*
  * 死区寄存器值编译期计算, 避免运行时浮点开销
- * DTG = DEADTIME_NS * 72MHz / 1e9 / Tdtg_step
- * 线性段 DTG[7:5]=0xx, Tdtg_step = 1/72MHz, DTG = DEADTIME_NS * 72 / 1000
+ * 死区计数值等于死区时间乘以72MHz时钟频率。
+ * 在线性编码区间内，一个死区计数对应一个定时器时钟周期。
  */
 #define PWM_DRIVER_DEADTIME_CYCLES \
     ((PWM_DRIVER_DEADTIME_NS) * 72 + 500) / 1000
@@ -45,7 +44,7 @@ void Pwm_Driver_Init(void)
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1 | RCC_APB2Periph_GPIOA |
                            RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
 
-    /* 默认映射: PA8=CH1, PA9=CH2, PB13=CH1N, PB14=CH2N */
+    /* 使用TIM1默认映射：PA8、PA9为主通道，PB13、PB14为互补通道。 */
     gpio.GPIO_Mode  = GPIO_Mode_AF_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     gpio.GPIO_Pin   = GPIO_Pin_8 | GPIO_Pin_9;
@@ -54,7 +53,7 @@ void Pwm_Driver_Init(void)
     gpio.GPIO_Pin   = GPIO_Pin_13 | GPIO_Pin_14;
     GPIO_Init(GPIOB, &gpio);
 
-    /* 时基: Up 计数, 72MHz/(ARR+1) = 目标频率 */
+    /* 采用向上计数，输出频率等于72MHz除以自动重装值加一。 */
     TIM_TimeBaseStructInit(&tim_base);
     tim_base.TIM_Prescaler         = 0;
     tim_base.TIM_Period            = 480 - 1;  /* 初始 150kHz */
@@ -63,16 +62,16 @@ void Pwm_Driver_Init(void)
     tim_base.TIM_RepetitionCounter = 0;
     TIM_TimeBaseInit(TIM1, &tim_base);
 
-    /* CH1=PWM1, CH2=PWM2 全桥对角线交替导通 */
+    /* 两个主通道驱动全桥两组桥臂，并由互补通道加入死区。 */
     TIM_OCStructInit(&oc);
     oc.TIM_OCMode       = TIM_OCMode_PWM1;
     oc.TIM_OutputState  = TIM_OutputState_Enable;
     oc.TIM_OutputNState = TIM_OutputNState_Enable;
-    oc.TIM_Pulse        = 240;  /* 50% @ 150kHz */
+    oc.TIM_Pulse        = 240;  /* 150kHz时保持50%占空比 */
     oc.TIM_OCPolarity   = TIM_OCPolarity_High;
-    oc.TIM_OCNPolarity  = TIM_OCNPolarity_Low;    /* IR2103S LIN 低有效 */
-    oc.TIM_OCIdleState  = TIM_OCIdleState_Reset;   /* MOE=0 CH=低 → 上管关 */
-    oc.TIM_OCNIdleState = TIM_OCNIdleState_Reset;  /* MOE=0 CHN=低 → LIN反相后高 → 下管关 */
+    oc.TIM_OCNPolarity  = TIM_OCNPolarity_Low;    /* IR2103S低侧输入采用低有效逻辑 */
+    oc.TIM_OCIdleState  = TIM_OCIdleState_Reset;   /* 关闭主输出时主通道保持低电平 */
+    oc.TIM_OCNIdleState = TIM_OCNIdleState_Reset;  /* 关闭主输出时互补通道保持安全电平 */
     TIM_OC1Init(TIM1, &oc);
 
     oc.TIM_OCMode = TIM_OCMode_PWM2;
@@ -92,7 +91,7 @@ void Pwm_Driver_Init(void)
     TIM_OC1PreloadConfig(TIM1, TIM_OCPreload_Enable);
     TIM_OC2PreloadConfig(TIM1, TIM_OCPreload_Enable);
 
-    /* 仅配置定时器但不启动, 按ON后再由 Soft_Start_Trigger 统一启动 */
+    /* 初始化只配置定时器，必须由软启动控制层统一开启输出。 */
     TIM_Cmd(TIM1, DISABLE);
     TIM_CtrlPWMOutputs(TIM1, DISABLE);
 }
@@ -109,7 +108,7 @@ uint32_t Pwm_Driver_Set_Frequency(uint32_t freq_hz)
     if (freq_hz > PWM_DRIVER_FREQ_MAX_HZ) freq_hz = PWM_DRIVER_FREQ_MAX_HZ;
 
     ticks = SystemCoreClock / freq_hz;
-    if (ticks % 2 != 0) ticks += 1;   /* 强制偶数: 全桥拓扑需要对称驱动, 奇数分频导致两半周不对称→变压器偏磁饱和 */
+    if (ticks % 2 != 0) ticks += 1;   /* 强制偶数周期，避免两半周不对称引起变压器偏磁。 */
     if (ticks < 2)  ticks = 2;
     if (ticks > 65536) ticks = 65536;
 

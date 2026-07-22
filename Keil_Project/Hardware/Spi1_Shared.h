@@ -1,11 +1,3 @@
-/**
- ******************************************************************************
- * @file    Hardware/Spi1_Shared.h
- * @brief   SPI1 shared-bus ownership and recovery interface - V5.0.2
- * @note    Owns PA4/PB12 chip selects, PA6 role and SPI1 8/16-bit frame mode.
- ******************************************************************************
- */
-
 #ifndef SPI1_SHARED_H
 #define SPI1_SHARED_H
 
@@ -24,46 +16,46 @@ typedef enum {
     SPI1_SHARED_MODE_FLASH_8
 } Spi1_Shared_Mode;
 
-/** @brief Initialize SPI1 and leave both devices deselected. */
+/** @brief 初始化SPI1，并保持显示屏和外部存储器均未选中 */
 void Spi1_Shared_Init(void);
 
 /**
- * @brief Acquire exclusive ownership of SPI1 in the requested mode.
- * @param mode TFT 8-bit, TFT 16-bit or Flash 8-bit mode.
- * @param timeout_ms Maximum wait for the previous hardware transfer to finish.
- * @retval SPI1_SHARED_RESULT_OK on success, otherwise an explicit error.
+ * @brief 按指定模式独占SPI1共享总线
+ * @param mode 显示屏8位、显示屏16位或外部存储器8位模式
+ * @param timeout_ms 等待前一次硬件传输结束的最长时间，单位为ms
+ * @retval SPI1_SHARED_RESULT_OK 表示获取成功，其余值表示具体失败原因
  */
 Spi1_Shared_Result Spi1_Shared_Acquire(Spi1_Shared_Mode mode,
                                        uint32_t timeout_ms);
 
-/** @brief Deselect both devices, normalize SPI1 and release ownership. */
+/** @brief 取消两个设备的片选，恢复SPI1标准状态并释放总线 */
 Spi1_Shared_Result Spi1_Shared_Release(void);
 
-/** @brief Immediately recover the bus to the safe unowned state. */
+/** @brief 立即将共享总线恢复到未占用的安全状态 */
 void Spi1_Shared_Force_Release(void);
 
-/** @brief Wait until SPI1 TX is empty and the peripheral is no longer busy. */
+/** @brief 等待SPI1发送缓冲区为空且外设不再忙碌 */
 Spi1_Shared_Result Spi1_Shared_Wait_Idle(uint32_t timeout_ms);
 
 /**
- * @brief Exchange one byte while the bus is owned in an 8-bit mode.
- * @param tx Byte to transmit.
- * @param rx Optional received-byte destination; may be NULL.
- * @param timeout_ms Maximum wait for TXE and RXNE.
+ * @brief 在8位总线模式下交换一个字节
+ * @param tx 待发送字节
+ * @param rx 接收字节保存地址；不需要接收值时可传入空指针
+ * @param timeout_ms 等待发送与接收标志的最长时间，单位为ms
  */
 Spi1_Shared_Result Spi1_Shared_Transfer8(uint8_t tx, uint8_t *rx,
                                         uint32_t timeout_ms);
 
-/** @brief Set PA6 low for command or high for TFT data. */
+/** @brief 设置PA6电平；低电平表示命令，高电平表示显示数据 */
 Spi1_Shared_Result Spi1_Shared_Set_Tft_DC(uint8_t data_mode);
 
-/** @brief Assert or deassert TFT chip select while TFT owns the bus. */
+/** @brief 在显示屏占用总线时控制其片选信号 */
 Spi1_Shared_Result Spi1_Shared_Select_Tft(uint8_t selected);
 
-/** @brief Assert or deassert Flash chip select while Flash owns the bus. */
+/** @brief 在外部存储器占用总线时控制其片选信号 */
 Spi1_Shared_Result Spi1_Shared_Select_Flash(uint8_t selected);
 
-/** @brief Return the most recent shared-bus operation result. */
+/** @brief 获取最近一次共享总线操作结果 */
 Spi1_Shared_Result Spi1_Shared_Get_Last_Result(void);
 
-#endif /* SPI1_SHARED_H */
+#endif /* SPI1共享总线接口结束 */

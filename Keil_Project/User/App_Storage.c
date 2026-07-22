@@ -1,30 +1,29 @@
 /**
  ******************************************************************************
  * @file    User/App_Storage.c
- * @brief   应用存储层 — 参数双副本 + 黑匣子日志 (V5.0.2)
+ * @brief   参数双副本与黑匣子日志应用存储层 — V5.0.2
  *
- *  W25Q128 Flash partition map (16MB):
+ *  W25Q128分区布局（总容量16MB）:
  *  +------------------------------------------------------------+
- *  |    W25Q128 16MB SPI NOR Flash (SPI1, PB12 chip select)      |
+ *  |    W25Q128通过SPI1访问，PB12控制片选                       |
  *  |                                                             |
- *  |    [0x300000~0x300FFF] Param copy A (4KB)                   |
- *  |      sys_config: WiFi creds + ADC cal + preferences         |
- *  |      CRC32 verified, dual-copy rotation (power-loss safe)   |
+ *  |    [0x300000~0x300FFF] 参数副本甲，4KB                      |
+ *  |      保存无线凭证、采样校准值和界面偏好                    |
+ *  |      使用三十二位校验和双副本轮换抵抗掉电                  |
  *  |                                                             |
- *  |    [0x301000~0x301FFF] Param copy B (4KB)                   |
- *  |      Alternates with copy A, either valid = recoverable     |
+ *  |    [0x301000~0x301FFF] 参数副本乙，4KB                      |
+ *  |      与副本甲交替写入，任一副本有效即可恢复                |
  *  |                                                             |
- *  |    [0x310000~0x311FFF] Dual-sector metadata journal         |
- *  |    [0x312000~0x6CFFFF] 12B circular log, 200ms sampling     |
- *  |      326678 recoverable entries, about 18.1h continuous    |
- *  |    [0x6D0000~0x70FFFF] 64 fault slots (4KB each)            |
- *  |      Fault snapshot: 25 pre + 25 post samples (10 seconds)  |
+ *  |    [0x310000~0x311FFF] 双扇区元数据日志                     |
+ *  |    [0x312000~0x6CFFFF] 12字节循环日志，每200ms采样          |
+ *  |      最多恢复326678条记录，可连续记录约18.1小时            |
+ *  |    [0x6D0000~0x70FFFF] 64个故障槽，每槽4KB                 |
+ *  |      每次故障保存触发前25点和触发后25点，共10秒数据        |
  *  |                                                             |
- *  |    Safety: Four guards in W25Q_Driver (L1~L4),              |
- *  |      this layer handles partition logic + CRC + recovery    |
+ *  |    底层驱动负责总线和擦写保护，本层负责分区、校验和恢复    |
  *  +------------------------------------------------------------+
  *
- * @note    Four hardware guards in W25Q_Driver layer
+ * @note    所有擦写均在输出安全关闭后由空闲调度器分步执行。
  ******************************************************************************
  */
 
@@ -58,7 +57,7 @@ typedef enum {
     APP_STORAGE_FAULT_CAPTURE_PERSIST_PENDING
 } App_Storage_Fault_Capture_State;
 
-/* ── 黑匣子运行时状态 ── */
+/* 黑匣子运行时状态。 */
 static App_Storage_Blackbox_Metadata s_blackbox_metadata;
 static uint8_t s_blackbox_v2_ready = 0U;
 static uint32_t s_metadata_active_base = APP_STORAGE_META_A_ADDR;
@@ -98,11 +97,11 @@ static void App_Storage_Log_Maintenance_Task(void);
 static void App_Storage_Recover_Fault_Slots(void);
 static uint8_t App_Storage_Is_Erased(const uint8_t *data, uint32_t len);
 
-/* ═══════════════════════════════════════════════
- *  参数配置 (P3) — 双副本 CRC32 闭锁
- * ═══════════════════════════════════════════════ */
+/* ===============================================
+ *  参数配置：双副本与三十二位校验闭锁
+ * =============================================== */
 
-/** @brief 安全默认出厂值: 背光开启, font兼容字段为0, letter_spacing为0 */
+/** @brief 生成安全出厂默认值，背光兼容字段为开启，字符间距为0 */
 static void App_Storage_Defaults(App_Storage_Config *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
@@ -111,12 +110,12 @@ static void App_Storage_Defaults(App_Storage_Config *cfg)
     cfg->adc_i_offset  = 0.0f;
     cfg->adc_v_gain    = 1.0f;
     cfg->freq_trim_hz = 0;
-    cfg->default_freq  = 100;      /* 100kHz 安全中频 */
-    cfg->backlight     = 100;      /* Legacy on value; PA12 is GPIO-only. */
-    cfg->language      = 1;        /* EN (默认英文, 设置内手动切中文后才调用 W25Q) */
-    cfg->font_size     = 0;        /* Legacy compatibility field. */
-    cfg->letter_spacing = 0;       /* 0px gap */
-    cfg->color_preset  = 0;        /* Classic */
+    cfg->default_freq  = 100;      /* 100kHz安全中间频率。 */
+    cfg->backlight     = 100;      /* 历史兼容值；PA12现在只支持亮灭。 */
+    cfg->language      = 1;        /* 默认英文，切换中文后才依赖外部字库。 */
+    cfg->font_size     = 0;        /* 历史字体字段，仅用于配置兼容。 */
+    cfg->letter_spacing = 0;       /* 默认不增加字符间距。 */
+    cfg->color_preset  = 0;        /* 默认使用经典配色。 */
     cfg->color_fg      = 0xFFFF;
     cfg->color_bg      = 0x0000;
 }
@@ -274,9 +273,9 @@ void App_Storage_Write_Factory_Defaults(void)
     App_Storage_Request_Save_Config(&defs);
 }
 
-/* ═══════════════════════════════════════════════
- *  Settings Convenience
- * ═══════════════════════════════════════════════ */
+/* ===============================================
+ *  界面设置便捷接口
+ * =============================================== */
 void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
                                 uint8_t* spacing, uint8_t* preset,
                                 uint16_t* fg, uint16_t* bg)
@@ -291,7 +290,7 @@ void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
         *fg      = cfg.color_fg;
         *bg      = cfg.color_bg;
     } else {
-        *lang    = 1;  /* EN fallback */
+        *lang    = 1;  /* 配置无效时回退到英文。 */
         *font    = 0;
         *bl      = 100;
         *spacing = 0;
@@ -323,9 +322,9 @@ void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
     App_Storage_Request_Save_Config(&cfg);
 }
 
-/* ═══════════════════════════════════════════════
- *  Blackbox Log — 14B packed binary + CRC8 + page-safe + fault latch
- * ═══════════════════════════════════════════════ */
+/* ===============================================
+ *  黑匣子日志：12字节紧凑记录、八位校验、跨页保护和故障锁存
+ * =============================================== */
 
 static uint32_t App_Storage_Log_Address_To_Slot(uint32_t addr)
 {
@@ -438,7 +437,7 @@ static uint8_t App_Storage_Verify_Log_Entry(
     return (memcmp(&actual, expected, sizeof(actual)) == 0) ? 1U : 0U;
 }
 
-/** @brief Pack physical values into one fixed 12-byte V2 record. */
+/** @brief 把物理量压缩为一条固定12字节的第二版日志记录 */
 static void App_Storage_Blackbox_Pack(float v, float i, uint32_t freq_hz, uint8_t state,
                           uint8_t sample_valid,
                           App_Storage_Log_Entry *out)
@@ -765,9 +764,9 @@ uint8_t Blackbox_Read_Entry(uint32_t index, App_Storage_Log_Entry *out)
     return (out->crc8 == Checksum_CRC8((const uint8_t *)out, 11U)) ? 1U : 0U;
 }
 
-/* ═══════════════════════════════════════════════
- *  上电自检 (仅 SYS_STATE_INIT 调用一次, ~200ms)
- * ═══════════════════════════════════════════════ */
+/* ===============================================
+ *  上电自检，仅在系统初始化状态调用一次，约耗时200ms
+ * =============================================== */
 
 static uint8_t App_Storage_Is_Metadata_Valid(
     const App_Storage_Blackbox_Metadata *metadata)

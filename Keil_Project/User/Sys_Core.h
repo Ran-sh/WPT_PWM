@@ -1,17 +1,9 @@
-/**
- ******************************************************************************
- * @file    User/Sys_Core.h
- * @brief   系统核心模块 — 全局状态 + 初始化 + 安全监测 + 运行调度 (V5.0.2)
- * @note    合并 Sys_State + Sys_Init + Sys_Safety + Sys_Run 为单一模块
- ******************************************************************************
- */
-
 #ifndef SYS_CORE_H
 #define SYS_CORE_H
 
 #include "stm32f10x.h"
 
-/* ── 全局系统状态枚举 ── */
+/* 全局系统状态。 */
 typedef enum {
     SYS_STATE_INIT    = 0,
     SYS_STATE_IDLE    = 1,
@@ -35,7 +27,7 @@ typedef enum {
     SYS_FAULT_CONTROL_INVARIANT
 } Sys_Fault_Code;
 
-/* ── 统一功率与状态控制 ── */
+/* 统一功率与状态控制接口。 */
 /** @brief 请求启动软启动扫频
  *  @retval 控制结果；只有返回SYS_CONTROL_RESULT_OK才允许进入/保持运行态
  */
@@ -55,16 +47,22 @@ Sys_Fault_Code     Sys_Core_Get_Fault(void);
  */
 uint8_t            Sys_Core_Is_Power_Enabled(void);
 
-/* ── 初始化 ── */
+/** @brief 在其余外设初始化前钳位ESP8266复位和使能引脚 */
 void Sys_Clamp_ESP(void);
+/** @brief 初始化PWM、电源控制、显示、指示灯、蜂鸣器、采样和按键硬件 */
 void Sys_Hardware_Init(void);
+/** @brief 显示开机动画；调用前必须已经初始化系统毫秒时基 */
 void Sys_Startup_Screen(void);
+/** @brief 加载配置、启动看门狗和网络连接，并进入空闲状态 */
 void Sys_Post_Init(void);
 
-/* ── 运行调度 ── */
+/** @brief 执行一次空闲状态调度 */
 void Sys_Run_Idle(void);
+/** @brief 执行一次软启动扫频状态调度 */
 void Sys_Run_Sweep(void);
+/** @brief 执行一次稳定运行状态调度 */
 void Sys_Run_Running(void);
+/** @brief 执行一次故障锁存状态调度 */
 void Sys_Run_Fault(void);
 
-#endif /* SYS_CORE_H */
+#endif /* 系统核心接口结束 */

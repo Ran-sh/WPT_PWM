@@ -3,26 +3,26 @@
  * @file    System/Sys_Timer.c
  * @brief   系统时基模块 — V5.0.2
  *
- *  Timing sources:
+ *  时间来源与调度方式:
  *  +--------------------------------------------------------+
  *  |                 STM32F103C8T6                           |
  *  |                                                         |
- *  |    SysTick (Cortex-M3) --- 1ms timebase                 |
- *  |      SysTick_Handler() -> Sys_Timer_IncTick()           |
- *  |      Sys_Timer_Get_Tick() -> uint32_t, 49.7-day wrap-s  |
+ *  |    Cortex-M3系统滴答定时器提供1ms统一时基                |
+ *  |    中断处理函数只负责把毫秒计数递增一次                  |
+ *  |    32位无符号时间戳约49.7天自然回绕                      |
  *  |                                                         |
- *  |    Core scheduling pattern (periodic tasks):            |
+ *  |    周期任务统一使用无符号时间戳差值判断：                |
  *  |      static uint32_t last = 0;                          |
  *  |      if (Sys_Timer_Get_Tick() - last >= PERIOD_MS) {    |
  *  |          last = Sys_Timer_Get_Tick();                   |
- *  |          run_periodic_business_logic();                 |
+ *  |          执行周期任务；                                  |
  *  |      }                                                  |
- *  |      uint32_t unsigned subtract auto-handles 49.7-day   |
+ *  |    无符号减法可以自然处理时间戳回绕                      |
  *  |                                                         |
- *  |    Sys_Timer_Delay_Ms() — init phase ONLY, never at ru  |
+ *  |    毫秒延时只允许在启动阶段使用，运行阶段禁止阻塞        |
  *  +--------------------------------------------------------+
  *
- * @note    Single project-wide timebase; SysTick_Handler has ONE line: IncTick
+ * @note    全项目只保留这一套毫秒时基，系统滴答中断不承载业务逻辑。
  ******************************************************************************
  */
 

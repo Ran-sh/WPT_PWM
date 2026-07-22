@@ -1,21 +1,9 @@
-/**
- ******************************************************************************
- * @file    Hardware/Tft_Driver.h
- * @brief   ST7735 128x160 TFT 彩屏显示驱动 — V5.0.2
- * @note    SPI1由Spi1_Shared仲裁 (PA5=SCK, PA7=MOSI, PA6=DC/MISO, PA4=TFT_CS,
- *          PB12=W25Q128_CS, PA0=RST, PA12=BL)
- *          SPI Mode3, 全双工 (TFT 只写, Flash 读写)
- *          字库: Flash V2 20897 字 + 31图标 (CRC32), ROM 仅 SPLASH 4汉字
- *          横屏 160x128, RGB565, MADCTL=0xA0
- ******************************************************************************
- */
-
 #ifndef TFT_DRIVER_H
 #define TFT_DRIVER_H
 
 #include "stm32f10x.h"
 
-/* ── RGB565 颜色宏 ── */
+/* RGB565颜色常量。 */
 #define TFT_COLOR_BLACK       0x0000
 #define TFT_COLOR_WHITE       0xFFFF
 #define TFT_COLOR_RED         0xF800
@@ -29,7 +17,7 @@
 #define TFT_COLOR_DARK_GREEN  0x03E0
 #define TFT_COLOR_DARK_BLUE   0x0018
 
-/* ── Flash Icon ID 常量 (V2 Font_Header icon_table 索引) ── */
+/* 外部字库图标编号常量，对应字库头中的图标索引表。 */
 #define ICON_ID_WIFI_SIGNAL       0
 #define ICON_ID_WIFI_CONNECT_ANIM 1
 #define ICON_ID_WIFI_OFF          2
@@ -66,7 +54,7 @@
 #define ICON_ID_EXTRA3            33
 #define ICON_ID_EXTRA4            34
 
-/* ── 显示参数 ── */
+/* 显示参数。 */
 #define TFT_WIDTH             160   /* 横屏宽 (物理160) */
 #define TFT_HEIGHT            128   /* 横屏高 (物理128) */
 #define TFT_CHAR_PER_LINE     20    /* 160/8 = 20 */
@@ -82,36 +70,37 @@ typedef enum {
     TFT_DRIVER_RESULT_INVALID
 } Tft_Driver_Result;
 
-/** @brief [V4.5.0] Set letter spacing extra pixels (0-6) applied after each char */
+/** @brief 设置每个字符后附加的像素间距，允许范围为0至6 */
 void Tft_Driver_Set_Letter_Spacing(uint8_t sp);
-/** @brief [V4.5.0] Get current letter spacing */
+/** @brief 获取当前字符间距 */
 uint8_t Tft_Driver_Get_Letter_Spacing(void);
 
-/** @brief 初始化 ST7735 TFT (硬件复位+寄存器序列+GPIO背光)
- *  @note  仅初始化 TFT 硬件, 不访问 W25Q128 (Flash 驱动尚未就绪) */
+/** @brief 初始化ST7735显示屏，包括硬件复位、寄存器配置和背光引脚
+ *  @note  此阶段只初始化显示硬件，不访问尚未就绪的W25Q128。
+ */
 void Tft_Driver_Init(void);
-/** @brief Start a recoverable UI draw cycle and allow one new bus attempt. */
+/** @brief 开始一次可恢复的界面绘制周期，并允许重新尝试总线访问 */
 void Tft_Driver_Begin_Draw_Cycle(void);
-/** @brief Return the result retained from the current draw cycle. */
+/** @brief 获取当前绘制周期保留的总线操作结果 */
 Tft_Driver_Result Tft_Driver_Get_Last_Result(void);
-/** @brief Return non-zero after a transfer error blocks the current draw cycle. */
+/** @brief 判断当前绘制周期是否因传输错误而停止后续绘制 */
 uint8_t Tft_Driver_Is_Draw_Blocked(void);
-/** @brief 初始化 Flash 字库 (W25Q_Driver_Init 之后调用)
- *  @note  读取并校验 W25Q128 中的 Font Header, 有效则启用 Flash 全字库路径,
- *         无效则自动回退 ROM 4 字启动页字库 */
+/** @brief 初始化外部字库，必须在W25Q128驱动初始化后调用
+ *  @note  字库头和校验值有效时启用完整字库，否则回退到片内四字启动字库。
+ */
 void Tft_Driver_Font_Init(void);
 /** @brief 全屏填充单色 */
 void Tft_Driver_Clear(uint16_t color);
-/** @brief 设置 GPIO 背光 (0=灭, 非0=亮) */
+/** @brief 设置背光引脚，0表示关闭，非0表示开启 */
 void Tft_Driver_Set_Backlight(uint8_t brightness);
 
-/** @brief 在指定行列绘制一个 ASCII 字符 (8x16) */
+/** @brief 在指定行列绘制一个8乘16单字节字符 */
 void Tft_Driver_Show_Char(uint8_t line, uint8_t column, char ch,
                           uint16_t fg_color, uint16_t bg_color);
-/** @brief 绘制 ASCII 字符串 (自动换行截断) */
+/** @brief 绘制单字节字符串，超出边界时自动换行或截断 */
 void Tft_Driver_Show_String(uint8_t line, uint8_t column, const char* str,
                             uint16_t fg_color, uint16_t bg_color);
-/** @brief 绘制中英文混合字符串 (自动识别 UTF-8 + ASCII) */
+/** @brief 绘制中英文混合字符串，自动识别UTF-8中文编码和单字节字符 */
 void Tft_Driver_Show_CN_String(uint8_t line, uint8_t column, const char* str,
                               uint16_t fg_color, uint16_t bg_color);
 /** @brief 像素级填充矩形 (坐标+宽高, 含边界裁剪) */
@@ -119,27 +108,32 @@ void Tft_Driver_Fill_Rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16
 /** @brief 用黑底擦除指定像素区域 (等价 Fill_Rect 黑色, 语义明确) */
 void Tft_Driver_Erase_Pixel_Area(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
-/** @brief 在 TFT 像素坐标绘制 5x10 微型数字字符串 (7px步进, DMA发送) */
+/** @brief 按像素坐标绘制5乘10微型数字字符串，字符步进为7像素 */
 void Tft_Driver_Show_5x10_String_Pixel(uint16_t x, uint16_t y,
                                        const char* s,
                                        uint16_t fg, uint16_t bg);
 
-/** @brief 统一 Flash 图标绘制: (icon_id, frame) -> 16x16 pixel render
- *  @param x,y     top-left TFT pixel coordinates (0-based pixel)
- *  @param icon_id 0-34, see ICON_ID_* defines above
- *  @param frame   0..n_frames-1, clamped internally
- *  @param fg,bg   foreground/background RGB565 colors
- *  @retval 1=success, 0=Flash not valid or icon_id out of range
- *  @note   图标0-8支持ROM回退，其余图标需要有效Flash V2 Font_Header */
+/** @brief 按编号和帧号绘制16乘16图标
+ *  @param x 图标左上角横坐标，从0开始
+ *  @param y 图标左上角纵坐标，从0开始
+ *  @param icon_id 图标编号，允许范围为0至34
+ *  @param frame 动画帧编号，超出范围时在内部钳位
+ *  @param fg RGB565前景色
+ *  @param bg RGB565背景色
+ *  @retval 1表示绘制成功，0表示字库无效或图标编号越界
+ *  @note   编号0至8支持片内回退，其余图标需要有效的外部字库。
+ */
 uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y,
     uint8_t icon_id, uint8_t frame, uint16_t fg, uint16_t bg);
 
-/** @brief 显示 SPLASH 开机动画 (纯代码: 背光渐亮 + 逐字点亮, ~4.8s, ROM 4 字)
- *  @note  Delay_Ms 步进, 不依赖 W25Q Flash */
+/** @brief 显示由代码绘制的开机动画，包括背光开启和逐字渐亮
+ *  @note  动画使用启动阶段延时，不依赖W25Q128中的图片数据。
+ */
 void Tft_Driver_Show_Splash(void);
 
-/** @brief 查询 Flash 字库是否就绪 (1=Flash 20897字+31图标, 0=ROM 4字回退)
- *  @note  Sys_Startup_Screen 用此在启动末行显示加载状态 */
+/** @brief 查询外部字库是否就绪
+ *  @retval 1表示完整字库有效，0表示正在使用片内四字回退
+ */
 uint8_t Tft_Driver_Is_Font_Flash_Valid(void);
 
-#endif /* TFT_DRIVER_H */
+#endif /* 彩屏显示驱动接口结束 */
