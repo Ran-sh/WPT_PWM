@@ -8,6 +8,15 @@
 
 **Tech Stack:** STM32F103C8、SPL V3.5.0、ARMCC V5.06/C89、TIM1互补PWM、ST7735 160×128、W25Q128、PowerShell静态回归检查、Keil uVision完整编译。
 
+## 交付状态（V5.1.0，2026-07-22）
+
+- [x] 任务1：配置V2、范围量化与V1无损迁移。
+- [x] 任务2：20–200kHz边界与按档位锁定的非阻塞扫频。
+- [x] 任务3：五项设置、双档编辑与八图标全局光标。
+- [x] 任务4：共用递增刻度、2倍主数值与绘制失败恢复。
+- [x] 静态契约、注释/调用边界检查和 ARMCC 完整重编译。
+- [ ] 实机示波器、限流温升和故障注入检查（需接入硬件，未由静态检查替代）。
+
 ## Global Constraints
 
 - 只修改 `Keil_Project/Hardware`、`Keil_Project/User`、必要工程配置及对应设计/实施文档；不得修改 `Keil_Project/Library`。
@@ -522,7 +531,7 @@ git commit -m "feat: 增加递增式独立表盘"
 - Consumes: Tasks 1–4全部功能。
 - Produces: 可编译、可追溯的V5.1.0交付状态。
 
-- [ ] **Step 1: 执行全部自动检查**
+- [x] **Step 1: 执行全部自动检查**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_settings_frequency.ps1
@@ -533,7 +542,7 @@ git diff --check
 
 Expected: 契约脚本PASS；两个 `rg` 命令均无输出；`git diff --check`无错误。
 
-- [ ] **Step 2: 执行最终ARMCC全量编译**
+- [x] **Step 2: 执行最终ARMCC全量编译**
 
 ```powershell
 & 'D:\Keil5\UV4\UV4.exe' -b 'D:\Claude Code Project\WPT_PWM_V5.0\Keil_Project\Project.uvprojx' -j0
@@ -542,7 +551,7 @@ Select-String -Path Keil_Project/Objects/Project.build_log.htm -Pattern 'Program
 
 Expected: `0 Error(s), 0 Warning(s)`，并记录程序尺寸。
 
-- [ ] **Step 3: 执行设置交互人工检查清单**
+- [ ] **Step 3: 执行设置交互人工检查清单**（待实机）
 
 - 语言、启动频率、字符间距、光标图标、配色五项顺序正确。
 - 两档值分别编辑、确认、取消和持久化。
@@ -550,7 +559,7 @@ Expected: `0 Error(s), 0 Warning(s)`，并记录程序尺寸。
 - 八个光标在所有菜单生效；Flash无效时回退星标。
 - 保存提示非阻塞，按键和安全任务继续运行。
 
-- [ ] **Step 4: 执行示波器与功率级检查清单**
+- [ ] **Step 4: 执行示波器与功率级检查清单**（待实机）
 
 - 在限流低压条件下依次验证20.0、99.9、100和200kHz。
 - 检查CH1/CH1N、CH2/CH2N互补关系、50%占空比和约1μs死区。
@@ -558,15 +567,15 @@ Expected: `0 Error(s), 0 Warning(s)`，并记录程序尺寸。
 - 在200kHz持续运行期间监测栅极驱动器和MOSFET温升。
 - 人工制造ADC超时与过流条件，确认PWM和PB10安全关断。
 
-- [ ] **Step 5: 同步版本与文档**
+- [x] **Step 5: 同步版本与文档**
 
 本功能新增设置页面、双档启动模型和全表盘重构，按项目规则升级为V5.1.0。更新STM32 `.c` 文件说明、AGENTS版本/审查历史、README版本历史以及本设计与计划的完成状态；不得给 `.h` 恢复文件头注释。
 
-- [ ] **Step 6: 最终独立代码审查**
+- [x] **Step 6: 最终独立代码审查**
 
 调用STM32/C代码审查员检查：配置迁移、C89兼容、频率边界、无符号扫频下溢、故障关断、SPI绘制失败恢复和设置取消语义。修复所有CRITICAL/HIGH问题后重新执行Steps 1–4。
 
-- [ ] **Step 7: 提交最终集成**
+- [x] **Step 7: 提交最终集成**
 
 ```powershell
 git add Keil_Project AGENTS.md README.md docs/superpowers/specs/2026-07-22-settings-frequency-redesign.md docs/superpowers/plans/2026-07-22-settings-frequency-gauge-implementation.md

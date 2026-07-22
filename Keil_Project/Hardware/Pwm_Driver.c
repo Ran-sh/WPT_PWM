@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Pwm_Driver.c
- * @brief   全桥PWM驱动，支持20kHz至200kHz硬件钳位
+ * @brief   全桥PWM驱动，支持20kHz至200kHz硬件钳位 — V5.1.0
  * @note    TIM1保持50%占空比、1000ns死区及UDIS原子更新。
  ******************************************************************************
  */
@@ -31,7 +31,7 @@ void Pwm_Driver_Init(void)
     gpio.GPIO_Pin = GPIO_Pin_13 | GPIO_Pin_14;
     GPIO_Init(GPIOB, &gpio);
 
-    /* 初始频率为150kHz；实际输出边界由Set_Frequency统一钳位。 */
+    /* 初始周期仅作关断态寄存器占位；实际输出统一经频率接口钳位。 */
     TIM_TimeBaseStructInit(&tim_base);
     tim_base.TIM_Prescaler = 0U;
     tim_base.TIM_Period = 480U - 1U;

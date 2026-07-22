@@ -11,7 +11,9 @@ typedef enum {
     ADC_DRIVER_CAL_ERROR
 } Adc_Driver_Calibration_State;
 
+/** @brief 初始化TIM3触发、ADC1双通道DMA和滤波状态；初始化后输出保持安全无效。 */
 void  Adc_Driver_Init(void);
+/** @brief 处理已完成的DMA快照并更新显示与安全两个滑动窗口；应由公共调度器周期调用。 */
 void  Adc_Driver_Filter_Task(void);
 /** @brief DMA1通道1传输完成中断入口，仅复制双通道原始快照 */
 void  Adc_Driver_DMA_Transfer_Complete_ISR(void);

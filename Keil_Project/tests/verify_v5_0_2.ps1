@@ -6,7 +6,7 @@ param(
                   'BlackboxLifecycle', 'BlackboxSnapshot',
                   'Keys', 'KeyRouting', 'Ui', 'UiPerf', 'UartTx', 'Network', 'Scheduler', 'Timeout',
                  'CodeQuality',
-                 'Version', 'Build')]
+                 'Version', 'Build', 'SettingsGauge')]
     [string]$Scope = 'All'
 )
 
@@ -69,7 +69,7 @@ function Test-Contains {
     )
 }
 
-Write-Host ("V5.0.2 STM32 verification (scope={0})" -f $Scope) -ForegroundColor Cyan
+Write-Host ("V5.1.0 STM32 integration verification (scope={0})" -f $Scope) -ForegroundColor Cyan
 
 $expectedSources = @(
     'Keil_Project\Hardware\Adc_Driver.c',
@@ -203,6 +203,7 @@ $tftH = Read-ProjectText 'Keil_Project\Hardware\Tft_Driver.h'
 $w25C = Read-ProjectText 'Keil_Project\Hardware\W25Q_Driver.c'
 $w25H = Read-ProjectText 'Keil_Project\Hardware\W25Q_Driver.h'
 $pwmC = Read-ProjectText 'Keil_Project\Hardware\Pwm_Driver.c'
+$pwmH = Read-ProjectText 'Keil_Project\Hardware\Pwm_Driver.h'
 $adcC = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.c'
 $adcH = Read-ProjectText 'Keil_Project\Hardware\Adc_Driver.h'
 $irqC = Read-ProjectText 'Keil_Project\User\stm32f10x_it.c'
@@ -213,6 +214,8 @@ $keyH = Read-ProjectText 'Keil_Project\Hardware\Key_Driver.h'
 $sysCoreC = Read-ProjectText 'Keil_Project\User\Sys_Core.c'
 $sysCoreH = Read-ProjectText 'Keil_Project\User\Sys_Core.h'
 $inverterC = Read-ProjectText 'Keil_Project\Hardware\Inverter_Control.c'
+$invC = $inverterC
+$invH = Read-ProjectText 'Keil_Project\Hardware\Inverter_Control.h'
 $buzzerC = Read-ProjectText 'Keil_Project\Hardware\Buzzer_Driver.c'
 $ledC = Read-ProjectText 'Keil_Project\Hardware\Led_Driver.c'
 $uiC = Read-ProjectText 'Keil_Project\Hardware\Ui_Controller.c'
@@ -608,14 +611,15 @@ Write-Check 'KeyRouting' 'WiFi clear long press does not jump pages or issue dis
 
 $uiCombined = $uiC + "`n" + $uiH
 Write-Check 'Ui' 'GPIO backlight setting pages are removed' ($uiCombined -notmatch 'UI_PAGE_SETTING_BL')
-Write-Check 'Ui' 'UI page count is 14' `
-    (($uiH -match '14\s*pages') -or ($uiH -match 'UI_PAGE_COUNT\s*=\s*14'))
+Write-Check 'Ui' 'UI page count is 15' `
+    ($uiH -match 'UI_PAGE_COUNT\s*=\s*15')
 Write-Check 'Ui' 'brightness and breathing implementation is removed' `
     ($uiCombined -notmatch 's_bl_user_val|s_br_speed|s_br_min|s_br_max|Draw_BL_|Handle_BL_|Brightness|Breathing')
-Write-Check 'Ui' 'settings menu has four items and color at index three' `
-    (($uiC -match 'for\s*\(\s*i\s*=\s*0U?;\s*i\s*<\s*4U?') -and
-     ($uiC -match 's_setting_cursor\s*==\s*0U?\s*\)\s*s_setting_cursor\s*=\s*3U?') -and
-     ($uiC -match 'case\s+3\s*:\s*s_page\s*=\s*UI_PAGE_SETTING_COLOR'))
+Write-Check 'Ui' 'settings menu has five items and frequency is index one' `
+    (($uiC -match 'UI_SETTING_ITEM_COUNT') -and
+     ($uiC -match 'UI_SETTING_ITEM_FREQUENCY') -and
+     ($uiC -match 'case\s+UI_SETTING_ITEM_FREQUENCY\s*:\s*s_page\s*=\s*UI_PAGE_SETTING_FREQUENCY') -and
+     ($uiC -match 'case\s+UI_SETTING_ITEM_COLOR\s*:\s*s_page\s*=\s*UI_PAGE_SETTING_COLOR'))
 Write-Check 'Ui' 'backlight config field stays compatible but is forced to 100' `
     (($appStorageH -match '\bbacklight\b') -and
      ($appStorageC -match '\*bl\s*=\s*100U?') -and
@@ -657,9 +661,9 @@ Write-Check 'UiPerf' 'UI retries failed full and incremental draw cycles' `
      ($uiC -match 'if\s*\(\s*!Tft_Driver_Is_Draw_Blocked\s*\(\s*\)\s*\)[\s\S]{0,250}s_page_drawn\s*=\s*1') -and
      ($uiC -match 'Tft_Driver_Is_Draw_Blocked\s*\(\s*\)[\s\S]{0,100}s_page_drawn\s*=\s*0'))
 
-$usartIrqStart = $irqC.IndexOf('void USART2_IRQHandler')
-$usartIrqEnd = $irqC.IndexOf('/*******************', $usartIrqStart)
-$usartIrq = $irqC.Substring($usartIrqStart, $usartIrqEnd - $usartIrqStart)
+$usartIrqMatch = [regex]::Match($irqC,
+    '(?ms)^void\s+USART2_IRQHandler\s*\([^)]*\)\s*\{.*?^\}')
+$usartIrq = $usartIrqMatch.Value
 $rxnePos = $usartIrq.IndexOf('USART_IT_RXNE')
 $orePos = $usartIrq.IndexOf('USART_FLAG_ORE')
 $txePos = $usartIrq.IndexOf('USART_IT_TXE')
@@ -834,7 +838,8 @@ foreach ($sourceFile in ($stm32Files | Where-Object { $_.Extension -eq '.c' })) 
         $sourceText,
         '(?m)^static\s+(?:const\s+)?[A-Za-z_][\w\s\*]*?\s+([A-Za-z_]\w*)\s*\(')
     foreach ($staticMatch in $staticMatches) {
-        if (-not $staticMatch.Groups[1].Value.StartsWith($modulePrefix)) {
+        if (-not $staticMatch.Groups[1].Value.StartsWith(
+                $modulePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
             $staticPrefixFailures += ('{0}:{1}' -f $sourceFile.Name,
                 $staticMatch.Groups[1].Value)
         }
@@ -874,19 +879,25 @@ Write-Check 'CodeQuality' 'Sys_Core internal key and safety helpers are private'
      ($sysCoreC -match 'static\s+void\s+Sys_Core_Safety_Task') -and
      ($sysCoreC -match 'static\s+void\s+Sys_Core_Handle_Power_Key'))
 $documentationChecks = [ordered]@{
-    'UI C says 14 pages' = ($uiC -match '14 pages')
-    'UI H page count is 14' = ($uiH -match 'UI_PAGE_COUNT\s*=\s*14')
-    'five-key pin list' = ($uiC -match 'PB9/PB8/PB7/PB6/PB5')
-    'heartbeat PC13' = ($uiC -match 'PC13')
-    'main lists four LEDs' = (($mainC -match 'LED_STATUS') -and
-        ($mainC -match 'LED_WIFI') -and ($mainC -match 'LED_POWER') -and
-        ($mainC -match 'LED_HEARTBEAT'))
-    'GPIO backlight' = (($tftH -match 'PA12=BL') -and
+    'UI H page count is 15' = ($uiH -match 'UI_PAGE_COUNT\s*=\s*15')
+    'five-item settings enum' = (($uiC -match 'UI_SETTING_ITEM_FREQUENCY') -and
+        ($uiC -match 'UI_SETTING_ITEM_COLOR') -and
+        ($uiC -match 'UI_SETTING_ITEM_COUNT'))
+    '20-200kHz PWM boundary' = (($pwmH -match 'PWM_DRIVER_FREQ_MIN_HZ\s+20000') -and
+        ($pwmH -match 'PWM_DRIVER_FREQ_MAX_HZ\s+200000'))
+    'five-key pin list' = (($keyH -match 'PB9') -and ($keyH -match 'PB8') -and
+        ($keyH -match 'PB7') -and ($keyH -match 'PB6') -and ($keyH -match 'PB5'))
+    'heartbeat PC13' = ($sysCoreC -match 'PC13')
+    'main lists four LEDs' = (($mainC -match 'PA15') -and
+        ($mainC -match 'PB4') -and ($mainC -match 'PB3') -and
+        ($mainC -match 'PC13'))
+    'GPIO backlight' = (($tftC -match 'PA12') -and
         ($stm32Text -notmatch 'backlight PWM'))
-    'Flash font count' = (($tftH -match '20897') -and ($tftH -match '31'))
+    'Flash font count' = (($tftC -match '20897') -and ($tftH -match 'ICON_ID_'))
     'V2 log partition' = ($appStorageC -match '0x312000~0x6CFFFF')
-    'sweep safety' = ($sysCoreC -match 'SWEEP/RUNNING protected')
-    'no stale descriptions' = ($stm32Text -notmatch '17 pages|4 keys:|ROM 76|Flash 6763')
+    'sweep safety' = (($sysCoreC -match 'SYS_STATE_SWEEP') -and
+        ($sysCoreC -match 'SYS_STATE_RUNNING'))
+    'no stale descriptions' = ($stm32Text -notmatch '17 pages|4 keys:|ROM 76|Flash 6763|95.{0,8}150|150kHz.{0,24}100kHz')
 }
 $documentationFailures = @($documentationChecks.GetEnumerator() |
     Where-Object { -not $_.Value } | ForEach-Object { $_.Key })
@@ -895,24 +906,47 @@ Write-Check 'CodeQuality' 'driver comments describe V5 hardware and UI accuratel
     $(if ($documentationFailures.Count) { $documentationFailures -join ', ' } else { 'clean' })
 
 if (Test-CategoryEnabled 'Version') {
-    $wrongVersionFiles = @()
     $allStm32Sources = Get-ChildItem (Join-Path $keilRoot 'Hardware'),
                                        (Join-Path $keilRoot 'System'),
                                        (Join-Path $keilRoot 'User') -Recurse -File |
         Where-Object { $_.Extension -in '.c', '.h' }
+    $cHeaderFailures = @()
+    $hGuardFailures = @()
     foreach ($sourceFile in $allStm32Sources) {
-        $fullPath = $sourceFile.FullName
-        $head = ([System.IO.File]::ReadAllLines($fullPath, [System.Text.Encoding]::UTF8) |
-                 Select-Object -First 12) -join "`n"
-        if ($head -notmatch 'V5\.0\.2') {
-            $wrongVersionFiles += $fullPath.Substring($repoRoot.Length + 1)
+        $lines = [System.IO.File]::ReadAllLines($sourceFile.FullName, [System.Text.Encoding]::UTF8)
+        if ($sourceFile.Extension -eq '.c') {
+            $head = ($lines | Select-Object -First 48) -join "`n"
+            if ($head -notmatch '@file' -or $head -notmatch '@brief' -or
+                $head -notmatch '@note' -or $head -notmatch 'V5\.1\.0') {
+                $cHeaderFailures += $sourceFile.FullName.Substring($repoRoot.Length + 1)
+            }
+        }
+        elseif ($lines.Count -eq 0 -or $lines[0] -notmatch '^#ifndef\s+') {
+            $hGuardFailures += $sourceFile.FullName.Substring($repoRoot.Length + 1)
         }
     }
-    Write-Check 'Version' 'all STM32 headers use V5.0.2' ($wrongVersionFiles.Count -eq 0) `
-        $(if ($wrongVersionFiles.Count) { "{0} files pending" -f $wrongVersionFiles.Count } else {
-            "{0}/{0}" -f $allStm32Sources.Count
-        })
-    Write-Check 'Version' 'Splash displays V5.0.2' ($tftC -match '"V5\.0\.2"')
+    Write-Check 'Version' 'all STM32 C files have V5.1.0 Chinese file headers' `
+        ($cHeaderFailures.Count -eq 0) `
+        $(if ($cHeaderFailures.Count) { $cHeaderFailures -join ', ' } else { 'clean' })
+    Write-Check 'Version' 'all STM32 headers begin directly with include guards' `
+        ($hGuardFailures.Count -eq 0) `
+        $(if ($hGuardFailures.Count) { $hGuardFailures -join ', ' } else { 'clean' })
+    Write-Check 'Version' 'Splash displays V5.1.0' ($tftC -match '"V5\.1\.0"')
+}
+
+if (Test-CategoryEnabled 'SettingsGauge') {
+    Write-Check 'SettingsGauge' 'frequency settings preserve two independent bands' `
+        (($appStorageH -match 'startup_low_freq_hz') -and
+         ($appStorageH -match 'startup_high_freq_hz') -and
+         ($appStorageH -match 'startup_freq_band'))
+    Write-Check 'SettingsGauge' 'soft start exposes both dynamic sweep endpoints' `
+        (($invH -match 'Inverter_Control_Get_Sweep_Start_Freq') -and
+         ($invH -match 'Inverter_Control_Get_Sweep_Target_Freq') -and
+         ($invC -match '99900U') -and ($invC -match '200000U'))
+    Write-Check 'SettingsGauge' 'UI uses shared segmented gauges and 2X numbers' `
+        (($uiC -match 'Ui_Controller_Gauge_Value_To_Angle') -and
+         ($uiC -match 'Ui_Controller_Gauge_Get_Frequency_Config') -and
+         ($tftC -match 'Tft_Driver_Show_String_2X'))
 }
 
 Write-Host ("Summary: {0} PASS, {1} FAIL" -f $script:PassCount, $script:FailureCount) -ForegroundColor Cyan

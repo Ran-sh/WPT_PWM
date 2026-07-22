@@ -19,6 +19,10 @@ void        Esp8266_Driver_Init_Task(void);
  *  @retval ESP8266_DRIVER_TX_FULL 发送队列剩余空间不足
  *  @retval ESP8266_DRIVER_TX_INVALID 输入参数无效
  */
+/** @brief 将以零结尾的文本原子加入USART2发送环形缓冲区
+ *  @param str 待发送文本；空指针或空字符串视为无效输入
+ *  @retval ESP8266_DRIVER_TX_OK表示已入队，其他值表示缓冲区不足或输入无效
+ */
 Esp8266_Driver_Tx_Result Esp8266_Driver_Send_String(const char* str);
 /** @brief 获取发送队列累计满次数，供诊断使用 */
 uint32_t    Esp8266_Driver_Get_Tx_Full_Count(void);

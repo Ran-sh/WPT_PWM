@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/App_Storage.c
- * @brief   参数双副本与黑匣子日志应用存储层 — V5.0.2
+ * @brief   参数双副本与黑匣子日志应用存储层 — V5.1.0
  *
  *  W25Q128分区布局（总容量16MB）:
  *  +------------------------------------------------------------+
@@ -195,7 +195,7 @@ static void App_Storage_Defaults(App_Storage_Config *cfg)
     cfg->adc_i_offset  = 0.0f;
     cfg->adc_v_gain    = 1.0f;
     cfg->freq_trim_hz = 0;
-    cfg->default_freq  = 100;      /* 100kHz安全中间频率。 */
+    cfg->default_freq  = 100;      /* 第一版兼容字段；启动频率由双档字段决定。 */
     cfg->backlight     = 100;      /* 历史兼容值；PA12现在只支持亮灭。 */
     cfg->language      = 1;        /* 默认英文，切换中文后才依赖外部字库。 */
     cfg->font_size     = 0;        /* 历史字体字段，仅用于配置兼容。 */

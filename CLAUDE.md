@@ -8,9 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `5.0` |
-| **版本** | V5.0.2 |
+| **版本** | V5.1.0 |
 | **语言** | 中文交流，代码注释中英混合 |
 
+> **V5.1.0** (2026-07-22) — 五项设置 + 双档启动频率 + 全局菜单光标 + 递增式独立表盘
 > **V5.0.2** (2026-07-19) — STM32 全面可靠性优化: 功率互锁 + 500Hz ADC + SPI1 仲裁 + Blackbox V2 + 中断发送 + 统一调度
 > **V5.0.1** (2026-07-11) — GPIO 全量重映射 + 5键系统 + 四灯系统 + Bug修复
 > **V5.0.0** (2026-07-11) — 初始 GPIO 重映射: PA12→TFT_BL, PB12→W25Q128_CS, KEY0-KEY4 五键, WIFI/POWER/STATUS/HEARTBEAT 四灯
@@ -18,7 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
-> **W25Q128 Flash CH341A 烧录指南**: `ch341/README.md` (V5.0.2)
+> **W25Q128 Flash CH341A 烧录指南**: `ch341/README.md` (V5.1.0)
 
 ## 版本号规则 (全项目铁律)
 
@@ -28,14 +29,14 @@ Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V5.0.2
+当前版本: V5.1.0
 
 涉及版本号的位置 (全项目必须统一):
-  STM32 文件头注释: Keil_Project 下每个 .c/.h 的 @brief/@note 行 → V5.0.2
-  文档控制信息: 开发指南/技能文件的当前文档版本 → V5.0.2
-  CLAUDE.md: 版本号 + 审查历史 + 当前架构说明 → V5.0.2
-  README.md: badge + 版本历史 + 分支表 → V5.0.2
-  CH341A 指南: 接线、CRC 和共享 SPI 说明 → V5.0.2
+  STM32 .c 文件头注释: Keil_Project 下每个业务 .c 的 @brief/@note 行 → V5.1.0
+  文档控制信息: 开发指南/技能文件的当前文档版本 → V5.1.0
+  CLAUDE.md: 版本号 + 审查历史 + 当前架构说明 → V5.1.0
+  README.md: badge + 版本历史 + 分支表 → V5.1.0
+  CH341A 指南: 接线、CRC 和共享 SPI 说明 → V5.1.0
   历史版本记录保留原号，不做机械替换
 
 历史版本 → V4.x.x 完整映射:
@@ -92,7 +93,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
 | 针对文件 | 写入内容 |
 |:---|:---|
 | `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` | 文档版本号、修改日志、引脚表（含W25Q128接线）、文件结构、UI 页面、EMA/Safety/网络协议等架构章节与当前代码对齐 |
-| `ch341/README.md` | [V5.0.2] CH341A Flash 字库烧录完整操作指南: PB12接线/驱动安装/生成→烧写→校验全流程 |
+| `ch341/README.md` | [V5.1.0] CH341A Flash 字库烧录完整操作指南: PB12接线/驱动安装/生成→烧写→校验全流程 |
 
 ### 第 5 条 — 更新技能文件
 
@@ -153,7 +154,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
 
 ```
 STM32 (物理脑)               ESP8266 (联网脑)
-TIM1 PWM 95~150kHz          WiFi + MQTT 自动联网
+TIM1 PWM 20~200kHz          WiFi + MQTT 自动联网
 ADC 双通道 + 64样本滑动窗口   STATUS:ONLINE 心跳
 TFT/KEY/LED 人机交互        CMD:ON/OFF/SETFREQ 控制
 W25Q128 16MB Flash 外挂      USART2 115200 纯文本 JSON
@@ -178,7 +179,7 @@ SYS_INIT → SYS_IDLE → SYS_SWEEP → SYS_RUNNING
 |:---|:---|:---|
 | INIT | 关 | 初始化阶段 |
 | IDLE | 关 | Key+ADC+Network+Safety+UI |
-| SWEEP | 开 | + Soft_Start (150k→100kHz) |
+| SWEEP | 开 | + Soft_Start（按锁定低频或高频档降至保存目标） |
 | RUNNING | 开 | + Freq_Ramp |
 | FAULT | 关 | + FAULT UI, 取消所有斜坡 |
 
@@ -190,7 +191,7 @@ WPT_PWM_V5.0/
 │   ├── Project.uvprojx                         ← 工程入口, F7编译→F8下载
 │   ├── keilkill.bat                            ← 清理编译产物 (push前必执行)
 │   ├── Hardware/
-│   │   ├── Ui_Controller.c/h                   ← 14页面 UI + 圆弧仪表盘 + 增量刷新
+│   │   ├── Ui_Controller.c/h                   ← 15页面 UI + 双档设置 + 递增式独立表盘
 │   │   ├── Tft_Driver.c/h                      ← ST7735 DMA + Flash/ROM 双路径字库 + SPLASH
 │   │   ├── Spi1_Shared.c/h                     ← TFT/W25Q128 总线所有权与超时恢复
 │   │   ├── W25Q_Driver.c/h                     ← 16MB Flash边界检查/超时/二分检索
@@ -200,7 +201,7 @@ WPT_PWM_V5.0/
 │   │   ├── Inverter_Control.c/h                ← 软启动 + 频率斜坡
 │   │   ├── Key_Driver.c/h                      ← 5键 FSM + 独立双击/长按能力
 │   │   ├── Led_Driver.c/h                      ← 4 LED (WIFI/POWER/STATUS/HEARTBEAT)
-│   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 95-150kHz原子更新
+│   │   ├── Pwm_Driver.c/h                      ← TIM1 全桥 PWM 20-200kHz原子更新
 │   │   └── Buzzer_Driver.c/h                   ← 蜂鸣器
 │   ├── User/
 │   │   ├── App_Network.c/h                     ← OFFLINE双模式+心跳+S=0/1/2/3遥测
@@ -256,7 +257,7 @@ int main(void) {
     while (1) {                 /* 主循环 — 按状态分发 */
         switch (g_sys_state) {
             case SYS_STATE_IDLE:    Sys_Run_Idle();    break;  /* 空闲: PWM 关, 等待操作 */
-            case SYS_STATE_SWEEP:   Sys_Run_Sweep();   break;  /* 扫频: 150k->100kHz 软启动 */
+            case SYS_STATE_SWEEP:   Sys_Run_Sweep();   break;  /* 扫频: 按锁定档位软启动 */
             case SYS_STATE_RUNNING: Sys_Run_Running(); break;  /* 运行: 频率闭环 + 调度 */
             case SYS_STATE_FAULT:   Sys_Run_Fault();   break;  /* 故障: 过流保护 + 等待复位 */
         }
@@ -423,7 +424,7 @@ ROM 中文表只保留启动/故障回退所需 4 字；完整中文显示依赖
 ## PWM 基线 (不可改)
 
 - TIM1 CH1=PWM1 + CH2=PWM2, Up 模式, 50% 占空, `TIM_OCNPolarity_Low`
-- 死区 1000ns, 95-150kHz, UDIS 原子更新
+- 死区 1000ns, 20-200kHz, UDIS 原子更新
 - 开机: TIM_Cmd(DISABLE) + MOE(DISABLE), 零输出
 
 ## 圆弧能量条仪表盘
@@ -500,6 +501,7 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V5.1.0 | **设置与表盘重构**: 设置菜单固定为语言、启动频率、字符间距、光标图标、配色方案；V2配置保存低频20.0–99.9kHz与高频100–200kHz双档、当前档位和全局光标并可迁移V1；PWM边界统一为20–200kHz；软启动按低档99.9kHz/100Hz或高档200kHz/1kHz每10ms降频；独立表盘采用共享分段递增映射和2倍主数值差分刷新。 |
 | V5.0.2 | **STM32全面优化**: TIM1原子更新；统一功率/故障API与PB10硬互锁；SWEEP/RUNNING连续3样本过流；TIM3 500Hz ADC双窗口+校准/新鲜度门控；SPI1共享仲裁；W25Q边界/超时；后台校验保存；Blackbox V2双元数据+循环恢复+故障前后5秒快照；按键双击/长按能力拆分；14页UI与GPIO背光清理；TFT增量刷新；USART2 TX中断环；遥测S=0/1/2/3；统一调度与超时/C89清理 |
 | V5.0.1 | **GPIO 全量重映射 + 5键系统 + 四灯系统**: PA12→TFT_BL(GPIO), PB12→W25Q128_CS, PB6→KEY3, PB9→KEY0(电源开关协调PB10), PB8→KEY1(返回,双击主菜单), PB7→KEY2(UP), PB6→KEY3(DOWN), PB5→KEY4(确定); PA15→STATUS(PWM指示), PB3→POWER(12V), PC13→HEARTBEAT(板载运行); PA10/PA11 移除; TIM4 停用; PB10 手动(去自动电压阈值); Key_Driver 4→5键; Led_Driver 5→4灯; Ui_Controller MENU UP键 wrapping 修复(<=1→==0) |
 | V4.5.2 | **SPI时序回归+DMA修复+EMA修复**: DMA超时操作数反转修复(根治花屏), DMA TC3残留标志清理, SPI恢复18MHz原始配置(去dummy/CS NOP), Flash字模批量读(16次→1次), 中文/图标ROM优先, 默认英文界面(W25Q手动切中文), Sys_Safety EMA全状态更新(V/I在IDLE下不再显示0), CS脉冲简化, NVIC Flash读临界区保护, Write_Enable SPI模式防护, s_language静态初值统一, Ui_Controller Pick_CN_EN遗漏修复 |

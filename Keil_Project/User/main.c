@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/main.c
- * @brief   无线充电控制系统程序入口 — V5.0.2
+ * @brief   无线充电控制系统程序入口 — V5.1.0
  *
  *  系统总接线表（STM32F103C8T6，48脚封装）:
  *  +------------------------------------------------------------+
@@ -34,7 +34,7 @@
  *    W25Q_Driver_Init -> Tft_Driver_Font_Init ->
  *    App_Storage_Init -> Sys_Startup_Screen -> Sys_Post_Init
  *
- * @note    系统时基必须在开机动画之前初始化，因为启动阶段延时依赖毫秒时钟。
+ * @note    系统时基必须在开机动画之前初始化；扫频目标由当前锁定的双档配置决定。
  ******************************************************************************
  */
 
@@ -68,7 +68,7 @@ int main(void)
     while (1) {                                             /* 主循环只按系统状态分发对应任务。 */
         switch (Sys_Core_Get_State()) {
             case SYS_STATE_IDLE:    Sys_Run_Idle();    break;      /* 空闲：PWM关闭并等待操作。 */
-            case SYS_STATE_SWEEP:   Sys_Run_Sweep();   break;      /* 扫频：从150kHz逐步降至100kHz。 */
+            case SYS_STATE_SWEEP:   Sys_Run_Sweep();   break;      /* 扫频：按本次锁定档位降至保存目标。 */
             case SYS_STATE_RUNNING: Sys_Run_Running(); break;      /* 运行：执行调频、安全和公共调度。 */
             case SYS_STATE_FAULT:   Sys_Run_Fault();   break;      /* 故障：保持输出关闭并等待确认复位。 */
             case SYS_STATE_INIT:

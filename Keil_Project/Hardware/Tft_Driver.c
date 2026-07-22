@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735彩屏显示与字库驱动 — V5.0.2
+ * @brief   ST7735彩屏显示与字库驱动 — V5.1.0
  *
  *  硬件连接（显示屏与W25Q128分时使用SPI1）:
  *  +------------------------------------------------------------+
@@ -1020,7 +1020,7 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
  *
  *  布局 (160×128):
  *  +----------------------------------+
- *  |                           V5.0.2|  第7行右侧显示暗灰版本号
+ *  |                           V5.1.0|  第7行右侧显示暗灰版本号
  *  |                                  |
  *  |     无  线  充  电               |  中文逐字渐亮
  *  |                                  |
@@ -1045,7 +1045,7 @@ void Tft_Driver_Show_Splash(void)
     Tft_Driver_Clear(TFT_COLOR_BLACK);
 
     /* 版本号: 右下角暗灰 */
-    Tft_Driver_Show_String(7, 14, "V5.0.2", 0x3186U, TFT_COLOR_BLACK);
+    Tft_Driver_Show_String(7, 14, "V5.1.0", 0x3186U, TFT_COLOR_BLACK);
 
     /* 第一阶段让中文与项目缩写同步逐字渐亮，总计1600ms。 */
     for (col = 0; col < 4; col++) {
