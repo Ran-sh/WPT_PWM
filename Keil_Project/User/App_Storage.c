@@ -101,6 +101,91 @@ static uint8_t App_Storage_Is_Erased(const uint8_t *data, uint32_t len);
  *  参数配置：双副本与三十二位校验闭锁
  * =============================================== */
 
+/* 第一版固定196字节布局，仅用于读取并迁移历史配置。 */
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    char     ssid[32];
+    char     password[64];
+    char     mqtt_key[64];
+    float    adc_i_offset;
+    float    adc_v_gain;
+    int32_t  freq_trim_hz;
+    uint16_t default_freq;
+    uint8_t  backlight;
+    uint8_t  language;
+    uint8_t  font_size;
+    uint8_t  letter_spacing;
+    uint8_t  color_preset;
+    uint16_t color_fg;
+    uint16_t color_bg;
+    uint32_t crc32;
+} App_Storage_Config_V1;
+
+typedef char App_Storage_Config_V1_Size_Check[
+    (sizeof(App_Storage_Config_V1) == 196U) ? 1 : -1];
+typedef char App_Storage_Config_Size_Check[
+    (sizeof(App_Storage_Config) <= 256U) ? 1 : -1];
+
+static void App_Storage_Set_Frequency_Defaults(App_Storage_Config *cfg)
+{
+    cfg->startup_low_freq_hz = 20000U;
+    cfg->startup_high_freq_hz = 100000U;
+    cfg->startup_freq_band = APP_STORAGE_FREQ_BAND_HIGH;
+    cfg->menu_cursor_icon = 0U;
+    cfg->reserved_v2 = 0U;
+}
+
+static uint8_t App_Storage_Is_Frequency_Config_Valid(
+    const App_Storage_Config *cfg)
+{
+    if (cfg->startup_low_freq_hz < 20000U ||
+        cfg->startup_low_freq_hz > 99900U ||
+        (cfg->startup_low_freq_hz % 100U) != 0U) return 0U;
+    if (cfg->startup_high_freq_hz < 100000U ||
+        cfg->startup_high_freq_hz > 200000U ||
+        (cfg->startup_high_freq_hz % 1000U) != 0U) return 0U;
+    if (cfg->startup_freq_band > APP_STORAGE_FREQ_BAND_HIGH) return 0U;
+    if (cfg->menu_cursor_icon >= 8U) return 0U;
+    return 1U;
+}
+
+static uint8_t App_Storage_Is_Config_V1_Valid(
+    const App_Storage_Config_V1 *cfg)
+{
+    uint32_t computed_crc;
+
+    if (cfg->magic != CFG_MAGIC || cfg->version != 1U) return 0U;
+    computed_crc = Checksum_CRC32((const uint8_t *)cfg,
+                                  sizeof(App_Storage_Config_V1) - 4U);
+    return (cfg->crc32 == computed_crc) ? 1U : 0U;
+}
+
+static void App_Storage_Migrate_V1(App_Storage_Config *dst,
+                                   const App_Storage_Config_V1 *src)
+{
+    memset(dst, 0, sizeof(*dst));
+    dst->magic = CFG_MAGIC;
+    dst->version = CFG_VERSION;
+    memcpy(dst->ssid, src->ssid, sizeof(dst->ssid));
+    memcpy(dst->password, src->password, sizeof(dst->password));
+    memcpy(dst->mqtt_key, src->mqtt_key, sizeof(dst->mqtt_key));
+    dst->adc_i_offset = src->adc_i_offset;
+    dst->adc_v_gain = src->adc_v_gain;
+    dst->freq_trim_hz = src->freq_trim_hz;
+    dst->default_freq = src->default_freq;
+    dst->backlight = src->backlight;
+    dst->language = src->language;
+    dst->font_size = src->font_size;
+    dst->letter_spacing = src->letter_spacing;
+    dst->color_preset = src->color_preset;
+    dst->color_fg = src->color_fg;
+    dst->color_bg = src->color_bg;
+    App_Storage_Set_Frequency_Defaults(dst);
+    dst->crc32 = Checksum_CRC32((const uint8_t *)dst,
+                                sizeof(App_Storage_Config) - 4U);
+}
+
 /** @brief 生成安全出厂默认值，背光兼容字段为开启，字符间距为0 */
 static void App_Storage_Defaults(App_Storage_Config *cfg)
 {
@@ -118,13 +203,15 @@ static void App_Storage_Defaults(App_Storage_Config *cfg)
     cfg->color_preset  = 0;        /* 默认使用经典配色。 */
     cfg->color_fg      = 0xFFFF;
     cfg->color_bg      = 0x0000;
+    App_Storage_Set_Frequency_Defaults(cfg);
 }
 
 static uint8_t App_Storage_Is_Config_Valid(const App_Storage_Config *cfg)
 {
     uint32_t computed_crc;
 
-    if (cfg->magic != CFG_MAGIC || cfg->version != CFG_VERSION) return 0U;
+    if (cfg->magic != CFG_MAGIC || cfg->version != CFG_VERSION ||
+        App_Storage_Is_Frequency_Config_Valid(cfg) == 0U) return 0U;
     computed_crc = Checksum_CRC32((const uint8_t *)cfg,
                                   sizeof(App_Storage_Config) - 4U);
     return (cfg->crc32 == computed_crc) ? 1U : 0U;
@@ -132,6 +219,8 @@ static uint8_t App_Storage_Is_Config_Valid(const App_Storage_Config *cfg)
 
 uint8_t App_Storage_Load_Config(App_Storage_Config *cfg)
 {
+    App_Storage_Config_V1 cfg_v1;
+
     if (cfg == 0) return 0U;
 
     memset(cfg, 0, sizeof(*cfg));
@@ -144,13 +233,29 @@ uint8_t App_Storage_Load_Config(App_Storage_Config *cfg)
                          sizeof(*cfg)) == W25Q_DRIVER_RESULT_OK &&
         App_Storage_Is_Config_Valid(cfg) != 0U) return 1U;
 
+    memset(&cfg_v1, 0, sizeof(cfg_v1));
+    if (W25Q_Driver_Read(W25Q_ADDR_CFG_A, (uint8_t *)&cfg_v1,
+                         sizeof(cfg_v1)) == W25Q_DRIVER_RESULT_OK &&
+        App_Storage_Is_Config_V1_Valid(&cfg_v1) != 0U) {
+        App_Storage_Migrate_V1(cfg, &cfg_v1);
+        return 1U;
+    }
+
+    memset(&cfg_v1, 0, sizeof(cfg_v1));
+    if (W25Q_Driver_Read(W25Q_ADDR_CFG_B, (uint8_t *)&cfg_v1,
+                         sizeof(cfg_v1)) == W25Q_DRIVER_RESULT_OK &&
+        App_Storage_Is_Config_V1_Valid(&cfg_v1) != 0U) {
+        App_Storage_Migrate_V1(cfg, &cfg_v1);
+        return 1U;
+    }
+
     App_Storage_Defaults(cfg);
     return 0U;
 }
 
 void App_Storage_Request_Save_Config(const App_Storage_Config *cfg)
 {
-    if (cfg == 0) {
+    if (cfg == 0 || App_Storage_Is_Frequency_Config_Valid(cfg) == 0U) {
         s_storage_last_result = APP_STORAGE_RESULT_INVALID_ARGUMENT;
         return;
     }
@@ -158,6 +263,7 @@ void App_Storage_Request_Save_Config(const App_Storage_Config *cfg)
     s_pending_config = *cfg;
     s_pending_config.magic = CFG_MAGIC;
     s_pending_config.version = CFG_VERSION;
+    s_pending_config.reserved_v2 = 0U;
     s_pending_config.crc32 = Checksum_CRC32(
         (const uint8_t *)&s_pending_config,
         sizeof(App_Storage_Config) - 4U);
@@ -278,31 +384,35 @@ void App_Storage_Write_Factory_Defaults(void)
  * =============================================== */
 void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
                                 uint8_t* spacing, uint8_t* preset,
-                                uint16_t* fg, uint16_t* bg)
+                                uint16_t* fg, uint16_t* bg,
+                                uint32_t* low_freq_hz,
+                                uint32_t* high_freq_hz,
+                                uint8_t* freq_band,
+                                uint8_t* cursor_icon)
 {
     App_Storage_Config cfg;
-    if (App_Storage_Load_Config(&cfg)) {
-        *lang    = cfg.language;
-        *font    = cfg.font_size;
-        *bl      = 100U;
-        *spacing = cfg.letter_spacing;
-        *preset  = cfg.color_preset;
-        *fg      = cfg.color_fg;
-        *bg      = cfg.color_bg;
-    } else {
-        *lang    = 1;  /* 配置无效时回退到英文。 */
-        *font    = 0;
-        *bl      = 100;
-        *spacing = 0;
-        *preset  = 0;
-        *fg      = 0xFFFF;
-        *bg      = 0x0000;
-    }
+
+    (void)App_Storage_Load_Config(&cfg);
+    *lang         = cfg.language;
+    *font         = cfg.font_size;
+    *bl           = 100U;
+    *spacing      = cfg.letter_spacing;
+    *preset       = cfg.color_preset;
+    *fg           = cfg.color_fg;
+    *bg           = cfg.color_bg;
+    *low_freq_hz  = cfg.startup_low_freq_hz;
+    *high_freq_hz = cfg.startup_high_freq_hz;
+    *freq_band    = cfg.startup_freq_band;
+    *cursor_icon  = cfg.menu_cursor_icon;
 }
 
 void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                        uint8_t spacing, uint8_t preset,
-                                       uint16_t fg, uint16_t bg)
+                                       uint16_t fg, uint16_t bg,
+                                       uint32_t low_freq_hz,
+                                       uint32_t high_freq_hz,
+                                       uint8_t freq_band,
+                                       uint8_t cursor_icon)
 {
     App_Storage_Config cfg;
 
@@ -312,6 +422,12 @@ void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
     } else if (App_Storage_Load_Config(&cfg) == 0U) {
         App_Storage_Defaults(&cfg);
     }
+    cfg.startup_low_freq_hz = low_freq_hz;
+    cfg.startup_high_freq_hz = high_freq_hz;
+    cfg.startup_freq_band = freq_band;
+    cfg.menu_cursor_icon = cursor_icon;
+    cfg.reserved_v2 = 0U;
+    if (App_Storage_Is_Frequency_Config_Valid(&cfg) == 0U) return;
     cfg.language       = lang;
     cfg.font_size      = font;
     cfg.backlight      = 100U;

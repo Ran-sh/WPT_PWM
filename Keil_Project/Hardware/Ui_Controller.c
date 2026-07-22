@@ -106,6 +106,10 @@ static uint8_t  sc_preset          = 0;     /* 0至5为预设方案，255表示�
 static uint16_t s_color_fg         = 0xFFFF;/* 默认前景色为白色 */
 static uint16_t s_color_bg         = 0x0000;/* 默认背景色为黑色 */
 static uint16_t s_color_accent     = 0xFFE0;/* 默认强调色为黄色 */
+static uint32_t s_startup_low_freq_hz = 20000U;
+static uint32_t s_startup_high_freq_hz = 100000U;
+static uint8_t s_startup_freq_band = APP_STORAGE_FREQ_BAND_HIGH;
+static uint8_t s_menu_cursor_icon = 0U;
 static uint8_t  s_icon_cache_valid = 0U;
 static uint8_t  s_last_icon_cs     = 0xFFU;
 static uint8_t  s_last_icon_mode   = 0xFFU;
@@ -1750,7 +1754,11 @@ static void Ui_Controller_Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Ev
         if (s_settings_dirty) {
             App_Storage_Request_Save_Settings(s_language, 0U, 100U,
                                               s_letter_spacing, sc_preset,
-                                              s_color_fg, s_color_bg);
+                                              s_color_fg, s_color_bg,
+                                              s_startup_low_freq_hz,
+                                              s_startup_high_freq_hz,
+                                              s_startup_freq_band,
+                                              s_menu_cursor_icon);
             /* 存储值为0至3的选项，需要换算为实际像素间距。 */
             Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));
             s_settings_dirty = 0;

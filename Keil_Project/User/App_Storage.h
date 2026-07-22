@@ -63,7 +63,10 @@ typedef struct {
 
 /* 参数配置结构，共196字节，不跨越256字节写入页。 */
 #define CFG_MAGIC     0x57434647U  /* 参数区固定识别标记 */
-#define CFG_VERSION   1U
+#define CFG_VERSION   2U
+
+#define APP_STORAGE_FREQ_BAND_LOW   0U
+#define APP_STORAGE_FREQ_BAND_HIGH  1U
 
 typedef struct {
     uint32_t magic;          /* 4字节固定识别标记 */
@@ -85,9 +88,14 @@ typedef struct {
     uint8_t  color_preset;   /* 1字节配色预设，0至5有效，255为自定义 */
     uint16_t color_fg;       /* 2字节RGB565前景色 */
     uint16_t color_bg;       /* 2字节RGB565背景色 */
+    uint32_t startup_low_freq_hz;
+    uint32_t startup_high_freq_hz;
+    uint8_t  startup_freq_band;
+    uint8_t  menu_cursor_icon;
+    uint16_t reserved_v2;
     /* 校验 */
     uint32_t crc32;          /* 4字节校验值，计算时不包含自身 */
-} App_Storage_Config;         /* 总计196字节，完整位于一个256字节写入页内 */
+} App_Storage_Config;         /* 总计208字节，完整位于一个256字节写入页内 */
 
 typedef enum {
     APP_STORAGE_RESULT_OK = 0,
@@ -175,10 +183,18 @@ uint8_t Blackbox_Read_Entry(uint32_t index, App_Storage_Log_Entry *out);
 /** @brief 加载供界面控制器使用的设置参数 */
 void App_Storage_Load_Settings(uint8_t* lang, uint8_t* font, uint8_t* bl,
                                 uint8_t* spacing, uint8_t* preset,
-                                uint16_t* fg, uint16_t* bg);
+                                uint16_t* fg, uint16_t* bg,
+                                uint32_t* low_freq_hz,
+                                uint32_t* high_freq_hz,
+                                uint8_t* freq_band,
+                                uint8_t* cursor_icon);
 /** @brief 请求后台持久化界面设置 */
 void App_Storage_Request_Save_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                        uint8_t spacing, uint8_t preset,
-                                       uint16_t fg, uint16_t bg);
+                                       uint16_t fg, uint16_t bg,
+                                       uint32_t low_freq_hz,
+                                       uint32_t high_freq_hz,
+                                       uint8_t freq_band,
+                                       uint8_t cursor_icon);
 
 #endif /* 应用存储层接口结束 */

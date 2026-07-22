@@ -332,8 +332,12 @@ void Sys_Post_Init(void)
     /* 加载语言、字符间距和配色等持久化界面设置。 */
     {
         uint8_t lang, font, bl, spacing, preset;
+        uint8_t freq_band, cursor_icon;
         uint16_t fg, bg;
-        App_Storage_Load_Settings(&lang, &font, &bl, &spacing, &preset, &fg, &bg);
+        uint32_t low_freq_hz, high_freq_hz;
+        App_Storage_Load_Settings(&lang, &font, &bl, &spacing, &preset, &fg,
+                                  &bg, &low_freq_hz, &high_freq_hz,
+                                  &freq_band, &cursor_icon);
         Ui_Controller_Apply_Settings(lang, font, bl, spacing, preset, fg, bg);
     }
 
