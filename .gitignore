@@ -32,7 +32,7 @@
 JLinkLog.txt
 
 # Node
-/Claude_Files/node_modules/
+/tools/node_modules/
 /安卓app/server/node_modules/
 
 # Python

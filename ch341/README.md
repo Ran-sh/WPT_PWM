@@ -1,8 +1,8 @@
 # CH341A 字库烧录操作指南
 
-> 适用项目: WPT_PWM V5.1.2 (`5.0`分支) | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 更新: 2026-07-26
+> 适用项目: WPT_PWM V5.1.3 (`5.0`分支) | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 更新: 2026-07-26
 
-> **V5.1.2 字库工具说明**: CRC32覆盖头部元数据和全部有效负载；烧录前强制生成新备份，仅写前2MB字库分区，读回时校验完整2MB。
+> **V5.1.3 字库工具说明**: CRC32覆盖头部元数据和全部有效负载；烧录前强制生成新备份，仅写前2MB字库分区，读回时校验完整2MB。
 
 本指南用于将 GB2312 全字库 (20897 汉字 + 95 ASCII + 图标动画) 通过 CH341A USB-SPI 编程器烧录到板载 W25Q128 Flash 芯片。
 
@@ -68,7 +68,7 @@ W25Q128 工作电压为 2.7V ~ 3.6V, 5V 供电会**永久损坏芯片**。烧录
 - 数据写入错误
 - 可能的硬件损坏
 
-V5.1.2运行时由 `Spi1_Shared` 管理TFT和W25Q128的共享总线，但它不能解决外部CH341A与已上电STM32同时驱动的问题，因此烧录时仍必须让目标板完全断电。
+V5.1.3运行时由 `Spi1_Shared` 管理TFT和W25Q128的共享总线，但它不能解决外部CH341A与已上电STM32同时驱动的问题，因此烧录时仍必须让目标板完全断电。
 
 **操作顺序**:
 1. 断开 STM32 板所有电源 (USB 线 + 外部电源)
@@ -256,7 +256,7 @@ C:\Users\48376\.conda\envs\skill-opt310\python.exe -m pip install Pillow
 > - flashrom 1.4.0 (`ch341/flashrom-1.4/flashrom.exe`) ✅
 > - `font_data.bin` 可预生成（非必需） ✅
 > - `generate_font.py` + `burn_flash.py` ✅
-> - 待完成: CH341A 接线 + WinUSB 驱动
+> - 实际烧录前仍需完成: CH341A 接线 + WinUSB 驱动确认
 
 方式 A — F5 一键运行 (推荐):
 ```
@@ -369,8 +369,8 @@ python burn_flash.py
 | 校验失败 (>0 字节不一致) | 杜邦线虚接 | 重新插紧所有排针, 尤其 GND 和 3.3V |
 | 同上 | 供电不足 (USB 延长线过长) | CH341A 直插电脑 USB 口, 不要用无源 HUB |
 | 同上 | 跳线帽误插 5V (芯片内部已受损) | 断电, 换到 3.3V 重试; 如反复失败芯片可能已损坏 |
-| 烧录成功但屏幕无变化 | STM32 固件未启用 Flash 字库 | 确认使用V5.1.2固件，并检查启动时Flash字库CRC状态 |
-| 屏幕白屏 (无任何显示) | PB12虚焊或共享SPI接线冲突 | 检查PB12/PA5/PA6/PA7，确认CH341A排针已拔下；V5.1.2会在超时后恢复总线 |
+| 烧录成功但屏幕无变化 | STM32 固件未启用 Flash 字库 | 确认使用V5.1.3固件，并检查启动时Flash字库CRC状态 |
+| 屏幕白屏 (无任何显示) | PB12虚焊或共享SPI接线冲突 | 检查PB12/PA5/PA6/PA7，确认CH341A排针已拔下；V5.1.3会在超时后恢复总线 |
 | 同上 | SPI1 引脚 PA6 被 W25Q128 占用, TFT 无法通信 | 烧录后务必拔掉 CH341A 排针 (尤其 MISO/PA6) 再给 STM32 上电 |
 
 ### 8.1 从备份恢复
@@ -406,4 +406,4 @@ ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_<时间戳>_16MB.b
 - CH341A 编程器数据手册: https://www.wch.cn/products/CH341.html
 - flashrom 官方文档: https://www.flashrom.org/
 - W25Q128 数据手册: https://www.winbond.com/
-- WPT 项目设计文档: `Claude_Files/docs/2026-06-22-w25q128-flash-integration-design.md`
+- WPT 项目完整操作文档: `../WPT无线充电系统-从零搭建完整操作手册.md`

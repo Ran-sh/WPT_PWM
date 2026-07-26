@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('All', 'Baseline', 'Checksum', 'Pwm', 'Safety', 'Adc',
+    [ValidateSet('All', 'Static', 'Baseline', 'Checksum', 'Pwm', 'Safety', 'Adc',
                  'AdcTrigger', 'AdcFilter', 'AdcCal',
                  'Control', 'ControlCallers', 'Spi', 'SpiShared', 'W25',
                  'Storage', 'StorageConfig', 'Blackbox', 'BlackboxJournal',
@@ -19,7 +19,10 @@ $repoRoot = Split-Path -Parent $keilRoot
 function Test-CategoryEnabled {
     param([string]$Category)
 
-    return ($Scope -eq 'All' -or $Scope -eq $Category -or $Category -eq 'Baseline')
+    return ($Scope -eq 'All' -or
+            ($Scope -eq 'Static' -and $Category -ne 'Build') -or
+            $Scope -eq $Category -or
+            $Category -eq 'Baseline')
 }
 
 function Write-Check {
@@ -69,7 +72,7 @@ function Test-Contains {
     )
 }
 
-Write-Host ("V5.1.2 STM32 integration verification (scope={0})" -f $Scope) -ForegroundColor Cyan
+Write-Host ("V5.1.3 STM32 integration verification (scope={0})" -f $Scope) -ForegroundColor Cyan
 
 $expectedSources = @(
     'Keil_Project\Hardware\Adc_Driver.c',
@@ -135,7 +138,7 @@ if (Test-Path -LiteralPath $buildLogPath) {
     }
 }
 
-Write-Check 'Baseline' 'Keil build log exists' (Test-Path -LiteralPath $buildLogPath) $buildLogPath
+Write-Check 'Build' 'Keil build log exists' (Test-Path -LiteralPath $buildLogPath) $buildLogPath
 if ($buildLog) {
     $cleanBuild = $buildLog -match '0 Error\(s\), 0 Warning\(s\)'
     Write-Check 'Build' 'latest Keil build has zero errors and warnings' $cleanBuild
@@ -224,8 +227,7 @@ $networkC = Read-ProjectText 'Keil_Project\User\App_Network.c'
 $mainC = Read-ProjectText 'Keil_Project\User\main.c'
 $projectText = Read-ProjectText 'Keil_Project\Project.uvprojx'
 $timerC = Read-ProjectText 'Keil_Project\System\Sys_Timer.c'
-$developerGuideFile = Get-ChildItem (Join-Path $repoRoot 'Claude_Files\docs') `
-    -File -Filter 'WPT*.md' | Select-Object -First 1
+$developerGuideFile = Get-ChildItem $repoRoot -File -Filter 'WPT*.md' | Select-Object -First 1
 $developerGuide = if ($null -ne $developerGuideFile) {
     [System.IO.File]::ReadAllText($developerGuideFile.FullName, [System.Text.Encoding]::UTF8)
 } else {
@@ -931,7 +933,7 @@ if (Test-CategoryEnabled 'Version') {
         if ($sourceFile.Extension -eq '.c') {
             $head = ($lines | Select-Object -First 48) -join "`n"
             if ($head -notmatch '@file' -or $head -notmatch '@brief' -or
-                $head -notmatch '@note' -or $head -notmatch 'V5\.1\.2') {
+                $head -notmatch '@note' -or $head -notmatch 'V5\.1\.3') {
                 $cHeaderFailures += $sourceFile.FullName.Substring($repoRoot.Length + 1)
             }
         }
@@ -939,13 +941,13 @@ if (Test-CategoryEnabled 'Version') {
             $hGuardFailures += $sourceFile.FullName.Substring($repoRoot.Length + 1)
         }
     }
-    Write-Check 'Version' 'all STM32 C files have V5.1.2 Chinese file headers' `
+    Write-Check 'Version' 'all STM32 C files have V5.1.3 Chinese file headers' `
         ($cHeaderFailures.Count -eq 0) `
         $(if ($cHeaderFailures.Count) { $cHeaderFailures -join ', ' } else { 'clean' })
     Write-Check 'Version' 'all STM32 headers begin directly with include guards' `
         ($hGuardFailures.Count -eq 0) `
         $(if ($hGuardFailures.Count) { $hGuardFailures -join ', ' } else { 'clean' })
-    Write-Check 'Version' 'Splash displays V5.1.2' ($tftC -match '"V5\.1\.2"')
+    Write-Check 'Version' 'Splash displays V5.1.3' ($tftC -match '"V5\.1\.3"')
 }
 
 if (Test-CategoryEnabled 'SettingsGauge') {
@@ -965,7 +967,7 @@ if (Test-CategoryEnabled 'SettingsGauge') {
 
 if (Test-CategoryEnabled 'Documentation') {
     $guideStalePattern = 'TIM1[^\r\n]*95k(?:Hz)?\s*[~\-]\s*150kHz|SS_SWEEP\(150kHz\)|\u53c2\u6570:[^\r\n]*200Hz|\u9891\u7387\u786c\u4e0b\u9650\s*95kHz|UI\s*\u2014\s*14\u9875\u9762'
-    $guideVersionCurrent = ($developerGuide -match '\u6587\u6863\u7248\u672c[^\r\n]*V5\.1\.2')
+    $guideVersionCurrent = ($developerGuide -match '\u6587\u6863\u7248\u672c[^\r\n]*V5\.1\.3')
     $guideSettingsCurrent = (($developerGuide -match '\u4e94\u9879\u8bbe\u7f6e') -and
                              ($developerGuide -match '15\u9875\u9762'))
     $guideFrequencyCurrent = (($developerGuide -match '20\u2013200kHz') -and
@@ -975,15 +977,15 @@ if (Test-CategoryEnabled 'Documentation') {
     $guideCurrent = ($guideVersionCurrent -and $guideSettingsCurrent -and
                      $guideFrequencyCurrent -and $guideGaugeCurrent)
     $guideClean = ($developerGuide -notmatch $guideStalePattern)
-    $ch341Current = (($ch341Readme -match 'WPT_PWM V5\.1\.2') -and
+    $ch341Current = (($ch341Readme -match 'WPT_PWM V5\.1\.3') -and
                      ($ch341Readme -match '\u5b8c\u65742MB') -and
                      ($ch341Readme -match '\u6bcf\u6b21\u90fd\u65b0\u5efa') -and
                      ($ch341Readme -notmatch 'V5\.0\.2'))
-    Write-Check 'Documentation' 'developer guide is synchronized to V5.1.2' $guideCurrent `
+    Write-Check 'Documentation' 'developer guide is synchronized to V5.1.3' $guideCurrent `
         ("version={0}, settings={1}, frequency={2}, gauge={3}" -f
          $guideVersionCurrent, $guideSettingsCurrent, $guideFrequencyCurrent, $guideGaugeCurrent)
     Write-Check 'Documentation' 'developer guide has no obsolete frequency UI or brightness description' $guideClean
-    Write-Check 'Documentation' 'CH341 guide records V5.1.2 safe full-partition workflow' $ch341Current
+    Write-Check 'Documentation' 'CH341 guide records V5.1.3 safe full-partition workflow' $ch341Current
 }
 
 Write-Host ("Summary: {0} PASS, {1} FAIL" -f $script:PassCount, $script:FailureCount) -ForegroundColor Cyan

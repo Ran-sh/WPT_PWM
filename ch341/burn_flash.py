@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 burn_flash.py — CH341A + flashrom 字库烧录编排
+V5.1.3  2026-07-26  统一发布版本和目录约束
 V5.1.2  2026-07-26  全字库校验、强制新备份、分区写入
 
 用法: python ch341/burn_flash.py

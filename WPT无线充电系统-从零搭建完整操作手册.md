@@ -1,3 +1,7 @@
+# WPT 无线充电系统从零搭建完整操作手册
+
+本手册对应主仓库 `5.0` 分支和 V5.1.3，覆盖目录约束、硬件接线、STM32/ESP8266 烧录、W25Q128 字库、OneNET、网页、小程序、联调、维护和故障恢复。除组件 README 外，这是项目唯一主动维护的用户操作文档。
+
 > #### Word 级排版视觉规范声明
 >
 > | 元素 | 字体 | 字号 | 颜色 | 行距/样式 |
@@ -17,11 +21,11 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V5.1.2 |
+| **文档版本** | V5.1.3 |
 | **最后更新** | 2026-07-26 |
-| **对应固件版本** | V5.1.2 (分支 `5.0`) |
+| **对应固件版本** | V5.1.3 (分支 `5.0`) |
 | **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) |
-| **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages) |
+| **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT)（Cloudflare Workers） |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接, 备选) |
 | **作者** | Rssss |
 
@@ -29,6 +33,7 @@
 
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
+| V5.1.3 | 2026-07-26 | **发布一致性与目录治理**：补齐网页登录守卫；隔离ESP协议串口调试输出；修复小程序预览/离线/报警语义；统一全栈版本；迁移历史资料到NONFILE；整合总手册、README和嵌入式技能。 |
 | V5.1.2 | 2026-07-26 | **全链路优化**: ESP8266双档频率量化、指令精确匹配与串口溢出保护；小程序/网页数据模型迁移、轮询恢复与跨日历史修复；桥接鉴权与输入验证；字库工具新备份、完整2MB校验和分区写入。 |
 | V5.1.1 | 2026-07-26 | **全面加固**: 主题擦除和配色越界修复；外置图标动态布局；字库V2全负载CRC；整帧命令解析；配置语义校验；200ms上电稳定门控；ADC模拟看门狗快速关断；异常最小化关断；实际频率跟踪与2KB栈。 |
 | V5.1.0 | 2026-07-22 | **设置、启动频率与独立表盘重构**: 五项设置、配置V2双档启动频率与全局光标；PWM边界20–200kHz；低档99.9kHz/100Hz与高档200kHz/1kHz动态扫频；15页面递增式独立表盘。 |
@@ -46,11 +51,40 @@
 
 ---
 
-# WPT 无线充电全桥谐振控制系统 — 开发者保姆级复盘指南
+## 0. 开始前先看这里
 
-> **阅读指引**: 这是一份"写给我自己"的复盘手稿。踩过的坑比跑通的代码还多。如果你正在做类似项目——STM32发PWM、ESP8266联网、OneNET云平台、配上网页和小程序——这篇文档就是写给你的。
+这份手册按“先低压控制、再联网、最后接功率”的顺序编写。第一次搭建时不要跳过检查点；维护旧工程时也应先确认目录和版本，再动代码。
 
-[📍此处需配图：系统整体实拍，左边电源+STM32+全桥板+ESP8266+TFT，右边手机显示网页控制台]
+### 0.1 文件应该放在哪里
+
+| 内容 | 正确位置 | 不应放置的位置 |
+|:---|:---|:---|
+| STM32 工程 | `Keil_Project/` | 根目录、网页目录 |
+| ESP8266 固件 | `Arduino_Project/` | STM32 Hardware/User |
+| 网页端 | `ONENETapp/` | `安卓app/` |
+| 微信小程序和可选桥接 | `安卓app/` | 网页仓库 |
+| 字库生成/烧录 | `ch341/` | STM32 源码目录 |
+| 当前维护脚本 | `tools/` | `NONFILE/` |
+| 回归检查 | `tests/`、`Keil_Project/tests/` | 生产代码目录 |
+| 项目技能 | `.agents/skills/` | 普通文档目录 |
+| 历史报告、旧方案、旧图纸 | `NONFILE/` | 根目录 |
+
+项目不再使用 `Claude_Files/` 和 `docs/superpowers/`。旧资料已完整迁移到 `NONFILE/`，生产代码不得引用该目录。
+
+### 0.2 从零完成的正确顺序
+
+1. 阅读安全警告并核对物料、引脚和电源电压。
+2. 只连接控制板，烧录 STM32，确认上电 PWM 与 PB10 保持关闭。
+3. 烧录 ESP8266，完成 WiFiManager 配网。
+4. 目标板断电，使用 CH341A 烧录并校验 W25Q128 字库。
+5. 在 OneNET 建立物模型并填写设备凭证。
+6. 部署网页，导入微信小程序并配置合法域名。
+7. 不接功率级完成串口、页面、按键、状态和远程命令联调。
+8. 使用限流电源接入全桥与线圈，从低功率逐步验证。
+
+### 0.3 版本判断
+
+当前所有活动端都应显示或声明 `V5.1.3`。历史日志出现旧版本属于正常；如果活动代码仍以旧范围、旧步进或旧协议运行，则不是字符串问题，而是功能未同步，必须先修复功能再改版本。
 
 ---
 
@@ -83,7 +117,7 @@
 └──────────────┬──────────────────────────────────────┘
                │ HTTPS
 ┌──────────────┴──────────────────────────────────────┐
-│   Cloudflare Pages (网页) / 微信小程序 (直连 API)     │
+│   Cloudflare Workers 网页 / 微信小程序（直连 API）   │
 └──────────────┬──────────────────────────────────────┘
                │ HTTP API / MQTT
 ┌──────────────┴──────────────────────────────────────┐
@@ -124,7 +158,7 @@
 
 ### 1.4 引脚分配总表
 
-[📍此处需配图：STM32F103C8T6引脚图，用彩色标出本系统用到的每一根引脚]
+接线检查点：逐项用万用表确认3.3V、GND和PB10默认低电平，再连接显示、ESP和功率板。
 
 | Pin | 功能 | 接哪里 | 绝对不能接错的事 |
 |:---|:---|:---|:---|
@@ -165,7 +199,7 @@
 
 ### 2.1 物料清单
 
-[📍此处需配图：全部物料平铺摆放的实物照片，标注每个元件的名称]
+备料检查点：W25Q128和ESP8266只能使用稳定3.3V，功率部分准备带电流限制的12V电源。
 
 | 物料 | 型号 | 数量 | 用途 | 参考价 |
 |:---|:---|:---|:---|:---|
@@ -185,7 +219,7 @@
 
 ### 2.2 接线
 
-**[📍此处需配图：手绘或软件画的接线示意图，用不同颜色标注，特别圈出"独立供电"和"交叉连接"]**
+**接线检查点：ESP8266使用独立、足够电流的3.3V稳压供电；USART必须TX接RX、RX接TX并共地。**
 
 **STM32 ↔ ESP8266 五线连接**:
 ```
@@ -231,7 +265,7 @@ Vin并100μF+0.1μF, Vout并100μF+0.1μF
 
 > **⚠️ GPIO0 必须接 GND** 才能进入烧录模式。烧录完成后, **断开 GPIO0 和 GND 之间的连线**, 重新上电 ESP8266 才会运行你的程序。
 
-[📍此处需配图：USB-TTL接ESP8266-01的实物照片，红色箭头指向GPIO0-GND的短接线]
+烧录检查点：只有上传固件时GPIO0接GND；上传完成后必须断开GPIO0再重新上电。
 
 ---
 
@@ -259,7 +293,7 @@ Vin并100μF+0.1μF, Vout并100μF+0.1μF
 | 设备名称 | `20260001` | 自定义, 但固件里必须一致 |
 | Token | `version=2018-10-31&res=...` | MQTT连接密码, **注意devices是复数!** |
 
-[📍此处需配图：OneNET控制台截图，红框标出产品ID、设备名称、Token三个关键字段]
+配置检查点：Product ID、Device Name和Token区分大小写，Token只从OneNET设备页复制并保存在本地。
 
 ### 3.2 物模型定义
 
@@ -381,7 +415,7 @@ TIM1->CR1  &= ~TIM_CR1_UDIS;   // 恢复
 
 不这么做的话, 在 ARR 和 CCR 写入之间可能触发 Update Event, 新周期配上旧占空比 → 偏磁 → 炸管。
 
-[📍此处需配图：示波器抓取的100kHz PWM波形图，标注死区、50%占空比、互补输出]
+波形检查点：空载、限流条件下确认CH1/CH1N与CH2/CH2N互补、占空约50%且死区存在，再连接全桥。
 
 #### 4.3.3 软启动扫频 — 非阻塞状态机
 
@@ -621,7 +655,7 @@ int main(void) {
 
 ### 5.2 核心逻辑
 
-[📍此处需配图：ESP8266固件流程图，从setup→loop→ensureConnected→串口收发的完整流程]
+固件检查点：生产版 `ESP8266_DEBUG_ENABLED` 必须为0；如临时打开调试，先断开STM32协议串口，验证后恢复为0。
 
 #### 5.2.1 WiFiManager 配网
 
@@ -671,16 +705,16 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 > ### 🛠️ 调试避坑与排错指南 #4: ESP8266 反复重启 / 连不上 WiFi
 >
 > **现象分类**:
-> - **串口循环输出 `Booting...`**: 供电不足, 或 WiFiManager 没有已存凭据又没有 startConfigPortal 兜底
+> - **模块反复重启**: 供电不足，或 WiFiManager 没有已存凭据又没有进入配置热点
 > - **WiFi 连上了但 OneNET 离线**: MQTT 地址错误 或 Token 错误
 > - **OneNET 命令"响应超时"**: 固件里缺少 set_reply 应答逻辑
 >
 > **手把手排查**:
 > 1. 先测 ESP8266 VCC: 必须是稳定的 3.3V (万用表量, 不是看电源标签)
-> 2. 串口监视器 115200 看日志: `[WiFi] Connected! IP: xxx` 说明WiFi OK
-> 3. `[MQTT] >>> OneNET Connected successfully! <<<` 说明MQTT OK
-> 4. 两项都 OK 但 OneNET 还离线 → 进 OneNET 控制台看设备状态, 可能是 Token/产品ID 填错了
-> 5. 从串口发 `{"V":12.5,"I":1.2,"F":100000}\n` → OneNET 数据流应立刻看到
+> 2. 生产固件默认关闭调试日志，优先通过TFT WiFi/MQTT图标和OneNET设备状态判断连接结果
+> 3. 如必须看ESP日志，临时把 `ESP8266_DEBUG_ENABLED` 设为1并断开STM32串口连接，排查后恢复为0
+> 4. WiFi正常但OneNET离线时，检查Token、Product ID、Device Name和MQTT地址
+> 5. 恢复生产设置后再接回STM32，确认协议串口只有 `STATUS:`、`CMD:` 和遥测帧
 > ---
 
 ### 5.3 ESP8266 烧录
@@ -688,18 +722,19 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 1. USB-TTL 接 ESP8266-01 (**GPIO0 必须接 GND**)
 2. Arduino IDE → 上传(→), 等待 ~30 秒
 3. 烧录完成后 **断开 GPIO0-GND** → 重新上电
-4. 串口监视器 115200 看日志
+4. 生产版保持 `ESP8266_DEBUG_ENABLED=0`；通过配置热点、TFT图标和OneNET状态确认联网
 
 ---
 
-## 6. 网页控制台 (Cloudflare Pages)
+## 6. 网页控制台（Cloudflare Workers）
 
 ### 6.1 部署
 
-1. 确保代码在 GitHub: `https://github.com/Ran-sh/WPT_Onenet_IoT`
-2. [pages.cloudflare.com](https://pages.cloudflare.com) → GitHub 登录
-3. Create project → 选仓库 → 不设构建命令(静态站点) → Deploy
-4. 得到 `wptonenet.483763727.workers.dev` 公网地址
+1. 确保网页代码已推送到 `https://github.com/Ran-sh/WPT_Onenet_IoT` 的 `master`，并让 `gh-pages` 与其快进同步。
+2. 打开 Cloudflare Dashboard → Workers & Pages → Create → Import a repository。
+3. 选择网页仓库；该项目使用 `wrangler.jsonc` 的静态资源配置，无需前端构建命令。
+4. 首次部署后访问 `https://wptonenet.483763727.workers.dev/`，确认登录页、首页和 Service Worker 均能加载。
+5. 后续每次网页仓库推送后，等待 Cloudflare 的 Git 部署完成，再无痕打开线上地址验证版本元数据为 V5.1.3。
 
 ### 6.2 关键设计
 
@@ -707,7 +742,9 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 - **重试**: `setProperty` 网络/业务错误各重试 3 次 (500ms/800ms 间隔)
 - **连接指示**: 同步成功(绿) / 设备离线(黄) / 失败(红)
 - **数据模型**: `config.js` DEFAULT_DATA_MODEL → sensors(V/I/F) + controls(Switch/SetFreq)
-- **频率映射**: `fromCloud: v => Math.floor(v/1000)` / `toCloud: v => v*1000`, Web 显示 kHz
+- **频率映射**: 云端 Hz 除以1000后保留0.1kHz精度；下发时乘1000，避免99.9kHz被截成99kHz
+- **登录守卫**: 6个业务页面必须先加载 `js/auth-guard.js`；会话登录随浏览器会话结束，勾选保持登录时最长7天
+- **退出登录**: 同时清理会话登录和持久登录，不能只删除其中一个状态
 
 ### 6.3 各页面功能
 
@@ -722,11 +759,11 @@ STM32 发来 `{"V":12.50, "I":1.23, "F":100000, "S":2}` → ESP8266 转为 OneNE
 
 ---
 
-## 7. 微信小程序 (6页面+Component)
+## 7. 微信小程序（6页面+Component）
 
 ### 7.1 架构
 
-V4.2.0 小程序**直连 OneNET HTTP API**, 与网页端完全相同的后端逻辑:
+V5.1.3 小程序默认**直连 OneNET HTTP API**，不依赖本地电脑、ngrok 或桥接服务器：
 
 ```
 小程序 ──HTTPS── OneNET API ──MQTT── ESP8266 ── STM32
@@ -739,6 +776,7 @@ V4.2.0 小程序**直连 OneNET HTTP API**, 与网页端完全相同的后端逻
 - **首页**: 动态渲染传感器卡片 + 控制卡片 (`buildCards()` → WXML 遍历)
 - **控制页**: Switch 防抖 (`_switchPending` 立即重置) + 频率 Swiper + 操作日志
 - **历史页**: Canvas 2D 曲线 + 数据表(圆圈状态 ✓/✕) + CSV 导出
+- **未配置预览**: `_isMock=true` 且 `_isOnline=false`，允许查看界面效果，但不触发报警、不写在线历史、不开放控制
 
 ### 7.2 关键禁忌
 
@@ -746,20 +784,85 @@ V4.2.0 小程序**直连 OneNET HTTP API**, 与网页端完全相同的后端逻
 - `templates/` 目录已删除, 不可引用
 - 存储键: `wpt_latest`, `wpt_history`(1440max), `wpt_alerts`(50max) 等
 
+### 7.3 导入和正式发布
+
+1. 在微信开发者工具中导入 `安卓app/`。
+2. 将自己的小程序 AppID 写入 `安卓app/project.config.json`；不要提交私有 AppID 变更。
+3. 开发阶段可以临时关闭合法域名校验；正式发布前必须在微信公众平台把 `https://iot-api.heclouds.com` 加入 request 合法域名。
+4. 打开小程序设置页，填写 OneNET Product ID、Device Name 和 Token。Token 只保存在微信本地存储中。
+5. 依次验证首页、监测、控制、历史、报警和设置，再上传体验版、提交审核并发布。
+
+### 7.4 可选本地桥接
+
+`安卓app/server/` 仅供第三方客户端或 MQTT 调试使用，不是小程序默认链路。启动前必须设置 `WPT_BRIDGE_API_KEY`；如需跨域，再把 `WPT_ALLOWED_ORIGIN` 设置为精确来源。
+
+```powershell
+cd 安卓app/server
+npm install
+$env:WPT_BRIDGE_API_KEY = '替换为高强度随机密钥'
+npm start
+```
+
+也可在项目根目录运行 `tools/start_bridge.ps1`。`POST /cmd` 必须携带 `X-WPT-Key`，只接受完整的 ON、OFF 和合法双档步进 SETFREQ 命令；MQTT 离线时返回503。
+
 ---
 
-## 8. 联调指南
+## 8. W25Q128 全字库与 CH341A 烧录
 
-### 8.1 上电顺序
+### 8.1 接线和不可跳过的安全条件
 
-> **⚠️ 关键**: **先给 ESP8266 上电, 等 5 秒, 再给 STM32 上电**。
+目标板必须拔掉 USB 和外部电源并等待5秒，CH341A 跳线必须处于3.3V。5V会永久损坏W25Q128；目标板带电时会与CH341A争用SPI总线。
 
-1. ESP8266 独立 3.3V 上电 → 等 ~5s WiFi+MQTT 连好
-2. STM32 上电 → TFT 显示启动画面 → `Sys_Post_Init()` 启动联网
-3. ESP8266 发 `STATUS:ONLINE` → TFT 显示主菜单
-4. 网页/小程序应该能看到数据
+| CH341A | 目标板 | STM32 引脚 |
+|:---|:---|:---|
+| CS | FLASH_CS | PB12 |
+| CLK | SPI1_SCK | PA5 |
+| MOSI | Flash DI | PA7 |
+| MISO | Flash DO | PA6 |
+| GND | GND | GND |
+| 3.3V | Flash VCC | 3.3V |
 
-### 8.2 逐环节验证
+### 8.2 首次安装
+
+1. 运行 `ch341/flashrom-1.4/zadig-2.8.exe`。
+2. 在 Options 中勾选 List All Devices，选择 CH341A，把驱动替换为 WinUSB。
+3. 安装 Python 3.10+，然后执行 `python -m pip install -r ch341/requirements.txt`。
+4. 执行 `ch341/flashrom-1.4/flashrom.exe --version`，确认本地 flashrom 可用。
+
+### 8.3 生成、备份、烧录和校验
+
+```powershell
+python ch341/generate_font.py
+python ch341/burn_flash.py
+```
+
+`generate_font.py` 生成带 V2 头部和完整有效负载 CRC32 的2MB字库镜像。`burn_flash.py` 每次先新建16MB全片备份，只更新前2MB字库分区，最后逐字节读回前2MB；只有0差异才算成功。配置区和黑匣子区不会被字库更新覆盖。
+
+烧录成功后先拔掉CH341A USB和6根连接线，再给目标板上电。启动时若字库头或CRC无效，固件会回退到ROM字库，不应让整机卡死。
+
+### 8.4 从备份恢复
+
+如果烧录后出现异常，保持目标板完全断电并使用刚才生成的时间戳备份：
+
+```powershell
+ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_<时间戳>_16MB.bin -c W25Q128.V
+```
+
+---
+
+## 9. 联调指南
+
+### 9.1 上电顺序
+
+> **关键**：当前板级架构由STM32的PB11控制ESP8266使能，不需要人工分两次上电。
+
+1. 确认功率12V关闭，只给控制板和稳定3.3V电源上电。
+2. STM32先钳位ESP控制脚，完成时基、硬件、字库和参数初始化，TFT显示V5.1.3开机画面。
+3. `Sys_Post_Init()` 释放PB11并以非阻塞状态机启动ESP8266。
+4. ESP8266联网后发送 `STATUS:ONLINE`，TFT更新WiFi/MQTT图标。
+5. 网页和小程序应显示真实V/I，停机时F为0。
+
+### 9.2 逐环节验证
 
 | 步骤 | 检查什么 | 怎么算通过 | 如果没过 |
 |:---|:---|:---|:---|
@@ -771,7 +874,7 @@ V4.2.0 小程序**直连 OneNET HTTP API**, 与网页端完全相同的后端逻
 | 6 | 网页数据 | 首页显示实时数据 | 检查设置页 OneNet 配置 |
 | 7 | 网页控制 | 点开关, TFT 响应 | 检查 CMD 指令链路 |
 
-### 8.3 调试工具速查
+### 9.3 调试工具速查
 
 | 工具 | 干什么用 | 怎么用 |
 |:---|:---|:---|
@@ -789,7 +892,7 @@ curl "https://iot-api.heclouds.com/thingmodel/query-device-property?product_id=�
 
 ---
 
-## 9. 故障速查总表
+## 10. 故障速查总表
 
 | 症状 | 第一反应去查什么 | 大概率是 |
 |:---|:---|:---|
@@ -806,9 +909,9 @@ curl "https://iot-api.heclouds.com/thingmodel/query-device-property?product_id=�
 
 ---
 
-## 10. 踩坑全记录 (避坑指南精华)
+## 11. 踩坑全记录（避坑指南精华）
 
-### 10.1 频率控制方案的四次迭代
+### 11.1 频率控制方案的四次迭代
 
 | 版本 | 怎么做 | 为什么不好 |
 |:---|:---|:---|
@@ -817,7 +920,7 @@ curl "https://iot-api.heclouds.com/thingmodel/query-device-property?product_id=�
 | V3 CMD:SETFREQ (跳变) | 瞬间设频率 | 跳频太暴力, 不安全 |
 | **V4 SETFREQ + 渐变** ✅ | 1000Hz/10ms 斜坡到达 | 平滑, 可中断, **当前方案** |
 
-### 10.2 网页部署的四代方案
+### 11.2 网页部署的四代方案
 
 | 阶段 | 用了什么 | 为什么换了 |
 |:---|:---|:---|
@@ -826,11 +929,11 @@ curl "https://iot-api.heclouds.com/thingmodel/query-device-property?product_id=�
 | V3 | GitHub Pages | 路由有 bug, 404 |
 | **V4** | **Cloudflare Pages** ✅ | 免费不限量, 原生 SPA 路由 |
 
-### 10.3 `device` vs `devices` — 一个字母的惨案
+### 11.3 `device` vs `devices` — 一个字母的惨案
 
 Token 里是 `devices` (复数), 不是 `device`。写成单数会让 OneNET 返回 `authentication failed: invalid res`, 让你怀疑人生半小时。
 
-### 10.4 TFT 中文"综合"变"失败"
+### 11.4 TFT 中文"综合"变"失败"
 
 **现象**: TFT 上"综合监测"菜单项显示为"失败监测"(实际是"回失监测")。
 
@@ -838,18 +941,19 @@ Token 里是 `devices` (复数), 不是 `device`。写成单数会让 OneNET 返
 
 **修复**: 用户提供标准宋体 16×16 字模, 替换 CN_FONT[74]→"综", CN_FONT[75]→"合"。现在 76 字完全对齐。
 
-### 10.5 WiFiManager v2.x `autoConnect` 不自动开 AP
+### 11.5 WiFiManager v2.x `autoConnect` 不自动开 AP
 
 加 `startConfigPortal()` 兜底, 否则没凭据就不开热点, ESP8266 反复重启。
 
-### 10.6 CORS 不是问题的"问题"
+### 11.6 CORS 不是问题的"问题"
 
 一直以为是跨域问题, F12 查了半天 CORS 头。最后发现 OneNET API 本来就返回 `Access-Control-Allow-Origin: *`, 真正的问题是 Token 里 `device` 少了一个 `s`。
 
-### 10.7 审查历史
+### 11.7 审查历史
 
 | 版本 | 关键修复 |
 |:---|:---|
+| V5.1.3 | 网页登录守卫、ESP协议串口隔离、小程序预览语义、目录治理、单一总手册和嵌入式技能同步。 |
 | V5.1.2 | ESP8266、小程序、网页、桥接与CH341A工具的频率、安全、生命周期和数据一致性修复。 |
 | V5.1.1 | 显示、图标、字库、配置和命令边界修复；200ms上电门控；ADC模拟看门狗快速关断；异常安全路径与实际频率跟踪。 |
 | V5.1.0 | 五项设置、配置V2双档启动频率与全局光标；20–200kHz边界、低档99.9kHz/高档200kHz动态扫频；15页面递增式独立表盘。 |
@@ -860,4 +964,4 @@ Token 里是 `devices` (复数), 不是 `device`。写成单数会让 OneNET 返
 
 ---
 
-> **全文完**。本文已与 V5.1.2 固件同步。如果你跟着做遇到问题, 回头翻第 9 章故障速查表；涉及功率部分时务必先断开12V并确认PB10为低。祝你的全桥不发烫, ESP8266 不掉线, OneNET 不报401, TFT不显示乱码。
+> **全文完**。本文已与 V5.1.3 固件同步。遇到问题先查第10章故障速查表；涉及功率部分时必须先关闭PWM、拉低PB10并断开12V。

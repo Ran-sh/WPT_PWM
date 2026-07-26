@@ -17,7 +17,7 @@ function Read-Utf8([string]$RelativePath) {
     return [IO.File]::ReadAllText((Join-Path $Root $RelativePath), [Text.Encoding]::UTF8)
 }
 
-foreach ($relative in @('Claude_Files/tools/start_bridge.ps1', 'Claude_Files/tools/stop_bridge.ps1')) {
+foreach ($relative in @('tools/start_bridge.ps1', 'tools/stop_bridge.ps1')) {
     $path = Join-Path $Root $relative
     $tokens = $null
     $errors = $null
@@ -30,6 +30,8 @@ foreach ($relative in @('Claude_Files/tools/start_bridge.ps1', 'Claude_Files/too
 $package = Get-Content -Raw -Encoding UTF8 (Join-Path $Root '安卓app/server/package.json') | ConvertFrom-Json
 Assert-True ($package.scripts.start -eq 'node bridge.mjs') 'bridge package start path is valid from its own directory'
 Assert-True ($package.scripts.test -eq 'node --test ../../tests/bridge-core.test.mjs') 'bridge package exposes deterministic tests'
+$bridgeStart = Read-Utf8 'tools/start_bridge.ps1'
+Assert-True ($bridgeStart -match "'\.\.\\安卓app\\server'" -and $bridgeStart -notmatch "\.\.\\\.\.\\安卓app") 'bridge launcher resolves the server from the migrated tools directory'
 
 $arduino = Read-Utf8 'Arduino_Project/ESP8266_MQTT_Firmware/ESP8266_MQTT_Firmware.ino'
 Assert-True ($arduino -match '#define\s+FREQ_MIN_HZ\s+20000') 'ESP8266 accepts 20kHz minimum'
@@ -37,7 +39,7 @@ Assert-True ($arduino -match '#define\s+FREQ_MAX_HZ\s+200000') 'ESP8266 accepts 
 Assert-True ($arduino -match '#define\s+PUBLIC_MQTT_ENABLED\s+0') 'public MQTT is disabled by default'
 Assert-True ($arduino -match 'Mqtt_Task_Quantize_Frequency') 'ESP8266 uses dual-band frequency quantization'
 Assert-True ($arduino -match 's_serial_overflowed') 'ESP8266 drops complete oversized serial frames with a module-scoped flag'
-Assert-True ($arduino -match 'V5\.1\.2') 'ESP8266 version is synchronized'
+Assert-True ($arduino -match 'V5\.1\.3') 'ESP8266 version is synchronized'
 
 $miniControl = Read-Utf8 '安卓app/pages/control/control.js'
 Assert-True ($miniControl -match '_startPolling') 'control page centralizes polling restart'
@@ -61,8 +63,8 @@ Assert-True ($keilCleanup -notmatch '(?m)^\s*del\s+\*\.[^\r\n]*\s+/s\s*$') 'Keil
 
 $allC = Get-ChildItem (Join-Path $Root 'Keil_Project') -Recurse -Filter '*.c' |
     Where-Object { $_.FullName -notmatch '[\\/](Library|Start)[\\/]' }
-$badC = @($allC | Where-Object { ([IO.File]::ReadAllText($_.FullName, [Text.Encoding]::UTF8)) -notmatch 'V5\.1\.2' })
-Assert-True ($badC.Count -eq 0) 'all STM32 C headers use V5.1.2'
+$badC = @($allC | Where-Object { ([IO.File]::ReadAllText($_.FullName, [Text.Encoding]::UTF8)) -notmatch 'V5\.1\.3' })
+Assert-True ($badC.Count -eq 0) 'all STM32 C headers use V5.1.3'
 
 $appNetwork = Read-Utf8 'Keil_Project/User/App_Network.c'
 $retryBody = [regex]::Match(

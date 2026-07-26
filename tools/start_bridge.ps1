@@ -1,8 +1,8 @@
 ﻿# WPT 桥接服务器与 ngrok 安全启动脚本
-# 只管理本脚本创建的进程，不会终止占用端口的其他程序。
+# V5.1.3：只管理本脚本创建的进程，不会终止占用端口的其他程序。
 
 $ErrorActionPreference = 'Stop'
-$BridgeDir = Join-Path $PSScriptRoot '..\..\安卓app\server'
+$BridgeDir = Join-Path $PSScriptRoot '..\安卓app\server'
 $BridgePort = 3000
 $StateFile = Join-Path $env:TEMP 'wpt_bridge_state.json'
 $BridgeOutLog = Join-Path $env:TEMP 'wpt_bridge_stdout.log'

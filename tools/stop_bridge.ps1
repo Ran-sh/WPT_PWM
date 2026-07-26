@@ -1,5 +1,5 @@
 ﻿# WPT 桥接服务器与 ngrok 安全停止脚本
-# 仅停止启动脚本记录的进程，避免误伤其他 Node.js 或 ngrok 服务。
+# V5.1.3：仅停止启动脚本记录的进程，避免误伤其他 Node.js 或 ngrok 服务。
 
 $ErrorActionPreference = 'Stop'
 $StateFile = Join-Path $env:TEMP 'wpt_bridge_state.json'

@@ -1,6 +1,6 @@
 /**
- * generate_docx.js — 通用 Markdown → 专业排版 .docx 转换器
- * 用法: node claude_code/tools/generate_docx.js <md文件>
+ * generate_docx.js — WPT V5.1.3 Markdown → 专业排版 .docx 转换器
+ * 用法: node tools/generate_docx.js <md文件>
  */
 
 const fs = require("fs");
@@ -15,7 +15,7 @@ const {
 const args = process.argv.slice(2);
 const mdFiles = args.length > 0 ? args : [];
 if (mdFiles.length === 0) {
-  console.log("用法: node claude_code/tools/generate_docx.js <文件1.md> [文件2.md ...]");
+  console.log("用法: node tools/generate_docx.js <文件1.md> [文件2.md ...]");
   process.exit(1);
 }
 
