@@ -17,6 +17,14 @@ void  Adc_Driver_Init(void);
 void  Adc_Driver_Filter_Task(void);
 /** @brief DMA1通道1传输完成中断入口，仅复制双通道原始快照 */
 void  Adc_Driver_DMA_Transfer_Complete_ISR(void);
+/** @brief ADC模拟看门狗中断入口，立即关闭PWM并锁存快速过流事件 */
+void  Adc_Driver_Analog_Watchdog_ISR(void);
+/** @brief 查询快速过流锁存
+ *  @retval 1表示模拟看门狗曾触发，0表示未触发
+ */
+uint8_t Adc_Driver_Is_Fast_Overcurrent_Latched(void);
+/** @brief 清除快速过流锁存，并重新允许模拟看门狗中断 */
+void  Adc_Driver_Clear_Fast_Overcurrent_Latch(void);
 /** @brief 获取最近一次完成显示/安全滤波的采样序号 */
 uint32_t Adc_Driver_Get_Processed_Sequence(void);
 /** @brief 推进非阻塞校准状态机

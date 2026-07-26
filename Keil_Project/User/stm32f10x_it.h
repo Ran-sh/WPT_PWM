@@ -28,6 +28,8 @@ void SysTick_Handler(void);
 
 /** @brief ADC1 DMA传输完成入口，提交一组双通道原始采样。 */
 void DMA1_Channel1_IRQHandler(void);
+/** @brief ADC1模拟看门狗入口，执行快速过流关断。 */
+void ADC1_2_IRQHandler(void);
 /** @brief USART2接收、溢出恢复和发送空入口。 */
 void USART2_IRQHandler(void);
 

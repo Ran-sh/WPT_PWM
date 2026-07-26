@@ -7,7 +7,7 @@ del *.mpf /s
 del *.mpj /s
 del *.obj /s
 del *.omf /s
-::del *.opt /s  ::²»ÔÊĞíÉ¾³ıJLINKµÄÉèÖÃ
+::del *.opt /s  ::ä¸å…è®¸åˆ é™¤JLINKçš„è®¾ç½®
 del *.plg /s
 del *.rpt /s
 del *.tmp /s
@@ -24,4 +24,5 @@ del *.iex /s
 del *.htm /s
 del *.sct /s
 del *.map /s
+del *.hex /s
 exit

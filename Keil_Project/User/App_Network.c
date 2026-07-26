@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/App_Network.c
- * @brief   ESP8266连接管理、远程命令与遥测应用层 — V5.1.0
+ * @brief   ESP8266连接管理、远程命令与遥测应用层 — V5.1.1
  *
  *  硬件连接与通信协议:
  *  +------------------------------------------------------------+
@@ -68,6 +68,64 @@ static uint8_t App_Network_Map_Telemetry_State(Sys_State state)
         default:
             return 0U;
     }
+}
+
+static uint8_t App_Network_Is_Exact_Frame(const char *frame,
+                                          const char *expected)
+{
+    if (frame == 0 || expected == 0) return 0U;
+    return (strcmp(frame, expected) == 0) ? 1U : 0U;
+}
+
+static uint8_t App_Network_Is_Canonical_Number(const char *text,
+                                               uint8_t allow_negative)
+{
+    const char *cursor;
+
+    if (text == 0 || *text == '\0') return 0U;
+    cursor = text;
+    if (*cursor == '-') {
+        if (allow_negative == 0U) return 0U;
+        cursor++;
+    }
+    if (*cursor < '0' || *cursor > '9') return 0U;
+    while (*cursor >= '0' && *cursor <= '9') cursor++;
+    return (*cursor == '\0') ? 1U : 0U;
+}
+
+static uint8_t App_Network_Parse_Number_Frame(const char *frame,
+                                              const char *prefix,
+                                              long minimum, long maximum,
+                                              long *value)
+{
+    const char *number_text;
+    char *endp;
+    long parsed;
+    size_t prefix_len;
+
+    if (frame == 0 || prefix == 0 || value == 0) return 0U;
+    prefix_len = strlen(prefix);
+    if (strncmp(frame, prefix, prefix_len) != 0) return 0U;
+    number_text = frame + prefix_len;
+    if (App_Network_Is_Canonical_Number(number_text,
+            (minimum < 0L) ? 1U : 0U) == 0U) return 0U;
+    parsed = strtol(number_text, &endp, 10);
+    if (endp == number_text || *endp != '\0' ||
+        parsed < minimum || parsed > maximum) return 0U;
+    *value = parsed;
+    return 1U;
+}
+
+static uint8_t App_Network_Is_Recovery_Frame(const char *frame)
+{
+    long value;
+
+    if (App_Network_Is_Exact_Frame(frame, "STATUS:MQTT") != 0U) return 1U;
+    if (App_Network_Parse_Number_Frame(frame, "STATUS:ONLINE:RSSI=",
+                                       -127L, 0L, &value) != 0U) return 1U;
+    if (App_Network_Parse_Number_Frame(frame, "STATUS:RSSI=",
+                                       -127L, 0L, &value) != 0U) return 1U;
+    return 0U;
 }
 
 uint8_t App_Network_Start_Connect(void)
@@ -202,8 +260,7 @@ static void App_Network_Check_Offline_Recovery(void)
             return;
 
         /* 只响应表示连接进展的状态帧，忽略断开帧以避免反复切换。 */
-        if (strstr(local_buf, "STATUS:MQTT") || strstr(local_buf, "STATUS:ONLINE")
-            || strstr(local_buf, "STATUS:RSSI=")) {
+        if (App_Network_Is_Recovery_Frame(local_buf) != 0U) {
             s_conn_state    = APP_NETWORK_CONN_WIFI;
             s_retry_count   = 0;
             s_connect_start = Sys_Timer_Get_Tick();
@@ -244,47 +301,60 @@ void App_Network_Task(void)
 
     /* 接收帧在一个临界区内完成判断、复制和消费，避免中断竞争造成丢帧。 */
     {
-        char local_buf[256]; const char* p;
-        Inverter_Control_Soft_Start_State ss_cmd; uint8_t conn_cs;
+        char local_buf[256];
+        Inverter_Control_Soft_Start_State ss_cmd;
+        uint8_t conn_cs;
+        uint8_t frame_valid;
+        long parsed_value;
 
         if (!Esp8266_Driver_Try_Copy_Rx_Frame(local_buf, sizeof(local_buf)))
             goto skip_frame;                             /* 没有完整帧时跳过解析。 */
 
-        s_last_esp_ms = Sys_Timer_Get_Tick();
-
-        ss_cmd  = Inverter_Control_Soft_Start_Get_State(); conn_cs = s_conn_state; /* 固定本帧解析所用状态。 */
+        frame_valid = 0U;
+        parsed_value = 0L;
+        ss_cmd  = Inverter_Control_Soft_Start_Get_State();
+        conn_cs = s_conn_state; /* 固定本帧解析所用状态。 */
         if (s_conn_state == APP_NETWORK_CONN_OFFLINE_PASSIVE
          || s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE)
             goto skip_frame;                             /* 主动离线时丢弃帧，防止状态回显解除门控。 */
 
-        if (strstr(local_buf, "STATUS:DISCONNECTED")) {
+        if (App_Network_Is_Exact_Frame(local_buf,
+                                       "STATUS:DISCONNECTED") != 0U) {
+            frame_valid = 1U;
             s_conn_state    = APP_NETWORK_CONN_WIFI;
             s_retry_count   = 0;
             s_connect_start = Sys_Timer_Get_Tick();
             s_rssi          = -100;
             Led_Driver_Set_WiFi(LED_DRIVER_STATE_SLOW);
         }
-        else if (strstr(local_buf, "STATUS:MQTT")) {
+        else if (App_Network_Is_Exact_Frame(local_buf,
+                                            "STATUS:MQTT") != 0U) {
+            frame_valid = 1U;
             if (conn_cs == APP_NETWORK_CONN_WIFI) {
                 s_conn_state    = APP_NETWORK_CONN_MQTT;
                 s_connect_start = Sys_Timer_Get_Tick();
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_FAST);
             }
         }
-        else if (strstr(local_buf, "STATUS:ONLINE")) {
-            const char* r = strstr(local_buf, "RSSI=");
-            if (r) s_rssi = (int8_t)strtol(r + 5, NULL, 10);
+        else if (App_Network_Parse_Number_Frame(
+                     local_buf, "STATUS:ONLINE:RSSI=", -127L, 0L,
+                     &parsed_value) != 0U) {
+            frame_valid = 1U;
+            s_rssi = (int8_t)parsed_value;
             if (conn_cs != APP_NETWORK_CONN_ONLINE) {
                 s_conn_state = APP_NETWORK_CONN_ONLINE;
                 s_retry_count = 0;
                 Led_Driver_Set_WiFi(LED_DRIVER_STATE_ON);
             }
         }
-        else if (strstr(local_buf, "STATUS:RSSI=")) {
-            const char* r = strstr(local_buf, "RSSI=");
-            if (r) s_rssi = (int8_t)strtol(r + 5, NULL, 10);
+        else if (App_Network_Parse_Number_Frame(
+                     local_buf, "STATUS:RSSI=", -127L, 0L,
+                     &parsed_value) != 0U) {
+            frame_valid = 1U;
+            s_rssi = (int8_t)parsed_value;
         }
-        else if ((p = strstr(local_buf, "CMD:OFF")) != 0  && (p[7] == '\0' || p[7] == '\r' || p[7] == '\n')) {
+        else if (App_Network_Is_Exact_Frame(local_buf, "CMD:OFF") != 0U) {
+            frame_valid = 1U;
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_SWEEP || ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {
                     if (Sys_Core_Request_Stop() == SYS_CONTROL_RESULT_OK) {
@@ -293,7 +363,8 @@ void App_Network_Task(void)
                 }
             }
         }
-        else if ((p = strstr(local_buf, "CMD:ON")) != 0   && (p[6] == '\0' || p[6] == '\r' || p[6] == '\n')) {
+        else if (App_Network_Is_Exact_Frame(local_buf, "CMD:ON") != 0U) {
+            frame_valid = 1U;
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_IDLE) {
                     if (Sys_Core_Request_Start() == SYS_CONTROL_RESULT_OK) {
@@ -302,20 +373,20 @@ void App_Network_Task(void)
                 }
             }
         }
-        else if ((p = strstr(local_buf, "CMD:SETFREQ:")) != 0) {
+        else if (App_Network_Parse_Number_Frame(
+                     local_buf, "CMD:SETFREQ:",
+                     (long)PWM_DRIVER_FREQ_MIN_HZ,
+                     (long)PWM_DRIVER_FREQ_MAX_HZ,
+                     &parsed_value) != 0U) {
+            frame_valid = 1U;
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {
-                    const char* f_str = p + 12;
-                    if (*f_str >= '0' && *f_str <= '9') {
-                        char* endp;
-                        long f = strtol(f_str, &endp, 10);  /* 使用带结束指针的转换函数检查格式和溢出。 */
-                        if (endp != f_str && f >= (long)PWM_DRIVER_FREQ_MIN_HZ
-                            && f <= (long)PWM_DRIVER_FREQ_MAX_HZ)
-                            Inverter_Control_Freq_Ramp_Trigger((uint32_t)f);
-                    }
+                    Inverter_Control_Freq_Ramp_Trigger(
+                        (uint32_t)parsed_value);
                 }
             }
         }
+        if (frame_valid != 0U) s_last_esp_ms = Sys_Timer_Get_Tick();
     }
     skip_frame:
 

@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Ui_Controller.c
- * @brief   人机界面页面、按键导航与增量刷新控制 — V5.1.0
+ * @brief   人机界面页面、按键导航与增量刷新控制 — V5.1.1
  *
  *  模块依赖关系:
  *  +----------------------------------------------------------+
@@ -320,6 +320,11 @@ static const ColorPreset COLOR_PRESETS[6] = {
     {"\xe9\x9c\x9c\xe7\x99\xbd",             "Frost",     0xE8E0,0x1C14,0x6040},
 };
 
+static uint8_t Ui_Controller_Normalize_Color_Preset(uint8_t preset)
+{
+    return (preset < 6U) ? preset : 0U;
+}
+
 /* 增量刷新状态。 */
 static uint8_t s_page_drawn         = 0;    /* 0表示需要整页重绘，1表示静态内容已存在 */
 static uint8_t s_last_is_running    = 0xFF; /* 上一次PWM运行状态 */
@@ -425,6 +430,13 @@ static void Ui_Controller_Draw_Header(const char* title)
     Ui_Controller_Draw_TopRight_Icons();
 }
 
+static void Ui_Controller_Erase_Area(uint16_t x, uint16_t y,
+                                     uint16_t width, uint16_t height)
+{
+    Tft_Driver_Fill_Rect(x, y, width, height,
+                         Ui_Controller_Get_Background_Color());
+}
+
 /* ================================================================
  *  菜单光标：在横坐标0处绘制或擦除16乘16星形图标
  * ================================================================ */
@@ -432,7 +444,7 @@ static void Ui_Controller_Draw_Menu_Cursor(uint8_t row, uint8_t selected)
 {
     uint8_t icon_id;
 
-    Tft_Driver_Erase_Pixel_Area(0U,
+    Ui_Controller_Erase_Area(0U,
         (uint16_t)row * TFT_FONT_HEIGHT, 16U, TFT_FONT_HEIGHT);
     if (selected == 0U) return;
 
@@ -456,7 +468,7 @@ static void Ui_Controller_Draw_Cursor(uint8_t line)
 static void Ui_Controller_Erase_Cursor(uint8_t line)
 {
     /* 用背景色擦除16乘16光标区域。 */
-    Tft_Driver_Erase_Pixel_Area(0, (uint16_t)line * TFT_FONT_HEIGHT, 16, 16);
+    Ui_Controller_Erase_Area(0U, (uint16_t)line * TFT_FONT_HEIGHT, 16U, 16U);
 }
 
 /* ================================================================
@@ -464,7 +476,8 @@ static void Ui_Controller_Erase_Cursor(uint8_t line)
  * ================================================================ */
 static void Ui_Controller_Erase_Line(uint8_t line)
 {
-    Tft_Driver_Erase_Pixel_Area(0, (uint16_t)line * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT);
+    Ui_Controller_Erase_Area(0U, (uint16_t)line * TFT_FONT_HEIGHT,
+                             TFT_WIDTH, TFT_FONT_HEIGHT);
 }
 
 static void Ui_Controller_Draw_Divider(uint8_t line)
@@ -476,7 +489,9 @@ static void Ui_Controller_Draw_Divider(uint8_t line)
 static void Ui_Controller_Draw_Menu_Text(uint8_t line, uint8_t col, const char* text, uint8_t enabled)
 {
     uint16_t color = enabled ? Ui_Controller_Get_Text_Color() : Uc_Dim();
-    Tft_Driver_Erase_Pixel_Area(col * 8, (uint16_t)line * TFT_FONT_HEIGHT, TFT_WIDTH - col * 8, TFT_FONT_HEIGHT);
+    Ui_Controller_Erase_Area((uint16_t)col * 8U,
+        (uint16_t)line * TFT_FONT_HEIGHT,
+        TFT_WIDTH - (uint16_t)col * 8U, TFT_FONT_HEIGHT);
     Tft_Driver_Show_CN_String(line, col, text, color, Ui_Controller_Get_Background_Color());
 }
 
@@ -684,7 +699,8 @@ static void Ui_Controller_Draw_Sweep_Full(void)
     {
         uint32_t progress;
         progress = Ui_Controller_Get_Sweep_Progress(f, is_stopped);
-        Tft_Driver_Erase_Pixel_Area(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT + 8);
+        Ui_Controller_Erase_Area(0U, 3U * TFT_FONT_HEIGHT,
+                                 TFT_WIDTH, TFT_FONT_HEIGHT + 8U);
         if (!is_stopped) {
             Ui_Controller_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                            14 * TFT_FONT_WIDTH, 8,
@@ -754,7 +770,8 @@ static void Ui_Controller_Sweep_Dynamic_Update(void)
         }
 
         if (draw) {
-            Tft_Driver_Erase_Pixel_Area(0, 3 * TFT_FONT_HEIGHT, TFT_WIDTH, TFT_FONT_HEIGHT + 8);
+            Ui_Controller_Erase_Area(0U, 3U * TFT_FONT_HEIGHT,
+                                     TFT_WIDTH, TFT_FONT_HEIGHT + 8U);
             if (!is_stopped) {
                 Ui_Controller_Energy_Bar_Draw(3 * TFT_FONT_WIDTH, 3 * TFT_FONT_HEIGHT + 4,
                                14 * TFT_FONT_WIDTH, 8,
@@ -1309,7 +1326,7 @@ static void Ui_Controller_Gauge_Dynamic_Update_Legacy(const GaugeConfig* cfg, fl
         }
 
         if (strncmp(status_text, s_gauge_status_buf, sizeof(s_gauge_status_buf)) != 0) {
-            Tft_Driver_Erase_Pixel_Area(24, 64, 112, 16);
+            Ui_Controller_Erase_Area(24U, 64U, 112U, 16U);
             Tft_Driver_Show_CN_String(4, Ui_Controller_Center_Text(status_text), status_text,
                                       status_color, Ui_Controller_Get_Background_Color());
             strncpy(s_gauge_status_buf, status_text, sizeof(s_gauge_status_buf));
@@ -1334,7 +1351,7 @@ static void Ui_Controller_Gauge_Dynamic_Update_Legacy(const GaugeConfig* cfg, fl
         else
             snprintf(buf, sizeof(buf), "%.2f", (double)val);
         if (strncmp(buf, s_gauge_val_str, sizeof(s_gauge_val_str)) != 0) {
-            Tft_Driver_Erase_Pixel_Area(24, 80, 112, 16);
+            Ui_Controller_Erase_Area(24U, 80U, 112U, 16U);
             Tft_Driver_Show_CN_String(5, Ui_Controller_Center_Text(buf), buf, num_color, Ui_Controller_Get_Background_Color());
             strncpy(s_gauge_val_str, buf, sizeof(s_gauge_val_str));
             s_gauge_val_str[sizeof(s_gauge_val_str) - 1] = '\0';
@@ -1349,7 +1366,7 @@ static void Ui_Controller_Gauge_Dynamic_Update_Legacy(const GaugeConfig* cfg, fl
         else                        label_text = Ui_Controller_Pick_CN_EN(S_LABEL_CURR_CN, S_LABEL_CURR_EN);
         if (label_text != s_last_gauge_label) {
             s_last_gauge_label = label_text;
-            Tft_Driver_Erase_Pixel_Area(24, 96, 112, 16);
+            Ui_Controller_Erase_Area(24U, 96U, 112U, 16U);
             Tft_Driver_Show_CN_String(6, Ui_Controller_Center_Text(label_text), label_text, Ui_Controller_Get_Value_Color(), Ui_Controller_Get_Background_Color());
         }
     }
@@ -1895,8 +1912,7 @@ static void Ui_Controller_Handle_Keys_By_Page(Ui_Page page,
                     }
                     s_user_target_hz += 1000;
                     if (s_user_target_hz > PWM_DRIVER_FREQ_MAX_HZ) s_user_target_hz = PWM_DRIVER_FREQ_MAX_HZ;
-                    Inverter_Control_Freq_Ramp_Cancel();
-                    Pwm_Driver_Set_Frequency(s_user_target_hz);
+                    Inverter_Control_Freq_Ramp_Trigger(s_user_target_hz);
                 }
                 break;
             default: break;
@@ -1928,8 +1944,7 @@ static void Ui_Controller_Handle_Keys_By_Page(Ui_Page page,
                         s_user_target_synced = 1;
                     }
                     if (s_user_target_hz >= PWM_DRIVER_FREQ_MIN_HZ + 1000) s_user_target_hz -= 1000;
-                    Inverter_Control_Freq_Ramp_Cancel();
-                    Pwm_Driver_Set_Frequency(s_user_target_hz);
+                    Inverter_Control_Freq_Ramp_Trigger(s_user_target_hz);
                 }
                 break;
             default: break;
@@ -2150,7 +2165,8 @@ static void Ui_Controller_Handle_Setting_Keys(Key_Driver_Event k1, Key_Driver_Ev
             case UI_SETTING_ITEM_ICONS: s_page = UI_PAGE_SETTING_ICONS;
                     s_icon_cursor = s_menu_cursor_icon; break;
             case UI_SETTING_ITEM_COLOR: s_page = UI_PAGE_SETTING_COLOR;
-                    s_preview_choice = sc_preset;  /* 用已保存配色初始化预览光标。 */
+                    s_preview_choice = Ui_Controller_Normalize_Color_Preset(
+                        sc_preset);  /* 自定义配色进入页面时从首个安全预设开始预览。 */
                     break;
         }
     }
@@ -2494,7 +2510,10 @@ static void Ui_Controller_Handle_Spacing_Keys(Key_Driver_Event k1, Key_Driver_Ev
  * ============================================================== */
 static void Ui_Controller_Apply_Color_Preset(uint8_t preset_idx)
 {
-    const ColorPreset* p = &COLOR_PRESETS[preset_idx];
+    const ColorPreset* p;
+
+    preset_idx = Ui_Controller_Normalize_Color_Preset(preset_idx);
+    p = &COLOR_PRESETS[preset_idx];
     s_color_fg      = p->fg;
     s_color_bg      = p->bg;
     s_color_accent  = p->accent;
@@ -2509,7 +2528,7 @@ static void Ui_Controller_Draw_Color_Full(void)
     for (i = 0; i < 6; i++) {
         char buf[24];
         const char* name = Ui_Controller_Pick_CN_EN(COLOR_PRESETS[i].name_cn, COLOR_PRESETS[i].name_en);
-        Ui_Controller_Erase_Line(2 + i);
+        Ui_Controller_Erase_Line((uint8_t)(2U + i));
         /* 已生效方案保留勾号，行选择由统一前导光标表示。 */
         {
             const char* prefix = (sc_preset == i) ? "\xe2\x9c\x93 " : "  ";
@@ -2517,36 +2536,19 @@ static void Ui_Controller_Draw_Color_Full(void)
             Tft_Driver_Show_CN_String(2 + i, 2, buf,
                 (s_preview_choice == i) ? Ui_Controller_Get_Value_Color() : Ui_Controller_Get_Text_Color(), Ui_Controller_Get_Background_Color());
         }
+        Tft_Driver_Fill_Rect(148U,
+            (uint16_t)(2U + i) * TFT_FONT_HEIGHT + 3U,
+            10U, 10U, COLOR_PRESETS[i].accent);
     }
 
-    Ui_Controller_Draw_Cursor(2 + s_preview_choice);
-
-    /* 第7行使用当前预览方案绘制三色预览条。 */
-    Ui_Controller_Erase_Line(7);
-    {
-        const ColorPreset* p = &COLOR_PRESETS[s_preview_choice];
-        uint16_t bar_y = 7 * TFT_FONT_HEIGHT;
-        uint16_t bw = 53;
-        /* 三个等宽色块依次表示背景色、前景色和强调色。 */
-        Tft_Driver_Fill_Rect(0,  bar_y, bw, TFT_FONT_HEIGHT, p->bg);
-        Tft_Driver_Fill_Rect(bw, bar_y, bw, TFT_FONT_HEIGHT, p->fg);
-        Tft_Driver_Fill_Rect((uint16_t)(bw * 2), bar_y, bw, TFT_FONT_HEIGHT, p->accent);
-        /* 为三个色块绘制简短标签。 */
-        {
-            uint16_t bg_label_fg = (p->bg == 0x0000 || p->bg < 0x2104) ? Ui_Controller_Get_Text_Color() : TFT_COLOR_BLACK;
-            Tft_Driver_Show_String(7, 0,  "B", bg_label_fg, p->bg);
-            Tft_Driver_Show_String(7, 7,  "F", (p->fg < 0x8410) ? Ui_Controller_Get_Text_Color() : TFT_COLOR_BLACK, p->fg);
-            Tft_Driver_Show_String(7, 14, "A", (p->accent < 0x8410) ? Ui_Controller_Get_Text_Color() : TFT_COLOR_BLACK, p->accent);
-        }
-    }
-
+    Ui_Controller_Draw_Cursor((uint8_t)(2U + s_preview_choice));
 }
 
 static void Ui_Controller_Handle_Color_Keys(Key_Driver_Event k1, Key_Driver_Event k2,
                                Key_Driver_Event k3, Key_Driver_Event k4)
 {
     if (k1 == KEY_DRIVER_EVENT_CLICK) {
-        s_preview_choice = sc_preset;  /* 恢复已保存方案。 */
+        s_preview_choice = Ui_Controller_Normalize_Color_Preset(sc_preset);
         s_page = UI_PAGE_SETTING; s_setting_cursor = UI_SETTING_ITEM_COLOR; s_page_drawn = 0; return;
     }
     if (k2 == KEY_DRIVER_EVENT_CLICK) {
@@ -2863,8 +2865,8 @@ void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
                                    uint8_t startup_freq_band,
                                    uint8_t cursor_icon)
 {
-    s_language        = lang;
-    s_letter_spacing  = spacing;
+    s_language        = (lang <= 1U) ? lang : 0U;
+    s_letter_spacing  = (spacing <= 3U) ? spacing : 0U;
     s_startup_low_freq_hz = startup_freq_low_hz;
     s_startup_high_freq_hz = startup_freq_high_hz;
     s_startup_freq_band = startup_freq_band;
@@ -2889,13 +2891,14 @@ void Ui_Controller_Apply_Settings(uint8_t lang, uint8_t font, uint8_t bl,
     (void)font;  /* 字体大小已由字符间距取代，该字段仅用于兼容旧配置。 */
     (void)bl;
     Tft_Driver_Set_Letter_Spacing((uint8_t)(s_letter_spacing * 2));  /* 选项0至3映射为0、2、4、6像素。 */
-    if (preset < 6) {
+    if (preset < 6U) {
         Ui_Controller_Apply_Color_Preset(preset);
     } else {
         s_color_fg     = fg;
         s_color_bg     = bg;
-        sc_preset = 255;
+        s_color_accent = fg;
+        sc_preset = 255U;
     }
     /* 使用已保存设置初始化各预览光标。 */
-    s_preview_choice = sc_preset;
+    s_preview_choice = Ui_Controller_Normalize_Color_Preset(sc_preset);
 }

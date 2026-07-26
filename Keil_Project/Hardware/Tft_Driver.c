@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Tft_Driver.c
- * @brief   ST7735彩屏显示与字库驱动 — V5.1.0
+ * @brief   ST7735彩屏显示与字库驱动 — V5.1.1
  *
  *  硬件连接（显示屏与W25Q128分时使用SPI1）:
  *  +------------------------------------------------------------+
@@ -46,6 +46,13 @@
 #define TFT_DMA_TIMEOUT_MS  200U
 #define TFT_FONT_MAGIC      0x574BU
 #define TFT_FONT_MAX_SIZE   0x200000U
+#define TFT_FONT_VERSION_LEGACY       1U
+#define TFT_FONT_VERSION_PAYLOAD_CRC  2U
+#define TFT_FONT_ICON_TABLE_ADDR      0x00000700UL
+#define TFT_FONT_ICON_HEADER_SIZE     16U
+#define TFT_FONT_ICON_ENTRY_SIZE      8U
+#define TFT_FONT_ICON_GLYPH_SIZE      32U
+#define TFT_FONT_CRC_CHUNK_SIZE       256U
 
 typedef struct {
     uint16_t magic;
@@ -67,6 +74,9 @@ typedef struct {
 static uint8_t s_dma_configured = 0;
 static uint8_t  s_font_flash_valid = 0;     /* 1表示外部字库头及校验值有效 */
 static Font_Header g_font_header;           /* 缓存在内存中的32字节字库头 */
+static uint16_t s_icon_count = 0U;
+static uint32_t s_icon_data_addr = 0U;
+static uint32_t s_icon_data_size = 0U;
 static Tft_Driver_Result s_tft_last_result = TFT_DRIVER_RESULT_OK;
 static uint8_t s_tft_draw_blocked = 0U;
 
@@ -307,17 +317,55 @@ static void Tft_Driver_DMA_Send(const uint16_t* buf, uint32_t pixel_count)
  *  设置显示窗口
  * ============================================================== */
 
-static void Tft_Driver_Set_Window(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
+static uint8_t Tft_Driver_Write_Selected_Byte(uint8_t data_mode,
+                                              uint8_t value)
 {
-    xs += 1; xe += 1;
-    ys += 2; ye += 2;
-    Tft_Driver_WrCmd(0x2A);
-    Tft_Driver_WrDat((uint8_t)(xs >> 8)); Tft_Driver_WrDat((uint8_t)xs);
-    Tft_Driver_WrDat((uint8_t)(xe >> 8)); Tft_Driver_WrDat((uint8_t)xe);
-    Tft_Driver_WrCmd(0x2B);
-    Tft_Driver_WrDat((uint8_t)(ys >> 8)); Tft_Driver_WrDat((uint8_t)ys);
-    Tft_Driver_WrDat((uint8_t)(ye >> 8)); Tft_Driver_WrDat((uint8_t)ye);
-    Tft_Driver_WrCmd(0x2C);
+    if (Spi1_Shared_Set_Tft_DC(data_mode) != SPI1_SHARED_RESULT_OK) return 0U;
+    if (Spi1_Shared_Transfer8(value, 0, TFT_DMA_TIMEOUT_MS) !=
+        SPI1_SHARED_RESULT_OK) return 0U;
+    return 1U;
+}
+
+static void Tft_Driver_Set_Window(uint16_t xs, uint16_t ys, uint16_t xe,
+                                  uint16_t ye)
+{
+    Spi1_Shared_Result result;
+
+    if (s_tft_draw_blocked != 0U) return;
+    xs += 1U;
+    xe += 1U;
+    ys += 2U;
+    ye += 2U;
+
+    /* 地址窗口的十一字节必须保持在同一次片选周期内，减少细线绘制时的总线切换。 */
+    result = Spi1_Shared_Acquire(SPI1_SHARED_MODE_TFT_8,
+                                 TFT_DMA_TIMEOUT_MS);
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        return;
+    }
+    if (Spi1_Shared_Select_Tft(1U) != SPI1_SHARED_RESULT_OK ||
+        Tft_Driver_Write_Selected_Byte(0U, 0x2AU) == 0U ||
+        Tft_Driver_Write_Selected_Byte(1U, (uint8_t)(xs >> 8)) == 0U ||
+        Tft_Driver_Write_Selected_Byte(1U, (uint8_t)xs) == 0U ||
+        Tft_Driver_Write_Selected_Byte(1U, (uint8_t)(xe >> 8)) == 0U ||
+        Tft_Driver_Write_Selected_Byte(1U, (uint8_t)xe) == 0U ||
+        Tft_Driver_Write_Selected_Byte(0U, 0x2BU) == 0U ||
+        Tft_Driver_Write_Selected_Byte(1U, (uint8_t)(ys >> 8)) == 0U ||
+        Tft_Driver_Write_Selected_Byte(1U, (uint8_t)ys) == 0U ||
+        Tft_Driver_Write_Selected_Byte(1U, (uint8_t)(ye >> 8)) == 0U ||
+        Tft_Driver_Write_Selected_Byte(1U, (uint8_t)ye) == 0U ||
+        Tft_Driver_Write_Selected_Byte(0U, 0x2CU) == 0U) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(
+            Spi1_Shared_Get_Last_Result()));
+        Spi1_Shared_Force_Release();
+        return;
+    }
+    result = Spi1_Shared_Release();
+    if (result != SPI1_SHARED_RESULT_OK) {
+        Tft_Driver_Record_Error(Tft_Driver_Map_Spi_Result(result));
+        Spi1_Shared_Force_Release();
+    }
 }
 
 /* ==============================================================
@@ -414,22 +462,143 @@ void Tft_Driver_Init(void)
  *  校验失败时保持外部字库无效，并回退到片内四字启动字库。
  * ============================================================= */
 
+static uint8_t Tft_Driver_Is_Font_Header_Valid(const Font_Header *header)
+{
+    uint32_t ascii_size;
+    uint32_t cjk_index_size;
+    uint32_t cjk_data_size;
+
+    if (header == 0 || header->magic != TFT_FONT_MAGIC ||
+        (header->version != TFT_FONT_VERSION_LEGACY &&
+         header->version != TFT_FONT_VERSION_PAYLOAD_CRC) ||
+        header->total_size < sizeof(Font_Header) ||
+        header->total_size > TFT_FONT_MAX_SIZE ||
+        header->ascii_offset != sizeof(Font_Header) ||
+        header->ascii_count != 95U || header->ascii_bytes != 16U ||
+        header->cjk_index_count == 0U || header->cjk_data_bytes != 32U) {
+        return 0U;
+    }
+
+    ascii_size = (uint32_t)header->ascii_count * header->ascii_bytes;
+    if (header->ascii_offset > header->total_size ||
+        ascii_size > header->total_size - header->ascii_offset ||
+        ascii_size > TFT_FONT_ICON_TABLE_ADDR - header->ascii_offset) {
+        return 0U;
+    }
+
+    cjk_index_size = (uint32_t)header->cjk_index_count * 6U;
+    if (header->cjk_index_offset > header->total_size ||
+        header->cjk_index_offset <= TFT_FONT_ICON_TABLE_ADDR ||
+        cjk_index_size > header->total_size - header->cjk_index_offset) {
+        return 0U;
+    }
+
+    cjk_data_size = (uint32_t)header->cjk_index_count *
+                    header->cjk_data_bytes;
+    if (header->cjk_data_offset <
+            header->cjk_index_offset + cjk_index_size ||
+        header->cjk_data_offset > header->total_size ||
+        cjk_data_size > header->total_size - header->cjk_data_offset) {
+        return 0U;
+    }
+    return 1U;
+}
+
+static uint8_t Tft_Driver_Is_Glyph_Offset_Valid(
+    uint32_t glyph_offset, const Font_Header *header)
+{
+    uint32_t data_size;
+
+    if (header == 0 || header->cjk_data_bytes == 0U) return 0U;
+    data_size = (uint32_t)header->cjk_index_count *
+                header->cjk_data_bytes;
+    if (data_size < header->cjk_data_bytes) return 0U;
+    return (glyph_offset <= data_size - header->cjk_data_bytes) ? 1U : 0U;
+}
+
+static uint8_t Tft_Driver_Verify_Font_Payload(const Font_Header *header)
+{
+    uint8_t *buffer;
+    uint32_t address;
+    uint32_t remaining;
+    uint32_t chunk;
+    uint32_t state;
+
+    if (header == 0) return 0U;
+    buffer = (uint8_t *)s_dma_buf;
+    address = W25Q_ADDR_FONT + 0x0CU;
+    remaining = header->total_size - 0x0CU;
+    state = Checksum_CRC32_Begin();
+    while (remaining != 0U) {
+        chunk = (remaining > TFT_FONT_CRC_CHUNK_SIZE) ?
+                TFT_FONT_CRC_CHUNK_SIZE : remaining;
+        if (W25Q_Driver_Read(address, buffer, chunk) !=
+            W25Q_DRIVER_RESULT_OK) return 0U;
+        state = Checksum_CRC32_Update(state, buffer, chunk);
+        address += chunk;
+        remaining -= chunk;
+    }
+    return (Checksum_CRC32_Finish(state) == header->crc32) ? 1U : 0U;
+}
+
+static uint8_t Tft_Driver_Init_Icon_Table(const Font_Header *header)
+{
+    uint8_t icon_header[TFT_FONT_ICON_HEADER_SIZE];
+    uint32_t table_size;
+    uint32_t data_size;
+    uint16_t icon_count;
+
+    s_icon_count = 0U;
+    s_icon_data_addr = 0U;
+    s_icon_data_size = 0U;
+    if (header == 0 || TFT_FONT_ICON_TABLE_ADDR >= header->total_size ||
+        header->cjk_index_offset <= TFT_FONT_ICON_TABLE_ADDR) return 0U;
+    if (W25Q_Driver_Read(TFT_FONT_ICON_TABLE_ADDR, icon_header,
+                         sizeof(icon_header)) != W25Q_DRIVER_RESULT_OK) {
+        return 0U;
+    }
+
+    icon_count = (uint16_t)icon_header[0] |
+                 ((uint16_t)icon_header[1] << 8);
+    data_size = (uint32_t)icon_header[8] |
+                ((uint32_t)icon_header[9] << 8) |
+                ((uint32_t)icon_header[10] << 16) |
+                ((uint32_t)icon_header[11] << 24);
+    if (icon_count == 0U || icon_count > 255U) return 0U;
+    table_size = TFT_FONT_ICON_HEADER_SIZE +
+                 (uint32_t)icon_count * TFT_FONT_ICON_ENTRY_SIZE;
+    if (table_size > header->cjk_index_offset - TFT_FONT_ICON_TABLE_ADDR) {
+        return 0U;
+    }
+    s_icon_data_addr = TFT_FONT_ICON_TABLE_ADDR + table_size;
+    if (data_size > header->cjk_index_offset - s_icon_data_addr) {
+        s_icon_data_addr = 0U;
+        return 0U;
+    }
+    s_icon_count = icon_count;
+    s_icon_data_size = data_size;
+    return 1U;
+}
+
 void Tft_Driver_Font_Init(void)
 {
-    uint32_t crc_stored; uint32_t crc_computed;
-    s_font_flash_valid = 0;
+    uint32_t crc_computed;
+
+    s_font_flash_valid = 0U;
+    s_icon_count = 0U;
     if (W25Q_Driver_Read(W25Q_ADDR_FONT, (uint8_t*)&g_font_header,
                          sizeof(Font_Header)) != W25Q_DRIVER_RESULT_OK) return;
-    if (g_font_header.magic == TFT_FONT_MAGIC &&
-        g_font_header.total_size >= sizeof(Font_Header) &&
-        g_font_header.total_size <= TFT_FONT_MAX_SIZE &&
-        g_font_header.cjk_index_count != 0U &&
-        g_font_header.cjk_data_bytes == 32U) {
-        crc_stored = g_font_header.crc32; g_font_header.crc32 = 0;
-        crc_computed = Checksum_CRC32((uint8_t*)&g_font_header + 0x0C, 20);
-        g_font_header.crc32 = crc_stored;
-        s_font_flash_valid = (crc_stored == crc_computed) ? 1 : 0;
+    if (Tft_Driver_Is_Font_Header_Valid(&g_font_header) == 0U) return;
+
+    if (g_font_header.version == TFT_FONT_VERSION_LEGACY) {
+        crc_computed = Checksum_CRC32((uint8_t*)&g_font_header + 0x0CU,
+                                      20U);
+        if (g_font_header.crc32 != crc_computed) return;
+    } else if (Tft_Driver_Verify_Font_Payload(&g_font_header) == 0U) {
+        return;
     }
+    s_font_flash_valid = 1U;
+    (void)Tft_Driver_Init_Icon_Table(&g_font_header);
 }
 
 static uint32_t Tft_Driver_Font_Index_Binary_Search(uint16_t unicode,
@@ -707,7 +876,9 @@ static void Tft_Driver_CN_Draw(uint8_t ln, uint8_t col, const uint8_t *utf8,
         unicode |= ((uint32_t)(utf8[2] & 0x3F));
         data_offset = Tft_Driver_Font_Index_Binary_Search((uint16_t)unicode,
                                                           &g_font_header);
-        if (data_offset == 0xFFFFFFFFUL) {
+        if (data_offset == 0xFFFFFFFFUL ||
+            Tft_Driver_Is_Glyph_Offset_Valid(data_offset,
+                                             &g_font_header) == 0U) {
             Tft_Driver_DMA_Fill((uint32_t)char_w * char_h, bg);
             return;
         }
@@ -915,7 +1086,8 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
      * 其余图标必须从有效的外部字库读取。 */
     uint8_t row; uint16_t* p;
 
-    if (icon_id > 34) return 0;
+    if (icon_id > 8U &&
+        (s_font_flash_valid == 0U || icon_id >= s_icon_count)) return 0U;
 
     Tft_Driver_Set_Window(x, y, x + 15, y + 15);
     p = s_dma_buf;
@@ -970,32 +1142,40 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
     }
 
     /* 读取仅存在于外部字库中的图标。 */
-    if (s_font_flash_valid) {
-        /* 外部字库图标区域布局如下：
-         * 0x000700存放16字节图标表头；
-         * 0x000710存放31个、每个8字节的图标索引项；
-         * 0x000808开始存放图标位图数据。
-         * 每个索引项依次记录编号、帧数、数据偏移和保留字段，各占2字节。 */
-        uint32_t icon_idx_base, icon_data_base, data_offset, frame_offset;
-        uint8_t n_frames, icon_entry[8], icon_glyph[32];
-        icon_idx_base = 0x000710U;  /* 图标索引项起始地址。 */
+    if (s_font_flash_valid != 0U && icon_id < s_icon_count) {
+        uint32_t data_offset;
+        uint32_t frame_offset;
+        uint32_t frame_bytes;
+        uint16_t entry_id;
+        uint16_t n_frames;
+        uint8_t icon_entry[TFT_FONT_ICON_ENTRY_SIZE];
+        uint8_t icon_glyph[TFT_FONT_ICON_GLYPH_SIZE];
+
         /* 读取包含编号、帧数、数据偏移和保留字段的8字节索引项。 */
-        if (W25Q_Driver_Read(icon_idx_base + (uint32_t)icon_id * 8U,
+        if (W25Q_Driver_Read(TFT_FONT_ICON_TABLE_ADDR +
+                             TFT_FONT_ICON_HEADER_SIZE +
+                             (uint32_t)icon_id * TFT_FONT_ICON_ENTRY_SIZE,
                              icon_entry, sizeof(icon_entry)) !=
             W25Q_DRIVER_RESULT_OK) {
-            s_font_flash_valid = 0U;
             Tft_Driver_DMA_Fill(256U, bg);
             return 0U;
         }
-        n_frames     = icon_entry[2] | (uint16_t)icon_entry[3] << 8;
-        data_offset  = (uint32_t)icon_entry[4] | (uint32_t)icon_entry[5] << 8;
-        icon_data_base = 0x000808U;  /* 图标位图数据起始地址。 */
-        if (n_frames == 0U) {
+        entry_id = (uint16_t)icon_entry[0] |
+                   ((uint16_t)icon_entry[1] << 8);
+        n_frames = (uint16_t)icon_entry[2] |
+                   ((uint16_t)icon_entry[3] << 8);
+        data_offset = (uint32_t)icon_entry[4] |
+                      ((uint32_t)icon_entry[5] << 8);
+        frame_bytes = (uint32_t)n_frames * TFT_FONT_ICON_GLYPH_SIZE;
+        if (entry_id != icon_id || n_frames == 0U ||
+            data_offset > s_icon_data_size ||
+            frame_bytes > s_icon_data_size - data_offset) {
             Tft_Driver_DMA_Fill(256U, bg);
             return 0U;
         }
-        if (frame >= n_frames) frame = n_frames - 1;
-        frame_offset = icon_data_base + data_offset + (uint32_t)frame * 32;
+        if (frame >= n_frames) frame = (uint8_t)(n_frames - 1U);
+        frame_offset = s_icon_data_addr + data_offset +
+                       (uint32_t)frame * TFT_FONT_ICON_GLYPH_SIZE;
         if (W25Q_Driver_Read(frame_offset, icon_glyph, sizeof(icon_glyph)) !=
             W25Q_DRIVER_RESULT_OK) {
             s_font_flash_valid = 0U;
@@ -1020,7 +1200,7 @@ uint8_t Tft_Driver_Draw_Icon_By_Id(uint16_t x, uint16_t y, uint8_t icon_id,
  *
  *  布局 (160×128):
  *  +----------------------------------+
- *  |                           V5.1.0|  第7行右侧显示暗灰版本号
+ *  |                           V5.1.1|  第7行右侧显示暗灰版本号
  *  |                                  |
  *  |     无  线  充  电               |  中文逐字渐亮
  *  |                                  |
@@ -1045,7 +1225,7 @@ void Tft_Driver_Show_Splash(void)
     Tft_Driver_Clear(TFT_COLOR_BLACK);
 
     /* 版本号: 右下角暗灰 */
-    Tft_Driver_Show_String(7, 14, "V5.1.0", 0x3186U, TFT_COLOR_BLACK);
+    Tft_Driver_Show_String(7, 14, "V5.1.1", 0x3186U, TFT_COLOR_BLACK);
 
     /* 第一阶段让中文与项目缩写同步逐字渐亮，总计1600ms。 */
     for (col = 0; col < 4; col++) {

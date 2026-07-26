@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/Sys_Core.c
- * @brief   系统核心模块 — V5.1.0
+ * @brief   系统核心模块 — V5.1.1
  *
  *  全系统引脚总览（各外设独占引脚）:
  *  +------------------------------------------------------------+
@@ -57,6 +57,9 @@
 #include "App_Storage.h"
 
 #define SYS_BLACKBOX_SAMPLE_PERIOD_MS  200U
+#define SYS_POWER_SETTLE_MS            200U
+#define SYS_SAFETY_OVERCURRENT_A       5.0f
+#define SYS_SAFETY_CONFIRM_SAMPLES     3U
 
 static Sys_State s_sys_state = SYS_STATE_INIT;
 
@@ -64,6 +67,7 @@ static Sys_State s_sys_state = SYS_STATE_INIT;
 static App_Storage_Config s_sys_config;
 static Sys_Fault_Code s_fault_code = SYS_FAULT_NONE;
 static uint32_t s_blackbox_sample_last = 0U;
+static uint32_t s_power_enabled_tick = 0U;
 
 typedef void (*Sys_Core_State_Task)(void);
 
@@ -104,10 +108,13 @@ static void Sys_Core_Set_Power_Output(uint8_t enabled)
     if (enabled != 0U) {
         GPIO_SetBits(GPIOB, GPIO_Pin_10);
         Led_Driver_Set_Power(1U);
+        s_power_enabled_tick = Sys_Timer_Get_Tick();
     }
     else {
         GPIO_ResetBits(GPIOB, GPIO_Pin_10);
         Led_Driver_Set_Power(0U);
+        s_power_enabled_tick = 0U;
+        Adc_Driver_Clear_Fast_Overcurrent_Latch();
     }
 }
 
@@ -143,6 +150,7 @@ void Sys_Core_Trigger_Fault(Sys_Fault_Code fault_code)
     Inverter_Control_Soft_Start_Fault();
     GPIO_ResetBits(GPIOB, GPIO_Pin_10);
     Led_Driver_Set_Power(0U);
+    s_power_enabled_tick = 0U;
     Sys_Core_Set_State(SYS_STATE_FAULT);
     Buzzer_Driver_Set_State(BUZZER_DRIVER_STATE_BEEP);
 }
@@ -156,6 +164,13 @@ static uint8_t Sys_Core_Check_Control_Invariant(void)
     power_enabled = Sys_Core_Is_Power_Enabled();
     pwm_enabled = Pwm_Driver_Is_Enabled();
     invalid = 0U;
+
+    if ((s_sys_state == SYS_STATE_SWEEP ||
+         s_sys_state == SYS_STATE_RUNNING) &&
+        Adc_Driver_Is_Fast_Overcurrent_Latched() != 0U) {
+        Sys_Core_Trigger_Fault(SYS_FAULT_OVERCURRENT);
+        return 0U;
+    }
 
     if (power_enabled == 0U && pwm_enabled != 0U) {
         invalid = 1U;
@@ -194,14 +209,30 @@ Sys_Control_Result Sys_Core_Request_Start(void)
     if (Sys_Core_Is_Power_Enabled() == 0U) {
         return SYS_CONTROL_RESULT_POWER_OFF;
     }
+    if ((uint32_t)(Sys_Timer_Get_Tick() - s_power_enabled_tick) <
+        SYS_POWER_SETTLE_MS) {
+        return SYS_CONTROL_RESULT_POWER_NOT_READY;
+    }
     if (Adc_Driver_Get_Calibration_State() != ADC_DRIVER_CAL_READY ||
         Adc_Driver_Is_Data_Fresh() == 0U) {
         return SYS_CONTROL_RESULT_ADC_NOT_READY;
     }
+    if (Adc_Driver_Is_Fast_Overcurrent_Latched() != 0U) {
+        Sys_Core_Trigger_Fault(SYS_FAULT_OVERCURRENT);
+        return SYS_CONTROL_RESULT_FAULT_LATCHED;
+    }
+    if (Adc_Driver_Get_Safety_Current() > SYS_SAFETY_OVERCURRENT_A) {
+        return SYS_CONTROL_RESULT_CURRENT_NOT_SAFE;
+    }
 
     Blackbox_Reset_Pretrigger();
+    Adc_Driver_Clear_Fast_Overcurrent_Latch();
     Sys_Core_Set_State(SYS_STATE_SWEEP);
     Inverter_Control_Soft_Start_Trigger();
+    if (Adc_Driver_Is_Fast_Overcurrent_Latched() != 0U) {
+        Sys_Core_Trigger_Fault(SYS_FAULT_OVERCURRENT);
+        return SYS_CONTROL_RESULT_FAULT_LATCHED;
+    }
     if (Pwm_Driver_Is_Enabled() == 0U ||
         Sys_Core_Check_Control_Invariant() == 0U) {
         Sys_Core_Trigger_Fault(SYS_FAULT_CONTROL_INVARIANT);
@@ -358,9 +389,6 @@ void Sys_Post_Init(void)
  *  2. 安全监测 (原 Sys_Safety.c)
  * ═══════════════════════════════════════════════════════════════ */
 
-#define SYS_SAFETY_OVERCURRENT_A  5.0f
-#define SYS_SAFETY_CONFIRM_SAMPLES 3U
-
 static uint32_t s_safety_last_sequence = 0U;
 static uint8_t s_safety_over_count = 0U;
 
@@ -377,6 +405,13 @@ static void Sys_Core_Safety_Task(void)
 {
     uint32_t sequence;
     float safety_current;
+
+    if ((s_sys_state == SYS_STATE_SWEEP ||
+         s_sys_state == SYS_STATE_RUNNING) &&
+        Adc_Driver_Is_Fast_Overcurrent_Latched() != 0U) {
+        Sys_Core_Trigger_Fault(SYS_FAULT_OVERCURRENT);
+        return;
+    }
 
     if (s_sys_state == SYS_STATE_IDLE) {
         Adc_Driver_Calibration_Task(Sys_Core_Is_Power_Enabled());

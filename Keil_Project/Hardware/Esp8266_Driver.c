@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Esp8266_Driver.c
- * @brief   ESP8266 串口通信驱动 — V5.1.0
+ * @brief   ESP8266 串口通信驱动 — V5.1.1
  *
  *  硬件连接（USART2与控制引脚）:
  *  +------------------------------------------------------------+
@@ -308,7 +308,9 @@ uint16_t Esp8266_Driver_Try_Copy_Rx_Frame(char* dst, uint16_t max_len)
         return 0;
     }
     rd = s_rx_ring_rd;
-    while (s_rx_buf[rd][len] && len < max_len - 1) {
+    while (len + 1U < max_len &&
+           len + 1U < ESP8266_DRIVER_RX_BUF_SIZE &&
+           s_rx_buf[rd][len] != '\0') {
         dst[len] = s_rx_buf[rd][len];
         len++;
     }

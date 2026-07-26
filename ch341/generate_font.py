@@ -3,18 +3,19 @@
 generate_font.py — GB2312 一级汉字 + ASCII + 图标 → W25Q128 字库镜像 (2MB)
 V1.1  2026-06-29  移除 bit_reverse_byte, 字模 LSB-first 匹配 ROM; CRC32 改用 STM32 算法
 V1.2  2026-07-01  V4.4.0: 版本标记更新, Project_Ver added
+V1.3  2026-07-26  V5.1.1: 字库格式升级为V2，校验头部元数据和全部有效负载
 依赖: Pillow (pip install Pillow), simsun.ttc (Windows 自带 16px 宋体)
 """
 
-import struct, zlib, os, sys
+import struct, os, sys
 from PIL import Image, ImageDraw, ImageFont
 
 FONT_DATA_BIN = "font_data.bin"
 FLASH_SIZE     = 2 * 1024 * 1024  # 2MB 满格, 烧录前补齐
 ALIGN          = 256              # 各区对齐到 256B 边界
 MAGIC          = 0x574B           # "WK"
-VERSION        = 1
-PROJECT_VER    = "V4.4.0"
+VERSION        = 2
+PROJECT_VER    = "V5.1.1"
 
 # ── CJK 范围: GB2312 一级 0x4E00~0x9FA0 (6763字) ──
 CJK_START  = 0x4E00
@@ -26,7 +27,7 @@ ASCII_COUNT = ASCII_END - ASCII_START + 1  # 95
 
 # ═══════════════════════════════════════════════════════════════════
 # Icon data — 从 Keil_Project/Hardware/TFT_Font_Data.h 逐字节提取
-# 54 frames × 32B = 1728B, 编号与设计文档 §2 Icon Entry 一致
+# 图标帧数由ICON_SPEC自动汇总，编号与设计文档图标索引项一致
 # ═══════════════════════════════════════════════════════════════════
 
 ICON_SPEC = [
@@ -259,15 +260,27 @@ ICON_SPEC = [
 # 核心组装函数
 # ═══════════════════════════════════════════════════════════════════
 
-def compute_crc32(data: bytes) -> int:
-    """STM32 CRC32_Compute 同款: poly=0x04C11DB7, init=0xFFFFFFFF, refin=false, refout=false, xorout=0xFFFFFFFF
-    与 App_Storage.c CRC32_Compute() 位对位一致, 不与 zlib.crc32 混淆"""
-    crc = 0xFFFFFFFF
-    for b in data:
-        crc ^= (b << 24)
+def build_crc32_table() -> tuple[int, ...]:
+    """预生成非反射CRC32查找表，避免大字库逐位计算耗时过长。"""
+    table = []
+    for value in range(256):
+        crc = value << 24
         for _ in range(8):
-            crc = (crc << 1) ^ 0x04C11DB7 if crc & 0x80000000 else crc << 1
-    return (crc ^ 0xFFFFFFFF) & 0xFFFFFFFF
+            crc = ((crc << 1) ^ 0x04C11DB7) if crc & 0x80000000 else crc << 1
+        table.append(crc & 0xFFFFFFFF)
+    return tuple(table)
+
+
+CRC32_TABLE = build_crc32_table()
+
+
+def compute_crc32(data: bytes) -> int:
+    """计算与固件一致的非反射CRC32，不可替换为zlib的反射算法。"""
+    crc = 0xFFFFFFFF
+    for value in data:
+        table_index = ((crc >> 24) ^ value) & 0xFF
+        crc = ((crc << 8) & 0xFFFFFFFF) ^ CRC32_TABLE[table_index]
+    return crc ^ 0xFFFFFFFF
 
 
 def bit_reverse_byte(b: int) -> int:
@@ -313,7 +326,7 @@ def render_cjk(font, code_points: list) -> tuple:
 
 
 def build_icon_table() -> bytes:
-    """组装 Icon Table: 16B Header + N×8B Entry + 256B 对齐 + 位图数据"""
+    """组装图标表：16字节表头、N个8字节索引项和紧随其后的位图数据"""
     n_entries = len(ICON_SPEC)
     n_frames  = sum(spec[2] for spec in ICON_SPEC)
     entries   = bytearray()
@@ -364,10 +377,6 @@ def assemble_font_image(ascii_data: bytes,
     struct.pack_into('<I', hdr, 0x1C, OFF_CJK_DAT)          # cjk_data_offset LE
     # 0x20 = 32B 终点
 
-    # CRC32 覆盖 0x0C→0x1F (20B), 写入 0x08 小端序
-    crc = compute_crc32(bytes(hdr[0x0C:0x20]))
-    struct.pack_into('<I', hdr, 0x08, crc)
-
     # 拼接全镜像
     img = bytearray()
     img.extend(hdr)                                          # 0x000000 Header
@@ -380,6 +389,11 @@ def assemble_font_image(ascii_data: bytes,
     img.extend(cjk_index)                                    # CJK Index [U16][U16]×6763
     img.extend(b'\x00' * (OFF_CJK_DAT - len(img)))           # pad→CJK Data
     img.extend(cjk_glyph)                                    # CJK Data 6763×32B
+
+    # V2校验从0x0C覆盖到有效负载末尾，避开校验字段本身并覆盖全部字模和图标。
+    crc = compute_crc32(bytes(img[0x0C:total_size]))
+    struct.pack_into('<I', img, 0x08, crc)
+    struct.pack_into('<I', hdr, 0x08, crc)
     img.extend(b'\x00' * (FLASH_SIZE - len(img)))            # 补齐 2MB 满格, 干净背景槽
 
     return bytes(img), hdr

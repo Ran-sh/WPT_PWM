@@ -21,6 +21,29 @@ uint8_t Checksum_CRC8(const uint8_t *data, uint16_t len);
 uint32_t Checksum_CRC32(const uint8_t *data, uint32_t len);
 
 /**
+ * @brief  获取三十二位循环冗余校验的初始状态
+ * @retval 可传给Checksum_CRC32_Update的初始状态
+ */
+uint32_t Checksum_CRC32_Begin(void);
+
+/**
+ * @brief  在已有状态上继续计算一段数据
+ * @param  state 上一段数据计算后的状态
+ * @param  data 本段输入缓冲区
+ * @param  len 本段字节数
+ * @retval 更新后的中间状态；输入指针为空时保持原状态
+ */
+uint32_t Checksum_CRC32_Update(uint32_t state, const uint8_t *data,
+                               uint32_t len);
+
+/**
+ * @brief  完成分块校验并应用最终异或值
+ * @param  state 最后一段数据计算后的状态
+ * @retval 完整的三十二位循环冗余校验值
+ */
+uint32_t Checksum_CRC32_Finish(uint32_t state);
+
+/**
  * @brief  使用固定字符串“123456789”验证两种校验算法
  * @retval 两种算法均通过时返回1，否则返回0
  */

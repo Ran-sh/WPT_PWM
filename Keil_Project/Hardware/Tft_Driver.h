@@ -122,7 +122,7 @@ void Tft_Driver_Show_String_2X(uint16_t x, uint16_t y, const char* str,
 /** @brief 按编号和帧号绘制16乘16图标
  *  @param x 图标左上角横坐标，从0开始
  *  @param y 图标左上角纵坐标，从0开始
- *  @param icon_id 图标编号，允许范围为0至34
+ *  @param icon_id 图标编号，有效范围由外部字库图标表头决定
  *  @param frame 动画帧编号，超出范围时在内部钳位
  *  @param fg RGB565前景色
  *  @param bg RGB565背景色

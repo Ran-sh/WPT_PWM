@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/App_Storage.c
- * @brief   参数双副本与黑匣子日志应用存储层 — V5.1.0
+ * @brief   参数双副本与黑匣子日志应用存储层 — V5.1.1
  *
  *  W25Q128分区布局（总容量16MB）:
  *  +------------------------------------------------------------+
@@ -150,12 +150,82 @@ static uint8_t App_Storage_Is_Frequency_Config_Valid(
     return 1U;
 }
 
+static uint8_t App_Storage_Is_String_Terminated(const char *text,
+                                                uint16_t capacity)
+{
+    uint16_t index;
+
+    if (text == 0 || capacity == 0U) return 0U;
+    for (index = 0U; index < capacity; index++) {
+        if (text[index] == '\0') return 1U;
+    }
+    return 0U;
+}
+
+static uint8_t App_Storage_Is_Calibration_Valid(float i_offset,
+                                                float v_gain)
+{
+    /* 与自身不相等只可能是非数值，必须在进入ADC计算前拒绝。 */
+    if (i_offset != i_offset || v_gain != v_gain) return 0U;
+    if (i_offset != 0.0f &&
+        (i_offset <= 0.5f || i_offset >= 2.8f)) return 0U;
+    if (v_gain <= 0.0f || v_gain > 10.0f) return 0U;
+    return 1U;
+}
+
+static uint8_t App_Storage_Is_Preference_Valid(uint8_t backlight,
+                                               uint8_t language,
+                                               uint8_t font_size,
+                                               uint8_t letter_spacing,
+                                               uint8_t color_preset)
+{
+    if (backlight > 100U || language > 1U || font_size > 2U ||
+        letter_spacing > 3U) return 0U;
+    if (color_preset > 5U && color_preset != 255U) return 0U;
+    return 1U;
+}
+
+static uint8_t App_Storage_Is_Config_Semantics_Valid(
+    const App_Storage_Config *cfg)
+{
+    if (cfg == 0) return 0U;
+    if (App_Storage_Is_String_Terminated(cfg->ssid,
+            (uint16_t)sizeof(cfg->ssid)) == 0U ||
+        App_Storage_Is_String_Terminated(cfg->password,
+            (uint16_t)sizeof(cfg->password)) == 0U ||
+        App_Storage_Is_String_Terminated(cfg->mqtt_key,
+            (uint16_t)sizeof(cfg->mqtt_key)) == 0U) return 0U;
+    if (App_Storage_Is_Calibration_Valid(cfg->adc_i_offset,
+                                         cfg->adc_v_gain) == 0U) return 0U;
+    if (cfg->freq_trim_hz < -20000L || cfg->freq_trim_hz > 20000L ||
+        cfg->default_freq < 95U || cfg->default_freq > 200U) return 0U;
+    if (App_Storage_Is_Preference_Valid(cfg->backlight, cfg->language,
+            cfg->font_size, cfg->letter_spacing,
+            cfg->color_preset) == 0U) return 0U;
+    if (cfg->reserved_v2 != 0U ||
+        App_Storage_Is_Frequency_Config_Valid(cfg) == 0U) return 0U;
+    return 1U;
+}
+
 static uint8_t App_Storage_Is_Config_V1_Valid(
     const App_Storage_Config_V1 *cfg)
 {
     uint32_t computed_crc;
 
     if (cfg->magic != CFG_MAGIC || cfg->version != 1U) return 0U;
+    if (App_Storage_Is_String_Terminated(cfg->ssid,
+            (uint16_t)sizeof(cfg->ssid)) == 0U ||
+        App_Storage_Is_String_Terminated(cfg->password,
+            (uint16_t)sizeof(cfg->password)) == 0U ||
+        App_Storage_Is_String_Terminated(cfg->mqtt_key,
+            (uint16_t)sizeof(cfg->mqtt_key)) == 0U ||
+        App_Storage_Is_Calibration_Valid(cfg->adc_i_offset,
+                                         cfg->adc_v_gain) == 0U ||
+        App_Storage_Is_Preference_Valid(cfg->backlight, cfg->language,
+            cfg->font_size, cfg->letter_spacing,
+            cfg->color_preset) == 0U ||
+        cfg->freq_trim_hz < -20000L || cfg->freq_trim_hz > 20000L ||
+        cfg->default_freq < 95U || cfg->default_freq > 200U) return 0U;
     computed_crc = Checksum_CRC32((const uint8_t *)cfg,
                                   sizeof(App_Storage_Config_V1) - 4U);
     return (cfg->crc32 == computed_crc) ? 1U : 0U;
@@ -170,6 +240,9 @@ static void App_Storage_Migrate_V1(App_Storage_Config *dst,
     memcpy(dst->ssid, src->ssid, sizeof(dst->ssid));
     memcpy(dst->password, src->password, sizeof(dst->password));
     memcpy(dst->mqtt_key, src->mqtt_key, sizeof(dst->mqtt_key));
+    dst->ssid[sizeof(dst->ssid) - 1U] = '\0';
+    dst->password[sizeof(dst->password) - 1U] = '\0';
+    dst->mqtt_key[sizeof(dst->mqtt_key) - 1U] = '\0';
     dst->adc_i_offset = src->adc_i_offset;
     dst->adc_v_gain = src->adc_v_gain;
     dst->freq_trim_hz = src->freq_trim_hz;
@@ -211,7 +284,7 @@ static uint8_t App_Storage_Is_Config_Valid(const App_Storage_Config *cfg)
     uint32_t computed_crc;
 
     if (cfg->magic != CFG_MAGIC || cfg->version != CFG_VERSION ||
-        App_Storage_Is_Frequency_Config_Valid(cfg) == 0U) return 0U;
+        App_Storage_Is_Config_Semantics_Valid(cfg) == 0U) return 0U;
     computed_crc = Checksum_CRC32((const uint8_t *)cfg,
                                   sizeof(App_Storage_Config) - 4U);
     return (cfg->crc32 == computed_crc) ? 1U : 0U;
@@ -255,7 +328,7 @@ uint8_t App_Storage_Load_Config(App_Storage_Config *cfg)
 
 void App_Storage_Request_Save_Config(const App_Storage_Config *cfg)
 {
-    if (cfg == 0 || App_Storage_Is_Frequency_Config_Valid(cfg) == 0U) {
+    if (cfg == 0 || App_Storage_Is_Config_Semantics_Valid(cfg) == 0U) {
         s_storage_last_result = APP_STORAGE_RESULT_INVALID_ARGUMENT;
         return;
     }

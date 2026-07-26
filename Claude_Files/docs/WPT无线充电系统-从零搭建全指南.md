@@ -17,9 +17,9 @@
 
 | 字段 | 内容 |
 |:---|:---|
-| **文档版本** | V5.1.0 |
+| **文档版本** | V5.1.1 |
 | **最后更新** | 2026-07-26 |
-| **对应固件版本** | V5.1.0 (分支 `5.0`) |
+| **对应固件版本** | V5.1.1 (分支 `5.0`) |
 | **GitHub 主仓库** | [Ran-sh/WPT_PWM](https://github.com/Ran-sh/WPT_PWM) |
 | **网页端仓库** | [Ran-sh/WPT_Onenet_IoT](https://github.com/Ran-sh/WPT_Onenet_IoT) (Cloudflare Pages) |
 | **桥接服务器仓库** | [Ran-sh/WPT_Railway](https://github.com/Ran-sh/WPT_Railway) (小程序桥接, 备选) |
@@ -29,6 +29,7 @@
 
 | 版本 | 日期 | 变更说明 |
 |:---|:---|:---|
+| V5.1.1 | 2026-07-26 | **全面加固**: 主题擦除和配色越界修复；外置图标动态布局；字库V2全负载CRC；整帧命令解析；配置语义校验；200ms上电稳定门控；ADC模拟看门狗快速关断；异常最小化关断；实际频率跟踪与2KB栈。 |
 | V5.1.0 | 2026-07-22 | **设置、启动频率与独立表盘重构**: 五项设置、配置V2双档启动频率与全局光标；PWM边界20–200kHz；低档99.9kHz/100Hz与高档200kHz/1kHz动态扫频；15页面递增式独立表盘。 |
 | V5.0.2 | 2026-07-19 | **STM32全面可靠性优化**: PB10/PWM/FAULT硬互锁、TIM1原子更新、TIM3 500Hz ADC双窗口、SPI1共享仲裁、W25Q边界/超时、后台参数保存、Blackbox V2双元数据与故障前后5秒快照、5键能力拆分、14页UI、USART2中断发送、遥测S=0/1/2/3、统一调度与C89清理 |
 | V4.5.2 | 2026-07-11 | **SPI时序回归+DMA修复+EMA修复**: DMA超时操作数反转修复(根治花屏), DMA TC3残留清理, SPI恢复18MHz, Flash批量读(16次→1次), CN/Icon ROM优先策略, 默认EN界面(W25Q手动切中文), Sys_Safety EMA全状态更新, CS脉冲简化, NVIC临界区保护, Pick_CN_EN遗漏修复 |
@@ -311,13 +312,13 @@ Vin并100μF+0.1μF, Vout并100μF+0.1μF
 Keil_Project/
 ├── Hardware/               ← 硬件驱动 (不可跨模块访问私有变量)
 │   ├── Ui_Controller.c/h   ← 15页面 UI 状态机 + 五项设置 + 递增式独立表盘
-│   ├── Tft_Driver.c/h      ← ST7735 SPI+DMA + Flash/ROM 双路径字库
+│   ├── Tft_Driver.c/h      ← ST7735 SPI+DMA + Flash/ROM 双路径字库 + V2全负载CRC
 │   ├── Spi1_Shared.c/h     ← TFT/W25Q128总线所有权、切换与超时恢复
 │   ├── W25Q_Driver.c/h     ← 16MB Flash边界检查、超时和二分检索
 │   ├── TFT_Font_Data.h     ← ASCII 95字 + 中文4字 + 图标 (ROM回退)
 │   ├── Esp8266_Driver.c/h  ← USART2 RX帧队列 + TX中断环形缓冲
 │   ├── App_Network.c/h     ← WiFi+心跳+帧快照+遥测门控 (以前在Hardware, 现移至User)
-│   ├── Adc_Driver.c/h      ← TIM3 500Hz触发 + 64点显示/8点安全窗口
+│   ├── Adc_Driver.c/h      ← TIM3 500Hz触发 + 模拟看门狗 + 64点显示/8点安全窗口
 │   ├── Inverter_Control.c/h← 软启动 + 频率斜坡 (146行)
 │   ├── Key_Driver.c/h      ← 5键 FSM + 独立双击/长按能力
 │   ├── Led_Driver.c/h      ← 4 LED状态指示
@@ -328,7 +329,7 @@ Keil_Project/
 │   ├── App_Network.c/h     ← 网络状态机 + S=0/1/2/3遥测
 │   ├── App_Storage.c/h     ← 后台参数保存 + Blackbox V2
 │   ├── main.c              ← 程序入口和状态分发
-│   └── stm32f10x_it.c/h    ← SysTick/ADC DMA/USART2 ISR
+│   └── stm32f10x_it.c/h    ← SysTick/ADC看门狗/ADC DMA/USART2 ISR
 ├── System/
 │   ├── Checksum.c/h        ← CRC32/CRC8统一校验服务
 │   └── Sys_Timer.c/h       ← SysTick 1ms时基
@@ -429,9 +430,11 @@ if (filled >= 64) accum -= old;  // 去掉最旧
 Sys_Safety由统一公共调度器调用, 与 UI 完全解耦:
 
 - **PB10手动电源**: KEY0只切换12V；关闭时严格先停PWM/MOE再拉低PB10
-- **启动门控**: 仅IDLE、PB10已开、ADC校准READY、采样新鲜且无FAULT时允许KEY4/远程ON启动
-- **过流检测**: SWEEP和RUNNING都使用8点安全电流，连续3个新样本 >5.0A才锁存FAULT
+- **启动门控**: 仅IDLE、PB10已稳定接通至少200ms、ADC校准READY、采样新鲜、电流安全且无FAULT时允许KEY4/远程ON启动
+- **过流检测**: ADC模拟看门狗在约5.5A门限先关闭PWM；SWEEP和RUNNING继续使用8点安全电流，连续3个新样本 >5.0A锁存FAULT，形成快速关断与抗干扰确认两层保护
 - **FAULT闭锁**: 首故障原因锁存并冻结故障快照；PWM与12V强制关闭，KEY0不能绕过FAULT
+
+> ADC模拟看门狗受500Hz采样周期限制，属于毫秒级快速软件保护，不能替代功率板上的硬件比较器、驱动器关断脚和保险丝。MOSFET逐周期保护仍应由外部硬件完成。
 
 #### 4.3.8 TFT 显示 (ST7735 Green Tab)
 
@@ -440,9 +443,9 @@ Sys_Safety由统一公共调度器调用, 与 UI 完全解耦:
 | SPI | Mode 3, 18MHz, DMA1_Channel3；由Spi1_Shared切换TFT/Flash所有权和PA6方向 |
 | 分辨率 | 160×128 横屏, MADCTL=0xA0 |
 | SetWin 偏移 | X+1, Y+2 (Green Tab 特有) |
-| 字库 | W25Q128全字库20897字；ROM回退为ASCII 95字 + 必要中文4字 + 图标 |
+| 字库 | W25Q128全字库20897字；V2 CRC覆盖完整有效负载并兼容V1；ROM回退为ASCII 95字 + 必要中文4字 + 图标 |
 | 字库位序 | 全部 LSB-first, `TFT_Font_Data.h` 统一管理 |
-| 图标 | WIFI(4帧+动画6帧), MQTT(3态+动画6帧), ICON_STAR |
+| 图标 | 35组78帧；数据起点按表头条目数动态计算，片内保留WIFI/MQTT/星形回退 |
 | 总线恢复 | 访问超时或模式异常时释放双CS、复位SPI状态并返回错误，不永久卡死主循环 |
 
 #### 4.3.9 UI — 15页面五项设置 + 递增式独立表盘
@@ -471,7 +474,7 @@ Sys_Safety由统一公共调度器调用, 与 UI 完全解耦:
 
 **UI Phase 架构**: 7 个 Phase 依次执行 — Global Icons(0) → Fault detection(1) → Sweep→Summary(2) → Key dispatch(3) → Page tracking(4) → 200ms incremental(5) → Cursor clamp(6) → Draw(7)。
 
-**五项设置**: 语言、启动频率、字符间距、光标图标、配色方案。启动频率页保存低频档20.0–99.9kHz与高频档100–200kHz；确认保存副本，返回取消本次编辑，KEY1双击从任意设置子页回主菜单。PA12背光保留GPIO开关能力，不提供设置项。
+**五项设置**: 语言、启动频率、字符间距、光标图标、配色方案。启动频率页保存低频档20.0–99.9kHz与高频档100–200kHz；确认保存副本，返回取消本次编辑，KEY1双击从任意设置子页回主菜单。配色页以每行色块显示六种预设，不再覆盖末行选项；自定义配色进入预览时使用安全下标。PA12背光保留GPIO开关能力，不提供设置项。
 
 **递增式独立表盘**: 电压按0–20V/2V、20–40V/5V、40–50V/10V分段；电流按0–1A/0.1A、1–3A/0.5A、3–5A/1A分段；频率随锁定档位使用20–50/5、50–80/10、80–100/20kHz或100–140/5、140–180/10、180–200/20kHz分段。每格角度相同，跨分段连续；中央主数值由8×16字模2倍绘制，动态周期仅差分刷新圆弧、数值和状态。
 
@@ -846,6 +849,7 @@ Token 里是 `devices` (复数), 不是 `device`。写成单数会让 OneNET 返
 
 | 版本 | 关键修复 |
 |:---|:---|
+| V5.1.1 | 显示、图标、字库、配置和命令边界修复；200ms上电门控；ADC模拟看门狗快速关断；异常安全路径与实际频率跟踪。 |
 | V5.1.0 | 五项设置、配置V2双档启动频率与全局光标；20–200kHz边界、低档99.9kHz/高档200kHz动态扫频；15页面递增式独立表盘。 |
 | V5.0.2 | 功率硬互锁 + 500Hz ADC双窗口 + SPI1仲裁 + Blackbox V2 + 14页面UI + USART2中断发送 + 统一调度 |
 | V4.2.0 | TFT字库修复 + 底部栏简化 + 全平台版本号统一 |
@@ -854,4 +858,4 @@ Token 里是 `devices` (复数), 不是 `device`。写成单数会让 OneNET 返
 
 ---
 
-> **全文完**。本文已与 V5.1.0 固件同步。如果你跟着做遇到问题, 回头翻第 9 章故障速查表；涉及功率部分时务必先断开12V并确认PB10为低。祝你的全桥不发烫, ESP8266 不掉线, OneNET 不报401, TFT不显示乱码。
+> **全文完**。本文已与 V5.1.1 固件同步。如果你跟着做遇到问题, 回头翻第 9 章故障速查表；涉及功率部分时务必先断开12V并确认PB10为低。祝你的全桥不发烫, ESP8266 不掉线, OneNET 不报401, TFT不显示乱码。

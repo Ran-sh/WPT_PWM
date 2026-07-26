@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    Hardware/Adc_Driver.c
- * @brief   模数转换与模拟量采集驱动 — V5.1.0
+ * @brief   模数转换与模拟量采集驱动 — V5.1.1
  *
  *  硬件连接:
  *  +--------------------------------------------------------+
@@ -23,6 +23,7 @@
 
 #include "Adc_Driver.h"
 #include "Sys_Timer.h"
+#include "Pwm_Driver.h"
 
 #define ADC_DRIVER_VREF_MCU            3.30f
 #define ADC_DRIVER_VOLTAGE_DIVIDER     20.0f
@@ -30,6 +31,7 @@
 #define ADC_DRIVER_CURRENT_CAL_FACTOR  0.602f   /* 灵敏度校准系数: 显示值=原始值*系数 */
 #define ADC_DRIVER_DISPLAY_WINDOW      64U
 #define ADC_DRIVER_SAFETY_WINDOW       8U
+#define ADC_DRIVER_FAST_OVERCURRENT_A  5.5f
 
 #define ADC_DRIVER_TIM3_COUNTER_HZ      1000000UL
 #define ADC_DRIVER_TIM3_PERIOD          1999U
@@ -109,16 +111,39 @@ static uint32_t s_cal_last_tick = 0U;
 static Adc_Driver_Calibration_State s_cal_state = ADC_DRIVER_CAL_UNINITIALIZED;
 static uint8_t s_cal_completed_event = 0U;
 static uint8_t s_adc_hw_ready = 0U;
+static volatile uint8_t s_fast_overcurrent_latched = 0U;
+
+static void Adc_Driver_Update_Fast_Overcurrent_Threshold(void)
+{
+    float threshold_voltage;
+    uint32_t threshold_raw;
+
+    threshold_voltage = s_i_offset +
+        (ADC_DRIVER_FAST_OVERCURRENT_A /
+         ADC_DRIVER_CURRENT_CAL_FACTOR) *
+        ADC_DRIVER_CURRENT_SENSITIVITY;
+    if (threshold_voltage >= ADC_DRIVER_VREF_MCU) {
+        threshold_raw = 4095U;
+    } else if (threshold_voltage <= 0.0f) {
+        threshold_raw = 0U;
+    } else {
+        threshold_raw = (uint32_t)(threshold_voltage * 4095.0f /
+                                   ADC_DRIVER_VREF_MCU + 0.5f);
+    }
+    ADC_AnalogWatchdogThresholdsConfig(ADC1, (uint16_t)threshold_raw, 0U);
+}
 
 static void Adc_Driver_Abort_Hardware_Init(void)
 {
     TIM_Cmd(TIM3, DISABLE);
     ADC_ExternalTrigConvCmd(ADC1, DISABLE);
     ADC_DMACmd(ADC1, DISABLE);
+    ADC_ITConfig(ADC1, ADC_IT_AWD, DISABLE);
     DMA_Cmd(DMA1_Channel1, DISABLE);
     ADC_Cmd(ADC1, DISABLE);
     s_adc_hw_ready = 0U;
     s_cal_state = ADC_DRIVER_CAL_ERROR;
+    s_fast_overcurrent_latched = 0U;
 }
 
 void Adc_Driver_Init(void)
@@ -132,6 +157,7 @@ void Adc_Driver_Init(void)
 
     s_adc_hw_ready = 0U;
     s_cal_state = ADC_DRIVER_CAL_UNINITIALIZED;
+    s_fast_overcurrent_latched = 0U;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_GPIOB, ENABLE);
@@ -186,6 +212,19 @@ void Adc_Driver_Init(void)
 
     ADC_RegularChannelConfig(ADC1, ADC_Channel_8, 1, ADC_SampleTime_239Cycles5);
     ADC_RegularChannelConfig(ADC1, ADC_Channel_9, 2, ADC_SampleTime_239Cycles5);
+
+    /* 模拟看门狗只监控电流通道，作为滑动窗口软件保护之前的快速关断层。 */
+    Adc_Driver_Update_Fast_Overcurrent_Threshold();
+    ADC_AnalogWatchdogSingleChannelConfig(ADC1, ADC_Channel_8);
+    ADC_AnalogWatchdogCmd(ADC1, ADC_AnalogWatchdog_SingleRegEnable);
+    ADC_ClearITPendingBit(ADC1, ADC_IT_AWD);
+    ADC_ITConfig(ADC1, ADC_IT_AWD, ENABLE);
+
+    nvic.NVIC_IRQChannel = ADC1_2_IRQn;
+    nvic.NVIC_IRQChannelPreemptionPriority = 0U;
+    nvic.NVIC_IRQChannelSubPriority = 0U;
+    nvic.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&nvic);
 
     ADC_Cmd(ADC1, ENABLE);
 
@@ -277,6 +316,31 @@ void Adc_Driver_DMA_Transfer_Complete_ISR(void)
     s_adc_sample_sequence++;
 }
 
+void Adc_Driver_Analog_Watchdog_ISR(void)
+{
+    /* 先撤销主输出，再发布锁存，主循环只负责补齐故障状态和用户提示。 */
+    Pwm_Driver_Disable();
+    s_fast_overcurrent_latched = 1U;
+    ADC_ITConfig(ADC1, ADC_IT_AWD, DISABLE);
+}
+
+uint8_t Adc_Driver_Is_Fast_Overcurrent_Latched(void)
+{
+    return s_fast_overcurrent_latched;
+}
+
+void Adc_Driver_Clear_Fast_Overcurrent_Latch(void)
+{
+    uint32_t primask;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    s_fast_overcurrent_latched = 0U;
+    ADC_ClearITPendingBit(ADC1, ADC_IT_AWD);
+    ADC_ITConfig(ADC1, ADC_IT_AWD, ENABLE);
+    __set_PRIMASK(primask);
+}
+
 uint32_t Adc_Driver_Get_Processed_Sequence(void)
 {
     return s_adc_processed_sequence;
@@ -311,6 +375,7 @@ void Adc_Driver_Calibration_Task(uint8_t power_enabled)
         new_offset = s_cal_accum / (float)ADC_DRIVER_CAL_SAMPLES;
         if (new_offset > 0.5f && new_offset < 2.8f) {
             s_i_offset = new_offset;
+            Adc_Driver_Update_Fast_Overcurrent_Threshold();
             s_cal_state = ADC_DRIVER_CAL_READY;
             s_cal_completed_event = 1U;
         }
@@ -354,6 +419,7 @@ void Adc_Driver_Set_Calibration(float i_offset, float v_gain, int32_t freq_trim)
     }
     if (i_offset > 0.5f && i_offset < 2.8f) {            /* 合理范围覆盖1.65V附近的零点 */
         s_i_offset = i_offset;
+        Adc_Driver_Update_Fast_Overcurrent_Threshold();
         s_cal_state = ADC_DRIVER_CAL_READY;
     }
     else s_cal_state = ADC_DRIVER_CAL_ERROR;

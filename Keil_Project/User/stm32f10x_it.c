@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file    User/stm32f10x_it.c
-  * @brief   中断服务函数 — V5.1.0
+  * @brief   中断服务函数 — V5.1.1
   *
   *  中断映射（Cortex-M3嵌套向量中断控制器）:
   *  +------------------------------------------------------------+
@@ -34,20 +34,20 @@
 /* Cortex-M3处理器异常处理函数                                                */
 /******************************************************************************/
 
-void NMI_Handler(void)          { }
-/* 所有致命异常共用同一安全关断路径，防止某一处理函数遗漏关键动作。 */
-static void Stm32f10x_It_Enter_Safe_Loop(void)
+/* 致命异常不能依赖库函数或栈上复杂状态，直接关闭定时器输出和12V电源。 */
+static void Stm32f10x_It_Fatal_Safe_Loop(void)
 {
-    TIM_CtrlPWMOutputs(TIM1, DISABLE);
-    TIM_Cmd(TIM1, DISABLE);
-    GPIO_ResetBits(GPIOB, GPIO_Pin_10);
-    while (1) { }
+    TIM1->BDTR &= (uint16_t)(~TIM_BDTR_MOE);
+    TIM1->CR1 &= (uint16_t)(~TIM_CR1_CEN);
+    GPIOB->BRR = GPIO_Pin_10;
+    while (1) { __NOP(); }
 }
 
-void HardFault_Handler(void)    { Stm32f10x_It_Enter_Safe_Loop(); }
-void MemManage_Handler(void)    { Stm32f10x_It_Enter_Safe_Loop(); }
-void BusFault_Handler(void)     { Stm32f10x_It_Enter_Safe_Loop(); }
-void UsageFault_Handler(void)   { Stm32f10x_It_Enter_Safe_Loop(); }
+void NMI_Handler(void)          { Stm32f10x_It_Fatal_Safe_Loop(); }
+void HardFault_Handler(void)    { Stm32f10x_It_Fatal_Safe_Loop(); }
+void MemManage_Handler(void)    { Stm32f10x_It_Fatal_Safe_Loop(); }
+void BusFault_Handler(void)     { Stm32f10x_It_Fatal_Safe_Loop(); }
+void UsageFault_Handler(void)   { Stm32f10x_It_Fatal_Safe_Loop(); }
 void SVC_Handler(void)          { }
 void DebugMon_Handler(void)     { }
 void PendSV_Handler(void)       { }
@@ -72,6 +72,16 @@ void DMA1_Channel1_IRQHandler(void)
     {
         DMA_ClearITPendingBit(DMA1_IT_TC1);
         Adc_Driver_DMA_Transfer_Complete_ISR();
+    }
+}
+
+/** @brief ADC模拟看门狗过流中断，先清硬件标志再执行快速PWM关断 */
+void ADC1_2_IRQHandler(void)
+{
+    if (ADC_GetITStatus(ADC1, ADC_IT_AWD) != RESET)
+    {
+        ADC_ClearITPendingBit(ADC1, ADC_IT_AWD);
+        Adc_Driver_Analog_Watchdog_ISR();
     }
 }
 

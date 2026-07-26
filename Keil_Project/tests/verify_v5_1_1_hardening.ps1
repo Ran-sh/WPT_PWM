@@ -46,6 +46,7 @@ Test-Pattern 'external icon base follows table header and entry count' `
     (($tft -match 'TFT_FONT_ICON_TABLE_ADDR') -and
      ($tft -match 's_icon_data_addr') -and
      ($tft -match 'icon_count') -and
+     ($tft -notmatch 'icon_id\s*>\s*34U') -and
      ($tft -notmatch '0x00000808'))
 
 $windowFunction = [regex]::Match(
@@ -72,6 +73,7 @@ Test-Pattern 'custom color never becomes a preset array index' `
 Test-Pattern 'network commands require exact complete frames' `
     (($network -match 'App_Network_Is_Exact_Frame') -and
      ($network -notmatch 'strstr\s*\(\s*local_buf\s*,\s*"CMD:') -and
+     ($network -match 'App_Network_Is_Canonical_Number') -and
      ($network -match '\*endp\s*!=\s*''\\0'''))
 
 Test-Pattern 'persistent config validates strings and field semantics' `
@@ -86,7 +88,8 @@ Test-Pattern 'CRC32 supports streaming and font V2 verifies payload' `
      ($checksumH -match 'Checksum_CRC32_Finish') -and
      ($checksumC -match 'Checksum_CRC32_Update') -and
      ($generator -match 'VERSION\s*=\s*2') -and
-     ($tft -match 'Tft_Driver_Verify_Font_Payload'))
+     ($tft -match 'Tft_Driver_Verify_Font_Payload') -and
+     ($tft -match 'Tft_Driver_Is_Glyph_Offset_Valid'))
 
 Test-Pattern 'startup includes nonblocking power settle time' `
     (($sysCoreC -match 'SYS_POWER_SETTLE_MS') -and
@@ -100,13 +103,15 @@ Test-Pattern 'ADC analog watchdog provides fast overcurrent latch' `
      ($irq -match 'ADC1_2_IRQHandler'))
 
 Test-Pattern 'NMI enters the minimal safe shutdown path' `
-    ($irq -match 'void\s+NMI_Handler\s*\(void\)\s*\{\s*Sys_Fatal_Safe_Loop\s*\(\s*\)')
+    ($irq -match 'void\s+NMI_Handler\s*\(void\)\s*\{\s*Stm32f10x_It_Fatal_Safe_Loop\s*\(\s*\)')
 
 Test-Pattern 'RX frame copy checks bounds before reading the buffer' `
     ($esp -match 'len\s*\+\s*1U\s*<\s*max_len\s*&&\s*len\s*\+\s*1U\s*<\s*ESP8266_DRIVER_RX_BUF_SIZE')
 
 Test-Pattern 'inverter stores the actual PWM frequency' `
-    ($inverter -match 's_ss_current_freq\s*=\s*Pwm_Driver_Set_Frequency')
+    (($inverter -match 's_ss_current_freq\s*=\s*Pwm_Driver_Set_Frequency') -and
+     ($ui -notmatch 'Pwm_Driver_Set_Frequency') -and
+     ($ui -match 'Inverter_Control_Freq_Ramp_Trigger'))
 
 Test-Pattern 'medium-density startup reserves a 2KB stack' `
     ($startup -match 'Stack_Size\s+EQU\s+0x00000800')
