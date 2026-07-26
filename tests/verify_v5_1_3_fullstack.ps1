@@ -60,6 +60,7 @@ Assert-True ($ignore -match '/安卓app/server/node_modules/') 'Android bridge d
 $keilCleanup = Read-Utf8 'Keil_Project/keilkill.bat'
 Assert-True ($keilCleanup -match '%~dp0' -and $keilCleanup -match 'Objects' -and $keilCleanup -match 'Listings') 'Keil cleanup is anchored to its own build directories'
 Assert-True ($keilCleanup -notmatch '(?m)^\s*del\s+\*\.[^\r\n]*\s+/s\s*$') 'Keil cleanup has no current-directory recursive delete'
+Assert-True ($keilCleanup -match '(?:^|\s)_ia(?:\s|$)') 'Keil cleanup removes ARMCC _ia analysis artifacts'
 
 $allC = Get-ChildItem (Join-Path $Root 'Keil_Project') -Recurse -Filter '*.c' |
     Where-Object { $_.FullName -notmatch '[\\/](Library|Start)[\\/]' }
