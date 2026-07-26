@@ -39,6 +39,12 @@ function buildCards(model, data, isOffline) {
   return { sensors: sensors, controls: controls };
 }
 
+function getConnectionView(data) {
+  if (data && data._isMock) return { connState: 3, connLabel: '预览' };
+  if (data && data._isOnline) return { connState: 0, connLabel: '在线' };
+  return { connState: 1, connLabel: '离线' };
+}
+
 Page({
   data: {
     dashTitle: 'WPT Monitor', sensors: [], controls: [],
@@ -66,7 +72,7 @@ Page({
     if (JSON.stringify(model) !== this._lastModelJson) {
       this._lastModelJson = JSON.stringify(model);
       var cached2 = wx.getStorageSync('wpt_latest');
-      this.setData(buildCards(model, cached2, !(cached2 && cached2._isOnline)));
+      this.setData(buildCards(model, cached2, !cached2 || (!cached2._isOnline && !cached2._isMock)));
     }
     if (!this._active) { this._active = true; this._pollFailures = 0; this._fetchAndSchedule(); }
   },
@@ -87,14 +93,14 @@ Page({
     if (!this._active) return;
     this._doFetch().then(function(data) {
       that._pollFailures = 0;
-      if (that._active && data) { var on = !!data._isOnline; that.setData({ connState: on ? 0 : 1, connLabel: on ? '在线' : '离线' }); }
+      if (that._active && data) that.setData(getConnectionView(data));
     }).catch(function() {
       that._pollFailures++;
       if (that._pollFailures === 1 && that._active) {
         clearTimeout(that._retryTimer);
         that._retryTimer = setTimeout(function() {
           if (!that._active) return;
-          that._doFetch().then(function(data) { that._pollFailures = 0; if (that._active && data) { var on2 = !!data._isOnline; that.setData({ connState: on2 ? 0 : 1, connLabel: on2 ? '在线' : '离线' }); } }).catch(function() {});
+          that._doFetch().then(function(data) { that._pollFailures = 0; if (that._active && data) that.setData(getConnectionView(data)); }).catch(function() {});
         }, 2000);
       } else if (that._active) { that.setData({ connState: 2, connLabel: '连接失败' }); }
     }).then(function() {
@@ -114,17 +120,17 @@ Page({
 
   _applyData: function(data, fromCache) {
     var model = OneNet.getDataModel();
-    var isOffline = !data._isOnline;  /* true=在线, false/undefined=离线 */
+    var isOffline = !data || (!data._isOnline && !data._isMock);
     var cards = buildCards(model, data, isOffline);
     var newAlerts = OneNet.checkAlerts(data, fromCache);
     if (newAlerts.length > 0 && wx.getStorageSync('wpt_sound_alert') !== false) {
       try { wx.vibrateLong(); } catch (_) {}
     }
-    var online = !isOffline;
+    var connection = getConnectionView(data);
     this.setData({
       sensors: cards.sensors, controls: cards.controls,
       alertVisible: newAlerts.length > 0, alertMessages: newAlerts,
-      connState: online ? 0 : 1, connLabel: online ? '在线' : '离线'
+      connState: connection.connState, connLabel: connection.connLabel
     });
     this._lastModelJson = JSON.stringify(model);
   },
@@ -134,3 +140,4 @@ Page({
   onAlertTap: function() { wx.switchTab({ url: '/pages/alerts/alerts' }); },
   onConnTap: function() { this._doFetch().catch(function(){}); }
 });
+/* WPT Monitor V5.1.3：首页逻辑。 */

@@ -146,3 +146,4 @@ Page({
     wx.showModal({ title: '清空操作记录', content: '确定清空所有操作记录吗？', success: function(r) { if (r.confirm) { that._logs = []; wx.setStorageSync('wpt_ctrl_logs', []); that.setData({ logs: [] }); } } });
   }
 });
+/* WPT Monitor V5.1.3：设备控制页逻辑。 */

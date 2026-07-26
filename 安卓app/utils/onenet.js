@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════
-   WPT Monitor — OneNET 服务（V5.1.2）
+   WPT Monitor — OneNET 服务（V5.1.3）
    完全对齐 Web ONENETapp/js/onenet.js OneNetService
    数据模型从 utils/config.js 读取 (单一来源)
    安全: 无硬编码凭证, 无 console 输出
@@ -197,7 +197,7 @@ function setProperty(cfg, params) {
    checkAlerts
    ═══════════════════════════════════════════ */
 function checkAlerts(data, isFromCache) {
-  if (isFromCache || data._isOnline === false) return [];
+  if (isFromCache || !data || data._isMock || data._isOnline === false) return [];
   var model = getDataModel();
   var alerts = safeStorageGet('wpt_alerts', []);
   var alarmStates = safeStorageGet('wpt_alarm_states', {});
@@ -276,7 +276,7 @@ function buildFreqList() {
 /* ══ Mock Data ══ */
 function getMockData() {
   var model = getDataModel();
-  var data = { _isMock: true };
+  var data = { _isMock: true, _isOnline: false };
   model.sensors.forEach(function(s) {
     var range = s.max - s.min, mid = s.min + range / 2;
     var rawVal = mid + (Math.random() * (range * 0.2) - (range * 0.1));

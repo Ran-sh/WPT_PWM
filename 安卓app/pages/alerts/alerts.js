@@ -81,3 +81,4 @@ Page({
     var that = this; setTimeout(function() { that._tabLock = false; }, 200);
   }
 });
+/* WPT Monitor V5.1.3：报警记录页逻辑。 */

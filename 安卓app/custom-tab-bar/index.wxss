@@ -73,3 +73,4 @@
   transition: color 0.18s ease, font-weight 0.18s ease;
 }
 .tab-label.active { color: var(--accent, #00E5FF); font-weight: 800; }
+/* WPT Monitor V5.1.3：自定义导航栏样式。 */

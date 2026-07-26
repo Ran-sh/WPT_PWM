@@ -6,3 +6,4 @@ import('./bridge.mjs')
     console.error('[桥接] 启动失败:', error.message);
     process.exitCode = 1;
   });
+/* WPT Monitor V5.1.3：本地桥接兼容入口。 */

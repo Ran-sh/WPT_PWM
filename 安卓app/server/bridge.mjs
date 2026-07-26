@@ -143,3 +143,4 @@ if (entryPath && fileURLToPath(import.meta.url) === entryPath) {
     process.exitCode = 1;
   }
 }
+/* WPT Monitor V5.1.3：本地桥接服务入口。 */

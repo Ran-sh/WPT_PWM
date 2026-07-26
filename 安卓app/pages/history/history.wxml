@@ -12,3 +12,4 @@
     <view class="table-row" wx:for="{{records}}" wx:key="time"><view class="td td-time"><view class="time-date">{{item.fullTime ? item.fullTime.split(' ')[0] : ''}}</view><view class="time-hm">{{item.fullTime ? (item.fullTime.split(' ')[1] || item.time) : item.time}}</view></view><text class="td td-val {{item.ok ? '' : 'val-bad'}}">{{item.value}}</text><view class="td td-status"><view class="status-circle {{item.ok ? 'pass' : 'bad'}}">{{item.ok ? '✓' : '✕'}}</view></view></view>
   </view>
 </view>
+<!-- WPT Monitor V5.1.3：历史数据页结构。 -->

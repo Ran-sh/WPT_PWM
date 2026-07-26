@@ -66,3 +66,4 @@ export function isApiKeyValid(candidate, expected) {
   if (candidateBuffer.length !== expectedBuffer.length) return false;
   return timingSafeEqual(candidateBuffer, expectedBuffer);
 }
+/* WPT Monitor V5.1.3：本地桥接核心逻辑。 */

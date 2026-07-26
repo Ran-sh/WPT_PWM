@@ -1,3 +1,4 @@
+/* WPT Monitor V5.1.3：小程序全局入口。 */
 /* ═══════════════════════════════════════════
    WPT Monitor — 全局 App
    数据模型从 utils/config.js 读取 (单一来源)
@@ -10,7 +11,8 @@ function safeStorageGet(key, fallback) { try { var v = wx.getStorageSync(key); r
 
 App({
   globalData: {
-    tabBarSelected: 0
+    tabBarSelected: 0,
+    projectVersion: 'V5.1.3'
   },
 
   /* Tab 列表 (对齐 Web mobile-nav.js 6项, 小程序保持5项 + 报警从横幅/设置跳转) */

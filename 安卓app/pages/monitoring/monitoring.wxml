@@ -19,3 +19,4 @@
     <canvas type="2d" id="trendCanvas" class="trend-canvas"></canvas>
   </view>
 </view>
+<!-- WPT Monitor V5.1.3：实时监测页结构。 -->

@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    ESP8266_MQTT_Firmware.ino
  * @brief   ESP8266 Dual-MCU MQTT 固件 (Arduino)
- * @note    V5.1.2: 频率双档量化、严格指令解析与串口溢出保护
+ * @note    V5.1.3: 频率双档量化、严格指令解析、串口溢出保护与协议输出隔离
  *          Dual-MCU 通信协议 (115200 8N1):
  *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx,"S":x}\n
  *            ESP8266 → STM32:  CMD:ON\n  /  CMD:OFF\n  /  CMD:SETFREQ:<Hz>\n
@@ -22,7 +22,8 @@
  *  1. 用户配置 — 改参数只改这里
  * ═══════════════════════════════════════════════════════════════ */
 
-/* #define DEBUG */  /* 取消注释以启用串口调试输出 */
+/* 生产固件必须保持为0，避免调试文本混入STM32协议串口。 */
+#define ESP8266_DEBUG_ENABLED 0
 
 /* ── 串口通信 ── */
 #define SERIAL_BAUDRATE       115200
@@ -76,6 +77,16 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
+
+#if ESP8266_DEBUG_ENABLED
+#define ESP8266_DEBUG_PRINT(value)         Serial.print(value)
+#define ESP8266_DEBUG_PRINTLN(value)       Serial.println(value)
+#define ESP8266_DEBUG_WRITE(data, length)  Serial.write((data), (length))
+#else
+#define ESP8266_DEBUG_PRINT(value)         do { (void)sizeof(value); } while (0)
+#define ESP8266_DEBUG_PRINTLN(value)       do { (void)sizeof(value); } while (0)
+#define ESP8266_DEBUG_WRITE(data, length)  do { (void)(data); (void)(length); } while (0)
+#endif
 
 
 /* ═══════════════════════════════════════════════════════════════
@@ -270,11 +281,9 @@ static void Mqtt_Task_On_Public_Message(char* topic, byte* payload, unsigned int
     }
     payload += key_length;
     length  -= key_length;
-#ifdef DEBUG
-    Serial.print("[Public] <<< CMD: ");
-    Serial.write(payload, length);
-    Serial.println();
-#endif
+    ESP8266_DEBUG_PRINT("[Public] <<< CMD: ");
+    ESP8266_DEBUG_WRITE(payload, length);
+    ESP8266_DEBUG_PRINTLN("");
     Mqtt_Task_Parse_Command((const char*)payload, length);
 #endif /* PUBLIC_MQTT_ENABLED */
 }
@@ -321,9 +330,7 @@ static void Mqtt_Task_Maintain_Connection(void)
                 Serial.print("STATUS:ONLINE:RSSI=");
                 Serial.print(WiFi.RSSI());
                 Serial.print("\n");
-#ifdef DEBUG
-                Serial.println("[Status] >>> Sent STATUS:ONLINE to STM32 <<<");
-#endif
+                ESP8266_DEBUG_PRINTLN("[Status] >>> Sent STATUS:ONLINE to STM32 <<<");
             }
             break;
         }
@@ -484,9 +491,7 @@ static void Serial_Parse_Process_Line(const char* line)
         }
         /* 第二次确认 → 执行清除 */
         s_clear_first_ms = 0;
-#ifdef DEBUG
-        Serial.println("[System] CMD:CLEAR confirmed — resetting WiFi...");
-#endif
+        ESP8266_DEBUG_PRINTLN("[System] CMD:CLEAR confirmed — resetting WiFi...");
         WiFiManager wm;
         wm.resetSettings();
         Serial.flush();          /* 等 UART FIFO 排空再重启 */
@@ -534,39 +539,30 @@ void setup()
 {
     Serial.begin(SERIAL_BAUDRATE);
 
-#ifdef DEBUG
-    Serial.println();
-    Serial.println("[System] ESP8266 Booting...");
-    Serial.print("[System] Free heap: ");
-    Serial.println(ESP.getFreeHeap());
-#endif
+    ESP8266_DEBUG_PRINTLN("");
+    ESP8266_DEBUG_PRINTLN("[System] ESP8266 Booting...");
+    ESP8266_DEBUG_PRINT("[System] Free heap: ");
+    ESP8266_DEBUG_PRINTLN(ESP.getFreeHeap());
 
     WiFi.mode(WIFI_STA);
 
     WiFiManager wifi_manager;
-    wifi_manager.setDebugOutput(false);       /* 生产环境关闭调试输出 (防 WiFi SSID 泄露) */
+    wifi_manager.setDebugOutput(ESP8266_DEBUG_ENABLED != 0); /* 调试与协议串口统一受编译开关约束。 */
     wifi_manager.setConfigPortalTimeout(WIFI_AP_TIMEOUT_S);
 
-#ifdef DEBUG
-    wifi_manager.setDebugOutput(true);
-    Serial.println("[WiFi] Starting WiFiManager autoConnect...");
-#endif
+    ESP8266_DEBUG_PRINTLN("[WiFi] Starting WiFiManager autoConnect...");
 
     if (!wifi_manager.autoConnect(WIFI_AP_NAME, WIFI_AP_PASSWORD)) {
-#ifdef DEBUG
-        Serial.println("[WiFi] No saved WiFi — starting Config Portal...");
-        Serial.print("[WiFi] Connect to AP: ");
-        Serial.println(WIFI_AP_NAME);
-#endif
+        ESP8266_DEBUG_PRINTLN("[WiFi] No saved WiFi — starting Config Portal...");
+        ESP8266_DEBUG_PRINT("[WiFi] Connect to AP: ");
+        ESP8266_DEBUG_PRINTLN(WIFI_AP_NAME);
         wifi_manager.startConfigPortal(WIFI_AP_NAME, WIFI_AP_PASSWORD);
     }
 
-#ifdef DEBUG
-    Serial.print("[WiFi] Connected! IP: ");
-    Serial.println(WiFi.localIP());
-    Serial.print("[WiFi] Free heap: ");
-    Serial.println(ESP.getFreeHeap());
-#endif
+    ESP8266_DEBUG_PRINT("[WiFi] Connected! IP: ");
+    ESP8266_DEBUG_PRINTLN(WiFi.localIP());
+    ESP8266_DEBUG_PRINT("[WiFi] Free heap: ");
+    ESP8266_DEBUG_PRINTLN(ESP.getFreeHeap());
 
     /* 初始化 MQTT 客户端并启动联网状态机 */
     s_mqtt_client.setServer(MQTT_SERVER, MQTT_PORT);

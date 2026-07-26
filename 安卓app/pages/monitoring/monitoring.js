@@ -6,7 +6,7 @@
 var OneNet = require('../../utils/onenet.js');
 
 function buildSensorList(model, data) {
-  var list = [], isOffline = !(data && data._isOnline);
+  var list = [], isOffline = !data || (!data._isOnline && !data._isMock);
   model.sensors.forEach(function(s) {
     var val = '--', status = 'normal', stxt = '等待数据';
     if (!isOffline && data && data[s.id] !== undefined) {
@@ -128,3 +128,4 @@ Page({
     });
   }
 });
+/* WPT Monitor V5.1.3：实时监测页逻辑。 */

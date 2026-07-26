@@ -71,3 +71,4 @@ Page({
     var that = this; setTimeout(function() { that._tabLock = false; }, 200);
   }
 });
+/* WPT Monitor V5.1.3：设置页逻辑。 */

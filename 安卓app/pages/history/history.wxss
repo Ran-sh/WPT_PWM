@@ -50,3 +50,4 @@
 .status-circle.pass { background:var(--green-bg); color:var(--green); }
 .status-circle.bad  { background:var(--red-bg);  color:var(--red); }
 .empty { padding:60rpx; text-align:center; font-size:24rpx; color:var(--text-tertiary); }
+/* WPT Monitor V5.1.3：历史数据页样式。 */
