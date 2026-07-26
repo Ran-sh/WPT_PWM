@@ -102,6 +102,16 @@ test('小程序在发起网络请求前拒绝越界或非步进频率', async ()
   assert.equal(await oneNet.setProperty(null, { switch: 'true' }), false);
 });
 
+test('未配置云平台时预览数据明确标记为模拟且不会触发报警', () => {
+  const { oneNet, storage } = loadMiniModules();
+  const mock = oneNet.getMockData();
+  assert.equal(mock._isMock, true);
+  assert.equal(mock._isOnline, false);
+  mock.current = 99;
+  assert.deepEqual(oneNet.checkAlerts(mock, false), []);
+  assert.equal(storage.wpt_alerts, undefined);
+});
+
 test('网页端旧数据模型也会迁移并恢复频率换算', () => {
   const legacy = JSON.stringify({
     sensors: [
