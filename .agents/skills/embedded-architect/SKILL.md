@@ -149,7 +149,7 @@ powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_task4_gauge.p
 ```
 
 - 能使用 Keil 时再做真实构建；不能构建必须明确说明，禁止伪造“零错误”。
-- 推送前运行 `Keil_Project/keilkill.bat`，确认无 `.obj`、`.lst`、`.axf`、`.hex` 等产物。
+- 推送前运行 `Keil_Project/keilkill.bat`，确认无 `.obj`、`.lst`、`.axf`、`.hex`、`._ia` 等产物。
 - 先提交并推送 `ONENETapp` 的 `master` 与 `gh-pages`，再提交主仓库的子模块指针。
 - 主仓库只推送 `origin 5.0`；不得提交 `.claude/settings.local.json`、`.codex/` 或本地凭证。
 

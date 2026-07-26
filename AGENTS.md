@@ -132,7 +132,7 @@ powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_task4_gauge.p
 每次主仓库推送前：
 
 1. 运行 `cmd.exe /c Keil_Project\keilkill.bat`。
-2. 检查无 `.obj`、`.lst`、`.axf`、`.hex`、`.map` 等 Keil 产物。
+2. 检查无 `.obj`、`.lst`、`.axf`、`.hex`、`.map`、`._ia` 等 Keil 产物。
 3. 先在 `ONENETapp/` 提交并推送 `master`，再快进 `gh-pages` 并推送。
 4. 回到主仓库提交网页仓库指针和其他文件。
 5. 推送 `origin 5.0`。
