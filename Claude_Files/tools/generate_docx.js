@@ -223,6 +223,10 @@ function convertMdToDocx(mdPath) {
   }
   const bodyElements = allElements.slice(bodyStartIdx);
   const docTitle = titleText;
+  const versionMatch = mdContent.match(/\|\s*\*\*(?:文档)?版本\*\*\s*\|\s*(V\d+\.\d+\.\d+)\s*\|/);
+  const dateMatch = mdContent.match(/\|\s*\*\*最后更新\*\*\s*\|\s*(\d{4})-(\d{2})-\d{2}\s*\|/);
+  const coverVersion = versionMatch ? versionMatch[1] : "";
+  const coverDate = dateMatch ? `${dateMatch[1]} 年 ${Number(dateMatch[2])} 月` : "";
 
   // 公共属性
   const pageProps = {
@@ -251,12 +255,19 @@ function convertMdToDocx(mdPath) {
   coverChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 2400 },
     children: [new TextRun({ text: "技术与联调文档", font: FONT_TITLE, size: 36, color: CLR_H2, bold: true })] }));
 
+  if (coverVersion) {
+    coverChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 360 },
+      children: [new TextRun({ text: `版本 ${coverVersion}`, font: FONT_BODY, size: 24, color: CLR_BODY, bold: true })] }));
+  }
+
   metaLines.forEach(m => {
     coverChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { line: 420 },
       children: [new TextRun({ text: m, font: FONT_BODY, size: 22, color: CLR_BODY })] }));
   });
-  coverChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 1200 },
-    children: [new TextRun({ text: "2026 年 5 月", font: FONT_BODY, size: 22, color: "888888" })] }));
+  if (coverDate) {
+    coverChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 1200 },
+      children: [new TextRun({ text: coverDate, font: FONT_BODY, size: 22, color: "888888" })] }));
+  }
 
   const doc = new Document({
     styles: {

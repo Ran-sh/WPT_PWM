@@ -6,7 +6,7 @@ param(
                   'BlackboxLifecycle', 'BlackboxSnapshot',
                   'Keys', 'KeyRouting', 'Ui', 'UiPerf', 'UartTx', 'Network', 'Scheduler', 'Timeout',
                  'CodeQuality',
-                 'Version', 'Build', 'SettingsGauge')]
+                 'Version', 'Build', 'SettingsGauge', 'Documentation')]
     [string]$Scope = 'All'
 )
 
@@ -224,6 +224,14 @@ $networkC = Read-ProjectText 'Keil_Project\User\App_Network.c'
 $mainC = Read-ProjectText 'Keil_Project\User\main.c'
 $projectText = Read-ProjectText 'Keil_Project\Project.uvprojx'
 $timerC = Read-ProjectText 'Keil_Project\System\Sys_Timer.c'
+$developerGuideFile = Get-ChildItem (Join-Path $repoRoot 'Claude_Files\docs') `
+    -File -Filter 'WPT*.md' | Select-Object -First 1
+$developerGuide = if ($null -ne $developerGuideFile) {
+    [System.IO.File]::ReadAllText($developerGuideFile.FullName, [System.Text.Encoding]::UTF8)
+} else {
+    ''
+}
+$ch341Readme = Read-ProjectText 'ch341\README.md'
 $stm32Files = Get-ChildItem (Join-Path $keilRoot 'Hardware'),
                                (Join-Path $keilRoot 'System'),
                                (Join-Path $keilRoot 'User') -File |
@@ -830,8 +838,14 @@ Write-Check 'Timeout' 'USART2 runtime transmission has no polling wait' `
     ($espC -notmatch 'while\s*\(\s*USART_GetFlagStatus\s*\(\s*USART2')
 
 $staticPrefixFailures = @()
+$expectedStaticPrefixes = @{
+    'stm32f10x_it.c' = 'Stm32f10x_It_'
+}
 foreach ($sourceFile in ($stm32Files | Where-Object { $_.Extension -eq '.c' })) {
     $modulePrefix = [System.IO.Path]::GetFileNameWithoutExtension($sourceFile.Name) + '_'
+    if ($expectedStaticPrefixes.ContainsKey($sourceFile.Name)) {
+        $modulePrefix = $expectedStaticPrefixes[$sourceFile.Name]
+    }
     $sourceText = [System.IO.File]::ReadAllText(
         $sourceFile.FullName, [System.Text.Encoding]::UTF8)
     $staticMatches = [System.Text.RegularExpressions.Regex]::Matches(
@@ -839,7 +853,7 @@ foreach ($sourceFile in ($stm32Files | Where-Object { $_.Extension -eq '.c' })) 
         '(?m)^static\s+(?:const\s+)?[A-Za-z_][\w\s\*]*?\s+([A-Za-z_]\w*)\s*\(')
     foreach ($staticMatch in $staticMatches) {
         if (-not $staticMatch.Groups[1].Value.StartsWith(
-                $modulePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $modulePrefix, [System.StringComparison]::Ordinal)) {
             $staticPrefixFailures += ('{0}:{1}' -f $sourceFile.Name,
                 $staticMatch.Groups[1].Value)
         }
@@ -947,6 +961,28 @@ if (Test-CategoryEnabled 'SettingsGauge') {
         (($uiC -match 'Ui_Controller_Gauge_Value_To_Angle') -and
          ($uiC -match 'Ui_Controller_Gauge_Get_Frequency_Config') -and
          ($tftC -match 'Tft_Driver_Show_String_2X'))
+}
+
+if (Test-CategoryEnabled 'Documentation') {
+    $guideStalePattern = 'TIM1[^\r\n]*95k(?:Hz)?\s*[~\-]\s*150kHz|SS_SWEEP\(150kHz\)|\u53c2\u6570:[^\r\n]*200Hz|\u9891\u7387\u786c\u4e0b\u9650\s*95kHz|UI\s*\u2014\s*14\u9875\u9762'
+    $guideVersionCurrent = ($developerGuide -match '\u6587\u6863\u7248\u672c[^\r\n]*V5\.1\.0')
+    $guideSettingsCurrent = (($developerGuide -match '\u4e94\u9879\u8bbe\u7f6e') -and
+                             ($developerGuide -match '15\u9875\u9762'))
+    $guideFrequencyCurrent = (($developerGuide -match '20\u2013200kHz') -and
+                              ($developerGuide -match '99\.9kHz') -and
+                              ($developerGuide -match '200kHz'))
+    $guideGaugeCurrent = ($developerGuide -match '\u9012\u589e\u5f0f\u72ec\u7acb\u8868\u76d8')
+    $guideCurrent = ($guideVersionCurrent -and $guideSettingsCurrent -and
+                     $guideFrequencyCurrent -and $guideGaugeCurrent)
+    $guideClean = ($developerGuide -notmatch $guideStalePattern)
+    $ch341Current = (($ch341Readme -match 'WPT_PWM V5\.1\.0') -and
+                     ($ch341Readme -match '\u6d41\u7a0b\u5747\u672a\u6539\u53d8') -and
+                     ($ch341Readme -notmatch 'V5\.0\.2'))
+    Write-Check 'Documentation' 'developer guide is synchronized to V5.1.0' $guideCurrent `
+        ("version={0}, settings={1}, frequency={2}, gauge={3}" -f
+         $guideVersionCurrent, $guideSettingsCurrent, $guideFrequencyCurrent, $guideGaugeCurrent)
+    Write-Check 'Documentation' 'developer guide has no obsolete frequency UI or brightness description' $guideClean
+    Write-Check 'Documentation' 'CH341 guide records V5.1.0 without claiming a workflow change' $ch341Current
 }
 
 Write-Host ("Summary: {0} PASS, {1} FAIL" -f $script:PassCount, $script:FailureCount) -ForegroundColor Cyan
