@@ -1,140 +1,102 @@
-# WPT 桥接服务器 + ngrok 一键启动脚本
-# 用途: 启动 Node.js 桥接服务器 + ngrok 公网隧道，微信小程序即可远程连接
-# 用法: powershell -ExecutionPolicy Bypass -File start_bridge.ps1
+﻿# WPT 桥接服务器与 ngrok 安全启动脚本
+# 只管理本脚本创建的进程，不会终止占用端口的其他程序。
 
-$ErrorActionPreference = "Stop"
-$BridgeDir  = Join-Path $PSScriptRoot "..\..\安卓app\server"
-$NgrokLog   = Join-Path $env:TEMP "ngrok_wpt.log"
+$ErrorActionPreference = 'Stop'
+$BridgeDir = Join-Path $PSScriptRoot '..\..\安卓app\server'
 $BridgePort = 3000
+$StateFile = Join-Path $env:TEMP 'wpt_bridge_state.json'
+$BridgeOutLog = Join-Path $env:TEMP 'wpt_bridge_stdout.log'
+$BridgeErrLog = Join-Path $env:TEMP 'wpt_bridge_stderr.log'
+$NgrokOutLog = Join-Path $env:TEMP 'wpt_ngrok_stdout.log'
+$NgrokErrLog = Join-Path $env:TEMP 'wpt_ngrok_stderr.log'
 
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  WPT 桥接服务器 + ngrok 启动脚本" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
-
-# ── 1. 检查 Node.js ──
-Write-Host "[1/4] 检查 Node.js..." -ForegroundColor Yellow
-$nodeVersion = node --version 2>$null
-if (-not $nodeVersion) {
-    Write-Host "  [错误] 未找到 Node.js，请安装 https://nodejs.org/" -ForegroundColor Red
-    pause
-    exit 1
-}
-Write-Host "  Node.js $nodeVersion OK" -ForegroundColor Green
-
-# ── 2. 检查 ngrok ──
-Write-Host "[2/4] 检查 ngrok..." -ForegroundColor Yellow
-$ngrokVersion = ngrok version 2>$null
-if (-not $ngrokVersion) {
-    Write-Host "  [错误] 未找到 ngrok，请安装 https://ngrok.com/download" -ForegroundColor Red
-    pause
-    exit 1
-}
-Write-Host "  ngrok 已安装" -ForegroundColor Green
-
-# ── 3. 检查端口占用 ──
-Write-Host "[3/4] 检查端口 $BridgePort..." -ForegroundColor Yellow
-$portProc = netstat -ano 2>$null | Select-String ":$BridgePort\s"
-if ($portProc) {
-    Write-Host "  [警告] 端口 $BridgePort 已被占用，尝试释放..." -ForegroundColor Magenta
-    $pidMatch = [regex]::Match($portProc, '\s+(\d+)\s*$')
-    if ($pidMatch.Success) {
-        Stop-Process -Id $pidMatch.Groups[1].Value -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 1
-        Write-Host "  已释放端口" -ForegroundColor Green
+function Stop-OwnedProcess([int]$ProcessId, [string]$ExpectedName) {
+    if ($ProcessId -le 0) { return }
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if ($process -and $process.ProcessName -eq $ExpectedName) {
+        Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
     }
 }
 
-# ── 4. 启动桥接服务器 ──
-Write-Host "[4/4] 启动桥接服务器..." -ForegroundColor Yellow
-$bridgeJob = Start-Job -ScriptBlock {
-    param($dir)
-    Set-Location $dir
-    node bridge.cjs 2>&1
-} -ArgumentList $BridgeDir
-
-Start-Sleep -Seconds 2
-
-# 验证桥接服务器
-try {
-    $health = Invoke-RestMethod -Uri "http://localhost:$BridgePort/health" -TimeoutSec 3
-    Write-Host "  桥接服务器 OK — MQTT: $($health.mqtt)" -ForegroundColor Green
-} catch {
-    Write-Host "  [错误] 桥接服务器启动失败: $_" -ForegroundColor Red
-    Stop-Job $bridgeJob -ErrorAction SilentlyContinue
-    Remove-Job $bridgeJob -ErrorAction SilentlyContinue
-    pause
-    exit 1
+if (-not (Test-Path (Join-Path $BridgeDir 'bridge.mjs'))) {
+    throw "桥接服务目录无效: $BridgeDir"
+}
+if (-not (Test-Path (Join-Path $BridgeDir 'node_modules'))) {
+    throw "依赖尚未安装，请先在 $BridgeDir 执行 npm install"
 }
 
-# ── 5. 启动 ngrok 隧道 ──
-Write-Host ""
-Write-Host "[ngrok] 启动公网隧道..." -ForegroundColor Yellow
-$ngrokProc = Start-Process -FilePath "ngrok" -ArgumentList "http","$BridgePort","--log=stdout" -NoNewWindow -PassThru -RedirectStandardOutput $NgrokLog
+$nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+$ngrokCommand = Get-Command ngrok -ErrorAction SilentlyContinue
+if (-not $nodeCommand) { throw '未找到 Node.js' }
+if (-not $ngrokCommand) { throw '未找到 ngrok' }
 
-Start-Sleep -Seconds 5
-
-# ── 提取 ngrok 公网 URL ──
-$ngrokContent = Get-Content $NgrokLog -Raw -ErrorAction SilentlyContinue
-$urlMatch = [regex]::Match($ngrokContent, 'url=(https://[^\s]+\.ngrok-free\.dev)')
-if ($urlMatch.Success) {
-    $publicUrl = $urlMatch.Groups[1].Value
-} else {
-    Write-Host "  [警告] 未能从日志提取 ngrok URL，尝试 API 获取..." -ForegroundColor Magenta
-    try {
-        $apiResult = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -TimeoutSec 3
-        $publicUrl = $apiResult.tunnels[0].public_url
-    } catch {
-        Write-Host "  [错误] 无法获取 ngrok 公网地址" -ForegroundColor Red
-        Write-Host "  请检查 ngrok 是否正常启动" -ForegroundColor Red
-        pause
-        exit 1
-    }
+$listening = netstat -ano 2>$null | Select-String ":$BridgePort\s+.*LISTENING"
+if ($listening) {
+    throw "端口 $BridgePort 已被占用。为避免误杀其他程序，脚本已停止。"
 }
 
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  隧道已就绪!" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  公网地址: $publicUrl" -ForegroundColor White
-Write-Host "  数据接口: $publicUrl/data" -ForegroundColor White
-Write-Host "  控制接口: $publicUrl/cmd" -ForegroundColor White
-Write-Host "  健康检查: $publicUrl/health" -ForegroundColor White
-Write-Host ""
-
-# ── 验证公网链路 ──
-Write-Host "[验证] 测试公网数据接口..." -ForegroundColor Yellow
-try {
-    $headers = @{ "ngrok-skip-browser-warning" = "true" }
-    $data = Invoke-RestMethod -Uri "$publicUrl/data" -Headers $headers -TimeoutSec 5
-    Write-Host "  数据接口 OK — V=$($data.voltage) I=$($data.current) F=$($data.frequency)" -ForegroundColor Green
-} catch {
-    Write-Host "  [警告] 公网验证失败，请稍后重试: $_" -ForegroundColor Magenta
+if (-not $env:WPT_BRIDGE_API_KEY) {
+    $random = New-Object byte[] 24
+    $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $generator.GetBytes($random) } finally { $generator.Dispose() }
+    $env:WPT_BRIDGE_API_KEY = [Convert]::ToBase64String($random).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
 
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  微信小程序 BRIDGE 地址:" -ForegroundColor Yellow
-Write-Host "  const BRIDGE = '$publicUrl';" -ForegroundColor White
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "按 Ctrl+C 停止全部服务" -ForegroundColor Gray
-
-# ── 等待用户中断 ──
+$bridgeProcess = $null
+$ngrokProcess = $null
 try {
-    while ($true) {
-        Start-Sleep -Seconds 10
-        # 静默心跳 — 检查进程存活
-        if ($ngrokProc.HasExited) {
-            Write-Host "[错误] ngrok 已退出 (code: $($ngrokProc.ExitCode))" -ForegroundColor Red
+    $bridgeProcess = Start-Process -FilePath $nodeCommand.Source -ArgumentList 'bridge.mjs' `
+        -WorkingDirectory $BridgeDir -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput $BridgeOutLog -RedirectStandardError $BridgeErrLog
+
+    $healthy = $false
+    for ($retry = 0; $retry -lt 20; $retry++) {
+        Start-Sleep -Milliseconds 250
+        if ($bridgeProcess.HasExited) { break }
+        try {
+            $health = Invoke-RestMethod -Uri "http://127.0.0.1:$BridgePort/health" -TimeoutSec 2
+            $healthy = $true
             break
-        }
+        } catch { }
+    }
+    if (-not $healthy) {
+        $detail = Get-Content -Raw $BridgeErrLog -ErrorAction SilentlyContinue
+        throw "桥接服务启动失败: $detail"
+    }
+
+    $ngrokProcess = Start-Process -FilePath $ngrokCommand.Source `
+        -ArgumentList 'http', "$BridgePort", '--log=stdout' -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput $NgrokOutLog -RedirectStandardError $NgrokErrLog
+
+    $publicUrl = $null
+    for ($retry = 0; $retry -lt 24; $retry++) {
+        Start-Sleep -Milliseconds 250
+        if ($ngrokProcess.HasExited) { break }
+        try {
+            $tunnels = Invoke-RestMethod -Uri 'http://127.0.0.1:4040/api/tunnels' -TimeoutSec 2
+            $publicUrl = $tunnels.tunnels[0].public_url
+            if ($publicUrl) { break }
+        } catch { }
+    }
+    if (-not $publicUrl) { throw 'ngrok 已启动，但未能取得公网地址' }
+
+    @{
+        BridgePid = $bridgeProcess.Id
+        NgrokPid = $ngrokProcess.Id
+        StartedAt = (Get-Date).ToString('o')
+    } | ConvertTo-Json | Set-Content -LiteralPath $StateFile -Encoding UTF8
+
+    Write-Host '桥接服务已启动' -ForegroundColor Green
+    Write-Host "公网地址: $publicUrl"
+    Write-Host "控制密钥: $env:WPT_BRIDGE_API_KEY"
+    Write-Host '调用 /cmd 时请在 X-WPT-Key 请求头中携带该密钥。'
+    Write-Host '按 Ctrl+C 停止本次启动的服务。'
+
+    while (-not $bridgeProcess.HasExited -and -not $ngrokProcess.HasExited) {
+        Start-Sleep -Seconds 2
     }
 } finally {
-    Write-Host ""
-    Write-Host "正在停止服务..." -ForegroundColor Yellow
-    Stop-Process -Id $ngrokProc.Id -Force -ErrorAction SilentlyContinue
-    Stop-Job $bridgeJob -ErrorAction SilentlyContinue
-    Remove-Job $bridgeJob -ErrorAction SilentlyContinue
-    Write-Host "已停止全部服务" -ForegroundColor Green
+    if ($ngrokProcess) { Stop-OwnedProcess $ngrokProcess.Id 'ngrok' }
+    if ($bridgeProcess) { Stop-OwnedProcess $bridgeProcess.Id 'node' }
+    Remove-Item -LiteralPath $StateFile -Force -ErrorAction SilentlyContinue
 }

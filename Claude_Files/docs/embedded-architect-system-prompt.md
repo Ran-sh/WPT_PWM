@@ -10,7 +10,7 @@ description: >
   Trigger on these keywords even in passing: STM32, SPL, ESP8266, 全桥/PWM/谐振, 软启动/扫频,
   Dual-MCU/双脑/JSON透传, Sys_Timer/时间戳/非阻塞调度, Keil MDK/uVision, embedded C firmware,
   架构重构, 代码简化, 技术白皮书, 开发者指南, 嵌入式架构师, OneNET, MQTT, TFT/ST7735.
-  V5.0.2 naming convention: Module_Name_Verb_Noun — all public/static functions use the module prefix.
+  V5.1.2 naming convention: Module_Name_Verb_Noun — all public/static functions use the module prefix.
   Key modules: Sys_Timer, Sys_Core, Pwm_Driver, Inverter_Control, Adc_Driver,
   Key_Driver, Esp8266_Driver, App_Network, Ui_Controller, Tft_Driver, Led_Driver, Buzzer_Driver.
   CRITICAL trigger for doc update: "更新文档" or "文档更新" or "刷新文档" —
@@ -59,7 +59,7 @@ description: >
   Arduino, non-STMicro MCUs, or any MCU without SPL (ESP32/ESP-IDF, nRF, MSP430, PIC).
 ---
 
-# 资深嵌入式系统架构师技能包 (V5.0.2)
+# 资深嵌入式系统架构师技能包 (V5.1.2)
 
 ## 1. 角色设定
 
@@ -196,7 +196,8 @@ int main(void) {
 
 - **死区**: `DEADTIME_NS = 1000ns`, 编译期自动换算 BDTR 寄存器值, 断言 ≤127
 - **防偏磁**: 周期 ticks 强制偶数, UDIS 影子寄存器原子更新 ARR+CCR
-- **频率硬下限**: 95kHz 容性区红线, 禁止低于此值
+- **软件频率边界**: TIM1硬限20–200kHz；低频档20.0–99.9kHz步进100Hz，高频档100–200kHz步进1kHz
+- **功率级边界**: 软件可达不代表实机安全；必须根据谐振、限流和温升测试确定可用范围
 - **上电安全态**: `TIM_Cmd(DISABLE)` + `MOE(DISABLE)`, 零输出
 - App_Net/UI **禁止**直接操作 `TIM1->ARR`/`TIM_Cmd`/`TIM_CtrlPWMOutputs`
 
@@ -220,7 +221,7 @@ int main(void) {
 | 字库位序 | LSB-first, `TFT_Font_Data.h` 统一管理 |
 | CRC | 统一调用Checksum_CRC32，禁止各模块复制算法 |
 
-### 2.10 工程目录约定 (V5.0.2)
+### 2.10 工程目录约定 (V5.1.2)
 
 ```
 WPT_PWM_V5.0/
@@ -237,10 +238,11 @@ WPT_PWM_V5.0/
 └── CLAUDE.md         ← 项目指南
 ```
 
-## 3. 审查历史速查 (V4.0.0→V5.0.2)
+## 3. 审查历史速查 (V4.0.0→V5.1.2)
 
 | 版本 | 关键修复 |
 |:---|:---|
+| V5.1.2 | **全链路优化**: ESP8266双档频率量化/指令精确匹配/串口溢出保护；小程序与网页模型迁移、轮询恢复、跨日历史；桥接鉴权和CORS收紧；CH341A新备份、完整2MB校验和分区写入 |
 | V5.0.2 | **STM32全面优化**: TIM1原子更新、PB10/PWM/FAULT硬互锁、500Hz ADC双窗口、SPI1共享仲裁、W25边界/超时、后台校验保存、Blackbox V2双元数据/循环恢复/故障前后5秒、5键能力拆分、14页UI、USART2中断发送、S=0/1/2/3、统一调度、看门狗与C89清理 |
 | V5.0.1 | GPIO全量重映射 + 5键/4灯系统 + PB12 Flash CS钳位 + UI上键回绕修复 |
 | V4.5.2 | **SPI+DMA+EMA修复 (13项)**: DMA超时反转(花屏根因), DMA TC3残留, SPI恢复18MHz(去dummy), Flash批量读(16→1次), CN/Icon ROM优先, EN默认, EMA全状态更新(V/I=0修复), CS脉冲简化, NVIC临界区, Write_Enable防护, s_language初值, Pick_CN_EN遗漏 |
@@ -266,17 +268,17 @@ Vx.y.z 三数字体系：
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V5.0.2
+当前版本: V5.1.2
   V5 = GPIO全量重映射 + 5键/4灯新版PCB架构
-  .0 = 当前中版本
+  .1 = 当前中版本
   .2 = 当前小版本号
 
 涉及版本号的位置 (全项目必须统一):
-  【STM32文件头注释】Keil_Project下每个.c/.h的@brief/@note行 → V5.0.2
-  【文档控制信息】开发指南/技能文件当前版本 → V5.0.2
-  【CLAUDE.md】版本号+审查历史+当前架构说明 → V5.0.2
-  【README.md】badge + 版本历史表 + 5.0分支表 → V5.0.2
-  【CH341A指南】PB12接线、CRC与共享SPI说明 → V5.0.2
+  【STM32文件头注释】每个.c头部必须有中文@brief并同步为V5.1.2；.h必须从include guard开始，禁止文件头注释
+  【文档控制信息】开发指南/技能文件当前版本 → V5.1.2
+  【CLAUDE.md】版本号+审查历史+当前架构说明 → V5.1.2
+  【README.md】badge + 版本历史表 + 5.0分支表 → V5.1.2
+  【CH341A指南】PB12接线、CRC与共享SPI说明 → V5.1.2
   【历史版本】修改日志中的旧版本号原样保留
 
 历史版本 → V4.x.x 完整映射表:
@@ -422,7 +424,7 @@ Vx.y.z 三数字体系：
 | 63 | 4 个并行审查代理发现的问题无重复, 覆盖互补 | 代理分工按平台 (STM32应用/STM32硬件/ESP+Web/安全) 天然隔离 | **大规模审查用 4+ 代理并行, 按物理边界分工 (MCU/前端/安全), 每个代理只看自己的领域** |
 | 56 | SPLASH 开机动画样式单一 | 旧版纯 8 帧背光渐亮, 4 行文字同色渐变, 无图形元素、无闪烁动画、无进度条 | **SPLASH 设计参考手机开机: 标题脉冲闪烁 + 图标装饰 + 副标题交替渐亮 + 进度条填充** |
 | 57 | 接线图方框宽度不一致 | 手动编辑 16 个文件时按内容截断, 没有统一约束 | **接线图用脚本统一方框宽度, 按顶边框 `+---+` 确定全局宽度** |
-| 58 | .h 文件头部放置详细接线图 (W25Q_Driver.h 含 8 Pin 逐脚描述) | 接线信息写在 .h 导致头文件臃肿, 且重复于 .c | **接线图只放在 .c 文件头部, .h 用一行 "接线详见 xxx.c" 引用, 保持头文件简短** |
+| 58 | .h 文件头部放置详细接线图 (W25Q_Driver.h 含 8 Pin 逐脚描述) | 接线信息写在 .h 导致头文件臃肿, 且重复于 .c | **接线图只放在 .c 文件头部；.h从include guard直接开始，不放任何文件头注释** |
 
 ### 4.11 2026-07-02: V4.5.0 设置系统重构教训
 
@@ -444,6 +446,15 @@ Vx.y.z 三数字体系：
 | 67 | 参数保存和故障日志在业务调用栈直接擦Flash，运行时可能阻塞功率控制 | 持久化请求和物理写入耦合 | **调用方只提交RAM请求；仅IDLE或确认PWM/PB10均关闭后执行擦写、回读和CRC校验** |
 | 68 | 单写指针无法可靠应对掉电和循环覆盖，故障现场也缺少触发前数据 | 元数据、日志和故障锁存没有事务边界 | **采用双扇区generation元数据、启动前向恢复、CRC8条目和独立故障快照槽；先RAM冻结前后窗口再落盘** |
 | 69 | 旧文档仍描述4键、6灯、15页、PA12 Flash CS和PB10电压自动控制 | GPIO重映射后只改代码，文档缺少以公开接口为基准的回归检查 | **版本发布前脚本检查文件头和SPLASH，并逐项核对引脚、页面枚举、按键能力、遥测状态、Flash分区与看门狗** |
+
+### 4.13 2026-07-26: V5.1.2 全链路优化教训
+
+| # | 问题 | 根因 | 预防规则 |
+|:---|:---|:---|:---|
+| 70 | STM32已扩展到20–200kHz，ESP8266、网页和小程序仍保留95–150kHz | 只验证了MCU本地界面，未建立频率协议的全链路合同测试 | **任何物模范围或量化规则变更都必须同时验证STM32、ESP、Web、小程序和文档** |
+| 71 | 小程序/Web把包含函数的数据模型JSON序列化，重启后频率换算丢失 | 把运行时行为和持久化纯数据混在同一对象中 | **持久化层只存纯数据，读取时统一迁移并重新注入换算函数** |
+| 72 | 桥接接口无鉴权、开放任意CORS，且MQTT离线时仍报成功 | 调试服务器被直接当成了可部署服务 | **任何可写HTTP接口必须默认关闭、鉴权、严格验参，并根据下游真实状态返回结果** |
+| 73 | 字库烧录可复用旧备份，短读回也可能通过校验 | 为节省时间引入了不可验证的快速路径 | **破坏性写入前每次都建新备份；读回长度必须精确，校验覆盖完整分区** |
 
 ### 4.5 "更新全部内容"执行检查清单
 

@@ -4,40 +4,69 @@
    ═══════════════════════════════════════════ */
 
 var OneNet = require('../../utils/onenet.js');
-var FREQ = OneNet.buildFreqList();
-var FREQ_LIST = FREQ.list;
-var INIT_IDX = FREQ_LIST.indexOf(100);
+
+function normalizeFrequency(value) {
+  var frequency = Number(value);
+  if (!isFinite(frequency)) frequency = 100;
+  if (frequency < 100) return Math.max(20, Math.min(99.9, Math.round(frequency * 10) / 10));
+  return Math.max(100, Math.min(200, Math.round(frequency)));
+}
+
+function frequencyBand(value) {
+  return Number(value) < 100
+    ? { name: 'low', min: 20, max: 99.9, step: 0.1 }
+    : { name: 'high', min: 100, max: 200, step: 1 };
+}
 
 Page({
   data: {
     isOn: false, isFault: false, systemState: 'IDLE', stateLabel: '待机',
-    freqList: FREQ_LIST, selectedFreq: 100, freqIdx: INIT_IDX >= 0 ? INIT_IDX : 0,
+    selectedFreq: 100, freqBand: 'high', freqMin: 100, freqMax: 200, freqStep: 1,
     logs: [], currentTheme: 'theme-dark'
   },
 
   onLoad: function() {
     this._checkTheme();
-    this._active = true;
+    this._active = true; this._syncing = false;
     this._cmdLock = {}; this._switchPending = false;
     this._logs = wx.getStorageSync('wpt_ctrl_logs') || [];
     this.setData({ logs: this._logs.slice(0, 10) });
-    this._syncStatus();
+    this._startPolling();
+  },
+
+  onShow: function() { this._checkTheme(); if (!this._active) { this._active = true; this._startPolling(); } },
+  onHide: function() { this._active = false; this._stopPolling(); },
+
+  _checkTheme: function() { var t = wx.getStorageSync('wpt_theme') || 'theme-dark'; if (t !== this.data.currentTheme) this.setData({ currentTheme: t }); },
+  onUnload: function() { this._active = false; this._stopPolling(); },
+  onToggleTheme: function() { var n = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark'; this.setData({ currentTheme: n }); wx.setStorageSync('wpt_theme', n); },
+  onPullDownRefresh: function() {
+    this._syncStatus().then(function() { wx.stopPullDownRefresh(); });
+  },
+
+  _startPolling: function() {
     var that = this;
+    this._stopPolling();
+    this._syncStatus();
     this._pollTimer = setInterval(function() { that._syncStatus(); }, 5000);
   },
 
-  onShow: function() { this._checkTheme(); if (!this._active) { this._active = true; this._syncStatus(); } },
-  onHide: function() { this._active = false; clearInterval(this._pollTimer); },
+  _stopPolling: function() {
+    if (this._pollTimer) clearInterval(this._pollTimer);
+    this._pollTimer = null;
+  },
 
-  _checkTheme: function() { var t = wx.getStorageSync('wpt_theme') || 'theme-dark'; if (t !== this.data.currentTheme) this.setData({ currentTheme: t }); },
-  onUnload: function() { this._active = false; clearInterval(this._pollTimer); },
-  onToggleTheme: function() { var n = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark'; this.setData({ currentTheme: n }); wx.setStorageSync('wpt_theme', n); },
-  onPullDownRefresh: function() { this._syncStatus(); wx.stopPullDownRefresh(); },
+  _applyFrequency: function(value) {
+    var frequency = normalizeFrequency(value);
+    var band = frequencyBand(frequency);
+    this.setData({ selectedFreq: frequency, freqBand: band.name, freqMin: band.min, freqMax: band.max, freqStep: band.step });
+  },
 
   _syncStatus: function() {
     var that = this;
-    if (!that._active) return;
-    OneNet.getLatestData().then(function(data) {
+    if (!that._active || that._syncing) return Promise.resolve();
+    that._syncing = true;
+    return OneNet.getLatestData().then(function(data) {
       if (!that._active) return;
       /* 设备离线: 强制安全默认值, 忽略 OneNET 缓存的旧数据 */
       if (!data._isOnline) {
@@ -50,11 +79,9 @@ Page({
       else if (sState === 1) { isRunning=true;  isFault=false; systemState='SWEEP'; stateLabel='扫频中'; }
       else                   { isRunning=false; isFault=false; systemState='IDLE';  stateLabel='待机'; }
       var swOn = (data.switch !== undefined) ? (data.switch === true) : isRunning;
-      var freqKHz = raw.F !== undefined ? Math.floor(raw.F / 1000) : that.data.selectedFreq;
+      var freqKHz = raw.F !== undefined ? Number(raw.F) / 1000 : that.data.selectedFreq;
       var lock = that._cmdLock || {}, now = Date.now();
-      if (!(lock.freq && (now - lock.freq < OneNet.LOCK_MS)) && freqKHz >= 95 && freqKHz <= 150) {
-        var idx = FREQ_LIST.indexOf(freqKHz); if (idx >= 0) that.setData({ selectedFreq: freqKHz, freqIdx: idx });
-      }
+      if (!(lock.freq && (now - lock.freq < OneNet.LOCK_MS)) && freqKHz >= 20 && freqKHz <= 200) that._applyFrequency(freqKHz);
       that.setData({ isOn: swOn, isFault: isFault, systemState: systemState, stateLabel: stateLabel });
     }).catch(function(){
       /* API 失败 → 从缓存回填, 避免显示安全默认值 (OFF/100) */
@@ -66,16 +93,20 @@ Page({
       else if (sState === 1) { isRunning=true;  isFault=false; systemState='SWEEP'; stateLabel='扫频中'; }
       else                   { isRunning=false; isFault=false; systemState='IDLE';  stateLabel='待机'; }
       var swOn = cached.switch !== undefined ? cached.switch : isRunning;
-      var fRaw = raw.F !== undefined ? Math.floor(raw.F / 1000) : undefined;
+      var fRaw = raw.F !== undefined ? Number(raw.F) / 1000 : undefined;
       var upd = { isOn: swOn, isFault: isFault, systemState: systemState, stateLabel: stateLabel };
-      if (fRaw !== undefined && fRaw >= 95 && fRaw <= 150) {
-        var idx = FREQ_LIST.indexOf(fRaw); if (idx >= 0) { upd.selectedFreq = fRaw; upd.freqIdx = idx; }
-      }
+      if (fRaw !== undefined && fRaw >= 20 && fRaw <= 200) that._applyFrequency(fRaw);
       if (that._active) that.setData(upd);
-    });
+    }).then(function(result) { that._syncing = false; return result; }, function(error) { that._syncing = false; throw error; });
   },
 
-  onSwiperChange: function(e) { var idx = e.detail.current; this.setData({ freqIdx: idx, selectedFreq: FREQ_LIST[idx] }); },
+  onBandTap: function(e) {
+    var band = e.currentTarget.dataset.band;
+    this._applyFrequency(band === 'low' ? 20 : 100);
+  },
+
+  onFreqChanging: function(e) { this._applyFrequency(e.detail.value); },
+  onFreqChange: function(e) { this._applyFrequency(e.detail.value); },
 
   onSwitch: function(e) {
     var on = e.detail.value, that = this;

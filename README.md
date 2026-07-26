@@ -5,12 +5,12 @@
 [![IDE](https://img.shields.io/badge/IDE-Keil%20MDK--ARM%20V5-orange)]()
 [![Display](https://img.shields.io/badge/Display-ST7735%20160×128%20TFT-red)]()
 [![ESP8266](https://img.shields.io/badge/ESP8266-Arduino%20MQTT-purple)]()
-[![Firmware](https://img.shields.io/badge/Firmware-V5.1.1-brightgreen)]()
+[![Firmware](https://img.shields.io/badge/Firmware-V5.1.2-brightgreen)]()
 [![Cloud](https://img.shields.io/badge/Cloud-OneNET%20Studio-00B4D8)]()
 [![Web](https://img.shields.io/badge/Web-Cloudflare%20Pages-F38020)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-> **V5.1.1** (2026-07-26) — 显示边界、字库完整性、命令解析与快速过流保护全面加固
+> **V5.1.2** (2026-07-26) — STM32、ESP8266、小程序、网页、桥接与字库工具全链路优化
 
 ---
 
@@ -473,13 +473,13 @@ python burn_flash.py
 |:---|:---|:---|:---|:---|
 | `V` | 电压 | float | V | 0-50V |
 | `I` | 电流 | float | A | 0-5A |
-| `F` | 频率 | int32 | Hz | 95000-150000 |
+| `F` | 频率 | int32 | Hz | 20000-200000 |
 
 **控制器 (可读写)**:
 | 标识符 | 名称 | 数据类型 | 说明 |
 |:---|:---|:---|:---|
 | `Switch` | 启停开关 | bool | true=开, false=关 |
-| `SetFreq` | 设定频率 | int32 | 95000-150000 Hz |
+| `SetFreq` | 设定频率 | int32 | 20000-200000 Hz；20.0-99.9kHz步进100Hz，100-200kHz步进1kHz |
 
 STM32到ESP8266的串口遥测固定为 `{"V":xx,"I":xx,"F":xx,"S":x}\n`。其中 `S=0/1/2/3` 分别表示 IDLE、SWEEP、RUNNING、FAULT；SWEEP和RUNNING发送实际PWM频率，其余状态强制 `F=0`。OneNET的 `Switch` 只有在 `S=2` 时为 `true`，扫频阶段仍视为过渡态。
 
@@ -782,12 +782,14 @@ WPT_PWM_V5.0/
 │   ├── utils/config.js           ← OneNET 配置
 │   ├── pages/                    ← 6 页面
 │   ├── custom-tab-bar/           ← 底部导航组件
+│   ├── server/                   ← 可选安全 HTTP-MQTT 桥接
 │   ├── 操作手册.md
 │   └── 部署文档.md
 ├── ch341/                        ← W25Q128 字库烧录工具链
 │   ├── README.md                 ← 完整操作指南
 │   ├── generate_font.py          ← GB2312 全字库生成器
-│   ├── burn_flash.py             ← 烧录编排
+│   ├── burn_flash.py             ← 全片新备份、2MB分区烧写与完整校验
+│   ├── layout.txt                ← Flashrom字库/保留区布局
 │   └── flashrom-1.4/             ← flashrom 烧录工具
 └── Claude_Files/                 ← AI 辅助文档
     ├── docs/                     ← 开发指南 + 架构师技能文件
@@ -801,6 +803,7 @@ WPT_PWM_V5.0/
 
 | 版本 | 日期 | 主要变更 |
 |:---|:---|:---|
+| **V5.1.2** | **2026-07-26** | **全栈检查与修复：ESP8266对齐20–200kHz双档量化、整帧指令与串口溢出保护；小程序/网页修复数据模型迁移、跨日历史和轮询恢复；桥接增加鉴权、输入验证与最小化CORS；CH341A每次新备份、完整2MB校验与分区写入。** |
 | **V5.1.1** | **2026-07-26** | **修复外置图标数据基址、非黑主题擦除残影、自定义配色越界和配色页覆盖；字库V2校验完整有效负载并兼容V1；串口命令改为整帧严格解析；配置增加字符串、数值和校准语义校验；上电稳定200ms后才允许启动；ADC模拟看门狗快速关闭PWM；异常处理改为最小寄存器关断；栈增至2KB；频率显示跟踪TIM1实际输出。** |
 | **V5.1.0** | **2026-07-22** | **设置菜单固定为语言、启动频率、字符间距、光标图标、配色五项；配置升级为可迁移双档启动频率与全局光标；PWM 统一为20–200kHz，低频99.9kHz/100Hz步进与高频200kHz/1kHz步进分别扫频；独立电压、电流、频率表盘改为分段递增刻度与2倍主数值差分刷新。** |
 | **V5.0.2** | **2026-07-19** | **STM32 全面优化：TIM1 原子更新与 PB10/PWM/FAULT 硬互锁；TIM3 500Hz ADC 双窗口及校准门控；SPI1 共享仲裁与超时恢复；W25Q128 越界保护；后台校验保存；Blackbox V2 双元数据、可恢复循环日志、故障前后各 5 秒快照；5键能力拆分；14页 UI 与 GPIO 背光清理；USART2 中断发送；S=0/1/2/3 协议对齐；统一调度、看门狗和 C89 边界清理** |
@@ -827,17 +830,17 @@ WPT_PWM_V5.0/
 | `2.0WAN` | `WPT_PWM_Bemfa_WAN_V2.0` | V2.0.0 | OLED | 巴法云 TCP | 远程控制 |
 | `3.0ONENET` | `WPT_PWM_ONENET_V3.0` | V3.0.0 | OLED | OneNET MQTT | 物联网双脑架构 |
 | `4.0TFT` | `WPT_PWM_V4.0_ONENET_TFT` | V4.5.2 | TFT 彩屏 | OneNET MQTT | 4键+6灯旧版 PCB |
-| **`5.0`** | **`WPT_PWM_V5.0`** | **V5.1.1** | **TFT 彩屏** | **OneNET MQTT** | **5键+4灯新版 PCB (当前)** |
+| **`5.0`** | **`WPT_PWM_V5.0`** | **V5.1.2** | **TFT 彩屏** | **OneNET MQTT** | **5键+4灯新版 PCB (当前)** |
 
 ## 文档
 
 | 文档 | 说明 |
 |:---|:---|
 | [CLAUDE.md](CLAUDE.md) | AI 开发规范 (命名/注释/安全/架构/引脚表) |
-| [开发指南](Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md) | 完整开发者指南 (V5.1.1) |
+| [开发指南](Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md) | 完整开发者指南 (V5.1.2) |
 | [ONENETapp/README.md](ONENETapp/README.md) | 网页控制台部署文档 |
 | [ch341/README.md](ch341/README.md) | CH341A Flash 字库烧录操作指南 |
-| [安卓app/部署文档.md](安卓app/部署文档.md) | 微信小程序 + Railway 桥接部署 |
+| [安卓app/部署文档.md](安卓app/部署文档.md) | 微信小程序直连 OneNET 部署，含可选安全桥接 |
 
 ## 许可
 

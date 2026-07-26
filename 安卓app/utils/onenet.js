@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════
-   WPT Monitor — OneNET Service
+   WPT Monitor — OneNET 服务（V5.1.2）
    完全对齐 Web ONENETapp/js/onenet.js OneNetService
    数据模型从 utils/config.js 读取 (单一来源)
    安全: 无硬编码凭证, 无 console 输出
@@ -24,6 +24,35 @@ function getDataModel() { return Config.getDataModel(); }
 function getDecimals(dataType, step) { return Config.getDecimals(dataType, step); }
 function getPollInterval(fail) { return Math.min(POLL_BASE * Math.pow(2, fail || 0), POLL_MAX); }
 
+function validateControlParams(model, params) {
+  var keys = Object.keys(params || {}), i, j, control, value, scaled;
+  if (keys.length === 0) return false;
+  for (i = 0; i < keys.length; i++) {
+    control = null;
+    for (j = 0; j < model.controls.length; j++) {
+      if (model.controls[j].id === keys[i]) { control = model.controls[j]; break; }
+    }
+    if (!control) return false;
+    value = params[keys[i]];
+    if (control.dataType === 'bool') {
+      if (typeof value !== 'boolean') return false;
+      continue;
+    }
+    value = Number(value);
+    if (!isFinite(value)) return false;
+    if (control.min !== undefined && value < control.min) return false;
+    if (control.max !== undefined && value > control.max) return false;
+    if (control.id === 'setfreq') {
+      if (value < 100 && Math.abs(value * 10 - Math.round(value * 10)) > 1e-7) return false;
+      if (value >= 100 && Math.floor(value) !== value) return false;
+    } else if (control.step && control.step > 0) {
+      scaled = (value - (control.min || 0)) / control.step;
+      if (Math.abs(scaled - Math.round(scaled)) > 1e-7) return false;
+    }
+  }
+  return true;
+}
+
 /* ══ safeStorage ══ */
 function safeStorageGet(key, fallback) { try { var v = wx.getStorageSync(key); return (v !== '' && v !== undefined && v !== null) ? v : fallback; } catch (e) { return fallback; } }
 
@@ -34,31 +63,37 @@ function getLatestData(cfg) {
   if (!cfg) cfg = getOneNetConfig();
 
   /* Mock data: 未配置 Token 时返回预览数据 */
-  if (!cfg.TOKEN || cfg.TOKEN.indexOf('YOUR_') !== -1)
+  if (!cfg.TOKEN || !cfg.PRODUCT_ID || !cfg.DEVICE_NAME || cfg.TOKEN.indexOf('YOUR_') !== -1)
     return Promise.resolve(getMockData());
 
   return new Promise(function(resolve, reject) {
-    var dataDone = false, statusDone = false;
+    var dataDone = false, statusDone = false, settled = false;
     var dataResult = null, isOnline = false;
 
     var _newData = null;  /* 缓存写入延迟到在线状态确认后 */
 
     function trySettle() {
-      if (!dataDone || !statusDone) return;  /* 必须等两个请求都完成 */
+      if (settled || !dataDone || !statusDone || !dataResult) return;
       /* 在线判定: 优先 /device/detail, 失败时兜底 data 非空 (对齐 Web) */
       dataResult._isOnline = isOnline;
-      if (_newData) { _newData._isOnline = isOnline; wx.setStorageSync('wpt_latest', _newData); }
+      if (_newData) {
+        _newData._isOnline = isOnline;
+        wx.setStorageSync('wpt_latest', _newData);
+        if (isOnline) saveHistory(_newData);
+      }
+      settled = true;
       resolve(dataResult);
     }
 
     /* 数据请求 */
     wx.request({
-      url: cfg.BASE_URL + '/thingmodel/query-device-property?product_id=' + cfg.PRODUCT_ID + '&device_name=' + cfg.DEVICE_NAME,
-      method: 'GET', header: { 'Authorization': cfg.TOKEN },
+      url: cfg.BASE_URL + '/thingmodel/query-device-property?product_id=' + encodeURIComponent(cfg.PRODUCT_ID) + '&device_name=' + encodeURIComponent(cfg.DEVICE_NAME),
+      method: 'GET', timeout: 10000, header: { 'Authorization': cfg.TOKEN },
       success: function(res) {
         if (res.statusCode !== 200 || res.data.code !== 0) {
           dataResult = { _isOnline: false, _error: httpErrorMessage(res.statusCode, res.data) };
           dataDone = true;
+          settled = true;
           reject(new Error(httpErrorMessage(res.statusCode, res.data)));
           return;
         }
@@ -83,19 +118,21 @@ function getLatestData(cfg) {
         var now = Date.now();
         for (var k in data) { if (data.hasOwnProperty(k) && controlLocks[k] && (now - controlLocks[k] < LOCK_MS)) data[k] = cachedData[k]; }
         _newData = extend({}, cachedData, data);
-        saveHistory(_newData);
-
         dataResult = data;
         dataDone = true;
         trySettle();
       },
-      fail: function() { dataDone = true; reject(new Error('网络请求失败, 请检查网络连接')); }
+      fail: function() {
+        if (settled) return;
+        dataDone = true; settled = true;
+        reject(new Error('网络请求失败, 请检查网络连接'));
+      }
     });
 
     /* 并行: /device/detail 获取在线状态 */
     wx.request({
-      url: cfg.BASE_URL + '/device/detail?product_id=' + cfg.PRODUCT_ID + '&device_name=' + cfg.DEVICE_NAME,
-      method: 'GET', header: { 'Authorization': cfg.TOKEN },
+      url: cfg.BASE_URL + '/device/detail?product_id=' + encodeURIComponent(cfg.PRODUCT_ID) + '&device_name=' + encodeURIComponent(cfg.DEVICE_NAME),
+      method: 'GET', timeout: 10000, header: { 'Authorization': cfg.TOKEN },
       success: function(r) {
         if (r.statusCode === 200 && r.data.code === 0 && r.data.data) {
           var st = r.data.data.status;
@@ -114,9 +151,14 @@ function getLatestData(cfg) {
    ═══════════════════════════════════════════ */
 function setProperty(cfg, params) {
   if (!cfg) cfg = getOneNetConfig();
+  if (!cfg.TOKEN || !cfg.PRODUCT_ID || !cfg.DEVICE_NAME || !params || typeof params !== 'object') {
+    return Promise.resolve(false);
+  }
+  var validationModel = getDataModel();
+  if (!validateControlParams(validationModel, params)) return Promise.resolve(false);
   return new Promise(function(resolve) {
     var retries = 3;
-    var model = getDataModel();
+    var model = validationModel;
     var reverseMap = {};
     model.controls.forEach(function(c) { reverseMap[c.id] = c.cloudKey; });
     model.sensors.forEach(function(s) { reverseMap[s.id] = s.cloudKey; });
@@ -129,7 +171,7 @@ function setProperty(cfg, params) {
     var UNRECOVERABLE = [401, 403];
     function _go(left) {
       wx.request({
-        url: cfg.BASE_URL + '/thingmodel/set-device-property', method: 'POST',
+        url: cfg.BASE_URL + '/thingmodel/set-device-property', method: 'POST', timeout: 10000,
         header: { 'Authorization': cfg.TOKEN, 'Content-Type': 'application/json' },
         data: { product_id: cfg.PRODUCT_ID, device_name: cfg.DEVICE_NAME, params: mapped },
         success: function(res) {
@@ -169,10 +211,10 @@ function checkAlerts(data, isFromCache) {
     var highKey = s.id + '_high';
     if (nv > s.max) {
       if (!alarmStates[highKey]) {
+        alarmStates[highKey] = true;
         var last = null;
         for (var i = 0; i < alerts.length; i++) { if (alerts[i].title === s.name + '过高报警') { last = alerts[i]; break; } }
         if (!last || (now.getTime() - last.timestamp > 5 * 60 * 1000)) {
-          alarmStates[highKey] = true;
           alerts.unshift({ id: Date.now(), title: s.name + '过高报警', type: s.id, currentValue: nv, threshold: s.max, unit: s.unit || '', time: timeStr, timestamp: now.getTime(), status: 'unread', isCritical: true });
           newAlerts.push(s.name + '过高报警');
         }
@@ -181,10 +223,10 @@ function checkAlerts(data, isFromCache) {
     var lowKey = s.id + '_low';
     if (nv < s.min && s.min > 0) {
       if (!alarmStates[lowKey]) {
+        alarmStates[lowKey] = true;
         var l2 = null;
         for (var j = 0; j < alerts.length; j++) { if (alerts[j].title === s.name + '过低报警') { l2 = alerts[j]; break; } }
         if (!l2 || (now.getTime() - l2.timestamp > 5 * 60 * 1000)) {
-          alarmStates[lowKey] = true;
           alerts.unshift({ id: Date.now(), title: s.name + '过低报警', type: s.id, currentValue: nv, threshold: s.min, unit: s.unit || '', time: timeStr, timestamp: now.getTime(), status: 'unread', isCritical: false });
           newAlerts.push(s.name + '过低报警');
         }
@@ -206,12 +248,14 @@ function saveHistory(data) {
   var now = new Date();
   var timeStr = ('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
   var fullTimeStr = now.getFullYear()+'-'+('0'+(now.getMonth()+1)).slice(-2)+'-'+('0'+now.getDate()).slice(-2)+' '+timeStr+':'+('0'+now.getSeconds()).slice(-2);
+  var minuteKey = fullTimeStr.slice(0, 16);
   var rec = {};
   model.sensors.forEach(function(s) { if (data[s.id] !== undefined) rec[s.id] = data[s.id]; });
   model.controls.forEach(function(c) { if (data[c.id] !== undefined) rec[c.id] = data[c.id]; });
   var h = safeStorageGet('wpt_history', []);
-  if (h.length === 0 || h[h.length - 1].time !== timeStr) {
-    h.push({ time: timeStr, fullTime: fullTimeStr, timestamp: now.getTime(), data: rec });
+  var lastMinuteKey = h.length > 0 && h[h.length - 1].fullTime ? String(h[h.length - 1].fullTime).slice(0, 16) : '';
+  if (h.length === 0 || lastMinuteKey !== minuteKey) {
+    h.push({ time: timeStr, fullTime: fullTimeStr, minuteKey: minuteKey, timestamp: now.getTime(), data: rec });
     if (h.length > 1440) h.shift();
     wx.setStorageSync('wpt_history', h);
   }
@@ -222,10 +266,10 @@ function saveHistory(data) {
 var FREQ_CACHE = null;
 function buildFreqList() {
   if (FREQ_CACHE) return FREQ_CACHE;
-  var map = {}, hz, ticks, kHz;
-  for (hz = 95000; hz <= 150000; hz += 1000) { ticks = Math.floor(72000000 / hz); if (ticks % 2 !== 0) ticks += 1; kHz = Math.floor(72000000 / ticks / 1000); if (kHz < 95) continue; if (map[kHz] === undefined) map[kHz] = hz; }
-  var e = Object.keys(map).map(Number).sort(function(a, b) { return a - b; });
-  FREQ_CACHE = { list: e, hzMap: e.map(function(k) { return map[k]; }) };
+  var list = [], tenth, kHz;
+  for (tenth = 200; tenth <= 999; tenth++) list.push(tenth / 10);
+  for (kHz = 100; kHz <= 200; kHz++) list.push(kHz);
+  FREQ_CACHE = { list: list, hzMap: list.map(function(value) { return Math.round(value * 1000); }) };
   return FREQ_CACHE;
 }
 

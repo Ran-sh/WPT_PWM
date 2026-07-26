@@ -8,18 +8,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |:---|:---|
 | **仓库** | https://github.com/Ran-sh/WPT_PWM |
 | **分支** | `5.0` |
-| **版本** | V5.1.0 |
-| **语言** | 中文交流，代码注释中英混合 |
+| **版本** | V5.1.2 |
+| **语言** | 中文交流，业务代码注释使用中文 |
 
+> **V5.1.2** (2026-07-26) — 全链路频率、安全、生命周期与数据一致性优化
+> **V5.1.1** (2026-07-26) — 显示、字库、配置、命令边界及功率安全路径加固
 > **V5.1.0** (2026-07-22) — 五项设置 + 双档启动频率 + 全局菜单光标 + 递增式独立表盘
 > **V5.0.2** (2026-07-19) — STM32 全面可靠性优化: 功率互锁 + 500Hz ADC + SPI1 仲裁 + Blackbox V2 + 中断发送 + 统一调度
 > **V5.0.1** (2026-07-11) — GPIO 全量重映射 + 5键系统 + 四灯系统 + Bug修复
 > **V5.0.0** (2026-07-11) — 初始 GPIO 重映射: PA12→TFT_BL, PB12→W25Q128_CS, KEY0-KEY4 五键, WIFI/POWER/STATUS/HEARTBEAT 四灯
 > **V4.5.2** (2026-07-11) — SPI 时序回归修复
 
-> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V4.3.0)
+> **详细开发者指南**: `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` (V5.1.2)
 > **架构师技能文件**: `Claude_Files/docs/embedded-architect-system-prompt.md`
-> **W25Q128 Flash CH341A 烧录指南**: `ch341/README.md` (V5.1.0)
+> **W25Q128 Flash CH341A 烧录指南**: `ch341/README.md` (V5.1.2)
 
 ## 版本号规则 (全项目铁律)
 
@@ -29,14 +31,15 @@ Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
   y — 中版本: 新增页面/大功能/全平台重写 时 +1
   z — 小版本: Bug修复/字库修正/底部栏调整/文档更新 时 +1
 
-当前版本: V5.1.0
+当前版本: V5.1.2
 
 涉及版本号的位置 (全项目必须统一):
-  STM32 .c 文件头注释: Keil_Project 下每个业务 .c 的 @brief/@note 行 → V5.1.0
-  文档控制信息: 开发指南/技能文件的当前文档版本 → V5.1.0
-  CLAUDE.md: 版本号 + 审查历史 + 当前架构说明 → V5.1.0
-  README.md: badge + 版本历史 + 分支表 → V5.1.0
-  CH341A 指南: 接线、CRC 和共享 SPI 说明 → V5.1.0
+  STM32 .c 文件头注释: Keil_Project 下每个业务 .c 的 @brief/@note 行 → V5.1.2
+  STM32 .h 文件: 第一行必须直接为 include guard，不添加文件头注释
+  文档控制信息: 开发指南/技能文件的当前文档版本 → V5.1.2
+  CLAUDE.md: 版本号 + 审查历史 + 当前架构说明 → V5.1.2
+  README.md: badge + 版本历史 + 分支表 → V5.1.2
+  CH341A 指南: 接线、CRC 和共享 SPI 说明 → V5.1.2
   历史版本记录保留原号，不做机械替换
 
 历史版本 → V4.x.x 完整映射:
@@ -93,7 +96,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
 | 针对文件 | 写入内容 |
 |:---|:---|
 | `Claude_Files/docs/WPT无线充电系统-从零搭建全指南.md` | 文档版本号、修改日志、引脚表（含W25Q128接线）、文件结构、UI 页面、EMA/Safety/网络协议等架构章节与当前代码对齐 |
-| `ch341/README.md` | [V5.1.0] CH341A Flash 字库烧录完整操作指南: PB12接线/驱动安装/生成→烧写→校验全流程 |
+| `ch341/README.md` | [V5.1.2] CH341A Flash 字库烧录完整操作指南: PB12接线/驱动安装/生成→备份→分区烧写→完整校验全流程 |
 
 ### 第 5 条 — 更新技能文件
 
@@ -125,7 +128,7 @@ Vx.y.z 三数字体系 (首位 x 固定为 5, 对应分支 5.0):
 |:---|:---|
 | `Keil_Project/Objects/` `Keil_Project/Listings/` 下全部 .obj .lst .axf .uvopt .uvgui.* .__i .crf .d .o .htm .lnp .sct .dep .map .hex .build_log.htm .dbgconf .scvd | `cmd.exe /c Keil_Project\keilkill.bat` |
 | **验证** | `git status` 确认零编译产物残留 |
-| 提交 | `git add -A && git commit -m "docs: Vxx — <变更摘要>" && git push origin 4.0TFT` |
+| 提交 | `git add -A && git commit -m "docs: Vxx — <变更摘要>" && git push origin 5.0` |
 
 ### 第 9 条 — 追加执行教训
 
@@ -212,27 +215,29 @@ WPT_PWM_V5.0/
 │   ├── System/ → Sys_Timer.c/h + Checksum.c/h  ← SysTick 1ms + CRC32/CRC8
 │   ├── Start/  → CMSIS + system_stm32f10x
 │   └── Library/ → SPL V3.5.0 (只读, 不可修改)
-├── Arduino_Project/                            ← ESP8266 固件 — 522 行
+├── Arduino_Project/                            ← ESP8266 固件
 │   └── ESP8266_MQTT_Firmware/...ino            ← WiFiManager+双MQTT+指令去抖+遥测+OFFLINE
-├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages) — 3444 行
-│   ├── index.html(429)/control.html(497)       ← 主页+控制+乐观更新+重试防堆积+连接指示器
-│   ├── monitoring.html(405)/history.html(529)  ← 监测+历史趋势图
-│   ├── alerts.html(326)/settings.html(805)/login.html(151)
-│   ├── js/onenet.js(192)                       ← OneNET API 核心 (安全: 无console/无Token泄露)
-│   ├── js/config.js(79)                        ← 数据模型+escapeHtml() XSS防护+移动端导航
-│   ├── js/mobile-nav.js(31)
-│   └── service-worker.js(31)                   ← PWA 离线回退 v3 (BASE 相对路径)
-├── 安卓app/                                    ← 微信小程序 — 3303 行 (6页面+Component)
-│   ├── utils/config.js(47)/onenet.js(271)      ← 数据模型单一来源 + API层 (双请求在线检测)
+├── ONENETapp/                                  ← 网页控制台 (Cloudflare Pages)
+│   ├── index.html/control.html                 ← 主页+控制+乐观更新+连接指示器
+│   ├── monitoring.html/history.html            ← 监测+历史趋势图
+│   ├── alerts.html/settings.html/login.html
+│   ├── js/onenet.js                            ← OneNET API 核心 (超时/校验/跨日历史)
+│   ├── js/config.js                            ← 数据模型迁移+XSS防护+频率换算
+│   ├── js/mobile-nav.js
+│   └── service-worker.js                       ← 可选缓存失败不阻断安装
+├── 安卓app/                                    ← 微信小程序 (6页面+Component)
+│   ├── utils/config.js/onenet.js               ← 数据模型迁移 + API层 (双请求在线检测)
 │   ├── custom-tab-bar/                         ← 底部导航 Component (无高亮)
 │   ├── pages/{index,monitoring,control,history,alerts,settings}/
+│   ├── server/                                 ← 带API密钥和输入校验的可选HTTP-MQTT桥接
 │   ├── 操作手册.md / 部署文档.md               ← 小程序文档
 │   └── docs/                                   ← 设计 spec
-├── ch341/                                      ← [V4.3.2] CH341A Flash 字库烧录工具链 — 679 行
+├── ch341/                                      ← [V5.1.2] CH341A Flash 字库烧录工具链
 │   ├── README.md                               ← 完整操作指南
 │   ├── requirements.txt                        ← Python 依赖: pillow
-│   ├── generate_font.py                        ← GB2312 全字库生成器 (20897 CJK + 95 ASCII + 31 图标, 438行)
-│   ├── burn_flash.py                           ← 字库烧录编排 (生成→备份→融合→烧写16MB→逐字节校验, 241行)
+│   ├── generate_font.py                        ← 全字库生成器 (20897 CJK + 95 ASCII + 31 图标)
+│   ├── burn_flash.py                           ← 新备份→仅写2MB字库分区→完整读回校验
+│   ├── layout.txt                              ← Flashrom 字库/保留区布局
 │   └── flashrom-1.4/                           ← flashrom 1.4.0 + Zadig 2.8 + WinUSB 驱动
 └── Claude_Files/                               ← AI 生成文档+工具
     ├── docs/                                   ← 开发者指南 + 技能文件
@@ -299,7 +304,7 @@ Flash擦写约束：SWEEP/RUNNING禁止擦除；配置保存只在IDLE后台推�
 - **状态机**: IDLE→WIFI→MQTT→ONLINE, 新增 OFFLINE_PASSIVE(被动断开自动嗅探)/OFFLINE_ACTIVE(主动断开需手动ON)
 - **被动离线**: 热点断开后重试 5 次耗尽→OFFLINE_PASSIVE→被动监听 ESP STATUS 帧, 热点恢复自动重连
 - **主动离线**: 用户按键/配网页 断开→OFFLINE_ACTIVE→忽略所有帧, 需手动 ON 恢复
-- **重试**: 指数退避 5s→15s→30s→60s→2min→5min→30min, 5次上限, 不发硬件 RST (ESP 已在运行)
+- **重试**: 5次有限重试，前3次间隔5s、后2次间隔15s；耗尽后进入被动离线，不复位仍在运行的ESP
 - **断连指令**: CMD:WIFI_DISC (断开但保留凭证) / CMD:CLEAR (清除凭证+ESP 重启)
 - **MQTT 超时**: MQTT 状态 30s 无 ESP 帧→回退 WIFI 重试, 防 broker 不可达死锁
 - **BOOT_WAIT 加速**: ESP 串口有数据即提前结束等待, 避免 4s 窗口丢 STATUS 帧
@@ -316,8 +321,8 @@ Flash擦写约束：SWEEP/RUNNING禁止擦除；配置保存只在IDLE后台推�
 - **指令去抖**: Mqtt_Task_Parse_Command 2s 窗口内相同 payload 直接丢弃
 - **Switch 状态**: 仅 `s==2` (SS_DONE) 上报 true, `s==1` (SWEEP) 为过渡态不上报
 - **遥测频率**: SWEEP/RUNNING透传真实F值，IDLE/FAULT为0；Switch仍仅S=2时为true
-- **SetFreq 量化**: `(val/1000)*1000`, 与 STM32 PWM 1kHz 步进一致
-- **V4.5.1 安全加固**: Token 占位符化 (部署前替换) + 配网热点加密码 (WIFI_AP_PASSWORD) + 公共 MQTT Broker 门控 (PUBLIC_MQTT_ENABLED) + 指令鉴权预留 (PUBLIC_CMD_AUTH_KEY) + WiFiManager debug 生产关闭
+- **SetFreq 量化**: 20.0–99.9kHz按100Hz量化，100–200kHz按1kHz量化，越界值拒绝
+- **安全加固**: Token占位符化、配网热点加密码、公共MQTT默认关闭且启用时必须配置鉴权密钥；串口超长帧整帧丢弃，命令严格匹配
 
 ## 网页端 (Cloudflare Pages)
 
@@ -327,7 +332,7 @@ Flash擦写约束：SWEEP/RUNNING禁止擦除；配置保存只在IDLE后台推�
 - **重试**: `setProperty` 网络/业务错误各重试 3 次 (500ms/800ms)
 - **连接指示**: 在线(绿) / 离线(黄) / 失败(红) / 未配置(灰), `/device/detail` 优先 + 数据非空兜底
 - **数据模型**: `config.js` DEFAULT_DATA_MODEL → sensors(V/I/F) + controls(Switch/SetFreq)
-- **频率映射**: `fromCloud: v => Math.floor(v/1000)` / `toCloud: v => v*1000`, Web 显示 kHz
+- **频率映射**: `fromCloud`保留0.1kHz精度，`toCloud`换算为Hz；允许20–200kHz并由ESP按双档步进量化
 - **安全**: 零 console 输出, 零硬编码 Token, login.html SHA-256 哈希验证
 - **轮询**: 5s 间隔 setInterval + pagehide 清理, 无嵌套泄漏; 慢网下防重叠
 - **SW**: 使用 BASE 相对路径兼容根路径/子路径部署; 仅在 login.html 注册 (autoLogin 跳转后尚未注册，已知限制)
@@ -341,6 +346,7 @@ Flash擦写约束：SWEEP/RUNNING禁止擦除；配置保存只在IDLE后台推�
 - **首页**: `_applyData` 统一更新连接状态, `onHide` 清理定时器, `_clearTimers` 防泄漏
 - **底部栏**: 无高亮 (selected=-1), 5 tab: ⌂ ◉ ⊛ 🗂 ⚙, `templates/` 已删除
 - **存储键**: `wpt_latest`, `wpt_history`(1440max), `wpt_alerts`(50max), `wpt_alarm_states`, `wpt_control_locks`, `wpt_onenet_config`, `wpt_data_model`
+- **可选桥接**: 本地桥接默认要求API密钥，限制请求体、来源和命令范围；启动/停止脚本只管理自身PID
 
 ## 全链路数据一致性铁律
 
@@ -394,7 +400,8 @@ JTAG 禁用释放 PB3/PB4/PA15。V5.0: PA10/PA11 移除, PA12→TFT_BL, PB12→W
 ### 注释
 
 - 公开函数必须带 `@brief` + `@param`/`@retval`
-- `.h` 顶部必须带 `@file` + `@brief` + `@note`
+- `.c` 文件开头必须带中文 `@file` + `@brief` + `@note`
+- `.h` 第一行必须直接为 `#ifndef`，文件开头不添加注释；公开接口的中文Doxygen注释放在声明前
 - 禁止 `//` 双斜杠 (ARMCC V5), 统一用 `/** */` 或 `/* */`
 - 只写 WHY, 不写 HOW
 
@@ -439,15 +446,16 @@ ROM 中文表只保留启动/故障回退所需 4 字；完整中文显示依赖
 | | Row 6(Y=96): 标签居中青色 |
 | Phase 0 | WIFI@X=128 + MQTT@X=144 |
 
-### GaugeConfig 三表
+### GaugeConfig 四套分段表
 
-| 参数 | 电压 V | 电流 C | 频率 F |
-|:---|:---|:---|:---|
-| range | 0→50 | 0→2 | 90→150 |
-| big_step | 10 | 0.5 | 10 |
-| fine_step | 1 | 0.1 | 1 |
-| red_start | 42 | 1.8 | 140 |
-| 停机 | — | — | val=0 能量条归零, 灰"0" |
+| 表盘 | 第1段 | 第2段 | 第3段 | 警告/报警起点 |
+|:---|:---|:---|:---|:---|
+| 电压 V | 0–20V / 格2V | 20–40V / 格5V | 40–50V / 格10V | 36V / 42V |
+| 电流 C | 0–1A / 格0.1A | 1–3A / 格0.5A | 3–5A / 格1A | 4A / 4.5A |
+| 低频 F | 20–50kHz / 格5kHz | 50–80kHz / 格10kHz | 80–100kHz / 格20kHz | 无红区 |
+| 高频 F | 100–140kHz / 格5kHz | 140–180kHz / 格10kHz | 180–200kHz / 格20kHz | 无红区 |
+
+频率页按当前启动档位选择低频或高频表；停机时能量条归零并显示灰色“0”。
 
 ### UI Phase 架构
 
@@ -489,10 +497,11 @@ Draw_Gauge_Full(cfg, val);                   /* 入场全绘 */
 Gauge_Dynamic_Update(cfg, val, old_val);     /* 200ms 增量差分 */
 Draw_TopRight_Icons();                       /* WIFI@128 MQTT@144 */
 
-/* 三表配置 */
-GAUGE_V = { 0, 50, 10, 5,    1,  42, 'V'};
-GAUGE_C = { 0,  2,0.5,0.25,0.1, 1.8, 'C'};
-GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
+/* 分段配置：每个视觉格等角度，各段改变每格代表的物理量 */
+GAUGE_V_SEGMENTS      = {{0,20,2}, {20,40,5}, {40,50,10}};
+GAUGE_C_SEGMENTS      = {{0,1,0.1}, {1,3,0.5}, {3,5,1}};
+GAUGE_F_LOW_SEGMENTS  = {{20,50,5}, {50,80,10}, {80,100,20}};
+GAUGE_F_HIGH_SEGMENTS = {{100,140,5}, {140,180,10}, {180,200,20}};
 
 /* 信息舱: 状态(Row4) → 数值(Row5,黄) → 标签(Row6,青) */
 ```
@@ -501,6 +510,8 @@ GAUGE_F = {90,150, 10, 5,    1, 140, 'F'};
 
 | 版本 | 重点修复 |
 |:---|:---|
+| V5.1.2 | **全链路优化**: ESP8266双档频率量化、指令精确匹配与串口溢出保护；小程序/网页数据模型迁移、跨日历史和轮询恢复；本地桥接鉴权、输入验证及最小化CORS；CH341A每次新备份、完整2MB校验和字库分区写入；项目说明与回归检查同步。 |
+| V5.1.1 | **全面加固**: 外置图标动态布局、主题擦除和配色越界修复；字库V2完整负载CRC；配置语义校验；整帧命令解析；200ms上电稳定门控、ADC模拟看门狗、异常最小化关断、2KB栈和实际输出频率跟踪。 |
 | V5.1.0 | **设置与表盘重构**: 设置菜单固定为语言、启动频率、字符间距、光标图标、配色方案；V2配置保存低频20.0–99.9kHz与高频100–200kHz双档、当前档位和全局光标并可迁移V1；PWM边界统一为20–200kHz；软启动按低档99.9kHz/100Hz或高档200kHz/1kHz每10ms降频；独立表盘采用共享分段递增映射和2倍主数值差分刷新。 |
 | V5.0.2 | **STM32全面优化**: TIM1原子更新；统一功率/故障API与PB10硬互锁；SWEEP/RUNNING连续3样本过流；TIM3 500Hz ADC双窗口+校准/新鲜度门控；SPI1共享仲裁；W25Q边界/超时；后台校验保存；Blackbox V2双元数据+循环恢复+故障前后5秒快照；按键双击/长按能力拆分；14页UI与GPIO背光清理；TFT增量刷新；USART2 TX中断环；遥测S=0/1/2/3；统一调度与超时/C89清理 |
 | V5.0.1 | **GPIO 全量重映射 + 5键系统 + 四灯系统**: PA12→TFT_BL(GPIO), PB12→W25Q128_CS, PB6→KEY3, PB9→KEY0(电源开关协调PB10), PB8→KEY1(返回,双击主菜单), PB7→KEY2(UP), PB6→KEY3(DOWN), PB5→KEY4(确定); PA15→STATUS(PWM指示), PB3→POWER(12V), PC13→HEARTBEAT(板载运行); PA10/PA11 移除; TIM4 停用; PB10 手动(去自动电压阈值); Key_Driver 4→5键; Led_Driver 5→4灯; Ui_Controller MENU UP键 wrapping 修复(<=1→==0) |

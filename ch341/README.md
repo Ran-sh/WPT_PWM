@@ -1,8 +1,8 @@
 # CH341A 字库烧录操作指南
 
-> 适用项目: WPT_PWM V5.1.1 (`5.0`分支) | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 更新: 2026-07-26
+> 适用项目: WPT_PWM V5.1.2 (`5.0`分支) | 目标芯片: W25Q128 (16MB SPI NOR Flash) | 更新: 2026-07-26
 
-> **V5.1.1 字库格式V2说明**: 新镜像的CRC32覆盖头部元数据和全部有效字模、图标负载；固件仍兼容旧V1镜像，但建议重新生成并烧录V2镜像以获得全量损坏检测。
+> **V5.1.2 字库工具说明**: CRC32覆盖头部元数据和全部有效负载；烧录前强制生成新备份，仅写前2MB字库分区，读回时校验完整2MB。
 
 本指南用于将 GB2312 全字库 (20897 汉字 + 95 ASCII + 图标动画) 通过 CH341A USB-SPI 编程器烧录到板载 W25Q128 Flash 芯片。
 
@@ -68,7 +68,7 @@ W25Q128 工作电压为 2.7V ~ 3.6V, 5V 供电会**永久损坏芯片**。烧录
 - 数据写入错误
 - 可能的硬件损坏
 
-V5.1.1运行时由 `Spi1_Shared` 管理TFT和W25Q128的共享总线，但它不能解决外部CH341A与已上电STM32同时驱动的问题，因此烧录时仍必须让目标板完全断电。
+V5.1.2运行时由 `Spi1_Shared` 管理TFT和W25Q128的共享总线，但它不能解决外部CH341A与已上电STM32同时驱动的问题，因此烧录时仍必须让目标板完全断电。
 
 **操作顺序**:
 1. 断开 STM32 板所有电源 (USB 线 + 外部电源)
@@ -322,8 +322,8 @@ python burn_flash.py
 | Step 0 | CRC32 自测 | <1s | 验证 Python 与 STM32 CRC32 算法一致 (refin=false) |
 | Step 1 | 检测 flashrom | <1s | 确认 flashrom 可用 |
 | Step 2 | 生成字库镜像 | ~8min | 渲染 20897 汉字 + 95 ASCII + 图标 |
-| Step 3 | 备份全片 16MB | ~3min | 读取 → `backup_16MB.bin` (安全防线, 已有则跳过) |
-| Step 4 | 写入全片 Flash | ~5min | 字库覆盖前 2MB, 其余保持原样 |
+| Step 3 | 备份全片 16MB | ~3min | 每次都新建 `backup_<时间戳>_16MB.bin`，绝不复用旧备份 |
+| Step 4 | 写入字库分区 | ~5min | 只擦写前2MB，配置和黑匣子日志分区不受影响 |
 | Step 5 | 读回逐字节校验 | ~3min | 逐字节比对前 2MB, 0 差异才算通过 |
 
 **总耗时: 约 20 分钟** (主要取决于 USB 速度和字库渲染)。
@@ -369,8 +369,8 @@ python burn_flash.py
 | 校验失败 (>0 字节不一致) | 杜邦线虚接 | 重新插紧所有排针, 尤其 GND 和 3.3V |
 | 同上 | 供电不足 (USB 延长线过长) | CH341A 直插电脑 USB 口, 不要用无源 HUB |
 | 同上 | 跳线帽误插 5V (芯片内部已受损) | 断电, 换到 3.3V 重试; 如反复失败芯片可能已损坏 |
-| 烧录成功但屏幕无变化 | STM32 固件未启用 Flash 字库 | 确认使用V5.1.1固件，并检查启动时Flash字库CRC状态 |
-| 屏幕白屏 (无任何显示) | PB12虚焊或共享SPI接线冲突 | 检查PB12/PA5/PA6/PA7，确认CH341A排针已拔下；V5.1.1会在超时后恢复总线 |
+| 烧录成功但屏幕无变化 | STM32 固件未启用 Flash 字库 | 确认使用V5.1.2固件，并检查启动时Flash字库CRC状态 |
+| 屏幕白屏 (无任何显示) | PB12虚焊或共享SPI接线冲突 | 检查PB12/PA5/PA6/PA7，确认CH341A排针已拔下；V5.1.2会在超时后恢复总线 |
 | 同上 | SPI1 引脚 PA6 被 W25Q128 占用, TFT 无法通信 | 烧录后务必拔掉 CH341A 排针 (尤其 MISO/PA6) 再给 STM32 上电 |
 
 ### 8.1 从备份恢复
@@ -378,7 +378,7 @@ python burn_flash.py
 如果烧录后出现异常，用项目自带的 flashrom 恢复:
 
 ```bash
-ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_16MB.bin -c W25Q128.V
+ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_<时间戳>_16MB.bin -c W25Q128.V
 ```
 
 此命令将芯片完整恢复到烧录前的状态。
@@ -390,7 +390,7 @@ ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_16MB.bin -c W25Q12
 | 文件 | 用途 |
 |:---|:---|
 | `ch341/generate_font.py` | 字库生成器: PIL 渲染 GB2312 全字库 20897 字 + ASCII 95 字 + 35组图标78帧 → 字库格式V2 `font_data.bin` (2MB) |
-| `ch341/burn_flash.py` | 烧录编排: CRC32自测（与固件Checksum_CRC32同为refin=false）→ 生成字库 → 备份全片 → 写入全片 → 逐字节校验 |
+| `ch341/burn_flash.py` | 烧录编排: CRC32自测 → 生成字库 → 新备份全片 → 仅写入2MB字库分区 → 完整2MB逐字节校验 |
 | `ch341/font_data.bin` | 生成产物: 2MB 字库镜像 (格式对齐 W25Q128 Flash 布局, LSB-first 无位序反转) |
 
 | `ch341/requirements.txt` | Python 依赖: Pillow ≥ 10.0.0 |

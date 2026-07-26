@@ -3,24 +3,25 @@
 generate_font.py — GB2312 一级汉字 + ASCII + 图标 → W25Q128 字库镜像 (2MB)
 V1.1  2026-06-29  移除 bit_reverse_byte, 字模 LSB-first 匹配 ROM; CRC32 改用 STM32 算法
 V1.2  2026-07-01  V4.4.0: 版本标记更新, Project_Ver added
-V1.3  2026-07-26  V5.1.1: 字库格式升级为V2，校验头部元数据和全部有效负载
+V1.3  2026-07-26  V5.1.2: 字库格式升级为V2，校验头部元数据和全部有效负载
 依赖: Pillow (pip install Pillow), simsun.ttc (Windows 自带 16px 宋体)
 """
 
 import struct, os, sys
 from PIL import Image, ImageDraw, ImageFont
 
-FONT_DATA_BIN = "font_data.bin"
+SCRIPT_DIR    = os.path.dirname(os.path.abspath(__file__))
+FONT_DATA_BIN = os.path.join(SCRIPT_DIR, "font_data.bin")
 FLASH_SIZE     = 2 * 1024 * 1024  # 2MB 满格, 烧录前补齐
 ALIGN          = 256              # 各区对齐到 256B 边界
 MAGIC          = 0x574B           # "WK"
 VERSION        = 2
-PROJECT_VER    = "V5.1.1"
+PROJECT_VER    = "V5.1.2"
 
-# ── CJK 范围: GB2312 一级 0x4E00~0x9FA0 (6763字) ──
+# ── CJK 范围: Unicode 0x4E00~0x9FA0 (20897字) ──
 CJK_START  = 0x4E00
 CJK_END    = 0x9FA0
-CJK_COUNT  = CJK_END - CJK_START + 1  # 20902
+CJK_COUNT  = CJK_END - CJK_START + 1  # 20897
 ASCII_START = 0x20
 ASCII_END   = 0x7E
 ASCII_COUNT = ASCII_END - ASCII_START + 1  # 95
@@ -386,9 +387,9 @@ def assemble_font_image(ascii_data: bytes,
     img.extend(icon_table)                                   # Icon Table 元数据
     img.extend(icon_data)                                    # Icon 位图数据
     img.extend(b'\x00' * (OFF_CJK_IDX - len(img)))           # pad→CJK Index
-    img.extend(cjk_index)                                    # CJK Index [U16][U16]×6763
+    img.extend(cjk_index)                                    # CJK 索引 [U16][U16]×20897
     img.extend(b'\x00' * (OFF_CJK_DAT - len(img)))           # pad→CJK Data
-    img.extend(cjk_glyph)                                    # CJK Data 6763×32B
+    img.extend(cjk_glyph)                                    # CJK 字模 20897×32B
 
     # V2校验从0x0C覆盖到有效负载末尾，避开校验字段本身并覆盖全部字模和图标。
     crc = compute_crc32(bytes(img[0x0C:total_size]))

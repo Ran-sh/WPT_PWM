@@ -33,6 +33,7 @@ JLinkLog.txt
 
 # Node
 /Claude_Files/node_modules/
+/安卓app/server/node_modules/
 
 # Python
 __pycache__/
@@ -68,6 +69,6 @@ Thumbs.db
 /ch341/flashrom-1.4/*.md
 font_data.bin
 splash.bin
-/ch341/backup_16MB.bin
+/ch341/backup_*.bin
 /ch341/verify_readback.bin
 /ch341/merged_flash.bin

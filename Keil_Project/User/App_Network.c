@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    User/App_Network.c
- * @brief   ESP8266连接管理、远程命令与遥测应用层 — V5.1.1
+ * @brief   ESP8266连接管理、远程命令与遥测应用层 — V5.1.2
  *
  *  硬件连接与通信协议:
  *  +------------------------------------------------------------+
@@ -128,6 +128,14 @@ static uint8_t App_Network_Is_Recovery_Frame(const char *frame)
     return 0U;
 }
 
+static uint8_t App_Network_Is_Valid_Frequency_Step(long frequency_hz)
+{
+    if (frequency_hz < 100000L) {
+        return ((frequency_hz % 100L) == 0L) ? 1U : 0U;
+    }
+    return ((frequency_hz % 1000L) == 0L) ? 1U : 0U;
+}
+
 uint8_t App_Network_Start_Connect(void)
 {
     s_conn_state    = APP_NETWORK_CONN_WIFI;
@@ -198,16 +206,11 @@ uint8_t App_Network_Is_Offline(void)
          || s_conn_state == APP_NETWORK_CONN_OFFLINE_ACTIVE);
 }
 
-/* 连接重试与指数退避。 */
+/* 连接重试采用两级退避，避免短时断网时频繁切换状态。 */
 static uint32_t App_Network_Get_Retry_Timeout(void)
 {
-    if (s_retry_count < 3)  return 5000;
-    if (s_retry_count < 6)  return 15000;
-    if (s_retry_count < 10) return 30000;
-    if (s_retry_count < 15) return 60000;
-    if (s_retry_count < 25) return 120000;
-    if (s_retry_count < 40) return 300000;
-    return 1800000;
+    if (s_retry_count < 3U) return 5000U;
+    return 15000U;
 }
 
 static void App_Network_Check_Retry(void)
@@ -377,7 +380,8 @@ void App_Network_Task(void)
                      local_buf, "CMD:SETFREQ:",
                      (long)PWM_DRIVER_FREQ_MIN_HZ,
                      (long)PWM_DRIVER_FREQ_MAX_HZ,
-                     &parsed_value) != 0U) {
+                     &parsed_value) != 0U &&
+                 App_Network_Is_Valid_Frequency_Step(parsed_value) != 0U) {
             frame_valid = 1U;
             if (!Ui_Controller_Is_No_WiFi_Mode()) {
                 if (ss_cmd == INVERTER_CONTROL_SS_STATE_DONE) {

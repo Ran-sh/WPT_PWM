@@ -69,7 +69,7 @@ function Test-Contains {
     )
 }
 
-Write-Host ("V5.1.1 STM32 integration verification (scope={0})" -f $Scope) -ForegroundColor Cyan
+Write-Host ("V5.1.2 STM32 integration verification (scope={0})" -f $Scope) -ForegroundColor Cyan
 
 $expectedSources = @(
     'Keil_Project\Hardware\Adc_Driver.c',
@@ -931,7 +931,7 @@ if (Test-CategoryEnabled 'Version') {
         if ($sourceFile.Extension -eq '.c') {
             $head = ($lines | Select-Object -First 48) -join "`n"
             if ($head -notmatch '@file' -or $head -notmatch '@brief' -or
-                $head -notmatch '@note' -or $head -notmatch 'V5\.1\.1') {
+                $head -notmatch '@note' -or $head -notmatch 'V5\.1\.2') {
                 $cHeaderFailures += $sourceFile.FullName.Substring($repoRoot.Length + 1)
             }
         }
@@ -939,13 +939,13 @@ if (Test-CategoryEnabled 'Version') {
             $hGuardFailures += $sourceFile.FullName.Substring($repoRoot.Length + 1)
         }
     }
-    Write-Check 'Version' 'all STM32 C files have V5.1.1 Chinese file headers' `
+    Write-Check 'Version' 'all STM32 C files have V5.1.2 Chinese file headers' `
         ($cHeaderFailures.Count -eq 0) `
         $(if ($cHeaderFailures.Count) { $cHeaderFailures -join ', ' } else { 'clean' })
     Write-Check 'Version' 'all STM32 headers begin directly with include guards' `
         ($hGuardFailures.Count -eq 0) `
         $(if ($hGuardFailures.Count) { $hGuardFailures -join ', ' } else { 'clean' })
-    Write-Check 'Version' 'Splash displays V5.1.1' ($tftC -match '"V5\.1\.1"')
+    Write-Check 'Version' 'Splash displays V5.1.2' ($tftC -match '"V5\.1\.2"')
 }
 
 if (Test-CategoryEnabled 'SettingsGauge') {
@@ -965,7 +965,7 @@ if (Test-CategoryEnabled 'SettingsGauge') {
 
 if (Test-CategoryEnabled 'Documentation') {
     $guideStalePattern = 'TIM1[^\r\n]*95k(?:Hz)?\s*[~\-]\s*150kHz|SS_SWEEP\(150kHz\)|\u53c2\u6570:[^\r\n]*200Hz|\u9891\u7387\u786c\u4e0b\u9650\s*95kHz|UI\s*\u2014\s*14\u9875\u9762'
-    $guideVersionCurrent = ($developerGuide -match '\u6587\u6863\u7248\u672c[^\r\n]*V5\.1\.1')
+    $guideVersionCurrent = ($developerGuide -match '\u6587\u6863\u7248\u672c[^\r\n]*V5\.1\.2')
     $guideSettingsCurrent = (($developerGuide -match '\u4e94\u9879\u8bbe\u7f6e') -and
                              ($developerGuide -match '15\u9875\u9762'))
     $guideFrequencyCurrent = (($developerGuide -match '20\u2013200kHz') -and
@@ -975,14 +975,15 @@ if (Test-CategoryEnabled 'Documentation') {
     $guideCurrent = ($guideVersionCurrent -and $guideSettingsCurrent -and
                      $guideFrequencyCurrent -and $guideGaugeCurrent)
     $guideClean = ($developerGuide -notmatch $guideStalePattern)
-    $ch341Current = (($ch341Readme -match 'WPT_PWM V5\.1\.1') -and
-                     ($ch341Readme -match '\u5b57\u5e93\u683c\u5f0fV2') -and
+    $ch341Current = (($ch341Readme -match 'WPT_PWM V5\.1\.2') -and
+                     ($ch341Readme -match '\u5b8c\u65742MB') -and
+                     ($ch341Readme -match '\u6bcf\u6b21\u90fd\u65b0\u5efa') -and
                      ($ch341Readme -notmatch 'V5\.0\.2'))
-    Write-Check 'Documentation' 'developer guide is synchronized to V5.1.1' $guideCurrent `
+    Write-Check 'Documentation' 'developer guide is synchronized to V5.1.2' $guideCurrent `
         ("version={0}, settings={1}, frequency={2}, gauge={3}" -f
          $guideVersionCurrent, $guideSettingsCurrent, $guideFrequencyCurrent, $guideGaugeCurrent)
     Write-Check 'Documentation' 'developer guide has no obsolete frequency UI or brightness description' $guideClean
-    Write-Check 'Documentation' 'CH341 guide records V5.1.1 font format V2' $ch341Current
+    Write-Check 'Documentation' 'CH341 guide records V5.1.2 safe full-partition workflow' $ch341Current
 }
 
 Write-Host ("Summary: {0} PASS, {1} FAIL" -f $script:PassCount, $script:FailureCount) -ForegroundColor Cyan

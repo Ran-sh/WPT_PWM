@@ -26,14 +26,27 @@ Page({
   onTokenInput: function(e) { this.setData({ token: e.detail.value }); },
 
   onSaveConfig: function() {
-    var c = { productId: this.data.productId, deviceName: this.data.deviceName, token: this.data.token };
+    var c = {
+      productId: String(this.data.productId || '').trim(),
+      deviceName: String(this.data.deviceName || '').trim(),
+      token: String(this.data.token || '').trim()
+    };
+    if (!c.productId || !c.deviceName || !c.token) {
+      wx.showToast({ title: '请填写完整的 OneNET 配置', icon: 'none' });
+      return;
+    }
     wx.setStorageSync('wpt_onenet_config', c);
-    this.setData({ configured: !!(c.productId && c.deviceName && c.token) });
+    this.setData({ productId: c.productId, deviceName: c.deviceName, token: c.token, configured: true });
     wx.showToast({ title: '保存成功', icon: 'success' });
   },
 
   onTitleInput: function(e) { this.setData({ dashboardTitle: e.detail.value }); },
-  onSaveTitle: function() { wx.setStorageSync('wpt_dashboard_title', this.data.dashboardTitle); wx.showToast({ title: '已保存', icon: 'success' }); },
+  onSaveTitle: function() {
+    var title = String(this.data.dashboardTitle || '').trim() || 'WPT Monitor';
+    wx.setStorageSync('wpt_dashboard_title', title);
+    this.setData({ dashboardTitle: title });
+    wx.showToast({ title: '已保存', icon: 'success' });
+  },
 
   onToggleSound: function(e) { this.setData({ soundAlert: e.detail.value }); wx.setStorageSync('wpt_sound_alert', e.detail.value); },
 

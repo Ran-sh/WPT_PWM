@@ -36,32 +36,44 @@ Page({
     var labels = {};
     model.sensors.forEach(function(s) { labels[s.id] = s.name; });
     this.setData({ sensors: buildSensorList(model), currentMetric: tabs[0] || '', metricTabs: tabs, tabLabels: labels });
-    this._active = true; this._latestData = null;
-    this._syncData();
+    this._active = true; this._latestData = null; this._syncing = false;
+    this._startPolling();
     var that = this;
-    this._pollTimer = setInterval(function() { that._syncData(); }, 10000);
-    setTimeout(function() { that._drawChart(); }, 600);
+    this._drawTimer = setTimeout(function() { that._drawChart(); }, 600);
   },
 
-  onShow: function() { this._checkTheme(); if (!this._active) { this._active = true; this._syncData(); } },
-  onHide: function() { this._active = false; clearInterval(this._pollTimer); },
+  onShow: function() { this._checkTheme(); if (!this._active) { this._active = true; this._startPolling(); } },
+  onHide: function() { this._active = false; this._stopPolling(); },
 
-  onUnload: function() { this._active = false; clearInterval(this._pollTimer); },
+  onUnload: function() { this._active = false; this._stopPolling(); if (this._drawTimer) clearTimeout(this._drawTimer); },
 
   _checkTheme: function() {
     var t = wx.getStorageSync('wpt_theme') || 'theme-dark';
     if (t !== this.data.currentTheme) this.setData({ currentTheme: t });
   },
 
+  _startPolling: function() {
+    var that = this;
+    this._stopPolling();
+    this._syncData();
+    this._pollTimer = setInterval(function() { that._syncData(); }, 10000);
+  },
+
+  _stopPolling: function() {
+    if (this._pollTimer) clearInterval(this._pollTimer);
+    this._pollTimer = null;
+  },
+
   _syncData: function() {
     var that = this;
-    if (!that._active) return;
-    OneNet.getLatestData().then(function(data) {
+    if (!that._active || that._syncing) return Promise.resolve();
+    that._syncing = true;
+    return OneNet.getLatestData().then(function(data) {
       if (!that._active) return;
       that._latestData = data;
       that.setData({ sensors: buildSensorList(OneNet.getDataModel(), data) });
       that._drawChart();
-    }).catch(function(){});
+    }).then(function(result) { that._syncing = false; return result; }, function() { that._syncing = false; });
   },
 
   onTabTap: function(e) {
@@ -70,7 +82,7 @@ Page({
   },
 
   onToggleTheme: function() { var n = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark'; this.setData({ currentTheme: n }); wx.setStorageSync('wpt_theme', n); },
-  onPullDownRefresh: function() { var that = this; that._syncData(); setTimeout(function() { wx.stopPullDownRefresh(); }, 1500); },
+  onPullDownRefresh: function() { this._syncData().then(function() { wx.stopPullDownRefresh(); }); },
 
   _drawChart: function() {
     var that = this, model = OneNet.getDataModel();

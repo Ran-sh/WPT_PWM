@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    ESP8266_MQTT_Firmware.ino
  * @brief   ESP8266 Dual-MCU MQTT 固件 (Arduino)
- * @note    V2.5.1: 状态机对齐 STM32 — OFFLINE 双模式 + 持续重试不放弃
+ * @note    V5.1.2: 频率双档量化、严格指令解析与串口溢出保护
  *          Dual-MCU 通信协议 (115200 8N1):
  *            STM32 → ESP8266:  {"V":xx,"I":xx,"F":xx,"S":x}\n
  *            ESP8266 → STM32:  CMD:ON\n  /  CMD:OFF\n  /  CMD:SETFREQ:<Hz>\n
@@ -22,7 +22,7 @@
  *  1. 用户配置 — 改参数只改这里
  * ═══════════════════════════════════════════════════════════════ */
 
-// #define DEBUG  /* 取消注释以启用串口调试输出 */
+/* #define DEBUG */  /* 取消注释以启用串口调试输出 */
 
 /* ── 串口通信 ── */
 #define SERIAL_BAUDRATE       115200
@@ -52,8 +52,8 @@
 
 /* ── 公共 Broker (Web 控制台) ──
  * ⚠️ 安全警告: public broker 无认证, 任何人均可订阅/发布
- *    若不需要公共访问, 注释 PUBLIC_MQTT_ENABLED 即可完全禁用 */
-#define PUBLIC_MQTT_ENABLED   1       /* 0=禁用公共 Broker */
+ *    默认关闭公共通道, 需要时必须同时设置不为空的指令密钥 */
+#define PUBLIC_MQTT_ENABLED   0       /* 0=禁用公共 Broker */
 #define PUBLIC_MQTT_SERVER    "broker.emqx.io"
 #define PUBLIC_MQTT_PORT      1883
 #define PUBLIC_TOPIC_DATA     "wpt/" ONENET_DEVICE_NAME "/data"
@@ -64,8 +64,8 @@
 #define RECONNECT_INTERVAL_MS 5000
 
 /* ── 频率限制 ── */
-#define FREQ_MIN_HZ           95000
-#define FREQ_MAX_HZ           150000
+#define FREQ_MIN_HZ           20000
+#define FREQ_MAX_HZ           200000
 
 
 /* ═══════════════════════════════════════════════════════════════
@@ -121,21 +121,44 @@ static int Str_Starts_With(const char* str, const char* prefix)
     return 1;
 }
 
+/* 完整指令必须精确匹配, 防止附加字符被当成合法操作 */
+static int Str_Equals(const char* left, const char* right)
+{
+    return strcmp(left, right) == 0;
+}
+
+/* 低频档步进 0.1kHz, 高频档步进 1kHz */
+static uint32_t Mqtt_Task_Quantize_Frequency(uint32_t frequency_hz)
+{
+    uint32_t step_hz;
+    uint32_t quantized;
+
+    if (frequency_hz < FREQ_MIN_HZ || frequency_hz > FREQ_MAX_HZ) return 0;
+    step_hz = (frequency_hz < 100000UL) ? 100UL : 1000UL;
+    quantized = ((frequency_hz + step_hz / 2UL) / step_hz) * step_hz;
+    if (quantized < FREQ_MIN_HZ) quantized = FREQ_MIN_HZ;
+    if (quantized > FREQ_MAX_HZ) quantized = FREQ_MAX_HZ;
+    return quantized;
+}
+
 /* ── OneNET 指令 → STM32 ── */
 static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
 {
     StaticJsonDocument<256> doc;
     DeserializationError err = deserializeJson(doc, (const char*)payload, length);
 
-    int8_t   cmd     = 0;
-    uint32_t freq_hz = 0;
+    int8_t   switch_cmd = 0;
+    uint8_t  freq_cmd   = 0;
+    uint32_t freq_hz    = 0;
 
     /* 防重入锁: 同一帧 payload 可能被 OneNET Broker 重发, 重复处理无意义 */
     {
         static uint32_t s_last_cmd_ms  = 0;
         static char     s_last_cmd_buf[64] = "";
+        static unsigned int s_last_cmd_len = 0;
         uint32_t now = millis();
         if (length < sizeof(s_last_cmd_buf)
+            && length == s_last_cmd_len
             && memcmp(payload, s_last_cmd_buf, length) == 0
             && length > 0
             && now - s_last_cmd_ms < 2000) {
@@ -144,6 +167,9 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
         if (length < sizeof(s_last_cmd_buf)) {
             memcpy(s_last_cmd_buf, payload, length);
             s_last_cmd_buf[length] = '\0';
+            s_last_cmd_len = length;
+        } else {
+            s_last_cmd_len = 0;
         }
         s_last_cmd_ms = now;
     }
@@ -160,7 +186,7 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
                 val = (sw["value"].as<int>() != 0) ? 1 : 0;
             else
                 val = sw.as<int>() ? 1 : 0;
-            cmd = val ? 1 : -1;
+            switch_cmd = val ? 1 : -1;
         }
 
         if (params.containsKey("SetFreq")) {
@@ -170,10 +196,10 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
                 val = sf.as<int>();
             else if (sf.containsKey("value"))
                 val = sf["value"].as<int>();
-            if (val >= FREQ_MIN_HZ && val <= FREQ_MAX_HZ) {
-                freq_hz            = (uint32_t)((val / 1000) * 1000);
+            freq_hz = Mqtt_Task_Quantize_Frequency((uint32_t)val);
+            if (freq_hz != 0) {
                 s_mqtt_last_set_freq = freq_hz;
-                cmd = 3;
+                freq_cmd = 1;
             }
         }
     } else {
@@ -183,22 +209,35 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
         memcpy(msg, payload, len);
         msg[len] = '\0';
 
-        if      (Str_Starts_With(msg, "CMD:ON")  || strstr(msg, "\"Switch\":true"))  cmd =  1;
-        else if (Str_Starts_With(msg, "CMD:OFF") || strstr(msg, "\"Switch\":false")) cmd = -1;
-        else return;
+        if (Str_Equals(msg, "CMD:ON")) {
+            switch_cmd = 1;
+        } else if (Str_Equals(msg, "CMD:OFF")) {
+            switch_cmd = -1;
+        } else if (Str_Starts_With(msg, "CMD:SETFREQ:")) {
+            char* end_ptr;
+            unsigned long requested = strtoul(msg + strlen("CMD:SETFREQ:"), &end_ptr, 10);
+            if (*end_ptr != '\0') return;
+            freq_hz = Mqtt_Task_Quantize_Frequency((uint32_t)requested);
+            if (freq_hz == 0) return;
+            s_mqtt_last_set_freq = freq_hz;
+            freq_cmd = 1;
+        } else {
+            return;
+        }
     }
 
     /* 透传到 STM32 串口 */
-    switch (cmd) {
-        case  1: Serial.print("CMD:ON\n");  s_mqtt_skip_switch = 1; break;
-        case -1: Serial.print("CMD:OFF\n"); s_mqtt_skip_switch = 1; break;
-        case  3: {
-            char buf[32];
-            snprintf(buf, sizeof(buf), "CMD:SETFREQ:%lu\n", freq_hz);
-            Serial.print(buf);
-            break;
-        }
-        default: break;
+    if (switch_cmd > 0) {
+        Serial.print("CMD:ON\n");
+        s_mqtt_skip_switch = 1;
+    } else if (switch_cmd < 0) {
+        Serial.print("CMD:OFF\n");
+        s_mqtt_skip_switch = 1;
+    }
+    if (freq_cmd != 0) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "CMD:SETFREQ:%lu\n", freq_hz);
+        Serial.print(buf);
     }
 
     /* set_reply 应答 */
@@ -206,8 +245,9 @@ static void Mqtt_Task_Parse_Command(const char* payload, unsigned int length)
         const char* req_id = doc["id"];
         StaticJsonDocument<128> reply;
         if (req_id) reply["id"] = req_id;
-        reply["code"] = 200;
-        reply["msg"]  = "success";
+        uint8_t accepted = (switch_cmd != 0 || freq_cmd != 0) ? 1 : 0;
+        reply["code"] = accepted ? 200 : 400;
+        reply["msg"]  = accepted ? "success" : "invalid command";
         char buf[128];
         serializeJson(reply, buf, sizeof(buf));
         s_mqtt_client.publish(MQTT_TOPIC_PROPERTY_SET_REPLY, buf);
@@ -222,22 +262,20 @@ static void Mqtt_Task_On_OneNET_Message(char* topic, byte* payload, unsigned int
 static void Mqtt_Task_On_Public_Message(char* topic, byte* payload, unsigned int length)
 {
 #if PUBLIC_MQTT_ENABLED
-    /* 公共 Broker 指令鉴权: 若 PUBLIC_CMD_AUTH_KEY 非空, 需以此 Key 开头 */
-    if (PUBLIC_CMD_AUTH_KEY[0] != '\0') {
-        if (length < strlen(PUBLIC_CMD_AUTH_KEY) ||
-            memcmp(payload, PUBLIC_CMD_AUTH_KEY, strlen(PUBLIC_CMD_AUTH_KEY)) != 0) {
-            return;  /* 鉴权失败, 静默丢弃 */
-        }
-        payload += strlen(PUBLIC_CMD_AUTH_KEY);
-        length  -= strlen(PUBLIC_CMD_AUTH_KEY);
+    size_t key_length = strlen(PUBLIC_CMD_AUTH_KEY);
+    /* 公共通道禁止空密钥, 密钥后的内容仍需通过严格指令解析 */
+    if (key_length == 0 || length <= key_length ||
+        memcmp(payload, PUBLIC_CMD_AUTH_KEY, key_length) != 0) {
+        return;
     }
+    payload += key_length;
+    length  -= key_length;
 #ifdef DEBUG
     Serial.print("[Public] <<< CMD: ");
     Serial.write(payload, length);
     Serial.println();
 #endif
-    Serial.write(payload, length);
-    Serial.print("\n");
+    Mqtt_Task_Parse_Command((const char*)payload, length);
 #endif /* PUBLIC_MQTT_ENABLED */
 }
 
@@ -271,22 +309,18 @@ static void Mqtt_Task_Maintain_Connection(void)
             if (one_ok) s_mqtt_client.subscribe(MQTT_TOPIC_PROPERTY_SET);
 
 #if PUBLIC_MQTT_ENABLED
-            boolean pub_ok = s_mqtt_public.connected() ||
-                s_mqtt_public.connect(ONENET_DEVICE_NAME);
-            if (pub_ok) {
+            if (PUBLIC_CMD_AUTH_KEY[0] != '\0' &&
+                (s_mqtt_public.connected() || s_mqtt_public.connect(ONENET_DEVICE_NAME))) {
                 s_mqtt_public.setCallback(Mqtt_Task_On_Public_Message);
                 s_mqtt_public.subscribe(PUBLIC_TOPIC_CMD);
             }
-#else
-            boolean pub_ok = true;  /* 公共 Broker 禁用时跳过 */
 #endif
 
-            if (one_ok && pub_ok) {
+            if (one_ok) {
                 s_conn_state = MQTT_CONN_STATE_ONLINE;
                 Serial.print("STATUS:ONLINE:RSSI=");
                 Serial.print(WiFi.RSSI());
                 Serial.print("\n");
-                }
 #ifdef DEBUG
                 Serial.println("[Status] >>> Sent STATUS:ONLINE to STM32 <<<");
 #endif
@@ -301,9 +335,17 @@ static void Mqtt_Task_Maintain_Connection(void)
                 s_conn_retry_ms = now;
                 Serial.print("STATUS:DISCONNECTED\n");
                 WiFi.begin();
-            } else if (!s_mqtt_client.connected() && !s_mqtt_public.connected()) {
+            } else if (!s_mqtt_client.connected()) {
                 s_conn_state = MQTT_CONN_STATE_MQTT_CONN;
             }
+#if PUBLIC_MQTT_ENABLED
+            /* 公共通道是可选功能, 断开时独立重连, 不影响 OneNET 主通道 */
+            if (PUBLIC_CMD_AUTH_KEY[0] != '\0' && !s_mqtt_public.connected() &&
+                s_mqtt_public.connect(ONENET_DEVICE_NAME)) {
+                s_mqtt_public.setCallback(Mqtt_Task_On_Public_Message);
+                s_mqtt_public.subscribe(PUBLIC_TOPIC_CMD);
+            }
+#endif
             /* 每 2s 上报 RSSI */ {
                 static unsigned long last_rssi = 0;
                 if (now - last_rssi >= 2000) {
@@ -362,7 +404,9 @@ static void Mqtt_Task_Loop(void)
 {
     Mqtt_Task_Maintain_Connection();
     s_mqtt_client.loop();
+#if PUBLIC_MQTT_ENABLED
     s_mqtt_public.loop();
+#endif
 }
 
 static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
@@ -374,7 +418,11 @@ static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
     float        i = doc["I"];
     unsigned long f = doc["F"];
     int           s = doc["S"] | 0;
-    bool    running = (s == 2);  /* S=2 (SS_DONE) 才是真正运行, S=1 (SWEEP) 已通过遥测门控排除 */
+    bool    running = (s == 2);  /* 仅S=2上报Switch=true；S=1的实际扫频F仍正常透传 */
+
+    if (running && f >= FREQ_MIN_HZ && f <= FREQ_MAX_HZ) {
+        s_mqtt_last_set_freq = Mqtt_Task_Quantize_Frequency((uint32_t)f);
+    }
 
     StaticJsonDocument<256> tx;
     tx["id"]      = "123";
@@ -408,13 +456,14 @@ static void Mqtt_Task_Publish_Telemetry(const char* stm32_json)
 
 static char    s_serial_buf[SERIAL_LINE_MAX];
 static uint8_t s_serial_len = 0;
+static uint8_t s_serial_overflowed = 0;
 
 static void Serial_Parse_Process_Line(const char* line)
 {
     /* CMD:WIFI_DISC — 断开 WiFi 但不清除凭证, 进入被动离线 (可自动恢复)
      * 注意: ESP 侧用 PASSIVE, STM32 侧用 ACTIVE — 设计意图是 ESP 保持 WiFi 自动重连,
      * 但 STM32 的门控阻止应用层重连, 直到用户手动 ON 才放行 */
-    if (Str_Starts_With(line, "CMD:WIFI_DISC")) {
+    if (Str_Equals(line, "CMD:WIFI_DISC")) {
         WiFi.disconnect();
         s_conn_state     = MQTT_CONN_STATE_OFFLINE_PASSIVE;
         s_conn_retry_cnt = 0;
@@ -425,7 +474,7 @@ static void Serial_Parse_Process_Line(const char* line)
     /* CMD:CLEAR — 清除配网凭证并重启, 进入配网模式 (需二次确认防误触)
      * 第一次收到 → 回复 CLEAR_CONFIRM? 等待确认
      * 5s 内再次收到 → 执行清除+重启 */
-    if (Str_Starts_With(line, "CMD:CLEAR")) {
+    if (Str_Equals(line, "CMD:CLEAR")) {
         static unsigned long s_clear_first_ms = 0;
         unsigned long now = millis();
         if (s_clear_first_ms == 0 || now - s_clear_first_ms > 5000) {
@@ -453,21 +502,25 @@ static void Serial_Parse_Read_Loop(void)
     /* 1s 无换行 → 丢弃半帧缓冲, 防止噪声/断帧导致永久卡死 */
     static unsigned long s_last_char_ms = 0;
     unsigned long now = millis();
-    if (s_serial_len > 0 && now - s_last_char_ms >= 1000) {
-        s_serial_len = 0;  /* 丢弃卡死半帧 */
+    if ((s_serial_len > 0 || s_serial_overflowed) && now - s_last_char_ms >= 1000) {
+        s_serial_len = 0;
+        s_serial_overflowed = 0;  /* 丢弃卡死或过长的半帧 */
     }
 
     while (Serial.available() > 0) {
         char c = (char)Serial.read();
-        s_last_char_ms = now;
+        s_last_char_ms = millis();
         if (c == '\n') {
-            if (s_serial_len > 0) {
+            if (s_serial_len > 0 && !s_serial_overflowed) {
                 s_serial_buf[s_serial_len] = '\0';
                 Serial_Parse_Process_Line(s_serial_buf);
-                s_serial_len = 0;
             }
+            s_serial_len = 0;
+            s_serial_overflowed = 0;
         } else if (c != '\r' && s_serial_len < sizeof(s_serial_buf) - 1) {
             s_serial_buf[s_serial_len++] = c;
+        } else if (c != '\r') {
+            s_serial_overflowed = 1;
         }
     }
 }
@@ -518,7 +571,9 @@ void setup()
     /* 初始化 MQTT 客户端并启动联网状态机 */
     s_mqtt_client.setServer(MQTT_SERVER, MQTT_PORT);
     s_mqtt_client.setCallback(Mqtt_Task_On_OneNET_Message);
+#if PUBLIC_MQTT_ENABLED
     s_mqtt_public.setServer(PUBLIC_MQTT_SERVER, PUBLIC_MQTT_PORT);
+#endif
 
     Mqtt_Task_Start_Connect();
 }

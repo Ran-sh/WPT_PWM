@@ -3,7 +3,12 @@
     <view class="state-badge {{systemState}}"><text>{{stateLabel}}</text><view bindtap="onToggleTheme" style="font-size:30rpx;margin-left:16rpx;width:52rpx;height:52rpx;border-radius:50%;background:var(--toggle-bg);display:flex;align-items:center;justify-content:center;">{{currentTheme === 'theme-dark' ? '🌙' : '☀'}}</view></view>
   </view>
   <view class="card ctrl-card"><view class="ctrl-left"><view class="ctrl-icon power"><text>⏻</text></view><view><text class="ctrl-name">启停控制</text><text class="ctrl-hint {{isOn ? 'on' : 'off'}}">{{isOn ? '运行中' : '已停止'}}</text></view></view><switch checked="{{isOn}}" bindchange="onSwitch" color="#22C55E"/></view>
-  <view class="card ctrl-card"><view class="ctrl-left"><view class="ctrl-icon freq"><text>〰</text></view><view><text class="ctrl-name">频率设置</text><text class="ctrl-hint">目标频率</text></view></view><view class="freq-row"><view class="freq-swiper-wrap"><swiper class="freq-swiper" current="{{freqIdx}}" bindchange="onSwiperChange"><swiper-item wx:for="{{freqList}}" wx:key="*this"><view class="swipe-num {{index === freqIdx ? 'sel' : ''}}">{{item}}</view></swiper-item></swiper></view><text class="freq-unit">kHz</text></view></view>
+  <view class="card freq-card">
+    <view class="freq-head"><view class="ctrl-left"><view class="ctrl-icon freq"><text>〰</text></view><view><text class="ctrl-name">频率设置</text><text class="ctrl-hint">目标频率</text></view></view><view><text class="freq-value">{{selectedFreq}}</text><text class="freq-unit"> kHz</text></view></view>
+    <view class="band-row"><view class="band-btn {{freqBand === 'low' ? 'active' : ''}}" data-band="low" bindtap="onBandTap">20–99.9k</view><view class="band-btn {{freqBand === 'high' ? 'active' : ''}}" data-band="high" bindtap="onBandTap">100–200k</view></view>
+    <slider min="{{freqMin}}" max="{{freqMax}}" step="{{freqStep}}" value="{{selectedFreq}}" activeColor="#00E5FF" backgroundColor="rgba(148,163,184,0.2)" block-color="#00E5FF" block-size="18" bindchanging="onFreqChanging" bindchange="onFreqChange"/>
+    <view class="freq-scale"><text>{{freqMin}}k</text><text>步进 {{freqStep}}k</text><text>{{freqMax}}k</text></view>
+  </view>
   <view class="btn-confirm {{isOn ? '' : 'disabled'}}" bindtap="onSetFreq"><text>确认设置</text></view>
   <view class="card log-card"><view class="log-header"><text class="log-title">操作记录</text><view class="btn-clear" bindtap="onClearLogs"><text>清空</text></view></view>
     <view wx:if="{{logs.length === 0}}" class="log-empty">暂无操作记录</view>

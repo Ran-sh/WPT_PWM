@@ -19,7 +19,7 @@ Page({
     var labels = {};
     model.sensors.forEach(function(s) { labels[s.id] = s.name; });
     this.setData({ currentMetric: tabs[0] || '', metricTabs: tabs, tabLabels: labels });
-    this._active = true;
+    this._active = true; this._syncing = false;
     this.setData({ _tabSelected: getApp().globalData.tabBarSelected });
     this._allHistory = wx.getStorageSync('wpt_history') || [];
     this._loadAndRender();
@@ -44,8 +44,8 @@ Page({
   },
 
   _checkTheme: function() { var t = wx.getStorageSync('wpt_theme') || 'theme-dark'; if (t !== this.data.currentTheme) this.setData({ currentTheme: t }); },
-  onHide: function() { this._active = false; clearInterval(this._pollTimer); },
-  onUnload: function() { this._active = false; clearInterval(this._pollTimer); },
+  onHide: function() { this._active = false; clearInterval(this._pollTimer); if (this._drawTimer) clearTimeout(this._drawTimer); },
+  onUnload: function() { this._active = false; clearInterval(this._pollTimer); if (this._drawTimer) clearTimeout(this._drawTimer); },
   onToggleTheme: function() { var n = this.data.currentTheme === 'theme-dark' ? 'theme-light' : 'theme-dark'; this.setData({ currentTheme: n }); wx.setStorageSync('wpt_theme', n); },
   onPullDownRefresh: function() { this._allHistory = wx.getStorageSync('wpt_history') || []; this._loadAndRender(); wx.stopPullDownRefresh(); },
 
@@ -67,19 +67,21 @@ Page({
     }
     this.setData({ records: records });
     var that = this;
-    setTimeout(function() { that._drawChart(filtered); }, 400);
+    if (this._drawTimer) clearTimeout(this._drawTimer);
+    this._drawTimer = setTimeout(function() { that._drawTimer = null; if (that._active) that._drawChart(filtered); }, 400);
   },
 
   onTabTap: function(e) { this.setData({ currentMetric: e.currentTarget.dataset.metric }); this._loadAndRender(); },
 
   _syncData: function() {
     var that = this;
-    if (!that._active) return;
-    OneNet.getLatestData().then(function() {
+    if (!that._active || that._syncing) return Promise.resolve();
+    that._syncing = true;
+    return OneNet.getLatestData().then(function() {
       if (!that._active) return;
       that._allHistory = wx.getStorageSync('wpt_history') || [];
       that._loadAndRender();
-    }).catch(function(){});
+    }).then(function(result) { that._syncing = false; return result; }, function() { that._syncing = false; });
   },
 
   /* ══ CSV 导出 ══ */

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server/bridge.mjs"
+    "start": "node bridge.mjs",
+    "test": "node --test ../../tests/bridge-core.test.mjs"
   },
   "dependencies": {
     "express": "^5.2.1",

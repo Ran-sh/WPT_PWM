@@ -1,12 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
+const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const configPath = path.join(root, '安卓app', 'utils', 'config.js');
 const oneNetPath = path.join(root, '安卓app', 'utils', 'onenet.js');
+const webConfigPath = path.join(root, 'ONENETapp', 'js', 'config.js');
 
-function loadMiniModules(initialStorage) {
+function loadMiniModules(initialStorage, oneNetConfig) {
   const storage = Object.assign({}, initialStorage || {});
   global.wx = {
     getStorageSync: (key) => storage[key] === undefined ? '' : storage[key],
@@ -15,7 +18,7 @@ function loadMiniModules(initialStorage) {
     request: () => { throw new Error('本测试不应发起网络请求'); }
   };
   global.getApp = () => ({
-    getOneNetConfig: () => ({ PRODUCT_ID: '', DEVICE_NAME: '', TOKEN: '', BASE_URL: 'https://iot-api.heclouds.com' })
+    getOneNetConfig: () => oneNetConfig || ({ PRODUCT_ID: '', DEVICE_NAME: '', TOKEN: '', BASE_URL: 'https://iot-api.heclouds.com' })
   });
   delete require.cache[require.resolve(configPath)];
   delete require.cache[require.resolve(oneNetPath)];
@@ -88,4 +91,43 @@ test('跨日期的同一分钟仍会保存一条新历史记录', () => {
   const { oneNet, storage } = loadMiniModules(initial);
   oneNet.saveHistory({ voltage: 2 });
   assert.equal(storage.wpt_history.length, 2);
+});
+
+test('小程序在发起网络请求前拒绝越界或非步进频率', async () => {
+  const cfg = { PRODUCT_ID: 'p', DEVICE_NAME: 'd', TOKEN: 't', BASE_URL: 'https://iot-api.heclouds.com' };
+  const { oneNet } = loadMiniModules({}, cfg);
+  assert.equal(await oneNet.setProperty(null, { setfreq: 19.9 }), false);
+  assert.equal(await oneNet.setProperty(null, { setfreq: 99.95 }), false);
+  assert.equal(await oneNet.setProperty(null, { setfreq: 100.1 }), false);
+  assert.equal(await oneNet.setProperty(null, { switch: 'true' }), false);
+});
+
+test('网页端旧数据模型也会迁移并恢复频率换算', () => {
+  const legacy = JSON.stringify({
+    sensors: [
+      { id: 'current', name: '电流', max: 10 },
+      { id: 'freq', name: '频率', min: 95, max: 150, step: 1 }
+    ],
+    controls: [{ id: 'setfreq', min: 95, max: 150, step: 1 }]
+  });
+  const context = {
+    localStorage: {
+      getItem: (key) => key === 'iot_data_model' ? legacy : null,
+      setItem: () => {}
+    },
+    document: { createElement: () => ({ textContent: '', innerHTML: '' }) },
+    Set, Object, Array, JSON, Math, Number, String
+  };
+  vm.createContext(context);
+  const source = fs.readFileSync(webConfigPath, 'utf8') +
+    '\n;globalThis.__test = { getDataModel, getDecimals };';
+  vm.runInContext(source, context, { filename: webConfigPath });
+  const model = context.__test.getDataModel();
+  const current = model.sensors.find((item) => item.id === 'current');
+  const freq = model.sensors.find((item) => item.id === 'freq');
+  const setFreq = model.controls.find((item) => item.id === 'setfreq');
+  assert.equal(current.max, 5);
+  assert.equal(freq.fromCloud(99900), 99.9);
+  assert.equal(setFreq.toCloud(99.9), 99900);
+  assert.equal(context.__test.getDecimals('int32', 0.1), 1);
 });

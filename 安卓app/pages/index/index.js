@@ -117,6 +117,9 @@ Page({
     var isOffline = !data._isOnline;  /* true=在线, false/undefined=离线 */
     var cards = buildCards(model, data, isOffline);
     var newAlerts = OneNet.checkAlerts(data, fromCache);
+    if (newAlerts.length > 0 && wx.getStorageSync('wpt_sound_alert') !== false) {
+      try { wx.vibrateLong(); } catch (_) {}
+    }
     var online = !isOffline;
     this.setData({
       sensors: cards.sensors, controls: cards.controls,
