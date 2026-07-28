@@ -70,6 +70,7 @@
 | 历史报告、旧方案、旧图纸 | `NONFILE/` | 根目录 |
 
 项目不再使用 `Claude_Files/` 和 `docs/superpowers/`。旧资料已完整迁移到 `NONFILE/`，生产代码不得引用该目录。
+除 `NONFILE/README.md` 外，归档文件名必须以内容对应的 `-Vx.y.z` 结尾，版本尾缀放在扩展名前。
 
 ### 0.2 从零完成的正确顺序
 
@@ -212,8 +213,8 @@
 | **SPI Flash** | **W25Q128 16MB SOIC-8** | 1 | **[V4.3.0]** 外挂字库+黑匣子+参数存储 | ¥3~5 |
 | 全桥驱动 | IR2103S + MOSFET×4 | 1 | 功率输出 | 自制 |
 | 电流传感器 | CC6920-10A | 1 | 电流采集 | ¥5~10 |
-| 按键 | 轻触开关 6×6mm | 4 | F+/F-/ON/PAGE | ¥2 |
-| LED | 3mm ×6 | 6 | 状态指示 | ¥3 |
+| 按键 | 轻触开关 6×6mm | 5 | KEY0–KEY4 | ¥2 |
+| LED | 3mm | 4 | WiFi/电源/运行/心跳状态 | ¥3 |
 | 蜂鸣器 | 有源蜂鸣器 5V | 1 | 故障报警 | ¥2 |
 | 杜邦线 | 母对母 20cm | 若干 | 接线 | ¥2 |
 
@@ -352,7 +353,6 @@ Keil_Project/
 │   ├── W25Q_Driver.c/h     ← 16MB Flash边界检查、超时和二分检索
 │   ├── TFT_Font_Data.h     ← ASCII 95字 + 中文4字 + 图标 (ROM回退)
 │   ├── Esp8266_Driver.c/h  ← USART2 RX帧队列 + TX中断环形缓冲
-│   ├── App_Network.c/h     ← WiFi+心跳+帧快照+遥测门控 (以前在Hardware, 现移至User)
 │   ├── Adc_Driver.c/h      ← TIM3 500Hz触发 + 模拟看门狗 + 64点显示/8点安全窗口
 │   ├── Inverter_Control.c/h← 软启动 + 频率斜坡 (146行)
 │   ├── Key_Driver.c/h      ← 5键 FSM + 独立双击/长按能力
@@ -384,7 +384,7 @@ Keil_Project/
 void Some_Task(void) {
     static uint32_t last = 0;
     if (Sys_Timer_Get_Tick() - last >= PERIOD_MS) {
-        last = Sys_Timer_GetTick();
+        last = Sys_Timer_Get_Tick();
         // 你的业务逻辑
     }
 }

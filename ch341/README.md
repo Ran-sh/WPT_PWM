@@ -351,8 +351,7 @@ python burn_flash.py
 
 ### 7.6 开机动画
 
-> **V4.3.2 变更**: 开机动画改为 STM32 纯代码实现 (8帧背光渐亮), 不依赖 W25Q SPLASH 分区。
-> 无需额外烧录, 固件已内置。删除 `burn_splash.py` 和 `generate_splash.py`。
+> **V4.3.2 变更**: 开机动画改为 STM32 纯代码实现 (8帧背光渐亮), 不依赖 W25Q SPLASH 分区，也不再需要独立的 SPLASH 生成与烧录流程。
 
 ---
 
@@ -391,11 +390,11 @@ ch341\flashrom-1.4\flashrom.exe -p ch341a_spi -w ch341\backup_<时间戳>_16MB.b
 |:---|:---|
 | `ch341/generate_font.py` | 字库生成器: PIL 渲染 GB2312 全字库 20897 字 + ASCII 95 字 + 35组图标78帧 → 字库格式V2 `font_data.bin` (2MB) |
 | `ch341/burn_flash.py` | 烧录编排: CRC32自测 → 生成字库 → 新备份全片 → 仅写入2MB字库分区 → 完整2MB逐字节校验 |
-| `ch341/font_data.bin` | 生成产物: 2MB 字库镜像 (格式对齐 W25Q128 Flash 布局, LSB-first 无位序反转) |
+| `ch341/font_data.bin` | 运行生成器后临时产生的2MB字库镜像；可随时重建，不提交到仓库 |
 
 | `ch341/requirements.txt` | Python 依赖: Pillow ≥ 10.0.0 |
 
-> **V4.3.2 变更**: 删除 `generate_splash.py`/`burn_splash.py` — SPLASH 改为 STM32 纯代码实现, 开机动画存 ROM 不占 W25Q。
+> **V4.3.2 变更**: 旧版独立 SPLASH 工具链已停用；开机动画改为 STM32 纯代码实现，存放在 ROM，不占用 W25Q。
 
 临时文件 (`merged_flash.bin`, `verify_readback.bin`) 在烧录成功后自动清理。
 

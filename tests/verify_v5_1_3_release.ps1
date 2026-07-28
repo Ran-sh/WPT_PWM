@@ -64,11 +64,35 @@ $manuals = @(Get-ChildItem $Root -File -Filter '*.md' | Where-Object {
 Assert-True ($manuals.Count -eq 1 -and ([IO.File]::ReadAllText($manuals[0].FullName, [Text.Encoding]::UTF8)) -match 'V5\.1\.3') 'root has one consolidated V5.1.3 manual'
 
 Assert-True (Test-Path -LiteralPath (Join-Path $Root '.agents/skills/embedded-architect/SKILL.md')) 'project embedded skill path is fixed'
-Assert-True ((Read-Utf8 '.agents/skills/embedded-architect/SKILL.md') -match 'V5\.1\.3') 'project embedded skill follows V5.1.3'
+$embeddedSkill = Read-Utf8 '.agents/skills/embedded-architect/SKILL.md'
+Assert-True ($embeddedSkill -match 'V5\.1\.3') 'project embedded skill follows V5.1.3'
+Assert-True (($embeddedSkill -match '99\.9kHz') -and
+    ($embeddedSkill -match '200kHz') -and
+    ($embeddedSkill -match 'PA12') -and
+    ($embeddedSkill -match 'SWEEP \| 1 \| [^|]+ \| false \| TIM1 [^|]+ Hz')) 'embedded skill matches current UI sweep and telemetry behavior'
+Assert-True (Test-Path -LiteralPath (Join-Path $Root '.agents/skills/embedded-architect/agents/openai.yaml')) 'embedded skill has UI metadata'
+Assert-True ((Read-Utf8 '.agents/skills/embedded-architect/agents/openai.yaml') -match '\$embedded-architect') 'embedded skill default prompt is discoverable'
 Assert-True (Test-Path -LiteralPath (Join-Path $Root 'NONFILE/README.md')) 'NONFILE has placement rules'
 Assert-True (-not (Test-Path -LiteralPath (Join-Path $Root 'Claude_Files'))) 'legacy Claude_Files directory is migrated'
 Assert-True (-not (Test-Path -LiteralPath (Join-Path $Root 'docs/superpowers'))) 'historical implementation plans are archived'
 Assert-True (@(Get-ChildItem $Root -File -Filter 'task-*-report.md').Count -eq 0) 'task reports are not scattered in root'
+
+$archiveRoot = Join-Path $Root 'NONFILE'
+$badArchiveNames = @(Get-ChildItem $archiveRoot -Recurse -File | Where-Object {
+    $_.FullName -ne (Join-Path $archiveRoot 'README.md') -and
+    $_.BaseName -notmatch '-V\d+\.\d+\.\d+$'
+})
+Assert-True ($badArchiveNames.Count -eq 0) 'all historical files use a version suffix'
+
+$trackedFiles = @(& git -C $Root -c core.quotepath=false ls-files | Where-Object {
+    Test-Path -LiteralPath (Join-Path $Root $_)
+})
+$trackedGenerated = @($trackedFiles | Where-Object {
+    $_ -match '(^|/)(node_modules|__pycache__)(/|$)' -or
+    $_ -match '(^|/)Keil_Project/Target .+\.BAT$' -or
+    $_ -match '\.(pyc|pyo|obj|lst|axf|hex|map)$'
+})
+Assert-True ($trackedGenerated.Count -eq 0) 'generated dependencies caches and Keil artifacts are not tracked'
 
 Write-Host "V5.1.3 release checks: $script:Passed passed, $script:Failed failed"
 if ($script:Failed -ne 0) { exit 1 }

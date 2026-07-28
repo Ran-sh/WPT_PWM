@@ -1,0 +1,4 @@
+interface:
+  display_name: "WPT 嵌入式架构师"
+  short_description: "维护 WPT 固件安全、全栈一致性、目录约束与可靠发布流程"
+  default_prompt: "使用 $embedded-architect 检查并修复 WPT_PWM 的固件、安全、协议或全栈一致性问题。"

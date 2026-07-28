@@ -43,6 +43,7 @@ __pycache__/
 # User-specific
 *.uvguix.*
 *.uvoptx
+/Keil_Project/Target *.BAT
 
 # OS
 Thumbs.db

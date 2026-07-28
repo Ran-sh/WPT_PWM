@@ -1,61 +1,62 @@
 ---
 name: embedded-architect
-description: WPT_PWM V5.1.3 的 STM32、ESP8266、TFT、OneNET、网页、小程序、字库及发布一致性约束。涉及本项目嵌入式代码、硬件、协议、安全、目录或全栈同步时必须使用。
+description: 维护 WPT_PWM V5.1.3 的 STM32F103、ESP8266、TFT/W25Q128、OneNET、网页、微信小程序、桥接和发布一致性。处理本项目的嵌入式代码、功率安全、PWM/ADC、软启动扫频、串口协议、UI、目录清理、版本同步、回归验证或 Git 发布时使用。
 ---
 
-# WPT_PWM 嵌入式系统架构技能（V5.1.3）
+# WPT_PWM 嵌入式架构
 
-## 1. 使用顺序
+## 1. 开始前
 
-1. 先读取根目录 `AGENTS.md` 和 `WPT无线充电系统-从零搭建完整操作手册.md`。
-2. 查看 `git status`，不得覆盖用户已有修改。
-3. 先运行相关回归检查复现问题，再修改生产代码。
-4. 固件改动必须同步检查 ESP8266、网页、小程序、桥接、字库工具和文档。
-5. 完成后清理 Keil 中间产物，验证两个仓库，再提交和推送。
+1. 完整读取根目录 `AGENTS.md`；只读取总手册中与当前任务有关的章节。架构、文档整合或发布任务再通读总手册。
+2. 查看主仓库和 `ONENETapp/` 的状态，区分用户已有修改、当前任务修改和生成物。
+3. 先用最接近问题的回归检查复现，再修改生产代码；纯审查任务不得擅自写文件。
+4. 以当前代码和可执行契约测试为事实来源；若活动文档与实现冲突，同时修正文档和本技能。
+5. 不读取、覆盖或提交 Token、密码、API Key、`.claude/settings.local.json`、`.codex/`、`.worktrees/`。
 
-## 2. 当前系统基线
+事实优先级：生产代码与测试 > `AGENTS.md` > 总操作手册 > README > `NONFILE/` 历史快照。
 
-- 当前统一版本：`V5.1.3`，主仓库分支：`5.0`。
-- MCU：STM32F103C8，SPL V3.5.0，ARMCC V5，禁止引入 HAL。
-- 联网：ESP8266 只负责 WiFi/MQTT；STM32 只负责 PWM、ADC、安全和本地交互。
-- 显示：ST7735 160×128，SPI1 与 W25Q128 分时复用。
-- 频率：20.0–99.9kHz 步进 0.1kHz；100–200kHz 步进 1kHz。
-- 保存的默认启动值：低档 20.0kHz，高档 100kHz；每档都可独立修改。
-- 安全上限：5.0A；任何异常入口必须先关闭 PWM 和功率使能。
+## 2. 当前基线
+
+- 项目版本 `V5.1.3`，主仓库分支 `5.0`。
+- STM32F103C8 + SPL V3.5.0 + ARMCC V5/C89；禁止引入 HAL。
+- ST7735 160×128；TFT 与 W25Q128 共用 SPI1，统一由 `Spi1_Shared` 仲裁。
+- 低档 20.0–99.9kHz，设置步进 0.1kHz；高档 100–200kHz，设置步进 1kHz。
+- 默认保存目标：低档 20.0kHz，高档 100kHz；两档独立持久化。
+- 过流软件阈值 5.0A；异常入口先关 PWM/MOE，再关闭 PB10 功率使能。
 
 ## 3. 架构边界
 
 ```text
-STM32 Hardware/System/User
-        ↕ USART2 文本协议
-ESP8266 WiFi/MQTT
+STM32（PWM/ADC/安全/UI/存储）
+        ↕ USART2 一行一帧
+ESP8266（WiFi/MQTT/命令转换）
         ↕ OneNET
-Web / 微信小程序
+网页 / 微信小程序
 ```
 
-- `Hardware` 不依赖 `User`，`System` 提供基础时钟/校验，`User` 负责编排。
-- 模块私有状态必须为 `static`；禁止跨模块 `extern` 私有变量和 `#include ".c"`。
-- 中断只做采样、搬运、置位或快速关断，禁止显示、网络、Flash 擦写和阻塞等待。
-- 周期任务使用无符号时间差，运行阶段禁止 `Delay_Ms()`。
-- SPI1 所有切换必须经过 `Spi1_Shared`；TFT 与 W25Q128 不得各自抢占总线。
-- STM32 不发送 AT 指令，ESP8266 不直接控制 PWM、PB10 或 ADC。
+- 保持 `Hardware → System → User` 单向依赖；禁止跨模块 `extern` 私有变量和 `#include ".c"`。
+- 模块私有状态使用 `static`；公开接口由头文件声明。
+- STM32 不发送 AT 指令；ESP8266 不直接操作 PWM、PB10 或 ADC。
+- 中断只做采样、搬运、置位或快速关断；禁止显示、联网、Flash 擦写和阻塞等待。
+- 周期任务使用无符号时间差；初始化完成后禁止 `Delay_Ms()`。
+- TFT/W25Q128 访问必须先取得共享 SPI 所有权，失败时释放双 CS 并恢复总线。
 
-## 4. 状态与协议
+## 4. 状态、扫频和协议
 
-| 状态 | S | PWM | 遥测频率 F |
-|:---|:---:|:---:|:---:|
-| IDLE | 0 | 关闭 | 0 |
-| SWEEP | 1 | 开启 | 可不发布过渡帧 |
-| RUNNING | 2 | 开启 | 实际 Hz |
-| FAULT | 3 | 关闭 | 0 |
+| 状态 | S | PWM | Switch | 遥测 F |
+|:---|:---:|:---:|:---:|:---:|
+| IDLE | 0 | 关 | false | 0 |
+| SWEEP | 1 | 开 | false | TIM1 实际 Hz |
+| RUNNING | 2 | 开 | true | TIM1 实际 Hz |
+| FAULT | 3 | 关 | false | 0 |
 
-STM32 到 ESP8266 的唯一遥测格式：
+遥测固定为一行 JSON：
 
 ```text
 {"V":12.50,"I":0.35,"F":100000,"S":2}\n
 ```
 
-允许的控制命令：
+控制命令只允许完整匹配：
 
 ```text
 CMD:ON
@@ -65,98 +66,103 @@ CMD:WIFI_DISC
 CMD:CLEAR
 ```
 
-- 命令必须整帧精确匹配，禁止前缀误判。
-- `SETFREQ` 必须先校验 20000–200000Hz，再校验所属档位步进。
-- 网页和小程序展示 kHz，云端和串口传输 Hz。
-- V/I 在空闲和故障状态仍表示真实采样；PWM 未运行时 F 必须为 0。
-- 未配置云端时，小程序预览数据必须同时标记 `_isMock=true`、`_isOnline=false`，且不得触发报警。
+- V/I 在所有状态表示有效物理采样；IDLE/FAULT 只把 F 置 0。
+- 低档软启动从 99.9kHz 扫到该档保存目标，高档从 200kHz 扫到该档保存目标；启动时锁定档位与目标。
+- 运行期 `SETFREQ` 只改变本轮目标，不覆盖下次启动的两档保存值。
+- 频率输入先检查 20000–200000Hz，再检查低档 100Hz/高档 1000Hz 步进。
+- 网页和小程序显示 kHz；串口、MQTT 和 OneNET 属性使用 Hz。
+- ESP8266 生产固件保持 `ESP8266_DEBUG_ENABLED=0`，协议串口不得混入调试文本。
 
-## 5. STM32 编码与注释
+## 5. 功率安全红线
 
-- 所有业务 `.c` 第一段必须是中文文件头，包含 `@file`、中文 `@brief`、`@note V5.1.3`。
-- 所有业务 `.h` 第一行直接进入 include guard；文件开头禁止注释。
-- 新增和修改的注释使用中文，只解释原因、边界、并发或硬件风险。
-- 公开函数声明使用中文 Doxygen：`@brief`、需要时写 `@param` 和 `@retval`。
-- 禁止 `//`；统一使用 `/* ... */` 或 `/** ... */`。
-- ARMCC V5 按 C89 编写：变量在代码块开头声明，避免 C99 语法。
-- 中文字符串必须使用项目既有的 UTF-8 十六进制转义策略，避免 ARMCC 多字节警告。
-- 公开函数命名 `Module_Name_Verb_Noun()`；静态函数同样带模块前缀。
-- 静态变量 `s_name`，全局变量 `g_name`，宏和枚举值全大写。
+- 上电默认关闭 TIM1、MOE 和 PB10；启动必须通过功率稳定、ADC 校准/新鲜度、配置语义和故障状态门控。
+- 模拟看门狗快速关断与软件连续样本确认最终进入同一故障锁存路径。
+- `FAULT`、HardFault、NMI、BusFault、UsageFault 的第一动作必须关闭 PWM。
+- TIM1 保持互补输出、50% 占空、偶数周期、死区和原子更新；不得由 UI/网络直接写定时器。
+- SWEEP 与 RUNNING 均执行过流和 ADC 新鲜度检查；FAULT 恢复同时重置软启动和安全滤波。
+- Flash 擦写不得跨分区，且仅在确认 PWM/PB10 安全关闭的允许阶段执行。
+- 所有长度、地址、频率、枚举、串口帧和云端输入必须先验证再使用。
 
-## 6. 安全审查清单
+## 6. STM32 编码与中文注释
 
-- 上电默认 TIM1、MOE、PB10 全部关闭。
-- 启动前必须经过上电稳定门控和配置语义校验。
-- 过流快速路径与软件路径最终都进入相同的安全关断结果。
-- `FAULT`、HardFault、NMI、BusFault、UsageFault 首动作必须关 PWM。
-- TIM1 更新使用原子策略，互补输出、死区和 50% 占空基线不可破坏。
-- ADC DMA/触发窗口、EMA、报警阈值的单位必须一致。
-- Flash 写入不得跨分区；运行时禁止破坏字库、配置和黑匣子边界。
-- 串口环形缓冲必须处理溢出、整帧快照和 ORE，不能让调试文字污染协议。
-- 所有长度、地址、频率、枚举和云端输入先校验再使用。
+- 业务 `.c` 第一段必须是中文 Doxygen 文件头，含 `@file`、中文 `@brief`、`@note V5.1.3`。
+- 业务 `.h` 第一行直接进入 include guard，文件开头禁止注释；公开声明在 guard 内写中文 Doxygen。
+- 新增或修改的注释全部使用中文，只解释原因、边界、并发和硬件风险。
+- 禁止 `//`，使用 `/* ... */` 或 `/** ... */`。
+- 遵循 ARMCC V5/C89：变量在代码块开头声明，不使用 C99 `for` 声明或专属语法。
+- 中文字符串沿用项目十六进制转义策略，避免 ARMCC 多字节字符警告。
+- 公开函数和静态函数均使用模块前缀；静态变量 `s_`、全局变量 `g_`，宏和枚举值全大写。
+- 不修改 `Keil_Project/Library/` 和 `Keil_Project/Start/` 第三方基线，除非有明确缺陷证据。
 
 ## 7. UI 与客户端一致性
 
-- 设置页保留语言、字间距、图标、亮度和配色；返回键退出，确定键进入或保存。
-- 两个启动频率档独立保存；进入运行后从当前档保存值开始动态扫频。
-- 电压、电流、频率使用各自独立、分段递增且符合量程的表盘。
-- 网页与小程序必须跟随 STM32 的真实范围、步进、状态和单位。
-- 受保护网页先加载 `js/auth-guard.js`；持久登录最长 7 天，会话登录随浏览器会话结束。
-- Token、密码、API Key 不得写入仓库；日志不得输出凭证。
-- 轮询必须防重入，并在页面隐藏、卸载或离开时清理定时器。
+- 设置菜单固定为：语言、启动频率、字间距、光标图标、配色；亮度设置页已移除，PA12 背光保持固定开启。
+- 返回键取消/退出，确定键进入或保存；KEY1 双击回主菜单，KEY0 只控制 PB10。
+- 电压、电流、频率使用独立的分段递增表盘；频率量程跟随本轮锁定档位。
+- 网页、小程序和桥接必须跟随 STM32 的范围、步进、单位和 S=0/1/2/3 语义。
+- 小程序未配置 OneNET 时只显示预览：`_isMock=true`、`_isOnline=false`，不得报警、记录在线历史或开放控制。
+- 受保护网页先加载 `js/auth-guard.js`；持久登录最长 7 天，退出同时清理会话与持久状态。
+- 所有轮询防重入，并在隐藏、卸载或离开页面时清理；日志不得输出凭证。
 
-## 8. 文件位置约束
+## 8. 目录与清理约束
 
-| 内容 | 唯一允许位置 |
+| 内容 | 唯一位置 |
 |:---|:---|
-| STM32 工程 | `Keil_Project/` |
-| ESP8266 固件 | `Arduino_Project/` |
-| 网页端独立仓库 | `ONENETapp/` |
-| 微信小程序与可选桥接 | `安卓app/` |
-| 字库生成和烧录 | `ch341/` |
+| STM32 / ESP8266 / Web | `Keil_Project/` / `Arduino_Project/` / `ONENETapp/` |
+| 小程序与可选桥接 | `安卓app/` |
+| 字库工具 / 活动脚本 | `ch341/` / `tools/` |
 | 回归检查 | `tests/`、`Keil_Project/tests/` |
-| 主动维护脚本 | `tools/` |
 | 项目技能 | `.agents/skills/` |
-| 唯一总操作手册 | 根目录 `WPT无线充电系统-从零搭建完整操作手册.md/.docx` |
-| 历史报告、旧方案、旧图纸 | `NONFILE/` |
+| 唯一总手册 | 根目录同名 `.md/.docx` |
+| 历史资料 | `NONFILE/` |
 
-禁止重新创建 `Claude_Files/`、`docs/superpowers/`，禁止把任务报告散落到根目录。
+- 禁止恢复 `Claude_Files/`、`docs/superpowers/` 或根目录任务报告。
+- `NONFILE/README.md` 之外的归档文件名必须以对应历史版本 `-Vx.y.z` 结尾；历史内容不机械升级。
+- `node_modules/`、`__pycache__/`、字库镜像、Keil 产物和 `Target *.BAT` 不得被 Git 跟踪。
+- 清理前先核对引用、Git 归属和绝对路径；递归删除目标必须位于工作区内。
+- 不删除 Flash `backup_*.bin`、用户 IDE 配置或本地工具状态，除非用户明确点名。
+- 当前目录树只列实际存在的入口；归档代码不得被活动代码导入或执行。
 
-## 9. 版本同步规则
+## 9. 同步范围
 
-逻辑修复或安全修复提升补丁号；新增跨平台大功能提升中版本。发版时至少同步：
+- 改 STM32 范围、协议或状态：检查 ESP8266、网页、小程序、桥接、README、AGENTS、总手册和契约测试。
+- 改 UI/设置：检查持久化结构、按键路由、TFT 页面数、README 和总手册。
+- 改网页：只在 `ONENETapp/` 独立仓库提交，并验证受保护页面、PWA 缓存和线上入口。
+- 改目录：同步脚本、测试、文档链接、技能路径和 `.gitignore`。
+- 发版：同步活动代码版本、TFT 开机版本、PWA/manifest、桥接/工具版本和根文档；历史快照保留原版本。
 
-- STM32 业务 `.c` 文件头和 TFT 开机版本；
-- ESP8266 文件头；
-- 小程序所有活动 JS/WXML/WXSS；
-- 网页页面元数据、JS、CSS、PWA 缓存和网页 README；
-- 本地桥接 `package.json`；
-- 字库生成/烧录脚本；
-- 根 README、AGENTS、CLAUDE、总手册和本技能。
+## 10. 按风险验证
 
-历史记录可以保留旧版本号，不允许把历史版本机械替换成当前版本。
-
-## 10. 验证与推送
-
-至少执行：
+目录或技能变更至少执行：
 
 ```powershell
-node --test tests/client-model.test.cjs tests/bridge-core.test.mjs
 powershell -ExecutionPolicy Bypass -File tests/verify_v5_1_3_release.ps1
 powershell -ExecutionPolicy Bypass -File tests/verify_v5_1_3_fullstack.ps1
+```
+
+STM32 代码、设置或表盘变更再执行：
+
+```powershell
 powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_v5_1_3.ps1 -Scope Static
+powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_v5_1_1_hardening.ps1
+powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_settings_frequency.ps1
 powershell -ExecutionPolicy Bypass -File Keil_Project/tests/verify_task4_gauge.ps1
 ```
 
-- 能使用 Keil 时再做真实构建；不能构建必须明确说明，禁止伪造“零错误”。
-- 推送前运行 `Keil_Project/keilkill.bat`，确认无 `.obj`、`.lst`、`.axf`、`.hex`、`._ia` 等产物。
-- 先提交并推送 `ONENETapp` 的 `master` 与 `gh-pages`，再提交主仓库的子模块指针。
-- 主仓库只推送 `origin 5.0`；不得提交 `.claude/settings.local.json`、`.codex/` 或本地凭证。
+协议、客户端或桥接变更再执行：
 
-## 11. 本轮执行教训
+```powershell
+node --test tests/client-model.test.cjs tests/bridge-core.test.mjs
+```
 
-- 文档声称存在登录守卫不等于页面实际加载了守卫；必须用页面级契约测试验证。
-- 模拟数据、缓存数据、离线数据必须使用不同标记，不能靠“字段不存在”推断状态。
-- ESP8266 与 STM32 共用协议串口时，调试输出必须编译期关闭并集中封装。
-- 文件迁移后必须更新脚本、测试、README 和技能里的路径，不能只移动目录。
-- “全面同步”以协议、范围、状态和测试为准，不以相同版本字符串为准。
+- 用 `skill-creator/scripts/quick_validate.py` 验证技能格式；验证本项目安装副本与项目副本内容一致。
+- Node 测试需要依赖时按锁文件临时安装；依赖可留在本机但不得重新纳入 Git。
+- 能使用 Keil/ARMCC 时才声明真实构建结果；无实机时不得声称波形、温升或故障注入通过。
+- 推送前运行 `Keil_Project/keilkill.bat` 并确认无 `.obj/.lst/.axf/.hex/.map/._ia`。
+
+## 11. Git 发布
+
+- 仅在网页仓库实际变化时提交并同步其 `master` 与 `gh-pages`；不要制造空提交。
+- 主仓库提交前排除 `.claude/settings.local.json`、`.codex/`、本地凭证和进程状态。
+- 保留用户已有修改，不使用破坏性重置；提交主仓库后只推送 `origin 5.0`。
+- 最终报告区分：已验证、未运行、需实机验证，不把静态检查冒充真实编译或硬件验收。
